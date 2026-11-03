@@ -162,7 +162,7 @@ namespace Velivo
             }
 
             var tabBtns = new Dictionary<string, Button>();
-            int kSort = 0, kGen = 0, kSortTv = 0, kGrp = 0; Action odswiez = null; bool wyborGrupy = false;
+            int kSort = int.TryParse(GetPref("kanapa-sort"), out var ks0) ? ks0 : 0, kGen = 0, kSortTv = int.TryParse(GetPref("kanapa-sorttv"), out var ks1) ? ks1 : 0, kGrp = 0;   // wybór zapamiętany (grupa, gatunek - po nazwie) Action odswiez = null; bool wyborGrupy = false;
             var szukaj = new TextBox { Width = 380, FontSize = 18, Padding = new Thickness(12, 6, 12, 6), Background = KnCard, Foreground = KnFg, CaretBrush = KnFg, BorderBrush = KnGold, BorderThickness = new Thickness(0, 0, 0, 2), VerticalContentAlignment = VerticalAlignment.Center,
                 ToolTip = L.T("Szukaj: tytuł, aktor albo kanał i program – zacznij pisać") };
             var tSzukaj = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
@@ -211,7 +211,7 @@ namespace Velivo
                     var cont = lib.Where(v => v.Pos > 0 && !v.Done && v.Last > 0).OrderByDescending(v => v.Last).Take(12).ToList();
                     if (cont.Count > 0)
                     {   // duży kafelek: ostatni film, ile zostało i o której się skończy
-                        var v = cont[0]; var hero = new DockPanel { Margin = new Thickness(8, 8, 8, 30) };
+                        var v = cont[0]; var hero = new DockPanel { Margin = new Thickness(24, 18, 8, 30) };   // miejsce na powiększenie (1,07) - złota ramka nie ucięta
                         var g = new Grid(); var img = Poster(v.Path);
                         if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                         g.Children.Add(Caption(Tytul(v)));
@@ -235,7 +235,8 @@ namespace Velivo
                     var bar = Pasek(); var box = new ContentControl { Focusable = false };
                     var allCh = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
                     var groups = allCh.Select(c => c.Group ?? "").Where(g => g.Length > 0).Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
-                    var tvSorts = new[] { L.T("jak na liście"), L.T("A–Z"), L.T("ulubione najpierw"), L.T("co leci (A–Z)") };
+                    { var sg = GetPref("kanapa-grupa"); kGrp = string.IsNullOrEmpty(sg) ? 0 : groups.FindIndex(g => string.Equals(g, sg, StringComparison.CurrentCultureIgnoreCase)) + 1; }
+                    var tvSorts = new[] { L.T("jak na liście"), L.T("A–Z"), L.T("ulubione najpierw"), L.T("co leci (A–Z)") }; kSortTv = Math.Max(0, kSortTv) % tvSorts.Length;
                     void Fill()
                     {
                         var q = szukaj.Text.Trim(); var sp = new StackPanel(); string grp = kGrp > 0 && kGrp <= groups.Count ? groups[kGrp - 1] : null;
@@ -254,9 +255,9 @@ namespace Velivo
                         sp.Children.Add(Wrap(all.Select((c, i) => (UIElement)ChannelTile(all, i))));
                         box.Content = sp;
                     }
-                    Przycisk(bar, () => L.T("Sortuj: ") + tvSorts[kSortTv], b => { kSortTv = (kSortTv + 1) % tvSorts.Length; b.Content = L.T("Sortuj: ") + tvSorts[kSortTv]; Fill(); });
+                    Przycisk(bar, () => L.T("Sortuj: ") + tvSorts[kSortTv], b => { kSortTv = (kSortTv + 1) % tvSorts.Length; SetPref("kanapa-sorttv", kSortTv.ToString()); b.Content = L.T("Sortuj: ") + tvSorts[kSortTv]; Fill(); });
                     Przycisk(bar, () => L.T("Grupa: ") + (kGrp == 0 || kGrp > groups.Count ? L.T("wszystkie") : groups[kGrp - 1]), _ =>
-                        Lista(L.T("Wybierz grupę kanałów"), new[] { L.T("wszystkie") + "  (" + allCh.Count + ")" }.Concat(groups.Select(g => g + "  (" + allCh.Count(c => string.Equals(c.Group, g, StringComparison.CurrentCultureIgnoreCase)) + ")")).ToList(), kGrp, k => kGrp = k));
+                        Lista(L.T("Wybierz grupę kanałów"), new[] { L.T("wszystkie") + "  (" + allCh.Count + ")" }.Concat(groups.Select(g => g + "  (" + allCh.Count(c => string.Equals(c.Group, g, StringComparison.CurrentCultureIgnoreCase)) + ")")).ToList(), kGrp, k => { kGrp = k; SetPref("kanapa-grupa", k == 0 ? "" : groups[k - 1]); }));
                     if (_iptvEpg == null) bar.Children.Add(new TextBlock { Text = L.T("Wczytuję program TV…"), FontSize = 16, Foreground = KnDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
                     odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }
@@ -264,7 +265,8 @@ namespace Velivo
                 {
                     var bar = Pasek(); var box = new ContentControl { Focusable = false };
                     var genres = lib.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase).ToList();
-                    var sorts = new[] { L.T("A–Z"), L.T("Najnowsze"), L.T("Ocena"), L.T("Rok"), L.T("Nieobejrzane") };
+                    { var sg = GetPref("kanapa-gatunek"); kGen = string.IsNullOrEmpty(sg) ? 0 : genres.FindIndex(g => string.Equals(g, sg, StringComparison.CurrentCultureIgnoreCase)) + 1; }
+                    var sorts = new[] { L.T("A–Z"), L.T("Najnowsze"), L.T("Ocena"), L.T("Rok"), L.T("Nieobejrzane") }; kSort = Math.Max(0, kSort) % sorts.Length;
                     var count = new TextBlock { FontSize = 16, Foreground = KnDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
                     void Fill()
                     {
@@ -281,9 +283,9 @@ namespace Velivo
                         var list = l.ToList(); count.Text = list.Count + L.T(" filmów");
                         box.Content = Wrap(list.Select(v => (UIElement)FilmTile(v)));
                     }
-                    Przycisk(bar, () => L.T("Sortuj: ") + sorts[kSort], b => { kSort = (kSort + 1) % sorts.Length; b.Content = L.T("Sortuj: ") + sorts[kSort]; Fill(); });
+                    Przycisk(bar, () => L.T("Sortuj: ") + sorts[kSort], b => { kSort = (kSort + 1) % sorts.Length; SetPref("kanapa-sort", kSort.ToString()); b.Content = L.T("Sortuj: ") + sorts[kSort]; Fill(); });
                     Przycisk(bar, () => L.T("Gatunek: ") + (kGen == 0 || kGen > genres.Count ? L.T("wszystkie") : genres[kGen - 1]), _ =>
-                        Lista(L.T("Wybierz gatunek"), new[] { L.T("wszystkie") + "  (" + lib.Count + ")" }.Concat(genres.Select(g => g + "  (" + lib.Count(v => MetaFor(v.Path)?.Genres?.Contains(g, StringComparer.CurrentCultureIgnoreCase) ?? false) + ")")).ToList(), kGen, k => kGen = k));
+                        Lista(L.T("Wybierz gatunek"), new[] { L.T("wszystkie") + "  (" + lib.Count + ")" }.Concat(genres.Select(g => g + "  (" + lib.Count(v => MetaFor(v.Path)?.Genres?.Contains(g, StringComparer.CurrentCultureIgnoreCase) ?? false) + ")")).ToList(), kGen, k => { kGen = k; SetPref("kanapa-gatunek", k == 0 ? "" : genres[k - 1]); }));
                     bar.Children.Add(count);
                     odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }
@@ -368,6 +370,32 @@ namespace Velivo
             pad.Start();
             w.Closed += (s, e) => { tm.Stop(); pad.Stop(); if (_kanapa == w) _kanapa = null; };
             w.Show(); w.Activate();
+            // 📺 film / kanał, który gra, w okienku pod zegarem (jak PiP) zamiast samego dźwięku; po wyjściu z Kanapy odtwarzacz wraca, jak był
+            var pv = _vlcWin;
+            if (pv != null && pv.IsVisible && pv.WindowState != WindowState.Minimized && PlayerBusy)
+            {
+                var was = (State: pv.WindowState, Style: pv.WindowStyle, Resize: pv.ResizeMode, Top: pv.Topmost, L: pv.Left, T: pv.Top, W: pv.Width, H: pv.Height);
+                try
+                {
+                    var wa = SystemParameters.WorkArea;
+                    pv.WindowState = WindowState.Normal; pv.WindowStyle = WindowStyle.None; pv.ResizeMode = ResizeMode.NoResize;
+                    pv.Width = 448; pv.Height = 252; pv.Left = wa.Right - 448 - 40; pv.Top = wa.Top + 92;
+                    pv.Topmost = false; pv.Topmost = true;   // nad Kanapą (też na wierzchu)
+                    w.Activate();
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                w.Closed += (s2, e2) =>
+                {
+                    try
+                    {
+                        if (_vlcWin != pv) return;   // odtwarzacz zamknięty w międzyczasie
+                        pv.Topmost = was.Top; pv.WindowStyle = was.Style; pv.ResizeMode = was.Resize;
+                        pv.Left = was.L; pv.Top = was.T; pv.Width = was.W; pv.Height = was.H; pv.WindowState = was.State;
+                        pv.Activate();
+                    }
+                    catch (Exception ex) { App.LogError(ex); }
+                };
+            }
             if (_iptvEpg == null) LoadIptvInBackground(() => Dispatcher.BeginInvoke(new Action(() =>
             {   // program TV z pamięci podręcznej (bez otwierania okna TV był pusty) - odświeżenie widoku
                 if (_kanapa != w) return;

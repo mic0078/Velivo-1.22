@@ -44,7 +44,8 @@ namespace Velivo
             public int AutoHours { get; set; }   // samo odswiezanie biblioteki z Jellyfin co tyle godzin (0 = wylaczone)
             public string Lan { get; set; }   // ostatni działający adres w sieci domowej - w domu router często nie wpuszcza na własny adres z internetu (n5plus…)
             public List<JellyfinConf> More { get; set; }   // kolejne serwery Jellyfin - filmy ze wszystkich w jednej bibliotece
-            public List<string> Declined { get; set; }   // serwery z innych moich komputerów, których właściciel nie chciał dodać
+            public List<string> Declined { get; set; }
+            public bool Wspolna { get; set; }   // true - filmy tylko ze wspólnej biblioteki innych Velivo (ten komputer nie łączy się z Jellyfin)   // serwery z innych moich komputerów, których właściciel nie chciał dodać
         }
         // wszystkie ustawione serwery: główny + kolejne (tylko z adresem i kluczem)
         static List<JellyfinConf> JfServers(JellyfinConf c) => c == null ? new List<JellyfinConf>() : new[] { c }.Concat(c.More ?? new List<JellyfinConf>()).Where(x => x != null && !string.IsNullOrEmpty(x.Url) && !string.IsNullOrEmpty(x.Key)).ToList();
@@ -603,7 +604,7 @@ namespace Velivo
         async void AutoSyncJellyfin()
         {
             var c = LoadJellyfinConf();
-            if (c == null || string.IsNullOrEmpty(c.Url) || DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - c.Synced < 6 * 3600 * 1000L) return;
+            if (c == null || c.Wspolna || string.IsNullOrEmpty(c.Url) || DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - c.Synced < 6 * 3600 * 1000L) return;
             try { await SyncJellyfin(c, _ => { }); _libRefresh?.Invoke(); } catch (Exception) { }   // serwer wylaczony - zostaje lokalna baza
         }
 
@@ -620,7 +621,7 @@ namespace Velivo
                 _jellyfinTimer.Interval = TimeSpan.FromMinutes(10);
                 ShowJellyfinRemoved();   // decyzja o usuniętych z Jellyfin - dymek aż do odpowiedzi (także po ponownym uruchomieniu)
                 var c = LoadJellyfinConf();
-                if (_jellyfinSyncing || c == null || c.AutoHours <= 0 || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key)) return;
+                if (_jellyfinSyncing || c == null || c.Wspolna || c.AutoHours <= 0 || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key)) return;
                 if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - c.Synced < c.AutoHours * 3600000L) return;
                 _jellyfinSyncing = true;
                 try
@@ -693,6 +694,7 @@ namespace Velivo
             toast.Show();
         }
 
+        static TextBlock JfWrap(string t) => new TextBlock { Text = t, TextWrapping = TextWrapping.Wrap };
         void ShowJellyfinDialog(Window owner)
         {
             var c = LoadJellyfinConf() ?? new JellyfinConf { Url = "http://" };
@@ -779,7 +781,7 @@ namespace Velivo
                     var r = await Task.Run(() => SyncJellyfin(c, t => Dispatcher.BeginInvoke(new Action(() => info.Text = t))));
                     info.Foreground = Brushes.SeaGreen; info.Text = r;
                     // od razu jak 🔄 Odśwież: nowe filmy z Jellyfin do biblioteki (wcześniej tylko opisy i plakaty - biblioteka zostawała pusta)
-                    var add = await JellyfinAddNewAsync(_libSharedView, d);
+                    var add = await JellyfinAddNewAsync(false, d);   // samodzielna baza - filmy do biblioteki tego komputera
                     info.Text = r + "\n" + add;
                     _libRefresh?.Invoke();
                 }
@@ -794,6 +796,23 @@ namespace Velivo
                 if (Uri.TryCreate(nu, UriKind.Absolute, out var u2) && (u2.Scheme == "http" || u2.Scheme == "https") && nk.Length > 0 && (nu != c.Url || nk != c.Key) && apply(nu, nk))
                 { SaveJellyfinConf(c); JfShareChanged(); }
             };
+            // 🎞 skąd ten komputer bierze filmy: wspólna baza przez inne Velivo albo samodzielnie wprost z Jellyfin (Velivo na serwerze niepotrzebne)
+            var jfOnly = p.Children.Cast<UIElement>().Where(x => x != info).ToList();
+            var rbShared = new RadioButton { GroupName = "jf-zrodlo", Content = JfWrap(L.T("📚 Wspólna baza przez Velivo – filmy z innych moich komputerów z Velivo (np. NUCBOX); one muszą być włączone")), Margin = new Thickness(0, 0, 0, 4), IsChecked = c.Wspolna };
+            var rbOwn = new RadioButton { GroupName = "jf-zrodlo", Content = JfWrap(L.T("🔒 Samodzielna baza – ten komputer łączy się wprost z serwerem Jellyfin (Velivo na serwerze niepotrzebne)")), Margin = new Thickness(0, 0, 0, 8), IsChecked = !c.Wspolna };
+            p.Children.Insert(0, new TextBlock { Text = L.T("Skąd ten komputer bierze filmy:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+            p.Children.Insert(1, rbShared); p.Children.Insert(2, rbOwn);
+            Action mode = () =>
+            {
+                bool sh = rbShared.IsChecked == true;
+                foreach (var x in jfOnly) x.Visibility = sh ? Visibility.Collapsed : Visibility.Visible;
+                info.Foreground = Brushes.Gray; info.Text = sh ? L.T("Filmy są w bibliotece 📚 Wspólna. Ten komputer nie łączy się z Jellyfin – listę i filmy dają inne komputery z Velivo.") : L.T("Filmy są w bibliotece 🔒 tego komputera – kliknij „Pobierz / uzupełnij teraz”.");
+                if (c.Wspolna == sh) return;
+                c.Wspolna = sh; var cur = LoadJellyfinConf() ?? c; cur.Wspolna = sh; SaveJellyfinConf(cur);
+                _libSharedView = sh; _libRefresh?.Invoke();
+            };
+            rbShared.Checked += (s, e) => mode(); rbOwn.Checked += (s, e) => mode();
+            if (c.Wspolna) mode();
             d.Content = p;
             d.Show();
         }

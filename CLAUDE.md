@@ -199,6 +199,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-03: nowy Jellyfin na HP „nie wchodzi do Velivo” – po zmianie adresu zostawał zapasowy adres domowy starego serwera (`Lan` = NUCBOX); gdy HP nie odpowiadał, Velivo łączyło się z NUCBOX z kluczem HP („zły klucz API”). Teraz zmiana adresu kasuje stary zapasowy. Zapas zapamiętany dla jednego celu – kasuj, gdy cel się zmienia.
 * 2026-11-03: c.d. HP dalej „zły klucz API” – Jellyfin 12.4 nie przyjmuje starego nagłówka `X-Emby-Token`; teraz też `Authorization: MediaBrowser Token="…"` i `ApiKey=` (Windows i telefon) – potwierdzone przez właściciela („pobiera”). Nowa wersja serwera: najpierw sprawdź, czy nie zmienił się sposób logowania.
 * 2026-11-03: Ryzen – biblioteka 🔒 pusta, „Nowe filmy z Jellyfin: 0” – dodawanie pomijało film obecny w DRUGIEJ bibliotece (📚 wspólnej); ja tłumaczyłem to zależnością od HP („co ma piernik do wiatraka”). Teraz porównanie tylko z otwartą biblioteką. Nie dorabiaj teorii do objawu – szukaj warunku w kodzie.
+* 2026-11-03: c.d. właściciel: „ty mnie nie rozumiesz” – chciał wyboru w oknie Jellyfin, a ja tłumaczyłem kod; teraz 🎞 Jellyfin… ma na górze: 📚 Wspólna baza przez Velivo / 🔒 Samodzielna wprost z Jellyfin (`Wspolna`). Gdy właściciel opisuje dwie drogi – pokaż je w programie jako wybór, nie w odpowiedzi.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

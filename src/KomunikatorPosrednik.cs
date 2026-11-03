@@ -1778,7 +1778,7 @@ namespace Velivo
         void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
         static void KomLogKeep(string p, Func<string, bool> keep)
         {
-            try { if (File.Exists(p)) { var l = File.ReadAllLines(p).Where(keep).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, l) + (l.Count > 0 ? Environment.NewLine : "")); } } catch (Exception ex) { App.LogError(ex); }
+            try { if (File.Exists(p)) { var l = File.ReadAllLines(p).Where(x => !string.IsNullOrWhiteSpace(x)).Where(keep).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, l) + (l.Count > 0 ? Environment.NewLine : "")); } } catch (Exception ex) { App.LogError(ex); }
         }
         // przechowywanie (ustawia właściciel): pliki i wiadomości w skrzynce oraz wpisy dziennika starsze niż N dni - usuwane; raz na godzinę
         DateTime _komExpireAt;
@@ -1850,7 +1850,7 @@ namespace Velivo
             List<string[]> LogRows(string file, int n)
             {
                 var p = Path.Combine(DataDir, file); if (!File.Exists(p)) return new List<string[]>();
-                return File.ReadLines(p).Reverse().Take(n).Select(l => l.Length > 21 && DateTime.TryParse(l.Substring(0, 19), out _) ? new[] { l.Substring(0, 19), l.Substring(19).Trim() } : new[] { "", l }).ToList();
+                return File.ReadLines(p).Where(l => !string.IsNullOrWhiteSpace(l)).Reverse().Take(n).Select(l => l.Length > 21 && DateTime.TryParse(l.Substring(0, 19), out _) ? new[] { l.Substring(0, 19), l.Substring(19).Trim() } : new[] { "", l }).ToList();
             }
             // dziennik wszystkich moich serwerów: własny + wpisy przysłane przez inne serwery w domu, razem po czasie
             var (tLog, rLog) = KomTable(new[] { L.T("Czas"), L.T("Serwer"), L.T("Zdarzenie (osoba i co się stało)") }, () =>

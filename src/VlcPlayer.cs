@@ -2291,7 +2291,7 @@ namespace Velivo
             aEarly.Click += (s, e) => setADelay(aDelayMs - 50); aLate.Click += (s, e) => setADelay(aDelayMs + 50);
             MouseButtonEventHandler aReset = (s, e) => { e.Handled = true; setADelay(0); resync(); };
             aEarly.MouseRightButtonUp += aReset; aLate.MouseRightButtonUp += aReset; aDelayTips();
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { try { if (aDelayMs != 0) mp.SetAudioDelay(aDelayMs * 1000L); } catch (Exception) { } }));   // każdy film / kanał z tym samym przesunięciem
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { try { if (aDelayMs != 0) { mp.SetAudioDelay(aDelayMs * 1000L); showOsd(aDelayText()); } } catch (Exception) { } }));   // zapamiętane przesunięcie widoczne przy starcie - inaczej wygląda jak stałe opóźnienie   // każdy film / kanał z tym samym przesunięciem
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {

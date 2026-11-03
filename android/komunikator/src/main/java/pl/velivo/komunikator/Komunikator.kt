@@ -1756,7 +1756,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (android.os.Build.VERSION.SDK_INT < 30) return false
         return runCatching {
             val sm = ctx.getSystemService(android.content.pm.ShortcutManager::class.java) ?: return@runCatching false
-            val icon = bmp?.let { android.graphics.drawable.Icon.createWithAdaptiveBitmap(it) } ?: android.graphics.drawable.Icon.createWithResource(ctx, statIcon)
+            val icon = android.graphics.drawable.Icon.createWithAdaptiveBitmap(bubbleFace(c, bmp))
             sm.pushDynamicShortcut(android.content.pm.ShortcutInfo.Builder(ctx, "czat-" + c.id).setLongLived(true).setShortLabel(c.name.take(24).ifEmpty { "Velivo" })
                 .setPerson(them).setIcon(icon).setIntent(openIntent(c.id).setAction(Intent.ACTION_VIEW)).build())
             val pi = PendingIntent.getActivity(ctx, c.id.hashCode() + 3, bi(c.id), PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -1764,6 +1764,19 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 .setAutoExpandBubble(expand).setSuppressNotification(expand).build())
             true
         }.getOrDefault(false)
+    }
+    private fun bubbleFace(c: Contact, bmp: android.graphics.Bitmap?): android.graphics.Bitmap {
+        val n = 216; val out = android.graphics.Bitmap.createBitmap(n, n, android.graphics.Bitmap.Config.ARGB_8888); val cv = android.graphics.Canvas(out)
+        val cols = intArrayOf(0xFF7C3AED.toInt(), 0xFF2563EB.toInt(), 0xFF059669.toInt(), 0xFFD97706.toInt(), 0xFFDB2777.toInt(), 0xFF0891B2.toInt())
+        cv.drawColor(cols[Math.floorMod(c.id.hashCode(), cols.size)])
+        if (bmp != null) {
+            val side = minOf(bmp.width, bmp.height); val src = android.graphics.Rect((bmp.width - side) / 2, (bmp.height - side) / 2, (bmp.width + side) / 2, (bmp.height + side) / 2)
+            cv.drawBitmap(bmp, src, android.graphics.Rect(0, 0, n, n), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+        } else {
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = n * 0.36f; textAlign = android.graphics.Paint.Align.CENTER; isFakeBoldText = true }
+            cv.drawText(c.name.trim().take(1).uppercase().ifEmpty { "V" }, n / 2f, n / 2f - (p.descent() + p.ascent()) / 2, p)
+        }
+        return out
     }
     // 💬 z menu rozmowy: bąbelek od razu na ekranie; "" = gotowe, inaczej powód (bąbelki wyłączone w ustawieniach telefonu)
     fun showBubble(c: Contact): String {
@@ -2083,7 +2096,19 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private val green = Color.rgb(34, 197, 94)
     private val violet get() = pal().mine
 
+    // 🫧 w bąbelku: komunikator wprost w oknie aktywności (pełnoekranowe okienko Dialog w dymku znikało razem z bąbelkiem)
+    var embedded = false
+    fun back(): Boolean { if (chatWith != null) { show(); return true }; return false }
     private fun page(): FrameLayout {
+        if (embedded) {
+            page?.let { return it }
+            val root = FrameLayout(a)
+            a.setContentView(root); paint(null, root); page = root
+            val h = Handler(Looper.getMainLooper())
+            val tick = object : Runnable { override fun run() { if (onTop) { k.ping(); h.postDelayed({ refresh() }, 2000) }; h.postDelayed(this, 30000) } }
+            h.post(tick)
+            return root
+        }
         page?.let { if (screen?.isShowing == true) return it }
         val d = android.app.Dialog(a, android.R.style.Theme_Material_NoActionBar)
         val root = FrameLayout(a).apply {
@@ -2638,7 +2663,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         fill()
         listRefresh = { if (chatWith == null) fill() }
-        val close = icon("✕", t("Zamknij", "Close")) { screen?.dismiss() }
+        val close = icon("✕", t("Zamknij", "Close")) { if (embedded) a.moveTaskToBack(true) else screen?.dismiss() }
         val title = LinearLayout(a).apply {   // „Velivo” w kolorach Velivo (fiolet → niebieski), miękka czcionka; pod spodem autor
             orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(10), 0, px(4), 0)
             addView(TextView(a).apply {

@@ -151,7 +151,9 @@ namespace Velivo
                 var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8) };
                 foreach (var t in tiles) line.Children.Add(t);
                 if (line.Children.Count == 0) line.Children.Add(new TextBlock { Text = L.T("Pusto"), Foreground = KnDim, FontSize = 16 });
-                sp.Children.Add(new ScrollViewer { Content = line, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false });
+                var hs = new ScrollViewer { Content = line, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
+                hs.PreviewMouseWheel += (s2, e2) => { e2.Handled = true; body.ScrollToVerticalOffset(body.VerticalOffset - e2.Delta); };   // rząd kafelków nie zjada kółka myszy - przewija cała strona
+                sp.Children.Add(hs);
                 return sp;
             }
             UIElement Wrap(IEnumerable<UIElement> tiles)

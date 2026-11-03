@@ -16,6 +16,7 @@ import android.widget.Toast
 open class Start : Activity() {
     private lateinit var k: Komunikator
     private lateinit var okno: KomunikatorOkno
+    protected open val bubble = false   // 🫧 okno w bąbelku
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
@@ -30,6 +31,7 @@ open class Start : Activity() {
         k.openIntent = { id -> Intent(applicationContext, Start::class.java).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
         k.bubbleIntent = { id -> Intent(applicationContext, Babelek::class.java).setAction(Intent.ACTION_VIEW).putExtra("czat", id) }
         okno = KomunikatorOkno(this, k) { pick() }
+        okno.embedded = bubble
         okno.onClose = { if (!picking) moveTaskToBack(true) }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2)
@@ -78,6 +80,8 @@ open class Start : Activity() {
         }
     }
 
+    @Deprecated("Activity API")
+    override fun onBackPressed() { if (!(bubble && ready && okno.back())) @Suppress("DEPRECATION") super.onBackPressed() }   // 🫧 w bąbelku: z rozmowy - lista; z listy - zwinięcie
     override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); if (ready) handle(i) }
 
     private fun handle(i: Intent?) {
@@ -133,4 +137,6 @@ open class Start : Activity() {
 }
 
 // 🫧 bąbelek rozmowy (Android 11+): to samo okno komunikatora, osadzone w dymku nad innymi aplikacjami
-class Babelek : Start()
+class Babelek : Start() {
+    override val bubble = true
+}

@@ -467,15 +467,15 @@ namespace Velivo
             // filmy usunięte wcześniej „tylko z Velivo” nie wracają same - ręczne „Pobierz / uzupełnij” mówi, ile ich jest, i pyta o przywrócenie
             // (biblioteka pusta, a „Nowe: 0” - nie było widać dlaczego)
             var skipped = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Where(v => IsShared(v) == shared).Select(v => v.Path), playable)
-                .Where(p => JellyfinSkipped().Contains(p, StringComparer.OrdinalIgnoreCase)).ToList());
+                .Where(p => JellyfinSkipped(shared).Contains(p, StringComparer.OrdinalIgnoreCase)).ToList());
             if (askOwner != null && skipped.Count > 0 && MessageBox.Show(askOwner, string.Format(L.T("{0} filmów z Jellyfin jest na tym komputerze, ale wcześniej usunięto je tylko z biblioteki Velivo, więc nie wracają same.\n\nPrzywrócić je do biblioteki?"), skipped.Count),
                     "🎞 Jellyfin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 var back = new HashSet<string>(skipped, StringComparer.OrdinalIgnoreCase);
-                try { File.WriteAllLines(JellyfinSkipFile, JellyfinSkipped().Where(p => !back.Contains(p))); } catch (Exception ex) { App.LogError(ex); }
+                JellyfinSkipRestore(back, shared);
                 skipped.Clear();
             }
-            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Where(v => IsShared(v) == shared).Select(v => v.Path).Concat(JellyfinSkipped()), playable));   // usunięte „tylko z Velivo” nie wracają
+            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Where(v => IsShared(v) == shared).Select(v => v.Path).Concat(JellyfinSkipped(shared)), playable));   // usunięte „tylko z Velivo” nie wracają
             int n = 0;
             if (add.Count > 0) { var l = LoadLibrary(); n = AddToLibrary(l, add, shared); SaveLibrary(l); }
             // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
@@ -898,7 +898,7 @@ namespace Velivo
                     var ans = MessageBox.Show(win, string.Format(L.T("{0} z zaznaczonych filmów jest na serwerze Jellyfin.\n\nTak – usuń też z Jellyfin (serwer skasuje plik filmu ze swojego dysku, na stałe).\nNie – usuń tylko z biblioteki Velivo (nie wróci przy 🔄 Odśwież).\nAnuluj – nic nie usuwaj."), jf.Count), "🎞 Jellyfin", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.No);
                     if (ans == MessageBoxResult.Cancel || ans == MessageBoxResult.None) return;
                     jfDelete = ans == MessageBoxResult.Yes;
-                    if (!jfDelete) JellyfinSkipAdd(jf.Select(x => x.Path));
+                    if (!jfDelete) JellyfinSkipAdd(jf.Select(x => x.Path), _libSharedView);   // nie wraca tylko w tej bibliotece
                 }
                 var l = LoadLibrary(); bool sh = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs(); l.RemoveAll(v => (tv ? IsTvRec(v.Path, recDirs) : IsShared(v) == sh) && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();

@@ -62,10 +62,20 @@ namespace Velivo
         // nowe filmy z Jellyfin, ktorych plik jest dostepny na tym komputerze, a nie ma ich w bibliotece (ten sam plik z dwoch bibliotek Jellyfin - raz)
         // 🎞 filmy usunięte w Velivo „tylko z biblioteki” - nie wracają przy 🔄 Odśwież (pliki dalej na serwerze Jellyfin)
         static string JellyfinSkipFile { get { return Path.Combine(MetaDir, "pominiete.txt"); } }
-        static IEnumerable<string> JellyfinSkipped() { try { return File.Exists(JellyfinSkipFile) ? File.ReadAllLines(JellyfinSkipFile) : Array.Empty<string>(); } catch (Exception) { return Array.Empty<string>(); } }
-        static void JellyfinSkipAdd(IEnumerable<string> paths)
+        // wiersz: "S|ścieżka" (📚 wspólna), "P|ścieżka" (🔒 tego komputera); stary wiersz bez znacznika - obie biblioteki
+        static List<string> JellyfinSkipLines() { try { return File.Exists(JellyfinSkipFile) ? File.ReadAllLines(JellyfinSkipFile).ToList() : new List<string>(); } catch (Exception) { return new List<string>(); } }
+        static bool JfSkipTagged(string l) => l.StartsWith("S|") || l.StartsWith("P|");
+        static IEnumerable<string> JellyfinSkipped(bool shared) => JellyfinSkipLines().Where(l => !JfSkipTagged(l) || l.StartsWith(shared ? "S|" : "P|")).Select(l => JfSkipTagged(l) ? l.Substring(2) : l).ToList();
+        static void JellyfinSkipAdd(IEnumerable<string> paths, bool shared)
         {
-            try { Directory.CreateDirectory(MetaDir); File.WriteAllLines(JellyfinSkipFile, JellyfinSkipped().Concat(paths).Distinct(StringComparer.OrdinalIgnoreCase)); } catch (Exception ex) { App.LogError(ex); }
+            try { Directory.CreateDirectory(MetaDir); File.WriteAllLines(JellyfinSkipFile, JellyfinSkipLines().Concat(paths.Select(p => (shared ? "S|" : "P|") + p)).Distinct(StringComparer.OrdinalIgnoreCase)); } catch (Exception ex) { App.LogError(ex); }
+        }
+        // przywrócenie w jednej bibliotece - stary wiersz (obie) zostaje dla drugiej
+        static void JellyfinSkipRestore(HashSet<string> back, bool shared)
+        {
+            var o = shared ? "P|" : "S|";
+            var keep = JellyfinSkipLines().SelectMany(l => !JfSkipTagged(l) ? (back.Contains(l) ? new[] { o + l } : new[] { l }) : l.StartsWith(shared ? "S|" : "P|") && back.Contains(l.Substring(2)) ? new string[0] : new[] { l });
+            try { File.WriteAllLines(JellyfinSkipFile, keep.Distinct(StringComparer.OrdinalIgnoreCase)); } catch (Exception ex) { App.LogError(ex); }
         }
         // usunięcie filmów na serwerze Jellyfin (DELETE /Items/{id}; klucz API administratora) - wynik do dymka
         static async Task<string> JellyfinDeleteAsync(JellyfinConf c, List<string> ids)

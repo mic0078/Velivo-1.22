@@ -132,9 +132,11 @@ namespace Velivo
                 infoOf[b] = () =>
                 {
                     var p = Teraz(ch);
-                    if (p == null) { Opis(ch.Name, string.IsNullOrEmpty(ch.Group) ? L.T("Na żywo") : "📺 " + ch.Group, L.T("Brak programu TV dla tego kanału.")); return; }
+                    if (p == null) { Opis(ch.Name, string.IsNullOrEmpty(ch.Group) ? L.T("Na żywo") : "📺 " + ch.Group, _iptvEpg == null ? L.T("Wczytuję program TV…") : L.T("Brak programu TV dla tego kanału.")); return; }
                     var left = p.Stop - DateTime.Now;
-                    Opis(ch.Name + "  –  " + p.Title, p.Start.ToString("HH:mm") + "–" + p.Stop.ToString("HH:mm") + "   ·   " + L.T("zostało ") + Math.Max(1, (int)left.TotalMinutes) + L.T(" min") + (p.Cats?.Count > 0 ? "   ·   " + string.Join(", ", p.Cats.Take(2)) : ""), p.Desc);
+                    EpgItem nx = null; try { nx = EpgFor(_iptvEpg, ch)?.FirstOrDefault(x => x.Start >= p.Stop); } catch (Exception) { }
+                    Opis(ch.Name + "  –  " + p.Title, p.Start.ToString("HH:mm") + "–" + p.Stop.ToString("HH:mm") + "   ·   " + L.T("zostało ") + Math.Max(1, (int)left.TotalMinutes) + L.T(" min") + (p.Cats?.Count > 0 ? "   ·   " + string.Join(", ", p.Cats.Take(2)) : "")
+                        + (nx != null ? "   ·   " + L.T("potem: ") + nx.Start.ToString("HH:mm") + " " + nx.Title : ""), p.Desc);
                 };
                 return b;
             }
@@ -160,7 +162,7 @@ namespace Velivo
             }
 
             var tabBtns = new Dictionary<string, Button>();
-            int kSort = 0, kGen = 0; Action odswiez = null;
+            int kSort = 0, kGen = 0, kSortTv = 0, kGrp = 0; Action odswiez = null;
             var szukaj = new TextBox { Width = 380, FontSize = 18, Padding = new Thickness(12, 6, 12, 6), Background = KnCard, Foreground = KnFg, CaretBrush = KnFg, BorderBrush = KnGold, BorderThickness = new Thickness(0, 0, 0, 2), VerticalContentAlignment = VerticalAlignment.Center,
                 ToolTip = L.T("Szukaj: tytuł, aktor albo kanał i program – zacznij pisać") };
             var tSzukaj = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
@@ -223,15 +225,29 @@ namespace Velivo
                 {
                     var bar = Pasek(); var box = new ContentControl { Focusable = false };
                     var allCh = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+                    var groups = allCh.Select(c => c.Group ?? "").Where(g => g.Length > 0).Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
+                    var tvSorts = new[] { L.T("jak na liście"), L.T("A–Z"), L.T("ulubione najpierw"), L.T("co leci (A–Z)") };
                     void Fill()
                     {
-                        var q = szukaj.Text.Trim(); var sp = new StackPanel();
-                        if (q.Length == 0) { var fav = FavChannels(); sp.Children.Add(Row(L.T("Ulubione kanały"), fav.Select((c, i) => (UIElement)ChannelTile(fav, i)))); }
-                        var all = allCh.Where(c => q.Length == 0 || (c.Name ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || (Teraz(c)?.Title ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).Take(200).ToList();
+                        var q = szukaj.Text.Trim(); var sp = new StackPanel(); string grp = kGrp > 0 && kGrp <= groups.Count ? groups[kGrp - 1] : null;
+                        if (q.Length == 0 && grp == null) { var fav = FavChannels(); sp.Children.Add(Row(L.T("Ulubione kanały"), fav.Select((c, i) => (UIElement)ChannelTile(fav, i)))); }
+                        var sel = allCh.Where(c => (grp == null || string.Equals(c.Group, grp, StringComparison.CurrentCultureIgnoreCase))
+                            && (q.Length == 0 || (c.Name ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || (Teraz(c)?.Title ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0));
+                        sel = kSortTv switch
+                        {
+                            1 => sel.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase),
+                            2 => sel.OrderBy(c => IptvSt.Fav.Contains(c.Url) ? 0 : 1),
+                            3 => sel.OrderBy(c => Teraz(c)?.Title ?? "\uffff", StringComparer.CurrentCultureIgnoreCase),
+                            _ => sel,
+                        };
+                        var all = sel.Take(300).ToList();
                         sp.Children.Add(new TextBlock { Text = L.T("Wszystkie kanały") + " (" + all.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
                         sp.Children.Add(Wrap(all.Select((c, i) => (UIElement)ChannelTile(all, i))));
                         box.Content = sp;
                     }
+                    Przycisk(bar, () => L.T("Sortuj: ") + tvSorts[kSortTv], b => { kSortTv = (kSortTv + 1) % tvSorts.Length; b.Content = L.T("Sortuj: ") + tvSorts[kSortTv]; Fill(); });
+                    Przycisk(bar, () => L.T("Grupa: ") + (kGrp == 0 || kGrp > groups.Count ? L.T("wszystkie") : groups[kGrp - 1]), b => { kGrp = (kGrp + 1) % (groups.Count + 1); b.Content = L.T("Grupa: ") + (kGrp == 0 ? L.T("wszystkie") : groups[kGrp - 1]); Fill(); });
+                    if (_iptvEpg == null) bar.Children.Add(new TextBlock { Text = L.T("Wczytuję program TV…"), FontSize = 16, Foreground = KnDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
                     odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }
                 else if (t == "film")
@@ -341,6 +357,11 @@ namespace Velivo
             pad.Start();
             w.Closed += (s, e) => { tm.Stop(); pad.Stop(); if (_kanapa == w) _kanapa = null; };
             w.Show(); w.Activate();
+            if (_iptvEpg == null) LoadIptvInBackground(() => Dispatcher.BeginInvoke(new Action(() =>
+            {   // program TV z pamięci podręcznej (bez otwierania okna TV był pusty) - odświeżenie widoku
+                if (_kanapa != w) return;
+                if (tab == "tv") Pokaz("tv"); else if (tab == "start") Pokaz("start");
+            })));
             Pokaz("start");
         }
 

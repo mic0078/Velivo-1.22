@@ -478,6 +478,9 @@ namespace Velivo
             if (c != null)
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
+                // pakiet z naszym wspólnym kluczem = ten kontakt zna TEN komputer - pliki do niego zawsze w moim imieniu, nigdy przez innego serwera (alias)
+                if (_komOpt["knows"] is not JsonObject kn) _komOpt["knows"] = kn = new JsonObject();
+                if (kn[c.Id] == null) { kn[c.Id] = true; KomSave(); }
                 if (t == "p2p-here" && (bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
                 if ((bool?)p["fwd"] == true && c.Addr == sender.ToString()) { c.Addr = ""; KomSave(); }   // zapisany adres to pośrednik (NUCBOX), nie kontakt - kasowany
                 // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy ida przez niego
@@ -1432,8 +1435,9 @@ namespace Velivo
                         var pubA = me.ExportSubjectPublicKeyInfo(); var baseNonce = RandomNumberGenerator.GetBytes(12);
                         // 🔁 plik do skrzynki dla kogoś, kogo znam tylko przez mój inny serwer (mama zna NUCBOX, nie Ryzena): wysyłam w imieniu tamtego serwera jego kluczem z tą osobą - odbiorca go przyjmie (u niego w rozmowie z tym serwerem)
                         string asId = _komId; var fileKey = to?.Key;
-                        if (box && to != null && group == null && _komOpt["alias"] is JsonObject al)
-                            foreach (var kv in al) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)
+                        // tylko gdy odbiorca NIE zna tego komputera (nigdy nie przysłał nic naszym kluczem); najpierw serwer, który działa - inaczej plik z Ryzena szedł do Motoroli jako „od CHUWI” (wyłączonego)
+                        if (box && to != null && group == null && _komOpt["alias"] is JsonObject al && (_komOpt["knows"] as JsonObject)?[to.Id] == null)
+                            foreach (var kv in al.OrderByDescending(x => KomOnline(x.Key.Substring(x.Key.IndexOf('|') + 1))).ToList()) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)
                                 try { var k2 = Convert.FromBase64String(ak); if (k2.Length == 32) { asId = kv.Key.Substring(to.Id.Length + 1); fileKey = k2; break; } } catch (Exception) { }
                         var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = asId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;

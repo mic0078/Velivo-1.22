@@ -1242,8 +1242,6 @@ namespace Velivo
             { " – czekam, aż odbiorca przyjmie…", " – waiting for the recipient to accept…" },
             { " od ", " from " },
             { " – zapisano", " – saved" },
-            { "🔊 Dźwięk zniknął – przywracam…", "🔊 Sound dropped – restoring…" },
-            { "🔊 Dźwięk zniknął – odświeżam kanał…", "🔊 Sound dropped – refreshing the channel…" },
             { "🖥 Automatyczny (jak Velivo)", "🖥 Automatic (like Velivo)" },
             { "💬 Otwórz komunikator", "💬 Open messenger" },
             { " nowe", " new" },

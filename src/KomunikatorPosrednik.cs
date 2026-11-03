@@ -1833,7 +1833,8 @@ namespace Velivo
             // 🖥 Serwery: sterowanie tym serwerem
             var srvState = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 14, Margin = new Thickness(0, 0, 0, 10) };
             Button Act(string text, string tip, Action a) { var bt = new Button { Content = text, Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8), ToolTip = tip }; bt.Click += (s, e) => { try { a(); } catch (Exception ex) { App.LogError(ex); MessageBox.Show(w, ex.Message, "⚠"); } }; return bt; }
-            var onOff = Act("", L.T("Włącza albo wyłącza serwer (pośrednika rozmów) na tym komputerze"), () =>
+            Button onOff = null;   // przypisany niżej - All() (w przycisku) czyta go przez SrvFill
+            onOff = Act("", L.T("Włącza albo wyłącza serwer (pośrednika rozmów) na tym komputerze"), () =>
             {
                 if (_komRelayOn && MessageBox.Show(w, L.T("Wyłączyć serwer na tym komputerze? Osoby połączone z nim przejdą na inny mój serwer."), "🖥", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                 _komRelayOn = !_komRelayOn; if (!_komRelayOn) _komRelayAsked = true; KomSave(); KomRelayStart(); if (_komRelayOn) KomAnnounce(); All();

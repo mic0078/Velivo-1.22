@@ -156,6 +156,7 @@ namespace Velivo
         // na dysku pośrednika do odebrania (DataDir\skrzynka\<odbiorca>); oddawany, gdy odbiorca się pojawi (internet albo sieć domowa)
         static string KomBoxDir(string id) => Path.Combine(DataDir, "skrzynka", id);
         // 📬 dziennik skrzynki (skrzynka.log w folderze danych): co czeka, komu, próba, wynik - widać, co dzieje się z plikiem, bez pytania odbiorcy
+        readonly ConcurrentDictionary<string, int> _komBoxSilent = new ConcurrentDictionary<string, int>();   // plik → ile razy telefon zamknął bez odpowiedzi
         readonly ConcurrentDictionary<string, DateTime> _komBoxWaitLog = new ConcurrentDictionary<string, DateTime>();   // „czeka” najwyżej co 30 min (ponowienie co minutę)
         void KomBoxLog(string id, string what)
         {
@@ -254,9 +255,15 @@ namespace Velivo
                         if (st == null) { if (!_komBoxWaitLog.TryGetValue(id, out var wl) || DateTime.UtcNow - wl > TimeSpan.FromMinutes(30)) { _komBoxWaitLog[id] = DateTime.UtcNow; KomBoxLog(id, "czeka: odbiorca niepołączony z tym serwerem (" + Directory.GetFiles(dir, "*.hdr").Length + " plików)"); } return; }   // odbiorcy nie ma - zostaje w skrzynce
                         var size = new FileInfo(bin).Length; var t0 = DateTime.UtcNow;
                         string sender = "?"; try { var sid = (string)JsonNode.Parse(File.ReadAllBytes(hdr))?["Id"]; sender = KomContactById(sid ?? "")?.Name ?? sid ?? "?"; } catch (Exception) { }
-                        KomBoxLog(id, "wysyłam " + (size / 1024) + " KB od " + sender);
+                        if (!_komBoxSilent.ContainsKey(hdr)) KomBoxLog(id, "wysyłam " + (size / 1024) + " KB od " + sender);   // ponowienia odrzucanego pliku - bez wpisu co minutę
                         await KomWriteBlock(st, File.ReadAllBytes(hdr), cts.Token);
-                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) { KomBoxLog(id, "telefon odbiorcy zamknął połączenie bez odpowiedzi (nie zna nadawcy " + sender + " albo stara wersja) – następny plik, ponowię za minutę"); continue; }   // jeden plik nie blokuje pozostałych
+                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token))
+                        {   // telefon zamknął bez odpowiedzi (nie zna nadawcy / stara wersja): wpis raz, po 10 próbach plik usuwany - nie zaśmieca skrzynki i dziennika w nieskończoność
+                            int n = _komBoxSilent.AddOrUpdate(hdr, 1, (_, v) => v + 1);
+                            if (n == 1) KomBoxLog(id, "telefon odbiorcy nie przyjmuje pliku " + (size / 1024) + " KB od " + sender + " (nie zna nadawcy albo ma starą wersję) – ponawiam, po 10 próbach usunę");
+                            if (n >= 10) { foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { } _komBoxSilent.TryRemove(hdr, out _); KomBoxLog(id, "usunięty po 10 próbach: plik " + (size / 1024) + " KB od " + sender + " – telefon odbiorcy go nie przyjmuje"); }
+                            continue;
+                        }
                         if (b[0] == 1)
                         {
                             using (var fi = File.OpenRead(bin)) await fi.CopyToAsync(st, 1 << 16, cts.Token);
@@ -1670,7 +1677,7 @@ namespace Velivo
         (FrameworkElement, Action) KomTable(string[] cols, Func<List<string[]>> rows, TextBox search)
         {
             var gv = new GridView();
-            var lv = new ListView { View = gv, Margin = new Thickness(0, 4, 0, 0) };
+            var lv = new ListView { View = gv, Margin = new Thickness(0, 4, 0, 0), SelectionMode = SelectionMode.Extended };
             int sortCol = -1; bool desc = false; List<string[]> data = new List<string[]>();
             int Cmp(string a, string c) => double.TryParse((a ?? "").Split(' ')[0], out var x) && double.TryParse((c ?? "").Split(' ')[0], out var y) ? x.CompareTo(y) : string.Compare(a, c, StringComparison.CurrentCultureIgnoreCase);
             void Show()
@@ -1740,7 +1747,7 @@ namespace Velivo
                 {
                     var id = Path.GetFileName(d); var name = KomContactById(id)?.Name ?? id;
                     foreach (var bin in Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)))
-                        l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), Why(id, Path.GetFileName(bin.FullName).StartsWith('k')) });
+                        l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), Why(id, Path.GetFileName(bin.FullName).StartsWith('k')), id + "|" + bin.FullName });   // ostatnie pole (niewidoczne) - do usuwania
                 }
                 foreach (var kv in _komStore) { int n; lock (kv.Value) n = kv.Value.Count; if (n > 0) l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, n + L.T(" wiadomości (tekst)"), "", Why(kv.Key, false) }); }
                 return l;
@@ -1807,11 +1814,27 @@ namespace Velivo
                 try { Clipboard.SetText(DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "  " + Environment.MachineName + Environment.NewLine + "== " + ((TabItem)tabs.SelectedItem).Header + " ==" + Environment.NewLine
                     + Tab((FrameworkElement)((TabItem)tabs.SelectedItem).Content) + Environment.NewLine + "== " + L.T("Informacje techniczne") + " ==" + Environment.NewLine + Tab(tInfo)); copy.Content = "✅ " + L.T("Skopiowano"); } catch (Exception) { }
             };
+            // 🗑 usuń zaznaczone pliki ze skrzynki (np. nie do doręczenia) - na tym serwerze, z wpisem w dzienniku
+            var del = new Button { Content = "🗑 " + L.T("Usuń zaznaczone"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = L.T("Usuwa zaznaczone pliki ze skrzynki tego serwera (zakładka Skrzynka; Ctrl/Shift – kilka)") };
+            del.Click += (s, e) =>
+            {
+                var sel = tBox is ListView lv ? lv.SelectedItems.Cast<string[]>().Where(r => r.Length > 4).ToList() : new List<string[]>();
+                if (sel.Count == 0) { MessageBox.Show(w, L.T("Zaznacz pliki w zakładce Skrzynka."), "🗑"); return; }
+                if (MessageBox.Show(w, L.T("Usunąć ze skrzynki tego serwera: ") + sel.Count + L.T(" plików? Odbiorca ich nie dostanie."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                foreach (var r in sel)
+                {
+                    var i2 = r[4].IndexOf('|'); var who = r[4].Substring(0, i2); var bin = r[4].Substring(i2 + 1);
+                    foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(bin, ext)); } catch (Exception) { }
+                    KomBoxLog(who, "usunięty ręcznie z Centrum serwera: " + r[1]);
+                }
+                All();
+            };
             var folder = new Button { Content = "📂 " + L.T("Folder danych"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
             folder.Click += (s, e) => { try { System.Diagnostics.Process.Start("explorer.exe", DataDir); } catch (Exception) { } };
             var refresh = new Button { Content = "🔄 " + L.T("Odśwież"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) }; refresh.Click += (s, e) => All();
             var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) }, keep, refresh, copy, folder } };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) }, keep, refresh, del, copy, folder } };
             DockPanel.SetDock(right, Dock.Right); bar.Children.Add(right);
             bar.Children.Add(new DockPanel { Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } });
             var help = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8),

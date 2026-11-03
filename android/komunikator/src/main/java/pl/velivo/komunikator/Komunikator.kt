@@ -2652,7 +2652,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         else if (dr.isNotEmpty()) android.text.SpannableString("✏ " + t("Szkic: ", "Draft: ") + dr.replace('\n', ' ')).apply { setSpan(android.text.style.ForegroundColorSpan(green), 0, length, 0) }
                         else last?.let { m -> android.text.SpannableStringBuilder().apply {
                             // ✓ wysłana, ✓✓ doręczona, ✓✓ niebieskie przeczytana
-                            if (m.mine) { append(if (m.read || (m.ok && !m.text.contains("📬"))) "✓✓ " else "✓ "); if (m.read) setSpan(android.text.style.ForegroundColorSpan(Color.rgb(0x38, 0xBD, 0xF8)), 0, length, 0) }
+                            if (m.mine) { append("\uFFFC "); setSpan(android.text.style.ImageSpan(VStan(VStan.of(m.read, m.ok, m.text), dim, (14f * fs * resources.displayMetrics.scaledDensity).toInt()), android.text.style.DynamicDrawableSpan.ALIGN_CENTER), 0, 1, 0) }
                             append(m.text.replace('\n', ' '))
                         } } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
                     textSize = 14f * fs; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
@@ -3222,7 +3222,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     })
                 }
                 msgs.addView(TextView(a).apply {
-                    val tick = if (m.mine) (if (m.read || (m.ok && !m.text.contains("📬"))) "  ✓✓" else "  ✓") else ""   // 📬 w skrzynce pośrednika - jeszcze nie u odbiorcy   // jak WhatsApp: ✓ wysłana, ✓✓ szare doręczona, ✓✓ niebieskie przeczytana
+                    val tick = if (m.mine) "  \uFFFC" else ""   // znak stanu z ikony Velivo (VStan) zamiast ptaszków
                     // jak WhatsApp: zdjęcie / film - tylko obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - 🎤 i długość
                     val shown = if (img != null) "" else if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) "🎤 ▶" else m.text
                     text = android.text.SpannableStringBuilder(shown).apply {
@@ -3230,10 +3230,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
                         append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append(fmt.format(java.util.Date(m.ts)) + tick)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp); reakcje - osobny dymek pod spodem
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
-                        if (m.mine && m.read) setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), length - tick.length, length, 0)   // ✓✓ przeczytane - wyraźne (na zielonym dymku jasnoniebieskie zlewało się z białym)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
                         setSpan(android.text.style.ForegroundColorSpan(Color.argb(0xC0, Color.red(base), Color.green(base), Color.blue(base))), st, length, 0)   // godzina zawsze w kolorze dymka
-                        if (m.mine && m.read) setSpan(android.text.style.ForegroundColorSpan(if (p.key == "kontrast" || android.graphics.Color.luminance(violet) > 0.2f) Color.rgb(0x0A, 0x2A, 0xC8) else Color.rgb(0x7D, 0xF9, 0xFF)), length - tick.length, length, 0)   // niebieskie tylko ✓✓ przeczytane
+                        if (m.mine) setSpan(android.text.style.ImageSpan(VStan(VStan.of(m.read, m.ok, m.text), p.mineFg, (16f * fs * 0.85f * resources.displayMetrics.scaledDensity).toInt()), android.text.style.DynamicDrawableSpan.ALIGN_CENTER), length - 1, length, 0)   // 1 czeka, 2 w drodze, 3 dostarczona, 4 przeczytana
                     }
                     textSize = 16f * fs; setTextColor(if (m.mine) pal().mineFg else ink)
                     setPadding(px(12), px(7), px(12), px(7))
@@ -4153,4 +4152,27 @@ class KomunikatorAkcja : android.content.BroadcastReceiver() {
         const val REJECT = "pl.velivo.komunikator.ODRZUC"
         const val TEXT = "tekst"
     }
+}
+
+// znak stanu mojej wiadomości (z ikony Velivo): 1 czeka na serwerze (przygaszone V), 2 w drodze (V z liniami ruchu), 3 dostarczona (dwa V), 4 przeczytana (dwa V w kolorach logo)
+class VStan(private val st: Int, private val fg: Int, private val h: Int) : android.graphics.drawable.Drawable() {
+    companion object { fun of(read: Boolean, ok: Boolean, text: String) = if (read) 4 else if (text.contains("📬")) 1 else if (ok) 3 else 2 }
+    private val w = h * 40 / 32
+    init { setBounds(0, 0, w, h) }
+    override fun getIntrinsicWidth() = w
+    override fun getIntrinsicHeight() = h
+    override fun draw(c: android.graphics.Canvas) {
+        val b = bounds; val k = b.height() / 32f
+        val pn = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; strokeCap = android.graphics.Paint.Cap.ROUND; strokeJoin = android.graphics.Paint.Join.ROUND; color = fg; if (st == 1) alpha = 140 }
+        if (st == 4) pn.shader = android.graphics.LinearGradient(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat(), Color.rgb(0xA8, 0x55, 0xF7), Color.rgb(0x06, 0xB6, 0xD4), android.graphics.Shader.TileMode.CLAMP)
+        c.save(); c.translate(b.left.toFloat(), b.top.toFloat()); c.scale(k, k)
+        if (st == 2) { pn.strokeWidth = 2.2f; val a0 = pn.alpha; pn.alpha = 190; c.drawLine(2f, 12f, 8f, 12f, pn); c.drawLine(4f, 17f, 10f, 17f, pn); c.drawLine(6f, 22f, 11f, 22f, pn); pn.alpha = a0 }
+        pn.strokeWidth = 4.6f
+        fun v(x: Float) { val p = android.graphics.Path(); p.moveTo(11f + x, 8f); p.lineTo(17f + x, 23f); p.lineTo(23f + x, 8f); c.drawPath(p, pn) }
+        if (st >= 3) { v(0f); v(8f) } else v(4f)
+        c.restore()
+    }
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(cf: android.graphics.ColorFilter?) {}
+    @Deprecated("Deprecated in Java") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
 }

@@ -30,6 +30,20 @@ namespace Velivo
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool Dom; public bool IsGroup => Key.Length == 0; }   // Dom: moje urządzenie z domu (sparowane kodem w sieci domowej albo przedstawione jako domowe przez mój serwer) - tylko takim serwerom ufa wymiana kontaktów   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
         sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; public string Lp; }   // Lp: 🔗 podgląd linku (JSON: u, t, d, s)   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
+        // stan mojej wiadomości (znak z ikony Velivo zamiast ptaszków): 1 czeka na serwerze, 2 wysłana (w drodze), 3 dostarczona, 4 przeczytana
+        static int KomState(KomMsg m) => m.Read ? 4 : m.Text.Contains("📬") ? 1 : m.Ok ? 3 : 2;
+        static string KomStateText(int st) => st == 4 ? L.T("Przeczytana") : st == 3 ? L.T("Dostarczona") : st == 1 ? L.T("Czeka na serwerze") : L.T("Wysłana – w drodze");
+        static FrameworkElement KomStateIcon(int st, Color fg, double h, Thickness margin)
+        {
+            var cv = new Canvas { Width = 40, Height = 32 };
+            Brush br = st == 4 ? new LinearGradientBrush(Color.FromRgb(0xA8, 0x55, 0xF7), Color.FromRgb(0x06, 0xB6, 0xD4), 0) : new SolidColorBrush(fg);
+            System.Windows.Shapes.Path V(double x) => new System.Windows.Shapes.Path { Data = Geometry.Parse("M11,8 L17,23 L23,8"), Stroke = br, StrokeThickness = 4.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, RenderTransform = new TranslateTransform(x, 0) };
+            if (st == 2) cv.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M2,12 H8 M4,17 H10 M6,22 H11"), Stroke = br, StrokeThickness = 2.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Opacity = 0.75 });
+            cv.Children.Add(V(st >= 3 ? 0 : 4));
+            if (st >= 3) cv.Children.Add(V(8));
+            if (st == 1) cv.Opacity = 0.55;
+            return new Viewbox { Height = h, Width = h * 40 / 32, Child = cv, Margin = margin, VerticalAlignment = VerticalAlignment.Center, ToolTip = KomStateText(st) };
+        }
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
@@ -1822,7 +1836,7 @@ namespace Velivo
                     else if (last != null)
                     {   // ostatnia wiadomość; moja - z ptaszkami (✓ wysłana, ✓✓ doręczona, niebieskie - przeczytana)
                         tb.Inlines.Add(new System.Windows.Documents.LineBreak());
-                        if (last.Mine) tb.Inlines.Add(new System.Windows.Documents.Run(last.Read || (last.Ok && !last.Text.Contains("📬")) ? "✓✓ " : "✓ ") { FontSize = 12, FontWeight = FontWeights.Bold, Foreground = last.Read ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : new SolidColorBrush(pal.Dim) });
+                        if (last.Mine) tb.Inlines.Add(new System.Windows.Documents.InlineUIContainer(KomStateIcon(KomState(last), pal.Dim, 12, new Thickness(0, 0, 4, -2))) { BaselineAlignment = BaselineAlignment.Center });
                         tb.Inlines.Add(new System.Windows.Documents.Run(KomOneLine(last.Text)) { FontSize = 12, Foreground = new SolidColorBrush(pal.Dim) });
                     }
                     var pic = KomAvatarEl(c, on, 44, pal); pic.Margin = new Thickness(0, 0, 10, 0);   // 🖼 zdjęcie albo litera (zielona obwódka - w sieci)
@@ -1929,7 +1943,7 @@ namespace Velivo
                         msgs.Children.Add(new Border { Background = new SolidColorBrush(pal.Theirs), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 10, 0, 6), HorizontalAlignment = HorizontalAlignment.Center,
                             Child = new TextBlock { Text = KomDay(day), FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) } });
                     }
-                    var stamp = time.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : "");
+                    var stamp = time.ToString("HH:mm");
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
@@ -2071,10 +2085,10 @@ namespace Velivo
                         var at0 = m.Text; ask.Click += (s2, e2) => KomInfo(KomRequestByLink(at0) ? "👤 " + L.T("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie") : L.T("To nie jest adres Velivo"));
                         body.Children.Add(ask);
                     }
-                    var stampTb = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : m.Mine && m.Read ? L.T("Przeczytane") : null };
-                    // przeczytane (✓✓) na niebiesko - jak w telefonie
-                    if (m.Mine && m.Read) { stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp.Substring(0, stamp.Length - 3)) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) }); stampTb.Inlines.Add(new System.Windows.Documents.Run(" ✓✓") { Foreground = new SolidColorBrush(pal.Key == "kontrast" ? Color.FromRgb(0, 0, 0xCC) : Color.FromRgb(0x7D, 0xF9, 0xFF)), FontWeight = FontWeights.Bold }); }
-                    else { stampTb.Text = stamp; stampTb.Opacity = 0.7; }
+                    var stampTb = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine ? KomStateText(KomState(m)) : null };
+                    // godzina w kolorze dymka, obok znak stanu z ikony Velivo (czeka / w drodze / dostarczona / przeczytana)
+                    stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) });
+                    if (m.Mine) stampTb.Inlines.Add(new System.Windows.Documents.InlineUIContainer(KomStateIcon(KomState(m), fg.Color, 12, new Thickness(4, 0, 0, -2))) { BaselineAlignment = BaselineAlignment.Center });
                     // krótka wiadomość (jak w WhatsApp): godzina i ptaszki w tej samej linijce, po prawej - dymek niski i zwarty
                     if (!hasFile && body.Children.Count == 1 && m.Text.Length <= 45 && m.Text.IndexOfAny(new[] { '\n', '\r' }) < 0)
                     { body.Orientation = Orientation.Horizontal; stampTb.Margin = new Thickness(10, 0, 0, -2); stampTb.VerticalAlignment = VerticalAlignment.Bottom; }
@@ -2833,7 +2847,7 @@ namespace Velivo
                 foreach (var m in l.Skip(Math.Max(0, l.Count - 60)))
                 {
                     var fp = m.Path; var bub = new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } };
+                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? " · " + KomStateText(KomState(m)).ToLower() : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } };
                     if (!string.IsNullOrEmpty(fp) && File.Exists(fp)) { bub.Cursor = Cursors.Hand; bub.ToolTip = L.T("Kliknij, aby otworzyć"); bub.MouseLeftButtonUp += (s, e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
                     msgs.Children.Add(bub);
                 }

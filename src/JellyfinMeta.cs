@@ -702,6 +702,7 @@ namespace Velivo
             var ok = new Button { Content = L.T("⬇ Pobierz / uzupełnij teraz"), Height = 30, Padding = new Thickness(12, 0, 12, 0), IsDefault = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
             ok.Click += async (s, e) =>
             {
+                if (!string.Equals(c.Url?.TrimEnd('/'), url.Text.Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) c.Lan = null;   // nowy serwer - zapasowy adres domowy starego serwera (np. NUCBOX) już nie pasuje do nowego klucza
                 c.Url = url.Text.Trim(); c.Key = key.Text.Trim();
                 if (!Uri.TryCreate(c.Url, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https") || c.Key.Length == 0) { info.Foreground = Brushes.IndianRed; info.Text = L.T("Podaj adres serwera i klucz API."); return; }
                 SaveJellyfinConf(c);
@@ -724,7 +725,7 @@ namespace Velivo
             {
                 var nu = url.Text.Trim(); var nk = key.Text.Trim();
                 if (Uri.TryCreate(nu, UriKind.Absolute, out var u2) && (u2.Scheme == "http" || u2.Scheme == "https") && nk.Length > 0 && (nu != c.Url || nk != c.Key))
-                { var cur = LoadJellyfinConf() ?? c; cur.Url = nu; cur.Key = nk; SaveJellyfinConf(cur); }
+                { var cur = LoadJellyfinConf() ?? c; if (!string.Equals(cur.Url?.TrimEnd('/'), nu.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) cur.Lan = null; cur.Url = nu; cur.Key = nk; SaveJellyfinConf(cur); }
             };
             d.Content = p;
             d.Show();

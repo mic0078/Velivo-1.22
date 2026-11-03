@@ -94,6 +94,7 @@ open class Start : Activity() {
         val id = i?.getStringExtra("czat")
         when {
             shared.isNotEmpty() -> okno.sendFiles(shared)
+            i?.action == Intent.ACTION_SEND && !i.getStringExtra(Intent.EXTRA_TEXT).isNullOrBlank() -> okno.shareText(i.getStringExtra(Intent.EXTRA_TEXT)!!)   // 🔗 link z przeglądarki - do rozmowy
             i?.action == ACTION_FILES -> pick()
             else -> id?.let { k.contact(it) }?.let { okno.openChat(it) } ?: okno.show()
         }

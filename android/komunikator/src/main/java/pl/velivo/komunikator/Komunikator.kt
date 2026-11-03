@@ -3574,6 +3574,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private var onReply: ((Komunikator.Msg) -> Unit)? = null
     // ↪ przekazanie: tekst albo plik do wybranych osób / grup
     private fun forward(from: Komunikator.Contact, m: Komunikator.Msg) = forwardAll(from, listOf(m))
+    // 🔗 Udostępnij → Komunikator: link / tekst z przeglądarki i innych aplikacji - wybór rozmowy, tekst w polu wiadomości (jak WhatsApp), ➤ wysyła z podglądem linku
+    fun shareText(text: String) {
+        val cs = k.contacts.toList(); if (text.isBlank()) return
+        if (cs.isEmpty()) { show(); Toast.makeText(a, t("Najpierw dodaj kontakt", "Add a contact first"), Toast.LENGTH_LONG).show(); return }
+        Dlg().setTitle("🔗 " + t("Wyślij do…", "Send to…")).setItems(cs.map { (if (it.isGroup) "👥 " else "") + it.name }.toTypedArray()) { _, i ->
+            val c = cs[i]; k.setDraft(c.id, k.draft(c.id).let { if (it.isBlank()) text.trim() else it.trimEnd() + " " + text.trim() }); show(); openChat(c)
+        }.setNegativeButton(android.R.string.cancel, null).show()
+    }
     private fun forwardAll(from: Komunikator.Contact, ms: List<Komunikator.Msg>) {
         val cs = k.contacts.filter { it.id != from.id }; if (cs.isEmpty() || ms.isEmpty()) return
         val pick = BooleanArray(cs.size)

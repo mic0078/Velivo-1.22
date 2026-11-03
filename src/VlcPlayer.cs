@@ -1917,9 +1917,13 @@ namespace Velivo
             controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
             // przyciski szersze niż ekran (TV, niska rozdzielczość, duże skalowanie - CHUWI) - cały rząd zmniejszany, żeby nic nie było obcięte z prawej
+            // największa potrzebna szerokość dla tej szerokości okna - zmienne napisy (prędkość sieci, Mb/s, opis filmu) nie zmieniają skali co sekundę (pasek „pływał”)
+            double barNeed = 0, barHave = 0;
             SizeChangedEventHandler fitBar = (s, e) =>
             {
-                double need = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14, have = overlay.ActualWidth;
+                double have = overlay.ActualWidth;
+                if (Math.Abs(have - barHave) > 1) { barHave = have; barNeed = 0; }
+                double need = barNeed = Math.Max(barNeed, mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14);
                 double k = need > 0 && have > 0 && need > have ? Math.Floor(have / need * 20) / 20 : 1;   // skok co 5% - bez przeliczania paska w kółko (przycinało obraz)
                 var cur = ctlRow.LayoutTransform as ScaleTransform;
                 if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.001) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;

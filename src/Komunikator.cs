@@ -2054,6 +2054,7 @@ namespace Velivo
                     };
                     var selIt = new MenuItem { Header = "☑ " + L.T("Zaznacz…") }; selIt.Click += (s2, e2) => { selMode = true; picked.Add(rm); FillChat(); };
                     txt.ContextMenu = new ContextMenu { Items = { rep, react, fwd, copy, selIt } };
+                    body.ContextMenu = txt.ContextMenu;   // prawy przycisk także na zdjęciu / filmie (Odpowiedz, Reakcja, Przekaż) - wcześniej menu tylko na tekście pod obrazem
                     if (hasFile && Path.GetFileName(m.Path).Contains("Glosowa-"))
                     {   // ⏩ szybkość głosówek 1× / 1,5× / 2×
                         var sp = new MenuItem { Header = "⏩ " + L.T("Szybkość głosówek: ") + KomSpeedText(KomVoiceSpeed) + " → " + KomSpeedText(KomNextSpeed()) };

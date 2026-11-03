@@ -1927,7 +1927,7 @@ namespace Velivo
                         msgs.Children.Add(new Border { Background = new SolidColorBrush(pal.Theirs), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 10, 0, 6), HorizontalAlignment = HorizontalAlignment.Center,
                             Child = new TextBlock { Text = KomDay(day), FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) } });
                     }
-                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + time.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : "");
+                    var stamp = time.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : "");
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
@@ -2102,6 +2102,13 @@ namespace Velivo
                         bubble.MouseLeave += (s2, e2) => holdT.Stop();
                     }
                     msgs.Children.Add(bubble); prevMine = m.Mine;
+                    // 😀 reakcje jak w WhatsApp: osobny mały dymek pod wiadomością (nie przy godzinie); podpowiedź - kto zareagował
+                    var reacts = (m.Re ?? "").Split(',').Where(x => x.Length > 33).ToList();
+                    if (reacts.Count > 0)
+                        msgs.Children.Add(new Border { Background = new SolidColorBrush(pal.Theirs), BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(12),
+                            Padding = new Thickness(7, 1, 7, 2), Margin = m.Mine ? new Thickness(0, -6, 12, 2) : new Thickness(12, -6, 0, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                            ToolTip = string.Join("\n", reacts.Select(rq => (rq.Substring(0, 32) == _komId ? L.T("Ty") : KomContactById(rq.Substring(0, 32))?.Name ?? c.Name) + ": " + rq.Substring(33))),
+                            Child = new TextBlock { Text = string.Concat(reacts.Select(rq => rq.Substring(33))) + (reacts.Count > 1 ? " " + reacts.Count : ""), FontSize = 14, Foreground = new SolidColorBrush(pal.Fg) } });
                 }
                 if (!selMode) scroll.ScrollToEnd();
                 selBar.Visibility = selMode ? Visibility.Visible : Visibility.Collapsed; bottom.Visibility = selMode ? Visibility.Collapsed : Visibility.Visible;

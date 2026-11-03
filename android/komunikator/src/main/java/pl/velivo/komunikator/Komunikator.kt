@@ -3143,18 +3143,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val dayFmt = java.text.SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
         // ☑ zaznaczanie jak w WhatsApp: przytrzymanie zaznacza wiadomość, stuknięcia dodają / odznaczają, u góry pasek akcji z podpisami
         val picked = mutableListOf<Komunikator.Msg>()
-        val selBar = LinearLayout(a).apply { visibility = View.GONE; setPadding(px(6), px(6), px(6), px(6)); setBackgroundColor(Color.argb(0x60, 0x8B, 0x5C, 0xF6)); gravity = Gravity.CENTER_VERTICAL }
+        val selBar = LinearLayout(a).apply { visibility = View.GONE; setPadding(px(4), px(4), px(4), px(4)); setBackgroundColor(Color.rgb(0x4C, 0x1D, 0x95)); gravity = Gravity.CENTER_VERTICAL }   // pełne tło (nie przezroczyste) - czytelne dla słabszego wzroku
         lateinit var fillRef: () -> Unit
         fun selEnd() { picked.clear(); fillRef() }
         fun selAct(icon: String, label: String, run: () -> Unit) = TextView(a).apply {
-            text = icon + "\n" + label; gravity = Gravity.CENTER; textSize = 12f; setTextColor(Color.WHITE); setPadding(px(2), px(4), px(2), px(4))
-            background = GradientDrawable().apply { setColor(Color.argb(0x40, 0, 0, 0)); cornerRadius = px(10).toFloat() }
+            text = android.text.SpannableString(icon + "\n" + label).apply { setSpan(android.text.style.RelativeSizeSpan(1.6f), 0, icon.length, 0) }   // duża ikona, napis pod nią
+            gravity = Gravity.CENTER; textSize = 13f; setTextColor(Color.WHITE); typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(px(1), px(4), px(1), px(4)); maxLines = 3
+            setAutoSizeTextTypeUniformWithConfiguration(9, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP)   // długie napisy (Odpowiedz, U wszystkich) mniejsze zamiast łamania w środku słowa
+            background = GradientDrawable().apply { setColor(Color.argb(0x55, 0, 0, 0)); cornerRadius = px(10).toFloat() }
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(px(2), 0, px(2), 0) }
             setOnClickListener { run() }
         }
         fun selUpdate() {
-            selBar.removeAllViews(); if (picked.isEmpty()) { selBar.visibility = View.GONE; return }
-            selBar.visibility = View.VISIBLE
+            val headV = (selBar.parent as? android.widget.FrameLayout)?.getChildAt(0)   // pasek zamiast nagłówka (rozmowa nie przesuwa się w dół)
+            selBar.removeAllViews(); if (picked.isEmpty()) { selBar.visibility = View.GONE; headV?.visibility = View.VISIBLE; return }
+            selBar.visibility = View.VISIBLE; headV?.visibility = View.INVISIBLE
             val one = picked.singleOrNull(); val list = picked.sortedBy { it.ts }
             selBar.addView(selAct("✕", picked.size.toString()) { selEnd() })
             if (one != null) selBar.addView(selAct("↩", t("Odpowiedz", "Reply")) { selEnd(); onReply?.invoke(one) })
@@ -3225,8 +3228,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     text = android.text.SpannableStringBuilder(shown).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
-                        append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append(k.reactions(m)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp)
-                            .let { if (it.isEmpty()) "" else "$it  " } + fmt.format(java.util.Date(m.ts)) + tick)
+                        append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append(fmt.format(java.util.Date(m.ts)) + tick)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp); reakcje - osobny dymek pod spodem
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
                         if (m.mine && m.read) setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), length - tick.length, length, 0)   // ✓✓ przeczytane - wyraźne (na zielonym dymku jasnoniebieskie zlewało się z białym)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
@@ -3268,6 +3270,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     if (m.mine) { row.addView(sp, gap); row.addView(bv) } else { row.addView(bv); row.addView(sp, gap) }
                     msgs.addView(row)
                 }
+                // 😀 reakcje jak w WhatsApp: osobny mały dymek pod wiadomością (nie w jej tekście); stuknięcie - kto zareagował
+                val reacts = m.re.split(',').filter { it.length > 33 }
+                if (reacts.isNotEmpty()) msgs.addView(TextView(a).apply {
+                    text = reacts.joinToString("") { it.substring(33) } + (if (reacts.size > 1) " " + reacts.size else ""); textSize = 16f * fs; setTextColor(ink); setPadding(px(8), px(2), px(8), px(3))
+                    background = GradientDrawable().apply { setColor(pal().theirs); cornerRadius = px(14).toFloat(); setStroke(px(2), Color.argb(0x80, 0, 0, 0)) }
+                    layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = -px(6); if (m.mine) rightMargin = px(12) else leftMargin = px(12) }
+                    val who = reacts.joinToString("\n") { r -> (if (r.substring(0, 32) == k.myId) t("Ty", "You") else k.contact(r.substring(0, 32))?.name ?: c.name) + ": " + r.substring(33) }
+                    contentDescription = t("Reakcje: ", "Reactions: ") + who
+                    setOnClickListener { Toast.makeText(a, who, Toast.LENGTH_LONG).show() }
+                })
                 if (!m.mine && m.path == null) Ochrona.messageWarning(m.text, pl)?.let { w -> msgs.addView(TextView(a).apply {   // 🛡 podejrzany link / prośba o kod lub dane karty
                     text = w; textSize = 14f * fs; setTextColor(if (w.startsWith("⚠")) Color.WHITE else ink); setPadding(px(12), px(6), px(12), px(7))
                     background = bg(if (w.startsWith("⚠")) Color.rgb(0xDC, 0x26, 0x26) else Color.argb(0x40, 0xF5, 0x9E, 0x0B), 12)
@@ -3426,7 +3438,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
         root.removeAllViews()
-        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(selBar); addView(scroll); addView(replyBar); addView(voiceBar); addView(row) })
+        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(android.widget.FrameLayout(a).apply { addView(head); addView(selBar, android.widget.FrameLayout.LayoutParams(-1, -1)) }); addView(scroll); addView(replyBar); addView(voiceBar); addView(row) })
     }
 
     // przytrzymanie wiadomości: kopiuj, (zdjęcie) zapisz w Galerii, usuń u mnie

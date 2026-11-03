@@ -1799,7 +1799,7 @@ namespace Velivo
                 list.Items.Clear();
                 if (_komContacts.Count == 0)
                     list.Items.Add(new ListBoxItem { IsEnabled = false, Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = L.T("Brak kontaktów. Kliknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo w tej samej sieci.") } });
-                foreach (var c in _komContacts.OrderByDescending(x => KomPinned(x.Id)).ThenByDescending(x => KomChat(x.Id).LastOrDefault()?.Ts ?? 0))   // 📌 przypięte na górze
+                foreach (var c in _komContacts.OrderByDescending(x => KomPinned(x.Id)).ThenByDescending(x => KomOnline(x.Id)).ThenByDescending(x => KomChat(x.Id).LastOrDefault()?.Ts ?? 0))   // 📌 przypięte, potem w sieci, potem czas
                 {
                     var last = KomChat(c.Id).LastOrDefault();
                     _komUnread.TryGetValue(c.Id, out var un);

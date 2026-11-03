@@ -1962,6 +1962,7 @@ namespace Velivo
             {
                 var tab = (FrameworkElement)((TabItem)tabs.SelectedItem).Content;
                 var sel = tab is ListView lv ? lv.SelectedItems.Cast<string[]>().ToList() : new List<string[]>();
+                if (tab is ListView lvu) lvu.UnselectAll();   // po usunięciu tabela ma się odświeżyć (przy kilku zaznaczonych odświeżanie czeka)
                 if (tab == tLog || tab == tErr)
                 {   // 📜 / ⚠ wpisy dziennika: zaznaczone - usuwane z plików na tym serwerze (wiersz = czas + treść)
                     if (sel.Count == 0) { MessageBox.Show(w, L.T("Zaznacz wpisy (Ctrl+A – wszystkie). Cały dziennik czyści przycisk „🧹 Wyczyść dziennik”."), "🗑"); return; }

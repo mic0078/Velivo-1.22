@@ -1677,7 +1677,9 @@ namespace Velivo
                 var q = search.Text.Trim();
                 IEnumerable<string[]> r = data.Where(x => q.Length == 0 || x.Any(v => (v ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0));
                 if (sortCol >= 0) { var l = r.ToList(); l.Sort((x, y) => (desc ? -1 : 1) * Cmp(x[sortCol], y[sortCol])); r = l; }
-                lv.ItemsSource = r.ToList();
+                var list = r.ToList(); bool first = lv.ItemsSource == null || !((System.Collections.IList)lv.ItemsSource).GetEnumerator().MoveNext();
+                lv.ItemsSource = list;
+                if (first && list.Count > 0) foreach (var c in gv.Columns) { c.Width = 0; c.Width = double.NaN; }   // szerokość kolumn do zawartości (raz, bez skakania co 5 s)
             }
             for (int k = 0; k < cols.Length; k++)
             {

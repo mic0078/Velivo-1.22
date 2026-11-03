@@ -1594,6 +1594,7 @@ namespace Velivo
             void Walk(DependencyObject o)
             {
                 if (o is TextBox t) { t.Background = B(p.Input); t.Foreground = B(p.Fg); t.BorderBrush = B(p.Border); t.CaretBrush = B(p.Fg); }
+                else if (o is ListView lv) { lv.Background = B(p.Input); lv.Foreground = B(p.Fg); lv.BorderBrush = B(p.Border); }   // tabela (GridView) - bez szablonu listy, inaczej wiersze jako „String[] Array”
                 else if (o is ListBox l) { l.Background = B(p.Input); l.Foreground = B(p.Fg); l.BorderBrush = B(p.Border); KomListStyle(l, p); }
                 else if (o is Button b) { b.Template = KomBtnTemplate; b.Background = B(p.Mine); b.Foreground = B(p.MineFg); b.BorderBrush = B(p.Border); }   // własny szablon - zwykły Windows po najechaniu robił biały przycisk z nieczytelnym napisem
                 else if (o is CheckBox or RadioButton or Label or Expander) ((Control)o).Foreground = B(p.Fg);   // ☐ kratki i etykiety - napis czytelny w ciemnych motywach

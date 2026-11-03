@@ -1430,19 +1430,24 @@ namespace Velivo
                     using (var cts = new CancellationTokenSource())
                     {
                         var pubA = me.ExportSubjectPublicKeyInfo(); var baseNonce = RandomNumberGenerator.GetBytes(12);
-                        var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
+                        // 🔁 plik do skrzynki dla kogoś, kogo znam tylko przez mój inny serwer (mama zna NUCBOX, nie Ryzena): wysyłam w imieniu tamtego serwera jego kluczem z tą osobą - odbiorca go przyjmie (u niego w rozmowie z tym serwerem)
+                        string asId = _komId; var fileKey = to?.Key;
+                        if (box && to != null && group == null && _komOpt["alias"] is JsonObject al)
+                            foreach (var kv in al) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)
+                                try { var k2 = Convert.FromBase64String(ak); if (k2.Length == 32) { asId = kv.Key.Substring(to.Id.Length + 1); fileKey = k2; break; } } catch (Exception) { }
+                        var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = asId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;
                         if (to != null) h["To"] = to.Id;   // pośrednik wie, komu przekazac (poza podpisem)
                         if (group != null) h["Group"] = new JsonObject { ["g"] = group.Id, ["n"] = group.Name, ["m"] = new JsonArray(KomMembers(group).Append(_komId).Select(x => (JsonNode)x).ToArray()) };   // 👥 plik w grupie
                         var ad = KomFileAd(h);
-                        if (to != null) using (var hm = new HMACSHA256(to.Key)) h["Mac"] = Convert.ToBase64String(hm.ComputeHash(ad));   // kontakt rozpozna nadawce bez kodu
+                        if (to != null) using (var hm = new HMACSHA256(fileKey)) h["Mac"] = Convert.ToBase64String(hm.ComputeHash(ad));   // kontakt rozpozna nadawce bez kodu
                         cts.CancelAfter(TimeSpan.FromSeconds(15));
                         // poza domem - tunel przez pośrednika; w domu - prosto do urzadzenia
                         Stream s = await KomOpenAsync(cl, addr, to?.Id, cts.Token);
                         using var tunnel = s as IDisposable;
                         await KomWriteBlock(s, Encoding.UTF8.GetBytes(h.ToJsonString()), cts.Token);
                         byte[] key;
-                        if (box) key = KomHmac(to.Key, "velivo-box\n" + (string)h["Nonce"]);
+                        if (box) key = KomHmac(fileKey, "velivo-box\n" + (string)h["Nonce"]);
                         else
                         {
                             var pubB = await KomReadBlock(s, 200, cts.Token); if (pubB == null) return "błąd";

@@ -174,7 +174,7 @@ namespace Velivo
         {
             var to = (string)h["To"] ?? ""; long size = (long?)h["Size"] ?? -1;
             if (to.Length != 32 || size < 0 || size > LanFile2Limit) return;
-            if (!await Dispatcher.InvokeAsync(() => KomContactById(to) != null && KomContactById((string)h["Id"] ?? "") != null)) return;   // tylko między kontaktami tego komputera
+            if (!await Dispatcher.InvokeAsync(() => KomContactById(to) != null && ((string)h["Id"] == _komId || KomContactById((string)h["Id"] ?? "") != null))) return;   // tylko między kontaktami tego komputera (albo plik w moim imieniu od mojego innego serwera)
             var dir = KomBoxDir(to); Directory.CreateDirectory(dir);
             var hid = Convert.ToHexString(SHA256.HashData(hb), 0, 16);   // ten sam plik u każdego pośrednika ma tę samą nazwę - kopia kasowana po doręczeniu
             if (fromPeer != null && (_komBoxGone.ContainsKey(hid) || Directory.GetFiles(dir, "*-" + hid + ".hdr").Length > 0)) { await s.WriteAsync(new byte[] { 0 }, 0, 1, token); return; }   // już doręczony albo już jest
@@ -195,7 +195,7 @@ namespace Velivo
                     }
                 }
                 File.Move(f + ".part", f + ".bin"); if (fromPeer != null) File.WriteAllText(f + ".src", fromPeer); File.WriteAllBytes(f + ".hdr", hb);   // .src - który serwer ma oryginał
-                var fromName = await Dispatcher.InvokeAsync(() => KomContactById((string)h["Id"] ?? "")?.Name ?? "?"); var peerName = fromPeer == null ? null : await Dispatcher.InvokeAsync(() => KomContactById(fromPeer)?.Name ?? fromPeer);
+                var fromName = await Dispatcher.InvokeAsync(() => (string)h["Id"] == _komId ? Environment.MachineName + " (w imieniu tego serwera)" : KomContactById((string)h["Id"] ?? "")?.Name ?? "?"); var peerName = fromPeer == null ? null : await Dispatcher.InvokeAsync(() => KomContactById(fromPeer)?.Name ?? fromPeer);
                 KomBoxLog(to, "przyjęty do skrzynki od " + fromName + ", " + (size / 1024) + " KB" + (peerName != null ? " (kopia od serwera " + peerName + ")" : ""));
                 await s.WriteAsync(new byte[32], 0, 32, token); await s.FlushAsync(token);   // przechowane
             }
@@ -208,8 +208,12 @@ namespace Velivo
         {
             foreach (var kv in _komBoxDoneOut) if (DateTime.UtcNow - kv.Value.At > TimeSpan.FromDays(2)) _komBoxDoneOut.TryRemove(kv.Key, out _);
             foreach (var g in _komBoxDoneOut.GroupBy(kv => kv.Value.To))
-                foreach (var part in g.Select(kv => kv.Key).Chunk(200))   // paczki po 200 (pakiet UDP ~7 KB)
+            {   // pliki i wiadomości (klucz „m:” + mid) - serwer wyłączony w chwili doręczenia dowie się po powrocie i skasuje swoje kopie (wcześniej wiadomości tylko raz - kopie zostawały)
+                foreach (var part in g.Where(kv => !kv.Key.StartsWith("m:")).Select(kv => kv.Key).Chunk(200))   // paczki po 200 (pakiet UDP ~7 KB)
                     KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["files"] = new JsonArray(part.Select(h => (JsonNode)h).ToArray()), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+                foreach (var part in g.Where(kv => kv.Key.StartsWith("m:")).Select(kv => kv.Key.Substring(2)).Chunk(150))
+                    KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["mids"] = new JsonArray(part.Select(h => (JsonNode)h).ToArray()), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+            }
         }
         // 📬 kopia pliku ze skrzynki u innych pośredników w domu (NUCBOX, CHUWI) - gdy ten padnie, inny go odda
         readonly ConcurrentDictionary<string, DateTime> _komBoxGone = new ConcurrentDictionary<string, DateTime>();   // doręczone przez innego pośrednika - spóźniona kopia odrzucana
@@ -400,6 +404,7 @@ namespace Velivo
             JsonArray mids;
             lock (l) { foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); } mids = new JsonArray(l.Select(x => (JsonNode)(string)x["mid"]).ToArray()); }
             KomStoreSave();
+            foreach (var m in mids) if ((string)m is string ms) _komBoxDoneOut["m:" + ms] = (id, DateTime.UtcNow);   // powtarzane przez 2 dni (KomBoxDoneRepeat)
             if (mids.Count > 0) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = id, ["mids"] = mids, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });   // inni pośrednicy kasują swoje kopie
         }
         // 📬 pośrednicy w domu (NUCBOX, CHUWI, …) dzielą skrzynkę: kopia wiadomości u każdego, po doręczeniu kasowana

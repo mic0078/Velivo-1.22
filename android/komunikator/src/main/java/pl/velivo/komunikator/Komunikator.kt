@@ -4176,7 +4176,7 @@ class VStan(private val st: Int, private val fg: Int, private val h: Int) : andr
         if (st == 2) { pn.strokeWidth = 2.2f; val a0 = pn.alpha; pn.alpha = 190; c.drawLine(2f, 12f, 8f, 12f, pn); c.drawLine(4f, 17f, 10f, 17f, pn); c.drawLine(6f, 22f, 11f, 22f, pn); pn.alpha = a0 }
         pn.strokeWidth = 4.6f
         fun v(x: Float) { val p = android.graphics.Path(); p.moveTo(11f + x, 8f); p.lineTo(17f + x, 23f); p.lineTo(23f + x, 8f); c.drawPath(p, pn) }
-        if (st >= 3) { v(0f); v(8f) } else v(4f)
+        if (st >= 3) { v(-6f); v(12f) } else v(4f)   // dwa V rozsunięte - zachodzące wyglądały jak „W”
         c.restore()
     }
     override fun setAlpha(alpha: Int) {}

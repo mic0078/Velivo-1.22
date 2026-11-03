@@ -39,8 +39,8 @@ namespace Velivo
             Brush br = st == 4 ? new LinearGradientBrush(Color.FromRgb(0xA8, 0x55, 0xF7), Color.FromRgb(0x06, 0xB6, 0xD4), 0) : new SolidColorBrush(fg);
             System.Windows.Shapes.Path V(double x) => new System.Windows.Shapes.Path { Data = Geometry.Parse("M11,8 L17,23 L23,8"), Stroke = br, StrokeThickness = 4.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, RenderTransform = new TranslateTransform(x, 0) };
             if (st == 2) cv.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M2,12 H8 M4,17 H10 M6,22 H11"), Stroke = br, StrokeThickness = 2.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Opacity = 0.75 });
-            cv.Children.Add(V(st >= 3 ? 0 : 4));
-            if (st >= 3) cv.Children.Add(V(8));
+            cv.Children.Add(V(st >= 3 ? -6 : 4));   // dwa V rozsunięte - zachodzące wyglądały jak „W”
+            if (st >= 3) cv.Children.Add(V(12));
             if (st == 1) cv.Opacity = 0.55;
             return new Viewbox { Height = h, Width = h * 40 / 32, Child = cv, Margin = margin, VerticalAlignment = VerticalAlignment.Center, ToolTip = KomStateText(st) };
         }

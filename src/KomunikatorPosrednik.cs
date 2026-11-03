@@ -1689,6 +1689,20 @@ namespace Velivo
         {
             var gv = new GridView();
             var lv = new ListView { View = gv, Margin = new Thickness(0, 4, 0, 0), SelectionMode = SelectionMode.Extended };
+            // własny wiersz: zaznaczony - ciemnoniebieski z białym tekstem (zwykły szablon Windows dawał jasnoniebieski pasek i nieczytelny biały tekst)
+            var bd = new FrameworkElementFactory(typeof(Border)); bd.SetValue(Border.PaddingProperty, new Thickness(2, 3, 2, 3));
+            bd.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+            var gp = new FrameworkElementFactory(typeof(GridViewRowPresenter));
+            gp.SetValue(GridViewRowPresenter.ColumnsProperty, new TemplateBindingExtension(GridView.ColumnCollectionProperty));
+            gp.SetValue(GridViewRowPresenter.ContentProperty, new TemplateBindingExtension(ContentControl.ContentProperty));
+            bd.AppendChild(gp);
+            var rowStyle = new Style(typeof(ListViewItem));
+            rowStyle.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(ListViewItem)) { VisualTree = bd }));
+            rowStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            var over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x55, 0x6B, 0x7C, 0xC4))));
+            var picked = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true }; picked.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x2D, 0x4F, 0xB8)))); picked.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            rowStyle.Triggers.Add(over); rowStyle.Triggers.Add(picked);
+            lv.ItemContainerStyle = rowStyle;
             int sortCol = -1; bool desc = false; List<string[]> data = new List<string[]>();
             int Cmp(string a, string c) => double.TryParse((a ?? "").Split(' ')[0], out var x) && double.TryParse((c ?? "").Split(' ')[0], out var y) ? x.CompareTo(y) : string.Compare(a, c, StringComparison.CurrentCultureIgnoreCase);
             void Show()
@@ -1856,8 +1870,10 @@ namespace Velivo
                     + "\n" + L.T("Połączeni przez internet: ") + (_komRemote.IsEmpty ? "—" : string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")))
                     + (_komLastReject != null ? "\n" + L.T("Ostatnio nie wpuszczono: ") + _komLastReject : "") + "\n" + L.T("Wersja: ") + KomBuild;
             }
+            // zakładka Serwery - tło jak okno (bez tego biała z jasnym, nieczytelnym tekstem)
+            ScrollViewer SrvView() { var sv = new ScrollViewer { Content = pServers, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; sv.SetBinding(Control.BackgroundProperty, new System.Windows.Data.Binding("Background") { Source = w }); return sv; }
             var tabs = new TabControl();
-            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), new ScrollViewer { Content = pServers, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo) })
+            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo) })
                 tabs.Items.Add(new TabItem { Header = h, Content = el });
             void All()
             {

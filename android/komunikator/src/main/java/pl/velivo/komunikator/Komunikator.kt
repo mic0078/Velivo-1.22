@@ -3369,6 +3369,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             val r = rec
             if (r == null) {
                 if (a.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4712); return@setOnClickListener }
+                playing?.let { play(it) }   // nowe nagranie zatrzymuje odsłuchiwanie (play tej samej ścieżki = stop)
                 audioNormal()
                 val f = java.io.File(a.cacheDir, "Glosowa-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(java.util.Date()) + ".m4a")
                 // źródło „rozmowa” (VOICE_COMMUNICATION): telefon sam wyrównuje głośność mowy i tłumi szum - z gołego mikrofonu (MIC) nagrania były bardzo ciche

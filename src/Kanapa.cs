@@ -374,22 +374,21 @@ namespace Velivo
             var pv = _vlcWin;
             if (pv != null && pv.IsVisible && pv.WindowState != WindowState.Minimized && PlayerBusy)
             {
-                var was = (Owner: pv.Owner, State: pv.WindowState, Style: pv.WindowStyle, Resize: pv.ResizeMode, Top: pv.Topmost, L: pv.Left, T: pv.Top, W: pv.Width, H: pv.Height);
+                var was = (State: pv.WindowState, Style: pv.WindowStyle, Resize: pv.ResizeMode, Top: pv.Topmost, L: pv.Left, T: pv.Top, W: pv.Width, H: pv.Height);
                 try
                 {
                     var wa = SystemParameters.WorkArea;
                     pv.WindowState = WindowState.Normal; pv.WindowStyle = WindowStyle.None; pv.ResizeMode = ResizeMode.NoResize;
                     pv.Width = 448; pv.Height = 252; pv.Left = wa.Right - 448 - 40; pv.Top = wa.Top + 92;
-                    pv.Owner = w;   // okno podrzędne Kanapy - zawsze nad nią, także gdy Kanapa jest aktywna (samo Topmost przegrywało z aktywną Kanapą)
-                    w.Activate();
+                    w.Topmost = false;   // Kanapa zwykłym oknem na pełnym ekranie, okienko filmu „na wierzchu” - zawsze nad nią (dwa okna na wierzchu: wygrywało aktywne)
+                    pv.Topmost = true; w.Activate();
                 }
                 catch (Exception ex) { App.LogError(ex); }
                 w.Closing += (s2, e2) =>
-                {   // przed zamknięciem Kanapy - inaczej okno podrzędne (odtwarzacz) zamknęłoby się razem z nią
+                {
                     try
                     {
                         if (_vlcWin != pv) return;   // odtwarzacz zamknięty w międzyczasie
-                        pv.Owner = was.Owner;
                         pv.Topmost = was.Top; pv.WindowStyle = was.Style; pv.ResizeMode = was.Resize;
                         pv.Left = was.L; pv.Top = was.T; pv.Width = was.W; pv.Height = was.H; pv.WindowState = was.State;
                         pv.Activate();

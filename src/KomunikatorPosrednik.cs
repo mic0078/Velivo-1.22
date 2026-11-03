@@ -1726,17 +1726,22 @@ namespace Velivo
                 Child = new StackPanel { Children = { v, new TextBlock { Text = sub, Opacity = 0.75 } } } }); return v; }
             var cSrv = Card(L.T("serwer")); var cFiles = Card(L.T("pliki czekają")); var cMsg = Card(L.T("wiadomości czekają")); var cOn = Card(L.T("osób w sieci"));
             var search = new TextBox { Padding = new Thickness(4), ToolTip = L.T("Szukaj w otwartej tabeli (osoba, zdarzenie, adres…)") };
+            // stan słowami z tego, co serwer naprawdę widzi: odbiorca połączony z TYM serwerem (wysyła), z innym (tamten oddaje), poza siecią
+            string Why(string id, bool copy) =>
+                _komRemote.ContainsKey(id) || (_komLanSeen.TryGetValue(id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) ? L.T("połączony z tym serwerem – wysyłam (próba co minutę)")
+                : KomOnline(id) ? (copy ? L.T("w sieci przez inny serwer – oddaje go tamten serwer, tu zapasowa kopia") : L.T("w sieci przez inny serwer – ten serwer czeka, aż odbiorca połączy się z nim"))
+                : L.T("poza siecią – wyślę, gdy się pojawi");
             // 1. skrzynka
             var (tBox, rBox) = KomTable(new[] { L.T("Osoba"), L.T("Plik (rozmiar KB)"), L.T("Czeka od"), L.T("Stan") }, () =>
             {
                 var l = new List<string[]>(); var root = Path.Combine(DataDir, "skrzynka");
                 foreach (var d in Directory.Exists(root) ? Directory.GetDirectories(root) : Array.Empty<string>())
                 {
-                    var id = Path.GetFileName(d); var name = KomContactById(id)?.Name ?? id; bool on = KomOnline(id);
+                    var id = Path.GetFileName(d); var name = KomContactById(id)?.Name ?? id;
                     foreach (var bin in Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)))
-                        l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), on ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi") });
+                        l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), Why(id, Path.GetFileName(bin.FullName).StartsWith('k')) });
                 }
-                foreach (var kv in _komStore) { int n; lock (kv.Value) n = kv.Value.Count; if (n > 0) l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, n + L.T(" wiadomości (tekst)"), "", KomOnline(kv.Key) ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi") }); }
+                foreach (var kv in _komStore) { int n; lock (kv.Value) n = kv.Value.Count; if (n > 0) l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, n + L.T(" wiadomości (tekst)"), "", Why(kv.Key, false) }); }
                 return l;
             }, search);
             // 2. osoby i urządzenia

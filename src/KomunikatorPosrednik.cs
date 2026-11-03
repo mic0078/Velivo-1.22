@@ -1646,6 +1646,46 @@ namespace Velivo
             };
             return b;
         }
+        // 📬 okno skrzynki: co czeka na tym serwerze (komu, ile, od kiedy) i ostatnie wpisy dziennika - odświeżane co 5 s
+        Button KomBoxButton(Window owner)
+        {
+            var b = new Button { Content = "📬 " + L.T("Skrzynka serwera…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = L.T("Pliki czekające na odbiorców i co się z nimi dzieje") };
+            b.Click += (s, e) =>
+            {
+                var head = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 560 };
+                var list = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+                var log = new TextBox { IsReadOnly = true, FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12, Width = 560, Height = 260, TextWrapping = TextWrapping.NoWrap,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 4, 0, 0) };
+                void Fill()
+                {
+                    list.Children.Clear(); int all = 0;
+                    var root = Path.Combine(DataDir, "skrzynka");
+                    foreach (var d in Directory.Exists(root) ? Directory.GetDirectories(root) : Array.Empty<string>())
+                    {
+                        var bins = Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)).ToList(); if (bins.Count == 0) continue;
+                        all += bins.Count; var id = Path.GetFileName(d); bool on = KomOnline(id);
+                        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 3, 2, 3) };
+                        row.Children.Add(new System.Windows.Shapes.Ellipse { Width = 12, Height = 12, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+                            Fill = new System.Windows.Media.SolidColorBrush(on ? System.Windows.Media.Color.FromRgb(0x22, 0xC5, 0x5E) : System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF)) });
+                        row.Children.Add(new TextBlock { Text = (KomContactById(id)?.Name ?? id) + " – " + bins.Count + L.T(" plików, ") + (bins.Sum(x => x.Length) / 1048576.0).ToString("0.#") + " MB" + L.T(", najstarszy od ")
+                            + bins.Min(x => x.LastWriteTime).ToString("dd.MM HH:mm") + " · " + (on ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi")) });
+                        list.Children.Add(row);
+                    }
+                    head.Text = all == 0 ? L.T("✅ Skrzynka pusta – wszystko doręczone.") : L.T("Czeka na odbiorców: ") + all + L.T(" plików");
+                    try { var p = Path.Combine(DataDir, "skrzynka.log"); log.Text = File.Exists(p) ? string.Join(Environment.NewLine, File.ReadLines(p).Reverse().Take(80)) : L.T("(dziennik jeszcze pusty)"); } catch (Exception) { }
+                }
+                Fill();
+                var help = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 560, Opacity = 0.8, Margin = new Thickness(0, 6, 0, 0),
+                    Text = L.T("Gdy odbiorcy nie ma albo połączenie się zerwie, plik czeka tutaj, a serwer próbuje co minutę. Zielona kropka – odbiorca w sieci teraz. Niżej dziennik: najnowsze wpisy na górze.") };
+                var w = new Window { Title = "📬 " + L.T("Skrzynka serwera"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, help, list, new TextBlock { Text = L.T("Dziennik:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }, log } } };
+                var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s2, e2) => Fill(); tm.Start();
+                w.Closed += (s2, e2) => tm.Stop();
+                KomStyle(w); w.ShowDialog();
+            };
+            return b;
+        }
         void KomRelayDialog(Window owner)
         {
             var on = new CheckBox { Content = L.T("Ten komputer jest pośrednikiem dla rozmów poza domem (musi być zawsze włączony)"), IsChecked = _komRelayOn, Margin = new Thickness(0, 0, 0, 10) };
@@ -1664,7 +1704,7 @@ namespace Velivo
             var grid = new StackPanel { Margin = new Thickness(16), Children = {
                 on, _komRelaySummary,
                 new TextBlock { Text = L.T("Serwer przekazuje Twoje rozmowy, gdy Ty albo Twoje kontakty jesteście poza domem (dane komórkowe, inny kraj). Działa sam – nic nie trzeba ustawiać."), TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Opacity = 0.8 },
-                KomServerContactsButton(owner), KomRegisterButton(), more, ok } };
+                KomServerContactsButton(owner), KomBoxButton(owner), KomRegisterButton(), more, ok } };
             var d = new Window { Title = L.T("🌍 Rozmowy poza domem"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid };
             KomStyle(d);
             KomRelayStatus();

@@ -403,12 +403,16 @@ namespace Velivo
 
         // ---------- odbior ----------
 
+        readonly Dictionary<string, DateTime> _filmSeen = new Dictionary<string, DateTime>();
         void ReceiveLanFilm(LanStatePacket pkt, LanFilmMsg m)
         {
             if (m == null || m.to != _lanId) return;
             if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - pkt.ts) > 120000) return;   // stare / powtorzone polecenie
             var peer = PeerById(pkt.id);
             if (peer == null) return;
+            // ten sam pakiet przychodzi kilka razy (rozgłoszenie + wprost do komputera) - raz; inaczej film startował od nowa i dymek „Film z:” 4 razy
+            var once = pkt.id + "|" + pkt.ts + "|" + m.kind + "|" + m.req + "|" + m.act;
+            lock (_filmSeen) { var now = DateTime.UtcNow; foreach (var o in _filmSeen.Where(x => now - x.Value > TimeSpan.FromMinutes(3)).Select(x => x.Key).ToList()) _filmSeen.Remove(o); if (_filmSeen.ContainsKey(once)) return; _filmSeen[once] = now; }
             switch (m.kind)
             {
                 case "libreq":   // lista w tle - wylaczony NAS nie moze zawiesic okna

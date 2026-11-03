@@ -354,6 +354,11 @@ namespace Velivo
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
                 return;
             }
+            if (t == "p2p-boxlogclr" && KomFromRelay(addr))
+            {   // 🧹 dziennik skrzynki wyczyszczony na innym moim serwerze - tutaj też
+                foreach (var lp in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, lp)); } catch (Exception) { }
+                return;
+            }
             if (t == "p2p-boxdays" && KomFromRelay(addr) && (int?)p["days"] is int bd && bd > 0 && ((long?)p["at"] ?? 0) > ((long?)_komOpt["boxDaysAt"] ?? 0))
             { _komOpt["boxDays"] = bd; _komOpt["boxDaysAt"] = (long)p["at"]; KomSave(); return; }   // 📬 przechowywanie ustawione na innym moim serwerze - nowsze wygrywa
             if (t == "p2p-boxdone" && (string)p["to"] is string dto && KomFromRelay(addr))
@@ -1705,6 +1710,10 @@ namespace Velivo
             return (lv, () => { try { data = rows(); } catch (Exception ex) { data = new List<string[]> { new[] { "⚠ " + ex.Message } }; } Show(); });
         }
         int KomBoxDays => (int?)_komOpt["boxDays"] ?? 30;
+        static void KomLogKeep(string p, Func<string, bool> keep)
+        {
+            try { if (File.Exists(p)) { var l = File.ReadAllLines(p).Where(keep).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, l) + (l.Count > 0 ? Environment.NewLine : "")); } } catch (Exception ex) { App.LogError(ex); }
+        }
         // przechowywanie (ustawia właściciel): pliki i wiadomości w skrzynce oraz wpisy dziennika starsze niż N dni - usuwane; raz na godzinę
         DateTime _komExpireAt;
         void KomBoxExpire()
@@ -1828,13 +1837,16 @@ namespace Velivo
             del.Click += (s, e) =>
             {
                 var tab = (FrameworkElement)((TabItem)tabs.SelectedItem).Content;
-                if (tab == tLog)
-                {
-                    if (MessageBox.Show(w, L.T("Wyczyścić dziennik skrzynki na tym serwerze (wpisy własne i z innych serwerów)?"), "🧹", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                    foreach (var p in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, p)); } catch (Exception) { }
+                var sel = tab is ListView lv ? lv.SelectedItems.Cast<string[]>().ToList() : new List<string[]>();
+                if (tab == tLog || tab == tErr)
+                {   // 📜 / ⚠ wpisy dziennika: zaznaczone - usuwane z plików na tym serwerze (wiersz = czas + treść)
+                    if (sel.Count == 0) { MessageBox.Show(w, L.T("Zaznacz wpisy (Ctrl+A – wszystkie). Cały dziennik czyści przycisk „🧹 Wyczyść dziennik”."), "🗑"); return; }
+                    if (MessageBox.Show(w, L.T("Usunąć zaznaczone wpisy dziennika: ") + sel.Count + "?", "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    var gone = new HashSet<string>(sel.Select(r => r[0] + "|" + r[r.Length - 1]));
+                    foreach (var p in tab == tLog ? new[] { "skrzynka.log", "skrzynka-serwery.log" } : new[] { "bledy.log" })
+                        KomLogKeep(Path.Combine(DataDir, p), l => !(l.Length > 19 && gone.Contains(l.Substring(0, 19) + "|" + System.Text.RegularExpressions.Regex.Replace(l.Substring(19).Trim(), @"^\[[^\]]+\]\s+", ""))) && !gone.Contains("|" + l));
                     All(); return;
                 }
-                var sel = tab is ListView lv ? lv.SelectedItems.Cast<string[]>().ToList() : new List<string[]>();
                 if (tab == tPeople)
                 {
                     var ids = sel.Where(r => r.Length > 6).Select(r => r[6]).ToList();
@@ -1866,11 +1878,31 @@ namespace Velivo
                 }
                 All();
             };
+            // 🧹 cały dziennik otwartej zakładki (📜 skrzynka – na wszystkich moich serwerach, ⚠ błędy – ten komputer); 💾 zapis tabeli do pliku
+            var clear = new Button { Content = "🧹 " + L.T("Wyczyść dziennik"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = L.T("Dziennik skrzynki – czyści na wszystkich moich serwerach; Błędy Velivo – czyści na tym komputerze") };
+            clear.Click += (s, e) =>
+            {
+                var tab = (FrameworkElement)((TabItem)tabs.SelectedItem).Content;
+                if (tab != tLog && tab != tErr) { MessageBox.Show(w, L.T("Otwórz zakładkę Dziennik skrzynki albo Błędy Velivo."), "🧹"); return; }
+                if (MessageBox.Show(w, tab == tLog ? L.T("Wyczyścić dziennik skrzynki na wszystkich moich serwerach?") : L.T("Wyczyścić dziennik błędów Velivo na tym komputerze?"), "🧹", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                foreach (var p in tab == tLog ? new[] { "skrzynka.log", "skrzynka-serwery.log" } : new[] { "bledy.log" }) try { File.Delete(Path.Combine(DataDir, p)); } catch (Exception) { }
+                if (tab == tLog) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxlogclr", ["id"] = _komId, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+                All();
+            };
+            var save = new Button { Content = "💾 " + L.T("Zapisz do pliku"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), ToolTip = L.T("Zapisuje otwartą tabelę (po szukaniu – to, co widać) do pliku tekstowego") };
+            save.Click += (s, e) =>
+            {
+                var tab = (FrameworkElement)((TabItem)tabs.SelectedItem).Content;
+                var dlg = new Microsoft.Win32.SaveFileDialog { FileName = "velivo-" + Environment.MachineName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".txt", Filter = L.T("Pliki tekstowe") + "|*.txt" };
+                if (dlg.ShowDialog(w) != true) return;
+                try { File.WriteAllLines(dlg.FileName, (tab is ListView lv && lv.ItemsSource is IEnumerable<string[]> r ? r : Enumerable.Empty<string[]>()).Select(x => string.Join("\t", x))); } catch (Exception ex) { MessageBox.Show(w, ex.Message, "💾"); }
+            };
             var folder = new Button { Content = "📂 " + L.T("Folder danych"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
             folder.Click += (s, e) => { try { System.Diagnostics.Process.Start("explorer.exe", DataDir); } catch (Exception) { } };
             var refresh = new Button { Content = "🔄 " + L.T("Odśwież"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) }; refresh.Click += (s, e) => All();
             var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) }, keep, refresh, del, copy, folder } };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) }, keep, refresh, del, clear, save, copy, folder } };
             DockPanel.SetDock(right, Dock.Right); bar.Children.Add(right);
             bar.Children.Add(new DockPanel { Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } });
             var help = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8),

@@ -1224,6 +1224,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         } finally { if (!good) { tmp.delete(); if (fmid != null) synchronized(fileIn) { fileIn.remove(fmid) } } }   // nieudany - powtórka może przyjść
     }
     private val fileIn = HashSet<String>()
+    val sendPct = java.util.concurrent.ConcurrentHashMap<String, Int>()   // ⬆ wysyłany plik: mid -> procent (pasek na dymku, jak WhatsApp)
+    @Volatile private var pctAt = 0L
     private val foundRelay = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     // plik na inny telefon: open() - strumień od początku (dwa razy: suma, potem wysyłka)
@@ -1275,6 +1277,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                         var len = 0
                         while (len < CHUNK) { val r = src.read(buf, len, CHUNK - len); if (r < 0) break; len += r }
                         sent += len
+                        if (pend != null && size > 0) { val pc = (sent * 100 / size).toInt(); if (pc != sendPct[mid]) { sendPct[mid] = pc; val now = System.currentTimeMillis(); if (now - pctAt > 500) { pctAt = now; main.post { onChange() } } } }   // ⬆ postęp wysyłania na dymku
                         val c = Cipher.getInstance("AES/GCM/NoPadding")
                         c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, chunkNonce(base, i)))
                         c.updateAAD(chunkAad(ad, i, i == n - 1))
@@ -1285,7 +1288,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val ack = ByteArray(32).also { inp.readFully(it) }
                 if (box || MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"   // skrzynka: potwierdza pośrednik
             }
-        }.getOrElse { it.message ?: it.javaClass.simpleName }.let { r ->
+        }.getOrElse { it.message ?: it.javaClass.simpleName }.also { sendPct.remove(mid) }.let { r ->
             // wynik dla okna: "ok", "odrzucono", "skrzynka" (📬 czeka na serwerze), "czeka" (u nas, pójdzie sama) albo błąd
             var res = r
             if (to != null && pend != null) {
@@ -3259,7 +3262,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     text = android.text.SpannableStringBuilder(shown).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
-                        append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append(fmt.format(java.util.Date(m.ts)) + tick)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp); reakcje - osobny dymek pod spodem
+                        append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append((k.sendPct[m.mid]?.let { "⬆ $it% · " } ?: "") + fmt.format(java.util.Date(m.ts)) + tick)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp); reakcje - osobny dymek pod spodem
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
                         setSpan(android.text.style.ForegroundColorSpan(Color.argb(0xC0, Color.red(base), Color.green(base), Color.blue(base))), st, length, 0)   // godzina zawsze w kolorze dymka

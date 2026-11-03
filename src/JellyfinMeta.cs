@@ -424,7 +424,7 @@ namespace Velivo
 
         void SaveJellyfinConf(JellyfinConf c)
         {
-            try { Directory.CreateDirectory(DataDir); File.WriteAllBytes(JellyfinConfFile, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(c), JellyfinEntropy, DataProtectionScope.CurrentUser)); }
+            try { Directory.CreateDirectory(DataDir); VelivoData.SafeWrite(JellyfinConfFile, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(c), JellyfinEntropy, DataProtectionScope.CurrentUser)); }
             catch (Exception ex) { App.LogError(ex); }
         }
 
@@ -571,7 +571,7 @@ namespace Velivo
                 if (posterJobs.Count > 0) { progress(L.T("Plakaty: ") + posterJobs.Count + "…"); await Task.WhenAll(posterJobs); }
                 Directory.CreateDirectory(MetaDir);
                 foreach (var k in meta.Keys.Where(k => k.StartsWith("ty:") || k.StartsWith("t:")).ToList()) meta.Remove(k);   // klucze tytulow liczone przy wczytaniu
-                File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta));
+                VelivoData.SafeWrite(MetaFile, JsonSerializer.Serialize(meta));
                 foreach (var m in meta.Values.Distinct().ToList()) AddTitleKeys(meta, m);
                 foreach (var kv in LoadManual()) meta[kv.Key] = kv.Value;   // reczne informacje zostaja po pobraniu z Jellyfin
                 _meta = meta;

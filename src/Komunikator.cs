@@ -140,7 +140,7 @@ namespace Velivo
             try
             {
                 Directory.CreateDirectory(DataDir);
-                File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(KomState().ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
+                VelivoData.SafeWrite(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(KomState().ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -285,7 +285,7 @@ namespace Velivo
                 }
                 var o = JsonNode.Parse(plain) as JsonObject; if (((string)o?["id"])?.Length != 32) return false;   // kopia z Windows
                 if (File.Exists(KomFile)) File.Copy(KomFile, KomFile + ".przed-kopia-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"), true);
-                File.WriteAllBytes(KomFile, ProtectedData.Protect(plain, KomEntropy, DataProtectionScope.CurrentUser));
+                VelivoData.SafeWrite(KomFile, ProtectedData.Protect(plain, KomEntropy, DataProtectionScope.CurrentUser));
                 _komContacts.Clear(); _komChats.Clear(); _komUnread.Clear(); _komPhotoSent.Clear(); _komAskKeys.Clear(); _komAskReq.Clear(); _komAskRes.Clear(); _komInvites.Clear(); _komOpt = new JsonObject();
                 _komLoaded = false; KomLoad();
                 if ((string)o["foto"] is { Length: > 0 } f) { Directory.CreateDirectory(KomMediaDir); File.WriteAllBytes(Path.Combine(KomMediaDir, "profil-" + _komId + ".jpg"), Convert.FromBase64String(f)); _komPhotoV = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave(); }

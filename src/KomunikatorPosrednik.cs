@@ -488,7 +488,7 @@ namespace Velivo
             {
                 var o = new JsonObject();
                 foreach (var kv in _komStore) lock (kv.Value) o[kv.Key] = new JsonArray(kv.Value.Select(x => x.DeepClone()).ToArray());
-                File.WriteAllText(KomStoreFile, o.ToJsonString());
+                VelivoData.SafeWrite(KomStoreFile, o.ToJsonString());
             }
             catch (Exception) { }
         }

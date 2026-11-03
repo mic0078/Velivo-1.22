@@ -18,6 +18,15 @@ namespace Velivo
         public static string NewRoot { get { return Path.Combine(Local, "Programs", "Velivo", "Dane"); } }
         public static string OldRoot { get { return Path.Combine(Local, "Przegladarka"); } }
 
+        // zapis „wszystko albo nic”: najpierw obok (.tmp), potem podmiana - wysypanie się / restart w trakcie nie zostawia obciętego pliku
+        public static void SafeWrite(string path, byte[] data)
+        {
+            var tmp = path + ".tmp";
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None)) { fs.Write(data, 0, data.Length); fs.Flush(true); }
+            File.Move(tmp, path, true);
+        }
+        public static void SafeWrite(string path, string text) => SafeWrite(path, System.Text.Encoding.UTF8.GetBytes(text));
+
         // Dopoki stary folder istnieje, dane sa w nim (przeniesienie sie nie udalo albo jeszcze nie bylo).
         public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : NewRoot; } }
 

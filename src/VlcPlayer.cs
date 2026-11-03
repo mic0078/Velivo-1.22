@@ -177,7 +177,7 @@ namespace Velivo
         void SaveLibrary(List<LibraryVideo> lib)
         {
             lock (LibraryLock)
-                try { Directory.CreateDirectory(DataDir); File.WriteAllText(LibraryFile, JsonSerializer.Serialize(lib, new JsonSerializerOptions { WriteIndented = true })); }
+                try { Directory.CreateDirectory(DataDir); VelivoData.SafeWrite(LibraryFile, JsonSerializer.Serialize(lib, new JsonSerializerOptions { WriteIndented = true })); }
                 catch (IOException ex) { App.LogError(ex); }
         }
 

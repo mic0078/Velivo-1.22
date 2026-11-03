@@ -1844,7 +1844,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }
     }
 
-    fun clearNotification(id: String) { ctx.getSystemService(NotificationManager::class.java)?.cancel(id.hashCode()) }
+    fun clearNotification(id: String) {
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        // 🫧 skasowanie powiadomienia zabiera też jego dymek - otwarta rozmowa w bąbelku znikała; bąbelek zostaje, aż sam go zamkniesz
+        if (android.os.Build.VERSION.SDK_INT >= 30 && runCatching { nm.activeNotifications.any { it.id == id.hashCode() && (it.notification.flags and Notification.FLAG_BUBBLE) != 0 } }.getOrDefault(false)) return
+        nm.cancel(id.hashCode())
+    }
 
     fun listenNotification(): Notification {
         val nm = ctx.getSystemService(NotificationManager::class.java); if (nm != null) channels(nm)

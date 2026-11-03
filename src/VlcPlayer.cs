@@ -1639,7 +1639,7 @@ namespace Velivo
             // 🔊 przesunięcie dźwięku względem obrazu (jak J / K w VLC) - soundbar, Bluetooth, HDMI; prawy przycisk: wyrównaj teraz
             var aEarly = textBtn("🔊−", ""); var aLate = textBtn("🔊+", ""); aEarly.FontSize = aLate.FontSize = 13;
             right.Children.Add(grp(L.T("Obraz i dźwięk"), new UIElement[] { tools, pipBtn, mini, full, mute, vol, volText, aEarly, aLate }));
-            right.Children.Add(grp(L.T("Ulubione"), new UIElement[] { fav, qFavTv, qFavFilm }));
+            var favGrp = grp(L.T("Ulubione"), new UIElement[] { fav, qFavTv, qFavFilm }); right.Children.Add(favGrp);
             right.Children.Add(grp(L.T("Widok"), new UIElement[] { qInfo, qBarTime, qInfoSet }));
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
             swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(5, 0, 2, 0); swap.Height = 40;
@@ -1747,7 +1747,7 @@ namespace Velivo
                 pop.IsOpen = true;
             };
             badge.MouseLeftButtonUp += (s, e) => { e.Handled = true; _ = showAbout(badge, badgeP, badgeCh, badgeImg.Source); };
-            quick.Children.Add(capt(card(netBox), L.T("Sieć")));
+            var netGrp = capt(card(netBox), L.T("Sieć")); quick.Children.Add(netGrp);
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
@@ -1905,8 +1905,7 @@ namespace Velivo
             var badgeSep = new Border { Width = 1, Height = 40, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             EventHandler sepVis = (s, e) => badgeSep.Visibility = badge.Visibility; visDp.AddValueChanged(badge, sepVis); sepVis(null, null);
             rightBox.Children.Add(clockBox); rightBox.Children.Add(badgeSep); rightBox.Children.Add(badge);
-            Grid.SetColumn(rightBox, 2); Grid.SetRowSpan(rightBox, 3); ctlRow.Children.Add(rightBox);
-            ctlRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // drugi wiersz przycisków - gdy powiększony pasek nie mieści się w jednym
+            Grid.SetColumn(rightBox, 2); Grid.SetRowSpan(rightBox, 2); ctlRow.Children.Add(rightBox);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
             recDot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
@@ -1919,16 +1918,22 @@ namespace Velivo
             overlay.Children.Add(controls);
             // przyciski szersze niż ekran (TV, niska rozdzielczość, duże skalowanie - CHUWI) - cały rząd zmniejszany, żeby nic nie było obcięte z prawej
             // największa potrzebna szerokość dla tej szerokości okna - zmienne napisy (prędkość sieci, Mb/s, opis filmu) nie zmieniają skali co sekundę (pasek „pływał”)
-            double barNeed = 0, barHave = 0, barF = 1; bool barWrap = false;
+            double barNeed = 0, barHave = 0, barF = 1;
+            // ↕ powiększony pasek za szeroki - po kolei chowane: Sieć, Ulubione, Czas i odbiór, opis obok plakatu (reszta rośnie płynnie w jednym wierszu); po zmniejszeniu wracają
+            var hideOrder = new FrameworkElement[] { (FrameworkElement)netGrp, (FrameworkElement)favGrp, endBox, badgeTxt }; var natW = new double[4]; var hidden = new bool[4];
             SizeChangedEventHandler fitBar = (s, e) =>
             {
                 double have = overlay.ActualWidth;
                 if (Math.Abs(have - barHave) > 1) { barHave = have; barNeed = 0; }
-                double qw = quick.ActualWidth + quick.Margin.Left + quick.Margin.Right, one = mainCol.ActualWidth + qw + rightBox.ActualWidth + 14;
-                // ↕ powiększony pasek za szeroki - szybkie przyciski (Widok, TV, Kanapa, sieć, czas) do drugiego wiersza zamiast zmniejszania całości (powiększenie było niewidoczne)
-                bool wrap = barF > 1.001 && (barWrap ? one > have - 20 : one > have);
-                if (wrap != barWrap) { barWrap = wrap; barNeed = 0; Grid.SetRow(quick, wrap ? 2 : 1); Grid.SetColumn(quick, wrap ? 0 : 1); Grid.SetColumnSpan(quick, wrap ? 2 : 1); quick.HorizontalAlignment = wrap ? HorizontalAlignment.Left : HorizontalAlignment.Stretch; }
-                double need = barNeed = Math.Max(barNeed, barWrap ? Math.Max(mainCol.ActualWidth, qw) + rightBox.ActualWidth + 14 : one);
+                double one = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14;
+                double full = one;
+                for (int i = 0; i < 4; i++) { var el = hideOrder[i]; if (!hidden[i] && el.ActualWidth > 0) natW[i] = el.ActualWidth + el.Margin.Left + el.Margin.Right; if (hidden[i]) full += natW[i]; }
+                var want = new bool[4]; double cur = full;
+                if (barF > 1.001) for (int i = 0; i < 4; i++) { if (cur <= (hidden[i] ? have - 30 : have - 4)) break; if (natW[i] > 0) { want[i] = true; cur -= natW[i]; } }
+                bool chg = false;
+                for (int i = 0; i < 4; i++) if (want[i] != hidden[i]) { hidden[i] = want[i]; hideOrder[i].MaxWidth = want[i] ? 0 : double.PositiveInfinity; hideOrder[i].IsHitTestVisible = !want[i]; chg = true; }
+                if (chg) { barNeed = 0; return; }   // po zmianie układu przyjdzie nowe SizeChanged z prawdziwymi szerokościami
+                double need = barNeed = Math.Max(barNeed, one);
                 double k = need > 0 && have > 0 && need > have ? Math.Floor(have / need * 20) / 20 : 1;   // skok co 5% - bez przeliczania paska w kółko (przycinało obraz)
                 var cur = ctlRow.LayoutTransform as ScaleTransform;
                 if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.001) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;

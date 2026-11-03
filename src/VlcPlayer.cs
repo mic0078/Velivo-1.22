@@ -552,6 +552,27 @@ namespace Velivo
         }
 
         static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
+        // dziennik VLC przez kolejkę: VLC woła Log w wątku obrazu i dźwięku, a setki „picture is too late” na sekundę zapisywane
+        // od razu na dysk mogły opóźniać te wątki (więcej spóźnionych klatek, rozjechany dźwięk)
+        static readonly System.Collections.Concurrent.ConcurrentQueue<string> _vlcLogQ = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        static int _vlcLogBusy;
+        static void VlcLogQueue(string line)
+        {
+            if (_vlcLogQ.Count > 2000) return;
+            _vlcLogQ.Enqueue(line); VlcLogKick();
+        }
+        static void VlcLogKick()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _vlcLogBusy, 1) == 1) return;
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(500);
+                var sb = new System.Text.StringBuilder(); while (_vlcLogQ.TryDequeue(out var l)) sb.Append(l);
+                System.Threading.Interlocked.Exchange(ref _vlcLogBusy, 0);
+                try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, sb.ToString()); } } catch (Exception) { }
+                if (!_vlcLogQ.IsEmpty) VlcLogKick();
+            });
+        }
         // 🔒 do dziennika tylko serwer - bez ścieżki i zapytania (token IPTV, login i hasło w adresie listy kanałów nigdy nie trafiają do pliku)
         static string VlcLogSafe(string s) => s == null ? "" : System.Text.RegularExpressions.Regex.Replace(s, @"((?:https?|rtsp|rtmp|udp|mms)://)(?:[^@/\s]*@)?([^/\s?#]+)[^\s]*", "$1$2/…", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         // wznowic od zapisanego miejsca? true = wznow, false = od poczatku; "zapamietaj" - ustawienie na stale (bez pytania)
@@ -1173,7 +1194,7 @@ namespace Velivo
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
                     bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
-                    try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + VlcLogSafe(e.Message) + "\n"); } } catch (Exception) { }
+                    VlcLogQueue(DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + VlcLogSafe(e.Message) + "\n");   // zapis w tle - wątek obrazu/dźwięku VLC nie czeka na dysk
                 };
                 return true;
             }
@@ -2904,6 +2925,7 @@ namespace Velivo
                     int seq = ++loadSeq;
                     await vlcRun(() => { var ps = mp.State; if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening) mp.Stop(); });
                     if (seq != loadSeq || vlcClosed) return;
+                    sSlow = fSlow = false; sStep = 0; sBad = fBad = 0; sLostV = sLostA = fLostV = fLostA = -1;   // nowy kanał / film - strażnik od nowa (wcześniej jedno gubienie klatek wyłączało go do zamknięcia odtwarzacza)
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }

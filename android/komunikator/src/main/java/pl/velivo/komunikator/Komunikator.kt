@@ -1724,7 +1724,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val last = synchronized(this) { chat(c.id).takeLast(6) }
         val me = android.app.Person.Builder().setName(if (pl) "Ty" else "You").build()
         // zdjęcie profilowe nadawcy przy wiadomości (jak w WhatsApp)
-        val face = runCatching { photo(c.id)?.let { android.graphics.BitmapFactory.decodeFile(it.path) }?.let { android.graphics.drawable.Icon.createWithBitmap(it) } }.getOrNull()
+        val faceBmp = runCatching { photo(c.id)?.let { android.graphics.BitmapFactory.decodeFile(it.path) } }.getOrNull()
+        val face = faceBmp?.let { android.graphics.drawable.Icon.createWithBitmap(it) }
         val them = android.app.Person.Builder().setName(c.name).setKey(c.id).apply { if (face != null) setIcon(face) }.build()
         // jasno: „💬 Nowa wiadomość od …” nad treścią
         val st = Notification.MessagingStyle(me).setConversationTitle("Velivo · " + c.name).setGroupConversation(true)
@@ -1740,12 +1741,53 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val read = Notification.Action.Builder(android.graphics.drawable.Icon.createWithResource(ctx, android.R.drawable.ic_menu_view), if (pl) "Przeczytane" else "Mark as read", readPi)
             .setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
         runCatching {
-            nm.notify(c.id.hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(statIcon).brand()
+            val nb = Notification.Builder(ctx, MSG_CH).setSmallIcon(statIcon).brand()
                 .setContentTitle("Velivo · " + c.name).setContentText(last.lastOrNull()?.text ?: "")
                 .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
-                .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true).build())
+                .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true)
+            bubbleOn(nb, c, them, faceBmp, false)   // 💬 przycisk „dymek” w powiadomieniu (Android 11+), a gdy bąbelek już jest - wiadomość w nim
+            nm.notify(c.id.hashCode(), nb.build())
         }
     }
+    // 💬 bąbelki rozmów (jak Messenger): Android 11+ - rozmowa w okrągłym dymku nad innymi aplikacjami; wymaga długotrwałego skrótu rozmowy z osobą
+    var bubbleIntent: ((String) -> Intent)? = null   // okno bąbelka - tylko aplikacja Komunikator (przeglądarka i klawiatura go nie mają)
+    private fun bubbleOn(nb: Notification.Builder, c: Contact, them: android.app.Person, bmp: android.graphics.Bitmap?, expand: Boolean): Boolean {
+        val bi = bubbleIntent ?: return false
+        if (android.os.Build.VERSION.SDK_INT < 30) return false
+        return runCatching {
+            val sm = ctx.getSystemService(android.content.pm.ShortcutManager::class.java) ?: return@runCatching false
+            val icon = bmp?.let { android.graphics.drawable.Icon.createWithAdaptiveBitmap(it) } ?: android.graphics.drawable.Icon.createWithResource(ctx, statIcon)
+            sm.pushDynamicShortcut(android.content.pm.ShortcutInfo.Builder(ctx, "czat-" + c.id).setLongLived(true).setShortLabel(c.name.take(24).ifEmpty { "Velivo" })
+                .setPerson(them).setIcon(icon).setIntent(openIntent(c.id).setAction(Intent.ACTION_VIEW)).build())
+            val pi = PendingIntent.getActivity(ctx, c.id.hashCode() + 3, bi(c.id), PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            nb.setShortcutId("czat-" + c.id).setBubbleMetadata(Notification.BubbleMetadata.Builder(pi, icon).setDesiredHeight(640)
+                .setAutoExpandBubble(expand).setSuppressNotification(expand).build())
+            true
+        }.getOrDefault(false)
+    }
+    // 💬 z menu rozmowy: bąbelek od razu na ekranie; "" = gotowe, inaczej powód (bąbelki wyłączone w ustawieniach telefonu)
+    fun showBubble(c: Contact): String {
+        if (android.os.Build.VERSION.SDK_INT < 30) return "android"
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return "android"
+        val allowed = if (android.os.Build.VERSION.SDK_INT >= 31) nm.bubblePreference == NotificationManager.BUBBLE_PREFERENCE_ALL else @Suppress("DEPRECATION") nm.areBubblesAllowed()
+        if (!allowed) return "ustawienia"
+        val pl = Locale.getDefault().language == "pl"
+        // osobny cichy kanał - samo otwarcie dymka nie dzwoni ani nie wibruje (Notification.Builder nie ma setSilent)
+        if (nm.getNotificationChannel("babelki") == null) nm.createNotificationChannel(NotificationChannel("babelki", if (pl) "Bąbelki rozmów" else "Chat bubbles", NotificationManager.IMPORTANCE_HIGH).apply {
+            setSound(null, null); enableVibration(false); setShowBadge(false); setAllowBubbles(true) })
+        val faceBmp = runCatching { photo(c.id)?.let { android.graphics.BitmapFactory.decodeFile(it.path) } }.getOrNull()
+        val them = android.app.Person.Builder().setName(c.name).setKey(c.id).apply { if (faceBmp != null) setIcon(android.graphics.drawable.Icon.createWithBitmap(faceBmp)) }.build()
+        val me = android.app.Person.Builder().setName(if (pl) "Ty" else "You").build()
+        val st = Notification.MessagingStyle(me).setConversationTitle("Velivo · " + c.name)
+        synchronized(this) { chat(c.id).takeLast(3) }.forEach { st.addMessage(Notification.MessagingStyle.Message(it.text, it.ts, if (it.mine) null else them)) }
+        if (st.messages.isEmpty()) st.addMessage(Notification.MessagingStyle.Message("💬", System.currentTimeMillis(), them))
+        val pi = PendingIntent.getActivity(ctx, c.id.hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val nb = Notification.Builder(ctx, "babelki").setSmallIcon(statIcon).setContentTitle("Velivo · " + c.name).setStyle(st)
+            .setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setOnlyAlertOnce(true)
+        if (!bubbleOn(nb, c, them, faceBmp, true)) return "android"
+        return runCatching { nm.notify(c.id.hashCode(), nb.build()); "" }.getOrDefault("android")
+    }
+
     // rozmowa na ekranie: bez powiadomienia, tylko krótki dźwięk (jak w innych komunikatorach); wyciszony telefon - cisza
     private fun chatSound() = runCatching {
         val am = ctx.getSystemService(android.media.AudioManager::class.java)
@@ -1988,7 +2030,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         // rozmowa „na ekranie” tylko, gdy aplikacja jest na wierzchu - w tle / przy wygaszonym ekranie zwykłe powiadomienia
         a.application.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(x: Activity) { if (x === a) { k.chatOpen = chatWith; onTop = true; if (stale) { stale = false; refresh() } } }
+            override fun onActivityResumed(x: Activity) { if (x === a) { k.chatOpen = chatWith; onTop = true; k.onChange = { refresh() }; k.onCall = { c, o -> onCall(c, o) }; k.onCards = { cards() }; if (stale) { stale = false; refresh() } } }
             override fun onActivityPaused(x: Activity) { if (x === a) { k.chatOpen = null; onTop = false } }
             override fun onActivityDestroyed(x: Activity) { if (x === a) { k.chatOpen = null; k.askPair = k.noUiPair; a.application.unregisterActivityLifecycleCallbacks(this) } }
             override fun onActivityCreated(x: Activity, b: android.os.Bundle?) {}
@@ -2846,12 +2888,26 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }.start()
     }
 
+    // 🫧 bąbelek rozmowy; wyłączone w telefonie - ustawienia „Dymki” tej aplikacji z objaśnieniem
+    private fun bubble(c: Komunikator.Contact) {
+        when (k.showBubble(c)) {
+            "" -> Toast.makeText(a, t("🫧 Bąbelek „${c.name}” jest na ekranie – przeciągnij go, gdzie chcesz; na ✕ na dole – zamknij", "🫧 “${c.name}” bubble is on screen – drag it anywhere; onto ✕ at the bottom – close"), Toast.LENGTH_LONG).show()
+            "ustawienia" -> {
+                Toast.makeText(a, t("Włącz dymki: „Wszystkie rozmowy mogą tworzyć dymki”, potem wróć i wybierz 🫧 jeszcze raz", "Turn on bubbles: “All conversations can bubble”, then come back and choose 🫧 again"), Toast.LENGTH_LONG).show()
+                runCatching { a.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_BUBBLE_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName)) }
+            }
+            else -> Toast.makeText(a, t("Ten telefon nie pokazuje bąbelków (potrzebny Android 11 i dymki włączone przez producenta)", "This phone doesn't show bubbles (needs Android 11 and bubbles enabled by the maker)"), Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun manage(c: Komunikator.Contact) {
         val items = arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"),
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
-            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("🧹 " + t("Wyczyść rozmowę…", "Clear chat…"), "♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille"))
+            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("🧹 " + t("Wyczyść rozmowę…", "Clear chat…"), "♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille")) +
+            if (k.bubbleIntent != null && android.os.Build.VERSION.SDK_INT >= 30) arrayOf("🫧 " + t("Bąbelek na ekranie (rozmowa nad innymi aplikacjami)", "Chat bubble (over other apps)")) else emptyArray()
         Dlg().setTitle(c.name).setItems(items) { _, i ->
+            if (items[i].startsWith("🫧")) { bubble(c); return@setItems }
             if (items[i].startsWith("♿")) { accessibility(); return@setItems }
             if (items[i].startsWith("🧹")) { clearChat(c); return@setItems }
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }

@@ -13,7 +13,7 @@ import android.widget.Toast
 // 💬 Komunikator Velivo - osobna aplikacja. Gdy jest w telefonie, to ona jest jedynym komunikatorem: przeglądarka i klawiatura
 // Velivo oddają jej kontakty, rozmowy i identyfikator (te same kontakty dalej nas znają) i otwierają ją przyciskiem 💬.
 // W sieci domowej własny port (41918), poza domem - przez domowego pośrednika, jak dotąd.
-class Start : Activity() {
+open class Start : Activity() {
     private lateinit var k: Komunikator
     private lateinit var okno: KomunikatorOkno
 
@@ -28,6 +28,7 @@ class Start : Activity() {
         k = Komunikator.get(this) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
         k.saveFile = { name, tmp, dev -> save(name, tmp, dev) }
         k.openIntent = { id -> Intent(applicationContext, Start::class.java).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
+        k.bubbleIntent = { id -> Intent(applicationContext, Babelek::class.java).setAction(Intent.ACTION_VIEW).putExtra("czat", id) }
         okno = KomunikatorOkno(this, k) { pick() }
         okno.onClose = { if (!picking) moveTaskToBack(true) }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
@@ -130,3 +131,6 @@ class Start : Activity() {
 
     companion object { const val ACTION_FILES = "pl.velivo.komunikator.PLIKI" }
 }
+
+// 🫧 bąbelek rozmowy (Android 11+): to samo okno komunikatora, osadzone w dymku nad innymi aplikacjami
+class Babelek : Start()

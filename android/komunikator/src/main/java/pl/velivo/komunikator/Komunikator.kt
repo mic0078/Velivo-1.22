@@ -3197,6 +3197,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         // każdy dymek / zdjęcie: przytrzymanie zaznacza; w trybie zaznaczania stuknięcie zaznacza / odznacza zamiast otwierać
         fun selectable(v: View, m: Komunikator.Msg) {
             v.setOnLongClickListener { if (picked.none { it === m }) picked.add(m); fillRef(); true }
+            // ↩ przesunięcie dymka w prawo = odpowiedz (jak WhatsApp) - zdjęcie, tekst, głosówka; stuknięcie i przytrzymanie działają dalej
+            var sx = 0f; var sy = 0f; var swiping = false
+            v.setOnTouchListener { vv, e ->
+                when (e.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> { sx = e.rawX; sy = e.rawY; swiping = false }
+                    android.view.MotionEvent.ACTION_MOVE -> { val dx = e.rawX - sx; if (!swiping && dx > px(16) && dx > 2 * Math.abs(e.rawY - sy)) { swiping = true; vv.parent?.requestDisallowInterceptTouchEvent(true); vv.cancelLongPress() }
+                        if (swiping) vv.translationX = minOf(dx, px(90).toFloat()) }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (swiping) { val go = vv.translationX >= px(60); vv.animate().translationX(0f).setDuration(120).start(); swiping = false; if (go && picked.isEmpty()) onReply?.invoke(m); return@setOnTouchListener true }
+                }
+                swiping
+            }
             if (picked.isNotEmpty()) v.setOnClickListener { if (picked.removeAll { it === m }) Unit else picked.add(m); fillRef() }
             if (picked.any { it === m }) v.foreground = android.graphics.drawable.ColorDrawable(Color.argb(0x70, 0x22, 0xD3, 0xEE))
         }

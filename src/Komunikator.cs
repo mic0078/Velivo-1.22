@@ -989,7 +989,7 @@ namespace Velivo
         }
         void KomSendPhoto(KomContact c)
         {
-            var tag = _komPhotoV + DateTime.UtcNow.Date.Ticks / TimeSpan.TicksPerDay;   // co dzień od nowa: zdjęcie skasowane u kontaktu (np. porządki w folderze) wraca samo
+            var tag = _komPhotoV + DateTime.UtcNow.Ticks / TimeSpan.TicksPerHour;   // co godzinę od nowa (przy kontakcie w sieci): zdjęcie skasowane u kontaktu wraca samo, bez czekania do jutra
             if (_komPhotoV == 0 || c.IsGroup || _komPhotoSent.TryGetValue(c.Id, out var v) && v == tag) return;
             _komPhotoSent[c.Id] = tag; KomSave();
             var p = KomPhoto(_komId);

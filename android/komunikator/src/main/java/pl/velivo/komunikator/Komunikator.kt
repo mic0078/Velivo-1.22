@@ -552,7 +552,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         contacts.filter { !it.isGroup }.forEach { sendPhoto(it) }
     }
     private fun sendPhoto(c: Contact) {
-        val v0 = prefs.getLong("profil-v", 0); val v = v0 + System.currentTimeMillis() / 86400000L   // co dzień od nowa - zdjęcie skasowane u kontaktu wraca samo
+        val v0 = prefs.getLong("profil-v", 0); val v = v0 + System.currentTimeMillis() / 3600000L   // co godzinę od nowa - zdjęcie skasowane u kontaktu wraca samo, bez czekania do jutra
         if (v0 == 0L || prefs.getLong("profil-${c.id}", 0) == v) return
         prefs.edit().putLong("profil-${c.id}", v).apply()
         hidden(c, PHOTO + JSONObject().put("p", photo(myId)?.readBytes()?.let { b64(it) } ?: ""))

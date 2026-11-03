@@ -532,6 +532,9 @@ namespace Velivo
         // owner: okno, nad ktorym ma byc biblioteka (z odtwarzacza - nad filmem, takze gdy odtwarzacz jest zawsze na wierzchu)
         void ShowVideoLibrary() { ShowVideoLibrary(this); }
 
+        // ⏱ prawdziwa różnica dźwięku względem zegara obrazu - VLC podaje ją w dzienniku wyjścia dźwięku („playback too late (µs)”, „not synchronized (µs)”)
+        static long _vlcDriftUs; static DateTime _vlcDriftAt;
+        static readonly System.Text.RegularExpressions.Regex VlcDriftRx = new System.Text.RegularExpressions.Regex(@"(?:playback (?:way )?too (?:late|early)|not synchronized) \((-?\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
         static volatile bool _aoutFailed;   // VLC nie otworzyl wyjscia dzwieku (biezacy film)
 
         // plik AVI po zawartosci (bywa z inna koncowka, np. .ts)
@@ -1192,6 +1195,7 @@ namespace Velivo
                 _libVlc.Log += (s, e) =>
                 {
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
+                    if (e.Message != null && VlcDriftRx.Match(e.Message) is var dm && dm.Success && long.TryParse(dm.Groups[1].Value, out var dus)) { _vlcDriftUs = dus; _vlcDriftAt = DateTime.Now; }
                     bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
                     VlcLogQueue(DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + VlcLogSafe(e.Message) + "\n");   // zapis w tle - wątek obrazu/dźwięku VLC nie czeka na dysk
@@ -2253,6 +2257,7 @@ namespace Velivo
             var vlcTail = System.Threading.Tasks.Task.CompletedTask; int loadSeq = 0;
             Func<Action, System.Threading.Tasks.Task> vlcRun = a => vlcTail = vlcTail.ContinueWith(_ => { try { a(); } catch (Exception ex) { App.LogError(ex); } }, System.Threading.Tasks.TaskScheduler.Default);
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
+            int dBad = 0; DateTime dFixed = DateTime.MinValue;   // ⏱ zmierzone rozjechanie dźwięku
             long aPlayed = -1, aVideo = -1; int aSilent = 0; DateTime aReload = DateTime.MinValue;   // straznik dzwieku
             // 🔄 straznik synchronizacji po przycieciu: przycięcie = buforowanie VLC albo nieciaglosc / uszkodzone dane strumienia;
             // po powrocie i ustabilizowaniu (6 s) - gdy VLC stale gubi spoznione klatki albo bufory dzwieku, obraz i dzwiek sie rozjechaly:
@@ -2369,8 +2374,7 @@ namespace Velivo
                             if (sBad >= 3 && sStep == 0 && (DateTime.Now - syncFixed).TotalSeconds > 20)
                             {
                                 sStep = 1; sBad = 0; syncFixed = DateTime.Now;
-                                try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " po przycieciu obraz i dzwiek rozjechane (gubi klatki " + dV + ", dzwiek " + dA + ") - wyrownanie dzwieku\n"); } catch (Exception) { }
-                                var tr = mp.AudioTrack; mp.SetAudioTrack(-1); mp.SetAudioTrack(tr);
+                                try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " po przycieciu gubi klatki " + dV + ", dzwiek " + dA + " - czekam na pomiar roznicy dzwieku\n"); } catch (Exception) { }
                             }
                             else if (sBad >= 5 && sStep == 1 && (DateTime.Now - syncReload).TotalSeconds > 120)
                             {   // ostatecznosc - jedno odswiezenie kanalu, najwyzej co 2 min
@@ -2383,6 +2387,14 @@ namespace Velivo
                     }
                 }
                 catch (Exception ex) { App.LogError(ex); }
+                // ⏱ zmierzone rozjechanie (z dziennika VLC): ponad 0,3 s przez 6 s - wyrównanie od nowa (kanał od nowa), najwyżej raz na minutę
+                if (mp.State == VLCState.Playing && (DateTime.Now - _vlcDriftAt).TotalSeconds < 3 && Math.Abs(_vlcDriftUs) > 300_000) dBad++; else dBad = 0;
+                if (dBad >= 3 && (DateTime.Now - dFixed).TotalSeconds > 60)
+                {
+                    dBad = 0; dFixed = DateTime.Now;
+                    try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " dzwiek rozjechany o " + (_vlcDriftUs / 1000) + " ms (pomiar VLC) - kanal od nowa\n"); } catch (Exception) { }
+                    resync(); return;
+                }
                 if (mp.State == VLCState.Playing && mp.Time != lastTvTime) { lastTvTime = mp.Time; lastTvProgress = DateTime.Now; tvRetries = 0; return; }
                 var wait = Math.Max(8, IptvSt.Buffer + 6) * (tvRetries >= 3 ? 2 : 1);   // po kilku probach rzadziej
                 if ((DateTime.Now - lastTvProgress).TotalSeconds < wait) return;
@@ -2926,7 +2938,7 @@ namespace Velivo
                     await vlcRun(() => { var ps = mp.State; if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening) mp.Stop(); });
                     if (seq != loadSeq || vlcClosed) return;
                     sSlow = fSlow = false; sStep = 0; sBad = fBad = 0; sLostV = sLostA = fLostV = fLostA = -1;   // nowy kanał / film - strażnik od nowa (wcześniej jedno gubienie klatek wyłączało go do zamknięcia odtwarzacza)
-                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
+                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\nprzesuniecie dzwieku (J/K): " + aDelayMs + " ms, bufor: " + IptvSt.Buffer + " s\n"); _vlcDriftAt = DateTime.MinValue; } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;

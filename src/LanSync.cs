@@ -1250,14 +1250,14 @@ namespace Velivo
 
         // 255.255.255.255 Windows wysyla tylko jedna karta sieciowa (czesto VPN / Hyper-V / VirtualBox),
         // wiec inne komputery w LAN nie dostawaly pakietow. Wysylamy tez na adres rozgloszeniowy kazdej aktywnej karty IPv4.
-        // rozgłoszenie + bezpośrednio: znane komputery (ostatnie 10 min) i - przy parowaniu oraz co minutę przy „hello” - każdy adres sieci /24.
+        // rozgłoszenie + bezpośrednio: znane komputery (ostatnie 10 min) i - przy parowaniu oraz co 10 min przy „hello” (nie w trakcie odtwarzania) - każdy adres sieci /24.
         // Router bywa nie przepuszcza rozgłoszeń między Wi-Fi a kablem (HP na Wi-Fi 5G nie słyszał Ryzena na kablu) - pakiet wprost do adresu dochodzi.
         DateTime _lanSweepAt;
         List<IPAddress> LanTargets(string t)
         {
             var list = LanBroadcastTargets();
             try { foreach (var p in _lanPeers.Values.ToList()) if (DateTime.UtcNow - p.LastSeenUtc < TimeSpan.FromMinutes(10) && IPAddress.TryParse(p.Address, out var pa) && !list.Contains(pa)) list.Add(pa); } catch (Exception) { }   // lista zmieniana w innym wątku - bez niej tylko rozgłoszenie
-            bool sweep = t != null && (t.StartsWith("pair-", StringComparison.Ordinal) || (t == "hello" && DateTime.UtcNow - _lanSweepAt > TimeSpan.FromSeconds(60)));
+            bool sweep = t != null && (t.StartsWith("pair-", StringComparison.Ordinal) || (t == "hello" && !PlayerBusy && DateTime.UtcNow - _lanSweepAt > TimeSpan.FromMinutes(10)));   // 254 wysyłek naraz (zapytania ARP w Wi-Fi) co minutę przycinały TV: „playback too late ~100 ms” co minutę, dźwięk uciekał - teraz co 10 min i nigdy w trakcie filmu/TV
             if (!sweep) return list;
             if (t == "hello") _lanSweepAt = DateTime.UtcNow;
             try

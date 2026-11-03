@@ -340,11 +340,12 @@ namespace Velivo
         {
             var from = (string)p["id"]; var t = (string)p["t"];
             if (from == null || from.Length != 32 || IPAddress.IsLoopback(addr)) return;
+            if (KomEvIn(p, t, from, addr)) return;   // 🗄 dziennik zdarzeń moich serwerów
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
             if ((bool?)p["fwd"] == true)
             {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
                 _komViaNet[from] = true;
-                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) { KomSendFrame(brc, cp); if ((string)cp["mid"] is string bm) { _komBoxDoneOut["m:" + bm] = (bto, DateTime.UtcNow); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = bto, ["mids"] = new JsonArray((JsonNode)bm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } } else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
+                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) { KomSendFrame(brc, cp); if ((string)cp["mid"] is string bm) { _komBoxDoneOut["m:" + bm] = (bto, DateTime.UtcNow); KomEvDone(bto, new[] { bm }); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = bto, ["mids"] = new JsonArray((JsonNode)bm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } } else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
                 if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
                 return;
             }
@@ -382,7 +383,7 @@ namespace Velivo
                 if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); }
             }
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
-            if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
+            if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) { KomEvMsg(sto, p); return; }
             if (from == _komId || _komRemote.IsEmpty) return;   // nasze - bez echa
             var to = (string)p["to"];
             if (to != null) { if (_komRemote.TryGetValue(to, out var rc)) KomSendFrame(rc, p); return; }
@@ -399,6 +400,7 @@ namespace Velivo
             try { if (!_komContacts.ToArray().Any(c => c.Id == to)) return false; } catch (Exception) { return false; }
             var l = _komStore.GetOrAdd(to, _ => new List<JsonNode>());
             var mid = (string)p["mid"];
+            if (mid != null) lock (KomEvDoneSet) if (KomEvDoneSet.Contains(mid)) return true;   // już doręczona przez mój serwer - nie wraca do skrzynki
             lock (l) { if (!l.Any(x => (string)x["mid"] == mid)) { l.Add(p.DeepClone()); if (l.Count > 300) l.RemoveAt(0); } }
             KomStoreSave();
             return true;
@@ -411,6 +413,7 @@ namespace Velivo
             lock (l) { foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); } mids = new JsonArray(l.Select(x => (JsonNode)(string)x["mid"]).ToArray()); }
             KomStoreSave();
             foreach (var m in mids) if ((string)m is string ms) _komBoxDoneOut["m:" + ms] = (id, DateTime.UtcNow);   // powtarzane przez 2 dni (KomBoxDoneRepeat)
+            KomEvDone(id, mids.Select(m => (string)m));
             if (mids.Count > 0) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = id, ["mids"] = mids, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });   // inni pośrednicy kasują swoje kopie
         }
         // 📬 pośrednicy w domu (NUCBOX, CHUWI, …) dzielą skrzynkę: kopia wiadomości u każdego, po doręczeniu kasowana
@@ -593,6 +596,7 @@ namespace Velivo
 
         void KomRelayStop()
         {
+            try { if (_komRelayListener != null) KomBoxPeers(new JsonObject { ["t"] = "p2p-srvbye", ["id"] = _komId }); } catch (Exception) { }   // ☕ wyłączam się - inne serwery przejmują
             try { _komRelayCts?.Cancel(); } catch (Exception) { }
             try { _komRelayListener?.Stop(); } catch (Exception) { }
             _komRelayListener = null; _komRelayCts = null;
@@ -691,9 +695,9 @@ namespace Velivo
                     // do pośrednika (albo do wszystkich) - obsluga tutaj; odpowiedzi ida do urzadzenia przez "to"
                     if (pto == null || pto == _komId) { var pp = p; _ = Dispatcher.BeginInvoke(new Action(() => { try { KomHandle(pp, IPAddress.Loopback); } catch (Exception ex) { App.LogError(ex); } })); }
                     if (pto == _komId) continue;
-                    if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); if ((string)p["t"] == "p2p-msg" && (string)p["mid"] is string lm) { _komBoxDoneOut["m:" + lm] = (pto, DateTime.UtcNow); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = pto, ["mids"] = new JsonArray((JsonNode)lm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } continue; }   // doręczone wprost - kopie na innych moich serwerach kasowane   // oba urzadzenia poza domem
+                    if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); if ((string)p["t"] == "p2p-msg" && (string)p["mid"] is string lm) { _komBoxDoneOut["m:" + lm] = (pto, DateTime.UtcNow); KomEvDone(pto, new[] { lm }); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = pto, ["mids"] = new JsonArray((JsonNode)lm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } continue; }   // doręczone wprost - kopie na innych moich serwerach kasowane   // oba urzadzenia poza domem
                     // do sieci domowej: znany adres albo do wszystkich
-                    if (pto != null && KomStoreKeep(p, pto)) { KomBoxPeers(KomFwd(p)); continue; }   // odbiorca niedostępny - pośrednik przechowuje (kopia u innych pośredników w domu)
+                    if (pto != null && KomStoreKeep(p, pto)) { KomBoxPeers(KomFwd(p)); KomEvMsg(pto, p); continue; }   // odbiorca niedostępny - pośrednik przechowuje (kopia u innych pośredników w domu)
                     KomLanRaw(KomFwd(p), pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
                     if (pto == null) foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p);
                 }
@@ -1781,6 +1785,7 @@ namespace Velivo
         void KomBoxExpire()
         {
             if (DateTime.UtcNow - _komExpireAt < TimeSpan.FromHours(1)) return; _komExpireAt = DateTime.UtcNow;
+            try { KomEv.Prune(DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds()); } catch (Exception ex) { App.LogError(ex); }   // 🗄 dziennik zdarzeń - tylko z okresu przechowywania
             var limit = DateTime.Now.AddDays(-KomBoxDays);
             try
             {

@@ -155,6 +155,18 @@ namespace Velivo
         // 📬 skrzynka na pliki: plik do kontaktu, którego nie ma - zaszyfrowany kluczem nadawcy i odbiorcy (pośrednik go nie odczyta),
         // na dysku pośrednika do odebrania (DataDir\skrzynka\<odbiorca>); oddawany, gdy odbiorca się pojawi (internet albo sieć domowa)
         static string KomBoxDir(string id) => Path.Combine(DataDir, "skrzynka", id);
+        // 📬 dziennik skrzynki (skrzynka.log w folderze danych): co czeka, komu, próba, wynik - widać, co dzieje się z plikiem, bez pytania odbiorcy
+        readonly ConcurrentDictionary<string, DateTime> _komBoxWaitLog = new ConcurrentDictionary<string, DateTime>();   // „czeka” najwyżej co 30 min (ponowienie co minutę)
+        void KomBoxLog(string id, string what)
+        {
+            try
+            {
+                var p = Path.Combine(DataDir, "skrzynka.log");
+                if (File.Exists(p) && new FileInfo(p).Length > 2_000_000) File.Delete(p);
+                File.AppendAllText(p, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + (KomContactById(id)?.Name ?? id) + "  " + what + Environment.NewLine);
+            }
+            catch (Exception) { }
+        }
         async Task KomBoxStore(JsonNode h, byte[] hb, Stream s, string fromPeer, CancellationToken token)
         {
             var to = (string)h["To"] ?? ""; long size = (long?)h["Size"] ?? -1;
@@ -235,19 +247,22 @@ namespace Velivo
                         if (_komRemote.ContainsKey(id)) st = await KomRelayOpenTo(id, cts.Token);
                         else if (_komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100))
                         { cl = await KomTcpConnect(a, cts.Token); st = cl.GetStream(); }
-                        if (st == null) return;   // odbiorcy nie ma - zostaje w skrzynce
+                        if (st == null) { if (!_komBoxWaitLog.TryGetValue(id, out var wl) || DateTime.UtcNow - wl > TimeSpan.FromMinutes(30)) { _komBoxWaitLog[id] = DateTime.UtcNow; KomBoxLog(id, "czeka: odbiorca niepołączony z tym serwerem (" + Directory.GetFiles(dir, "*.hdr").Length + " plików)"); } return; }   // odbiorcy nie ma - zostaje w skrzynce
+                        var size = new FileInfo(bin).Length; var t0 = DateTime.UtcNow;
+                        KomBoxLog(id, "wysyłam " + (size / 1024) + " KB");
                         await KomWriteBlock(st, File.ReadAllBytes(hdr), cts.Token);
-                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) return;
+                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) { KomBoxLog(id, "telefon odbiorcy nie odpowiedział – ponowię za minutę"); return; }
                         if (b[0] == 1)
                         {
                             using (var fi = File.OpenRead(bin)) await fi.CopyToAsync(st, 1 << 16, cts.Token);
                             await st.FlushAsync(cts.Token);
-                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) continue;   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
+                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) { KomBoxLog(id, "przerwany po " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s – ponowię za minutę"); continue; }   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
                         }
+                        KomBoxLog(id, b[0] == 1 ? "doręczony (" + (size / 1024) + " KB, " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)" : "odbiorca odmówił (ma już ten plik albo brak miejsca)");
                         File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
                         var gh = Path.GetFileNameWithoutExtension(hdr).Split('-').Last(); gone.Add(gh); _komBoxDoneOut[gh] = (id, DateTime.UtcNow);
                     }
-                    catch (Exception) { if (st == null) return; }   // zerwany przy jednym pliku - pozostałe dalej
+                    catch (Exception ex) { KomBoxLog(id, "błąd: " + ex.Message); if (st == null) return; }   // zerwany przy jednym pliku - pozostałe dalej
                     finally { st?.Dispose(); cl?.Dispose(); }
                 }
                 if (Directory.GetFiles(dir).Length == 0) Directory.Delete(dir);

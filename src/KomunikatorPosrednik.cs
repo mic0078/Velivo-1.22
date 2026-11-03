@@ -1141,7 +1141,12 @@ namespace Velivo
             var once = KomRelayAutoOnce();
             try
             {   // router bez odpowiedzi (UPnP) nie może trzymać „Sprawdzam porty…” w nieskończoność (Ryzen: 12 min)
-                if (await Task.WhenAny(once, Task.Delay(TimeSpan.FromSeconds(60))) != once) { _komRelayRouter = L.T("Nie udało się sprawdzić portów – router nie odpowiedział w 60 s"); KomRelayStatus(); }
+                if (await Task.WhenAny(once, Task.Delay(TimeSpan.FromSeconds(60))) != once)
+                {   // router zawieszony - wynik słowami i następne sprawdzenie może ruszyć (zawieszone kończy się samo w tle)
+                    _komRelayRouter = L.T("Nie udało się sprawdzić portów – router nie odpowiedział w 60 s"); KomRelayStatus();
+                    _ = once.ContinueWith(t => { if (t.Exception != null) App.LogError(t.Exception); }, TaskScheduler.Default);
+                    return;
+                }
                 await once;
             }
             catch (Exception ex) { App.LogError(ex); }

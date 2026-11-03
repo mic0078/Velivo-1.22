@@ -339,7 +339,7 @@ namespace Velivo
             var c = JfServers(_jfConfCache).FirstOrDefault(x => JfSame(x.Url, mi?.Srv)) ?? _jfConfCache;   // film z serwera, z którego pochodzi
             if (c == null || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key) || string.IsNullOrEmpty(id)) return null;
             var b = _jfWorking != null && (_jfWorking == c.Url || _jfWorking == c.Lan) ? _jfWorking : c.Url;
-            return b.TrimEnd('/') + "/Videos/" + Uri.EscapeDataString(id) + "/stream?static=true&api_key=" + Uri.EscapeDataString(c.Key);
+            return b.TrimEnd('/') + "/Videos/" + Uri.EscapeDataString(id) + "/stream?static=true&api_key=" + Uri.EscapeDataString(c.Key) + "&ApiKey=" + Uri.EscapeDataString(c.Key);   // ApiKey - nowy Jellyfin
         }
 
         // sortowanie listy filmow: az / za / ocena / rok (rok nierozpoznanego filmu z nazwy pliku)
@@ -421,6 +421,7 @@ namespace Velivo
             // kompresja (gzip/brotli): lista 1000+ filmów z obsadą to dziesiątki MB - przez internet (wysyłanie z domu) szła bardzo długo
             var http = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(5) };   // duza baza (ponad 1000 filmow z obsada) - serwer odpowiada dlugo
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Emby-Token", c.Key);
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "MediaBrowser Token=\"" + c.Key + "\"");   // nowy Jellyfin (10.11+) może mieć wyłączony stary nagłówek X-Emby-Token
             http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             return http;
         }

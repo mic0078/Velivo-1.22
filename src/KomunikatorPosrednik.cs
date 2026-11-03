@@ -1690,7 +1690,8 @@ namespace Velivo
             var gv = new GridView();
             var lv = new ListView { View = gv, Margin = new Thickness(0, 4, 0, 0), SelectionMode = SelectionMode.Extended };
             // własny wiersz: zaznaczony - ciemnoniebieski z białym tekstem (zwykły szablon Windows dawał jasnoniebieski pasek i nieczytelny biały tekst)
-            var bd = new FrameworkElementFactory(typeof(Border)); bd.SetValue(Border.PaddingProperty, new Thickness(2, 3, 2, 3));
+            var bd = new FrameworkElementFactory(typeof(Border)); bd.SetValue(Border.PaddingProperty, new Thickness(2, 5, 2, 5));
+            bd.SetValue(Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1)); bd.SetValue(Border.BorderBrushProperty, AdmB(0x283150));
             bd.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
             var gp = new FrameworkElementFactory(typeof(GridViewRowPresenter));
             gp.SetValue(GridViewRowPresenter.ColumnsProperty, new TemplateBindingExtension(GridView.ColumnCollectionProperty));
@@ -1701,7 +1702,15 @@ namespace Velivo
             rowStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
             var over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x55, 0x6B, 0x7C, 0xC4))));
             var picked = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true }; picked.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x2D, 0x4F, 0xB8)))); picked.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
-            rowStyle.Triggers.Add(over); rowStyle.Triggers.Add(picked);
+            var zebra = new Trigger { Property = ItemsControl.AlternationIndexProperty, Value = 1 }; zebra.Setters.Add(new Setter(Control.BackgroundProperty, AdmB(0x1f2639)));   // co drugi wiersz ciemniejszy - łatwiej czytać
+            rowStyle.Triggers.Add(zebra); rowStyle.Triggers.Add(over); rowStyle.Triggers.Add(picked); lv.AlternationCount = 2;
+            // nagłówek kolumny: ciemny pasek, pogrubiony, do lewej
+            var hb = new FrameworkElementFactory(typeof(Border)); hb.SetValue(Border.BackgroundProperty, AdmB(0x232b42)); hb.SetValue(Border.BorderBrushProperty, AdmB(0x34405e));
+            hb.SetValue(Border.BorderThicknessProperty, new Thickness(0, 0, 1, 1)); hb.SetValue(Border.PaddingProperty, new Thickness(8, 6, 8, 6));
+            var hc = new FrameworkElementFactory(typeof(ContentPresenter)); hc.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left); hb.AppendChild(hc);
+            var hs = new Style(typeof(GridViewColumnHeader)); hs.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(GridViewColumnHeader)) { VisualTree = hb }));
+            hs.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White)); hs.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
+            gv.ColumnHeaderContainerStyle = hs;
             lv.ItemContainerStyle = rowStyle;
             int sortCol = -1; bool desc = false; List<string[]> data = new List<string[]>();
             int Cmp(string a, string c) => double.TryParse((a ?? "").Split(' ')[0], out var x) && double.TryParse((c ?? "").Split(' ')[0], out var y) ? x.CompareTo(y) : string.Compare(a, c, StringComparison.CurrentCultureIgnoreCase);
@@ -1719,10 +1728,32 @@ namespace Velivo
                 int col = k;
                 var h = new GridViewColumnHeader { Content = cols[k], Cursor = System.Windows.Input.Cursors.Hand };
                 h.Click += (s, e) => { desc = sortCol == col && !desc; sortCol = col; foreach (var c in gv.Columns) ((GridViewColumnHeader)c.Header).Content = cols[gv.Columns.IndexOf(c)]; h.Content = cols[col] + (desc ? " ▼" : " ▲"); Show(); };
-                gv.Columns.Add(new GridViewColumn { Header = h, DisplayMemberBinding = new System.Windows.Data.Binding("[" + k + "]") });
+                // komórka z kolorem stanu: zielony - doręczone / działa, żółty - w trakcie / czeka, czerwony - przerwane / błąd
+                var tb = new FrameworkElementFactory(typeof(TextBlock)); tb.SetValue(FrameworkElement.MarginProperty, new Thickness(6, 0, 6, 0));
+                tb.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("[" + k + "]"));
+                tb.SetBinding(TextBlock.ForegroundProperty, new System.Windows.Data.Binding("[" + k + "]") { Converter = AdmColor.One });
+                gv.Columns.Add(new GridViewColumn { Header = h, CellTemplate = new DataTemplate { VisualTree = tb } });
             }
             search.TextChanged += (s, e) => Show();
             return (lv, () => { try { data = rows(); } catch (Exception ex) { data = new List<string[]> { new[] { "⚠ " + ex.Message } }; } Show(); });
+        }
+        // 🛠 wygląd panelu administratora (granat jak w makiecie): tło, kafelki, przyciski, zakładki, kolory stanów
+        static SolidColorBrush AdmB(int rgb) => new SolidColorBrush(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb));
+        sealed class AdmColor : System.Windows.Data.IValueConverter
+        {
+            public static readonly AdmColor One = new AdmColor();
+            static readonly string[] Bad = { "przerwany", "błąd", "odmówił", "nie przyjmuje", "usunięty", "brak wieści", "wyłączony", "nie nasłuchuje", "różne" };
+            static readonly string[] Ok = { "doręczony", "działa", "połączony z tym", "otwarty", "zgodne" };
+            static readonly string[] Wait = { "wysyłam", "czeka", "w sieci przez", "sprawdzam", "poza siecią", "przyjęty" };
+            public object Convert(object v, Type t, object p, System.Globalization.CultureInfo c)
+            {
+                var x = (v as string ?? "").ToLowerInvariant();
+                if (Bad.Any(x.Contains)) return AdmB(0xf87171);
+                if (Ok.Any(x.Contains)) return AdmB(0x4ade80);
+                if (Wait.Any(x.Contains)) return AdmB(0xfbbf24);
+                return DependencyProperty.UnsetValue;
+            }
+            public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c) => throw new NotSupportedException();
         }
         int KomBoxDays => (int?)_komOpt["boxDays"] ?? 30;
         // 📊 stan każdego mojego serwera (co minutę między serwerami w domu) - panel administratora pokazuje wszystkie naraz, z wersją (różne wersje = częsta przyczyna błędów)
@@ -1770,7 +1801,7 @@ namespace Velivo
             string Ago(DateTime t) => t.ToString("yyyy-MM-dd HH:mm");
             // kafelki
             var cards = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
-            TextBlock Card(string sub) { var v = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold }; cards.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Brushes.SlateGray, CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0),
+            TextBlock Card(string sub) { var v = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold }; cards.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = AdmB(0x34405e), Background = AdmB(0x232b42), CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 8, 0),
                 Child = new StackPanel { Children = { v, new TextBlock { Text = sub, Opacity = 0.75 } } } }); return v; }
             var cSrv = Card(L.T("serwer")); var cFiles = Card(L.T("pliki czekają")); var cMsg = Card(L.T("wiadomości czekają")); var cOn = Card(L.T("osób w sieci")); var cVer = Card(L.T("wersje serwerów"));
             var search = new TextBox { Padding = new Thickness(4), ToolTip = L.T("Szukaj w otwartej tabeli (osoba, zdarzenie, adres…)") };
@@ -1882,6 +1913,8 @@ namespace Velivo
                 cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnline(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
                 var vers = _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)).Select(kv => ((string)kv.Value.Info["ver"] ?? "").Split(' ')[0]).Append(KomBuild.Split(' ')[0]).Distinct().Count();
                 cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
+                cSrv.Foreground = AdmB(_komRelayListener != null ? 0x4ade80 : 0xf87171); cVer.Foreground = AdmB(vers <= 1 ? 0x4ade80 : 0xf87171);
+                cFiles.Foreground = AdmB(files > 0 ? 0xfbbf24 : 0xe8ecf4); cMsg.Foreground = AdmB(cMsg.Text != "0" ? 0xfbbf24 : 0xe8ecf4);
                 rOver(); SrvFill(); rBox(); rPeople(); rLog(); rErr(); rInfo();
             }
             // przechowywanie: ustawia właściciel, idzie do moich serwerów
@@ -1981,7 +2014,30 @@ namespace Velivo
             All();
             var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s, e) => { if (w.IsActive || w.IsVisible) All(); }; tm.Start();
             w.Closed += (s, e) => tm.Stop();
-            KomStyle(w); w.Show();
+            KomStyle(w); AdmLook(w, tabs); w.Show();
+        }
+        // po KomStyle (kolory motywu) - stały granatowy wygląd panelu, czytelny niezależnie od motywu
+        static void AdmLook(Window w, TabControl tabs)
+        {
+            w.Background = AdmB(0x1b2133); w.Foreground = AdmB(0xe8ecf4);
+            void Walk(object o)
+            {
+                if (o is Button b) { b.Background = AdmB(0x2a3350); b.BorderBrush = AdmB(0x44507a); b.Foreground = AdmB(0xe8ecf4); }
+                else if (o is ListView lv) { lv.Background = AdmB(0x1b2133); lv.Foreground = AdmB(0xe8ecf4); lv.BorderBrush = AdmB(0x34405e); }
+                else if (o is TextBox t) { t.Background = AdmB(0x232b42); t.Foreground = AdmB(0xe8ecf4); t.BorderBrush = AdmB(0x44507a); t.CaretBrush = AdmB(0xe8ecf4); }
+                if (o is DependencyObject d) foreach (var c in LogicalTreeHelper.GetChildren(d)) Walk(c);
+            }
+            Walk(w);
+            tabs.Background = AdmB(0x1b2133); tabs.BorderBrush = AdmB(0x34405e);
+            var bd = new FrameworkElementFactory(typeof(Border)); bd.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+            bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(6, 6, 0, 0)); bd.SetValue(Border.PaddingProperty, new Thickness(14, 7, 14, 7)); bd.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 4, 0));
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter)); cp.SetValue(ContentPresenter.ContentSourceProperty, "Header"); bd.AppendChild(cp);
+            var ts = new Style(typeof(TabItem)); ts.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(TabItem)) { VisualTree = bd }));
+            ts.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent)); ts.Setters.Add(new Setter(Control.ForegroundProperty, AdmB(0xaab3c8)));
+            var ov = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; ov.Setters.Add(new Setter(Control.BackgroundProperty, AdmB(0x232b42)));
+            var sel = new Trigger { Property = TabItem.IsSelectedProperty, Value = true }; sel.Setters.Add(new Setter(Control.BackgroundProperty, AdmB(0x2a3350))); sel.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            ts.Triggers.Add(ov); ts.Triggers.Add(sel);
+            foreach (TabItem ti in tabs.Items) ti.Style = ts;
         }
         void KomRelayDialog(Window owner)
         {

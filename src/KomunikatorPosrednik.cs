@@ -1657,6 +1657,8 @@ namespace Velivo
                 var list = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
                 var log = new TextBox { IsReadOnly = true, FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12, Width = 560, Height = 260, TextWrapping = TextWrapping.NoWrap,
                     VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 4, 0, 0) };
+                var conn = new TextBox { IsReadOnly = true, FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12, Width = 560, Height = 170, TextWrapping = TextWrapping.NoWrap,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 4, 0, 0) };
                 void Fill()
                 {
                     list.Children.Clear(); int all = 0;
@@ -1672,14 +1674,42 @@ namespace Velivo
                             + bins.Min(x => x.LastWriteTime).ToString("dd.MM HH:mm") + " · " + (on ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi")) });
                         list.Children.Add(row);
                     }
-                    head.Text = all == 0 ? L.T("✅ Skrzynka pusta – wszystko doręczone.") : L.T("Czeka na odbiorców: ") + all + L.T(" plików");
+                    int msgs = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; });
+                    head.Text = (all == 0 && msgs == 0 ? L.T("✅ Skrzynka pusta – wszystko doręczone.") : L.T("Czeka na odbiorców: ") + all + L.T(" plików") + " · " + L.T("wiadomości: ") + msgs)
+                        + "\n" + L.T("Ten komputer: ") + Environment.MachineName + " · " + (_komRelayListener != null ? L.T("serwer działa, port ") + _komRelayPort : L.T("serwer wyłączony"))
+                        + " · " + (_komUp != null ? L.T("połączony z serwerem ") + _komUpRelay?.Name : L.T("w domu"));
+                    // każda osoba: w sieci? którędy? kiedy ostatnio? ile czeka wiadomości
+                    var sb = new StringBuilder();
+                    foreach (var c in _komContacts.Where(x => !x.IsGroup).OrderByDescending(x => KomOnline(x.Id)).ThenBy(x => x.Name))
+                    {
+                        var way = new List<string>();
+                        if (_komRemote.ContainsKey(c.Id)) way.Add(L.T("przez internet z tym serwerem"));
+                        if (_komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) way.Add(L.T("sieć domowa ") + (_komLanAddr.TryGetValue(c.Id, out var la) ? la.ToString() : ""));
+                        if (_komViaRelay.TryGetValue(c.Id, out var vr)) way.Add(L.T("przez serwer ") + (_komContacts.FirstOrDefault(r => _komLanAddr.TryGetValue(r.Id, out var ra) && ra.Equals(vr))?.Name ?? vr.ToString()));
+                        int w = _komStore.TryGetValue(c.Id, out var q) ? q.Count : 0;
+                        sb.AppendLine((KomOnline(c.Id) ? "● " : "○ ") + c.Name.PadRight(22).Substring(0, 22) + " " + (way.Count > 0 ? string.Join(", ", way) : "—")
+                            + (_komSeenAt.TryGetValue(c.Id, out var sa) ? L.T(" · ostatnio ") + sa.ToString("dd.MM HH:mm") : "") + (w > 0 ? L.T(" · czeka wiadomości: ") + w : "")
+                            + (!string.IsNullOrEmpty(c.Relay) ? L.T(" · serwer ") + c.Relay : ""));
+                    }
+                    conn.Text = sb.ToString();
                     try { var p = Path.Combine(DataDir, "skrzynka.log"); log.Text = File.Exists(p) ? string.Join(Environment.NewLine, File.ReadLines(p).Reverse().Take(80)) : L.T("(dziennik jeszcze pusty)"); } catch (Exception) { }
                 }
+                // 📋 cały raport do schowka - do wklejenia przy zgłoszeniu błędu (bez kluczy i treści wiadomości)
+                var copy = new Button { Content = "📋 " + L.T("Kopiuj raport"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                    ToolTip = L.T("Kopiuje wszystko z tego okna (oraz ostatnie błędy programu) – wklej, zgłaszając problem") };
+                copy.Click += (s2, e2) =>
+                {
+                    string err = ""; try { var bp = Path.Combine(DataDir, "bledy.log"); if (File.Exists(bp)) err = string.Join(Environment.NewLine, File.ReadLines(bp).Reverse().Take(30)); } catch (Exception) { }
+                    try { Clipboard.SetText(DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "\n" + head.Text + "\n\n" + string.Join("\n", list.Children.OfType<StackPanel>().Select(r => r.Children.OfType<TextBlock>().FirstOrDefault()?.Text))
+                        + "\n\n== " + L.T("Połączenia") + " ==\n" + conn.Text + "\n== " + L.T("Dziennik") + " ==\n" + log.Text + "\n\n== " + L.T("Błędy programu") + " ==\n" + err); copy.Content = "✅ " + L.T("Skopiowano"); } catch (Exception) { }
+                };
                 Fill();
                 var help = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 560, Opacity = 0.8, Margin = new Thickness(0, 6, 0, 0),
                     Text = L.T("Gdy odbiorcy nie ma albo połączenie się zerwie, plik czeka tutaj, a serwer próbuje co minutę. Zielona kropka – odbiorca w sieci teraz. Niżej dziennik: najnowsze wpisy na górze.") };
                 var w = new Window { Title = "📬 " + L.T("Skrzynka serwera"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, help, list, new TextBlock { Text = L.T("Dziennik:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }, log } } };
+                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, help, list,
+                        new TextBlock { Text = L.T("Osoby i urządzenia – którędy połączone (● w sieci, ○ poza siecią):"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }, conn,
+                        new TextBlock { Text = L.T("Dziennik:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }, log, copy } } };
                 var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s2, e2) => Fill(); tm.Start();
                 w.Closed += (s2, e2) => tm.Stop();
                 KomStyle(w); w.ShowDialog();

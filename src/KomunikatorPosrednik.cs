@@ -691,7 +691,7 @@ namespace Velivo
                     // do pośrednika (albo do wszystkich) - obsluga tutaj; odpowiedzi ida do urzadzenia przez "to"
                     if (pto == null || pto == _komId) { var pp = p; _ = Dispatcher.BeginInvoke(new Action(() => { try { KomHandle(pp, IPAddress.Loopback); } catch (Exception ex) { App.LogError(ex); } })); }
                     if (pto == _komId) continue;
-                    if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); continue; }   // oba urzadzenia poza domem
+                    if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); if ((string)p["t"] == "p2p-msg" && (string)p["mid"] is string lm) { _komBoxDoneOut["m:" + lm] = (pto, DateTime.UtcNow); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = pto, ["mids"] = new JsonArray((JsonNode)lm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } continue; }   // doręczone wprost - kopie na innych moich serwerach kasowane   // oba urzadzenia poza domem
                     // do sieci domowej: znany adres albo do wszystkich
                     if (pto != null && KomStoreKeep(p, pto)) { KomBoxPeers(KomFwd(p)); continue; }   // odbiorca niedostępny - pośrednik przechowuje (kopia u innych pośredników w domu)
                     KomLanRaw(KomFwd(p), pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
@@ -1765,9 +1765,12 @@ namespace Velivo
         {
             int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
             return new JsonObject { ["t"] = "p2p-srvinfo", ["id"] = _komId, ["name"] = Environment.MachineName, ["ver"] = KomBuild, ["on"] = _komRelayListener != null, ["port"] = _komRelayPort,
-                ["host"] = _komRelayHost, ["router"] = _komRelayRouter, ["conns"] = string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")), ["files"] = files,
+                ["host"] = _komRelayHost, ["router"] = _komRelayRouter, ["conns"] = string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")), ["connIds"] = string.Join(",", _komRemote.Keys), ["files"] = files,
                 ["msgs"] = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }), ["since"] = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToString("yyyy-MM-dd HH:mm") };
         }
+        // 🌍 w sieci przez którykolwiek mój serwer (stan od innych serwerów, co minutę) - Ryzen widzi mamę połączoną z NUCBOX
+        string KomPeerWith(string id) => _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) && ((string)kv.Value.Info["connIds"] ?? "").Split(',').Contains(id)).Select(kv => kv.Key).FirstOrDefault();
+        bool KomOnlineAny(string id) => KomOnline(id) || KomPeerWith(id) != null;
         void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
         static void KomLogKeep(string p, Func<string, bool> keep)
         {
@@ -1810,7 +1813,7 @@ namespace Velivo
             // stan słowami z tego, co serwer naprawdę widzi: odbiorca połączony z TYM serwerem (wysyła), z innym (tamten oddaje), poza siecią
             string Why(string id, bool copy) =>
                 _komRemote.ContainsKey(id) || (_komLanSeen.TryGetValue(id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) ? L.T("połączony z tym serwerem – wysyłam (próba co minutę)")
-                : KomOnline(id) ? (copy ? L.T("w sieci przez inny serwer – oddaje go tamten serwer, tu zapasowa kopia") : L.T("w sieci przez inny serwer – ten serwer czeka, aż odbiorca połączy się z nim"))
+                : KomOnlineAny(id) ? (copy ? L.T("w sieci przez inny serwer – oddaje go tamten serwer, tu zapasowa kopia") : L.T("w sieci przez inny serwer – ten serwer czeka, aż odbiorca połączy się z nim"))
                 : L.T("poza siecią – wyślę, gdy się pojawi");
             // 1. skrzynka
             var (tBox, rBox) = KomTable(new[] { L.T("Osoba"), L.T("Plik (rozmiar KB)"), L.T("Czeka od"), L.T("Stan") }, () =>
@@ -1835,7 +1838,7 @@ namespace Velivo
                     if (_komRemote.ContainsKey(c.Id)) way.Add(L.T("przez internet z tym serwerem"));
                     bool lan = _komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100); if (lan) way.Add(L.T("sieć domowa"));
                     if (_komViaRelay.TryGetValue(c.Id, out var vr)) way.Add(L.T("przez serwer ") + (_komContacts.FirstOrDefault(r => _komLanAddr.TryGetValue(r.Id, out var ra) && ra.Equals(vr))?.Name ?? vr.ToString()));
-                    return new[] { KomOnline(c.Id) ? L.T("● w sieci") : L.T("○ poza siecią"), c.Name, !string.IsNullOrEmpty(c.Relay) ? L.T("mój serwer") + " (" + c.Relay + ")" : c.Dom ? L.T("moje urządzenie") : L.T("znajomy"),
+                    return new[] { KomOnlineAny(c.Id) ? L.T("● w sieci") : L.T("○ poza siecią"), c.Name, !string.IsNullOrEmpty(c.Relay) ? L.T("mój serwer") + " (" + c.Relay + ")" : c.Dom ? L.T("moje urządzenie") : L.T("znajomy"),
                         way.Count > 0 ? string.Join(", ", way) : "—", _komLanAddr.TryGetValue(c.Id, out var la) ? la.ToString() : "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "", c.Id };
                 }).ToList(), search);
             // 3. dziennik skrzynki, 4. błędy Velivo - z plików (najnowsze na górze)
@@ -1924,7 +1927,7 @@ namespace Velivo
             {
                 int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
                 cSrv.Text = _komRelayListener != null ? L.T("Działa") : L.T("Wyłączony"); cFiles.Text = files.ToString(); cMsg.Text = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }).ToString();
-                cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnline(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
+                cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnlineAny(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
                 var vers = _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)).Select(kv => ((string)kv.Value.Info["ver"] ?? "").Split(' ')[0]).Append(KomBuild.Split(' ')[0]).Distinct().Count();
                 cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
                 cSrv.Foreground = AdmB(_komRelayListener != null ? 0x4ade80 : 0xf87171); cVer.Foreground = AdmB(vers <= 1 ? 0x4ade80 : 0xf87171);

@@ -1756,7 +1756,7 @@ namespace Velivo
             var line2 = new StackPanel { Orientation = Orientation.Horizontal }; line2.Children.Add(stateText);
             line2.Children.Add(new TextBlock { Text = "  ·  ", FontSize = 12, Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center }); line2.Children.Add(streamInfo);
             var endCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center, MinWidth = 230 }; endCol.Children.Add(endText); endCol.Children.Add(line2);
-            var endBox = capt(card(endCol), L.T("Czas i odbiór")); quick.Children.Add(endBox);
+            var endBox = capt(card(endCol), L.T("Czas i odbiór"));   // właściciel 2026-11-03: „wyrzuć” - ramka nie jest już dodawana do paska
             EventHandler endVis = (s, e) => endBox.Visibility = endText.Visibility; visDp.AddValueChanged(endText, endVis); endVis(null, null);   // bez filmu / kanału - cała ramka znika
             string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -1919,19 +1919,22 @@ namespace Velivo
             // przyciski szersze niż ekran (TV, niska rozdzielczość, duże skalowanie - CHUWI) - cały rząd zmniejszany, żeby nic nie było obcięte z prawej
             // największa potrzebna szerokość dla tej szerokości okna - zmienne napisy (prędkość sieci, Mb/s, opis filmu) nie zmieniają skali co sekundę (pasek „pływał”)
             double barNeed = 0, barHave = 0, barF = 1;
-            // ↕ powiększony pasek za szeroki - po kolei chowane: Sieć, Ulubione, Czas i odbiór, opis obok plakatu (reszta rośnie płynnie w jednym wierszu); po zmniejszeniu wracają
-            var hideOrder = new FrameworkElement[] { (FrameworkElement)netGrp, (FrameworkElement)favGrp, endBox, badgeTxt }; var natW = new double[4]; var hidden = new bool[4];
+            // ↕ powiększony pasek za szeroki - po kolei: węższy wykres sieci, bez Sieci, bez opisu obok plakatu (Ulubione zawsze widać); po zmniejszeniu wracają
+            Action<FrameworkElement, bool> hideEl = (el, on) => { el.MaxWidth = on ? 0 : double.PositiveInfinity; el.IsHitTestVisible = !on; };
+            var stepW = new Func<double>[] { () => netGraph.ActualWidth * 0.5, () => netGrp.ActualWidth + netGrp.Margin.Left + netGrp.Margin.Right, () => badgeTxt.ActualWidth + badgeTxt.Margin.Left + badgeTxt.Margin.Right };
+            var stepSet = new Action<bool>[] { on => netGraph.LayoutTransform = on ? new ScaleTransform(0.5, 1) : Transform.Identity, on => hideEl(netGrp, on), on => hideEl(badgeTxt, on) };
+            var natW = new double[3]; var hidden = new bool[3];
             SizeChangedEventHandler fitBar = (s, e) =>
             {
                 double have = overlay.ActualWidth;
                 if (Math.Abs(have - barHave) > 1) { barHave = have; barNeed = 0; }
                 double one = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14;
                 double full = one;
-                for (int i = 0; i < 4; i++) { var el = hideOrder[i]; if (!hidden[i] && el.ActualWidth > 0) natW[i] = el.ActualWidth + el.Margin.Left + el.Margin.Right; if (hidden[i]) full += natW[i]; }
-                var want = new bool[4]; double rest = full;
-                if (barF > 1.001) for (int i = 0; i < 4; i++) { if (rest <= (hidden[i] ? have - 30 : have - 4)) break; if (natW[i] > 0) { want[i] = true; rest -= natW[i]; } }
+                for (int i = 0; i < 3; i++) { if (!hidden[i]) { var w0 = stepW[i](); if (w0 > 0) natW[i] = w0; } else full += natW[i]; }
+                var want = new bool[3]; double rest = full;
+                if (barF > 1.001) for (int i = 0; i < 3; i++) { if (rest <= (hidden[i] ? have - 30 : have - 4)) break; if (natW[i] > 0) { want[i] = true; rest -= natW[i]; } }
                 bool chg = false;
-                for (int i = 0; i < 4; i++) if (want[i] != hidden[i]) { hidden[i] = want[i]; hideOrder[i].MaxWidth = want[i] ? 0 : double.PositiveInfinity; hideOrder[i].IsHitTestVisible = !want[i]; chg = true; }
+                for (int i = 0; i < 3; i++) if (want[i] != hidden[i]) { hidden[i] = want[i]; stepSet[i](want[i]); chg = true; }
                 if (chg) { barNeed = 0; return; }   // po zmianie układu przyjdzie nowe SizeChanged z prawdziwymi szerokościami
                 double need = barNeed = Math.Max(barNeed, one);
                 double k = need > 0 && have > 0 && need > have ? Math.Floor(have / need * 20) / 20 : 1;   // skok co 5% - bez przeliczania paska w kółko (przycinało obraz)

@@ -1754,7 +1754,9 @@ namespace Velivo
                     foreach (var bin in Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)))
                         l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), Why(id, Path.GetFileName(bin.FullName).StartsWith('k')), id + "|" + bin.FullName });   // ostatnie pole (niewidoczne) - do usuwania
                 }
-                foreach (var kv in _komStore) { int n; lock (kv.Value) n = kv.Value.Count; if (n > 0) l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, n + L.T(" wiadomości (tekst)"), "", Why(kv.Key, false) }); }
+                foreach (var kv in _komStore) { List<JsonNode> ms; lock (kv.Value) ms = kv.Value.ToList(); foreach (var m in ms)
+                    l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, L.T("wiadomość (tekst) od ") + (KomContactById((string)m["id"] ?? "")?.Name ?? "?"),
+                        (long?)m["ts"] is long ts ? Ago(DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime) : "", Why(kv.Key, false), kv.Key + "|m:" + (string)m["mid"] }); }
                 return l;
             }, search);
             // 2. osoby i urządzenia
@@ -1766,7 +1768,7 @@ namespace Velivo
                     bool lan = _komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100); if (lan) way.Add(L.T("sieć domowa"));
                     if (_komViaRelay.TryGetValue(c.Id, out var vr)) way.Add(L.T("przez serwer ") + (_komContacts.FirstOrDefault(r => _komLanAddr.TryGetValue(r.Id, out var ra) && ra.Equals(vr))?.Name ?? vr.ToString()));
                     return new[] { KomOnline(c.Id) ? L.T("● w sieci") : L.T("○ poza siecią"), c.Name, !string.IsNullOrEmpty(c.Relay) ? L.T("mój serwer") + " (" + c.Relay + ")" : c.Dom ? L.T("moje urządzenie") : L.T("znajomy"),
-                        way.Count > 0 ? string.Join(", ", way) : "—", _komLanAddr.TryGetValue(c.Id, out var la) ? la.ToString() : "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "" };
+                        way.Count > 0 ? string.Join(", ", way) : "—", _komLanAddr.TryGetValue(c.Id, out var la) ? la.ToString() : "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "", c.Id };
                 }).ToList(), search);
             // 3. dziennik skrzynki, 4. błędy Velivo - z plików (najnowsze na górze)
             List<string[]> LogRows(string file, int n)
@@ -1820,18 +1822,47 @@ namespace Velivo
                     + Tab((FrameworkElement)((TabItem)tabs.SelectedItem).Content) + Environment.NewLine + "== " + L.T("Informacje techniczne") + " ==" + Environment.NewLine + Tab(tInfo)); copy.Content = "✅ " + L.T("Skopiowano"); } catch (Exception) { }
             };
             // 🗑 usuń zaznaczone pliki ze skrzynki (np. nie do doręczenia) - na tym serwerze, z wpisem w dzienniku
+            // 🗑 pełna kontrola: zaznaczone w otwartej zakładce - na WSZYSTKICH moich serwerach (Skrzynka: pliki i wiadomości, Osoby: kontakt, Dziennik: czyszczenie)
             var del = new Button { Content = "🗑 " + L.T("Usuń zaznaczone"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0),
-                ToolTip = L.T("Usuwa zaznaczone pliki ze skrzynki tego serwera (zakładka Skrzynka; Ctrl/Shift – kilka)") };
+                ToolTip = L.T("Skrzynka: usuwa zaznaczone pliki i wiadomości; Osoby: usuwa osobę; Dziennik: czyści dziennik – na wszystkich moich serwerach. Ctrl+A – wszystko, Ctrl/Shift – kilka.") };
             del.Click += (s, e) =>
             {
-                var sel = tBox is ListView lv ? lv.SelectedItems.Cast<string[]>().Where(r => r.Length > 4).ToList() : new List<string[]>();
-                if (sel.Count == 0) { MessageBox.Show(w, L.T("Zaznacz pliki w zakładce Skrzynka."), "🗑"); return; }
-                if (MessageBox.Show(w, L.T("Usunąć ze skrzynki tego serwera: ") + sel.Count + L.T(" plików? Odbiorca ich nie dostanie."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                foreach (var r in sel)
+                var tab = (FrameworkElement)((TabItem)tabs.SelectedItem).Content;
+                if (tab == tLog)
                 {
-                    var i2 = r[4].IndexOf('|'); var who = r[4].Substring(0, i2); var bin = r[4].Substring(i2 + 1);
-                    foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(bin, ext)); } catch (Exception) { }
-                    KomBoxLog(who, "usunięty ręcznie z Centrum serwera: " + r[1]);
+                    if (MessageBox.Show(w, L.T("Wyczyścić dziennik skrzynki na tym serwerze (wpisy własne i z innych serwerów)?"), "🧹", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    foreach (var p in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, p)); } catch (Exception) { }
+                    All(); return;
+                }
+                var sel = tab is ListView lv ? lv.SelectedItems.Cast<string[]>().ToList() : new List<string[]>();
+                if (tab == tPeople)
+                {
+                    var ids = sel.Where(r => r.Length > 6).Select(r => r[6]).ToList();
+                    if (ids.Count == 0) { MessageBox.Show(w, L.T("Zaznacz osoby w zakładce Osoby i urządzenia."), "🗑"); return; }
+                    if (MessageBox.Show(w, L.T("Usunąć na wszystkich moich serwerach: ") + string.Join(", ", ids.Select(x => KomContactById(x)?.Name ?? x)) + L.T("? Nie będą mogli pisać przez moje serwery; ich czekające pliki i wiadomości znikną."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                    foreach (var x in ids) { KomBoxLog(x, "osoba usunięta ręcznie z Centrum serwera (na wszystkich moich serwerach)"); _komStore.TryRemove(x, out _); try { Directory.Delete(KomBoxDir(x), true); } catch (Exception) { } KomForget(x, true); }
+                    KomStoreSave(); All(); return;
+                }
+                if (tab != tBox) { MessageBox.Show(w, L.T("W tej zakładce nie ma czego usuwać."), "🗑"); return; }
+                var rows = sel.Where(r => r.Length > 4 && r[4].Contains('|')).ToList();
+                if (rows.Count == 0) { MessageBox.Show(w, L.T("Zaznacz pliki albo wiadomości w zakładce Skrzynka (Ctrl+A – wszystko)."), "🗑"); return; }
+                if (MessageBox.Show(w, L.T("Usunąć ze skrzynki na wszystkich moich serwerach: ") + rows.Count + L.T(" pozycji? Odbiorca ich nie dostanie."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                foreach (var g in rows.GroupBy(r => r[4].Substring(0, r[4].IndexOf('|'))))
+                {
+                    var files = new JsonArray(); var mids = new JsonArray();
+                    foreach (var r in g)
+                    {
+                        var what = r[4].Substring(r[4].IndexOf('|') + 1);
+                        if (what.StartsWith("m:")) { var mid = what.Substring(2); if (_komStore.TryGetValue(g.Key, out var l2)) lock (l2) l2.RemoveAll(x => (string)x["mid"] == mid); mids.Add(mid); }
+                        else { foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(what, ext)); } catch (Exception) { } files.Add(Path.GetFileNameWithoutExtension(what).Split('-').Last()); }
+                        KomBoxLog(g.Key, "usunięty ręcznie z Centrum serwera: " + r[1]);
+                    }
+                    KomStoreSave();
+                    // inne moje serwery kasują swoje kopie (to samo „doręczone”, które już rozumieją; powtarzane 2 dni - wyłączony też skasuje)
+                    foreach (var h in files) if ((string)h is string hs) _komBoxDoneOut[hs] = (g.Key, DateTime.UtcNow);
+                    foreach (var m in mids) if ((string)m is string ms2) _komBoxDoneOut["m:" + ms2] = (g.Key, DateTime.UtcNow);
+                    if (files.Count > 0) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["files"] = files, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+                    if (mids.Count > 0) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["mids"] = mids, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
                 }
                 All();
             };

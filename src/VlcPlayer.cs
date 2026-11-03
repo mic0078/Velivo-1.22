@@ -1905,7 +1905,8 @@ namespace Velivo
             var badgeSep = new Border { Width = 1, Height = 40, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             EventHandler sepVis = (s, e) => badgeSep.Visibility = badge.Visibility; visDp.AddValueChanged(badge, sepVis); sepVis(null, null);
             rightBox.Children.Add(clockBox); rightBox.Children.Add(badgeSep); rightBox.Children.Add(badge);
-            Grid.SetColumn(rightBox, 2); Grid.SetRowSpan(rightBox, 2); ctlRow.Children.Add(rightBox);
+            Grid.SetColumn(rightBox, 2); Grid.SetRowSpan(rightBox, 3); ctlRow.Children.Add(rightBox);
+            ctlRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // drugi wiersz przycisków - gdy powiększony pasek nie mieści się w jednym
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
             recDot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
@@ -1918,12 +1919,16 @@ namespace Velivo
             overlay.Children.Add(controls);
             // przyciski szersze niż ekran (TV, niska rozdzielczość, duże skalowanie - CHUWI) - cały rząd zmniejszany, żeby nic nie było obcięte z prawej
             // największa potrzebna szerokość dla tej szerokości okna - zmienne napisy (prędkość sieci, Mb/s, opis filmu) nie zmieniają skali co sekundę (pasek „pływał”)
-            double barNeed = 0, barHave = 0;
+            double barNeed = 0, barHave = 0, barF = 1; bool barWrap = false;
             SizeChangedEventHandler fitBar = (s, e) =>
             {
                 double have = overlay.ActualWidth;
                 if (Math.Abs(have - barHave) > 1) { barHave = have; barNeed = 0; }
-                double need = barNeed = Math.Max(barNeed, mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14);
+                double qw = quick.ActualWidth + quick.Margin.Left + quick.Margin.Right, one = mainCol.ActualWidth + qw + rightBox.ActualWidth + 14;
+                // ↕ powiększony pasek za szeroki - szybkie przyciski (Widok, TV, Kanapa, sieć, czas) do drugiego wiersza zamiast zmniejszania całości (powiększenie było niewidoczne)
+                bool wrap = barF > 1.001 && (barWrap ? one > have - 20 : one > have);
+                if (wrap != barWrap) { barWrap = wrap; barNeed = 0; Grid.SetRow(quick, wrap ? 2 : 1); Grid.SetColumn(quick, wrap ? 0 : 1); Grid.SetColumnSpan(quick, wrap ? 2 : 1); quick.HorizontalAlignment = wrap ? HorizontalAlignment.Left : HorizontalAlignment.Stretch; }
+                double need = barNeed = Math.Max(barNeed, barWrap ? Math.Max(mainCol.ActualWidth, qw) + rightBox.ActualWidth + 14 : one);
                 double k = need > 0 && have > 0 && need > have ? Math.Floor(have / need * 20) / 20 : 1;   // skok co 5% - bez przeliczania paska w kółko (przycinało obraz)
                 var cur = ctlRow.LayoutTransform as ScaleTransform;
                 if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.001) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;
@@ -1931,10 +1936,10 @@ namespace Velivo
             overlay.SizeChanged += fitBar; mainCol.SizeChanged += fitBar; quick.SizeChanged += fitBar; rightBox.SizeChanged += fitBar;
             // ↕ wysokość paska (👁 → płynnie 100–160 %): wyższe przyciski, większe ikony, napisy i zegar - szerokość prawie bez zmian (ikony rosną w miejscu)
             var barBase = new Dictionary<object, double>();
-            Action<double> applyBarHeight = null; double barF = 1;
+            Action<double> applyBarHeight = null;
             applyBarHeight = f =>
             {
-                double prevF = barF; barF = f; _barIcon = Math.Round(BarIcon0 * f);
+                double prevF = barF; barF = f; _barIcon = Math.Round(BarIcon0 * f); barNeed = 0;   // nowa wysokość - dopasowanie do okna od nowa (w obie strony)
                 void walk(object o)
                 {
                     switch (o)
@@ -1944,7 +1949,7 @@ namespace Velivo
                         case System.Windows.Shapes.Path p: if (!barBase.ContainsKey(p)) barBase[p] = double.IsNaN(p.Width) ? BarIcon0 : p.Width / prevF; p.Width = p.Height = Math.Round(barBase[p] * f); return;   // ikona podmieniona później (⏸/▶) ma już bieżącą wielkość - podstawa = szerokość / poprzednia skala
                         case TextBlock t: if (!barBase.ContainsKey(t)) barBase[t] = t.FontSize; t.FontSize = barBase[t] * f; return;
                         case Image im: if (!barBase.ContainsKey(im)) barBase[im] = double.IsNaN(im.Height) ? 0 : im.Height; if (barBase[im] > 0) im.Height = Math.Round(barBase[im] * f); return;
-                        case Slider sl: if (!barBase.ContainsKey(sl)) barBase[sl] = double.IsNaN(sl.Width) ? 0 : sl.Width; if (barBase[sl] > 0) sl.Width = Math.Round(barBase[sl] * f); return;
+                        case Slider: return;   // suwak głośności bez zmiany szerokości - wyższy pasek nie poszerza rzędu (inaczej cały rząd się zmniejszał i „pływał”)
                         case Panel pn: foreach (var c in pn.Children) walk(c); return;
                         case Decorator d: walk(d.Child); return;
                         case ContentControl cc: walk(cc.Content); return;

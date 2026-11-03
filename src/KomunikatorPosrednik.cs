@@ -163,7 +163,9 @@ namespace Velivo
             {
                 var p = Path.Combine(DataDir, "skrzynka.log");
                 if (File.Exists(p) && new FileInfo(p).Length > 2_000_000) File.Delete(p);
-                File.AppendAllText(p, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + (KomContactById(id)?.Name ?? id) + "  " + what + Environment.NewLine);
+                var line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  [" + Environment.MachineName + "]  " + (KomContactById(id)?.Name ?? id) + "  " + what;
+                File.AppendAllText(p, line + Environment.NewLine);
+                if (_komRelayListener != null) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxlog", ["id"] = _komId, ["line"] = line });   // wspólny dziennik moich serwerów w domu
             }
             catch (Exception) { }
         }
@@ -192,6 +194,8 @@ namespace Velivo
                     }
                 }
                 File.Move(f + ".part", f + ".bin"); if (fromPeer != null) File.WriteAllText(f + ".src", fromPeer); File.WriteAllBytes(f + ".hdr", hb);   // .src - który serwer ma oryginał
+                var fromName = await Dispatcher.InvokeAsync(() => KomContactById((string)h["Id"] ?? "")?.Name ?? "?"); var peerName = fromPeer == null ? null : await Dispatcher.InvokeAsync(() => KomContactById(fromPeer)?.Name ?? fromPeer);
+                KomBoxLog(to, "przyjęty do skrzynki od " + fromName + ", " + (size / 1024) + " KB" + (peerName != null ? " (kopia od serwera " + peerName + ")" : ""));
                 await s.WriteAsync(new byte[32], 0, 32, token); await s.FlushAsync(token);   // przechowane
             }
             finally { try { File.Delete(f + ".part"); } catch (Exception) { } }
@@ -333,6 +337,11 @@ namespace Velivo
                 return;
             }
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
+            if (t == "p2p-boxlog" && KomFromRelay(addr) && (string)p["line"] is string bl && bl.Length < 1000)
+            {   // 📬 wpis dziennika z innego mojego serwera - do wspólnego widoku w Centrum serwera
+                try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
+                return;
+            }
             if (t == "p2p-boxdays" && KomFromRelay(addr) && (int?)p["days"] is int bd && bd > 0 && ((long?)p["at"] ?? 0) > ((long?)_komOpt["boxDaysAt"] ?? 0))
             { _komOpt["boxDays"] = bd; _komOpt["boxDaysAt"] = (long)p["at"]; KomSave(); return; }   // 📬 przechowywanie ustawione na innym moim serwerze - nowsze wygrywa
             if (t == "p2p-boxdone" && (string)p["to"] is string dto && KomFromRelay(addr))
@@ -1699,7 +1708,7 @@ namespace Velivo
                 long lim = DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds(); bool ch = false;
                 foreach (var kv in _komStore) lock (kv.Value) ch |= kv.Value.RemoveAll(x => (long?)x["ts"] is long t && t < lim) > 0;
                 if (ch) KomStoreSave();
-                var p = Path.Combine(DataDir, "skrzynka.log");
+                foreach (var p in new[] { Path.Combine(DataDir, "skrzynka.log"), Path.Combine(DataDir, "skrzynka-serwery.log") })
                 if (File.Exists(p)) { var keep = File.ReadLines(p).Where(l => !(l.Length > 19 && DateTime.TryParse(l.Substring(0, 19), out var t) && t < limit)).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, keep) + Environment.NewLine); }
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -1745,7 +1754,13 @@ namespace Velivo
                 var p = Path.Combine(DataDir, file); if (!File.Exists(p)) return new List<string[]>();
                 return File.ReadLines(p).Reverse().Take(n).Select(l => l.Length > 21 && DateTime.TryParse(l.Substring(0, 19), out _) ? new[] { l.Substring(0, 19), l.Substring(19).Trim() } : new[] { "", l }).ToList();
             }
-            var (tLog, rLog) = KomTable(new[] { L.T("Czas"), L.T("Zdarzenie (osoba i co się stało)") }, () => LogRows("skrzynka.log", 3000), search);
+            // dziennik wszystkich moich serwerów: własny + wpisy przysłane przez inne serwery w domu, razem po czasie
+            var (tLog, rLog) = KomTable(new[] { L.T("Czas"), L.T("Serwer"), L.T("Zdarzenie (osoba i co się stało)") }, () =>
+                LogRows("skrzynka.log", 3000).Concat(LogRows("skrzynka-serwery.log", 3000)).Select(r =>
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(r[1], @"^\[([^\]]+)\]\s+(.*)$");
+                    return m.Success ? new[] { r[0], m.Groups[1].Value, m.Groups[2].Value } : new[] { r[0], Environment.MachineName, r[1] };
+                }).OrderByDescending(r => r[0]).Take(5000).ToList(), search);
             var (tErr, rErr) = KomTable(new[] { L.T("Czas"), L.T("Błąd Velivo") }, () => LogRows("bledy.log", 3000), search);
             // 5. informacje techniczne
             var (tInfo, rInfo) = KomTable(new[] { L.T("Co"), L.T("Wartość") }, () =>

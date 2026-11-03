@@ -1270,6 +1270,7 @@ namespace Velivo
             { "Wysyłam: ", "Sending: " },
             { "Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)", "Send files to a phone or computer with Velivo on this network (no pairing, with a code)" },
             { "Wyślij", "Send" },
+            { "Serwer", "Server" },
             { " (kopia od innego serwera)", " (copy from another server)" },
             { " dni", " days" },
             { " wiadomości (tekst)", " messages (text)" },

@@ -1434,7 +1434,7 @@ namespace Velivo
                     var grp = from != null && h["Group"] is JsonObject gh ? KomGroupIn(from, gh.ToJsonString() + "\n") : null;
                     var into = grp ?? from;
                     if (from != null) KomNote(into, false, (grp != null ? from.Name + ": " : "") + KomFileLabel(Path.GetFileName(target), size), (string)h["Mid"], target);
-                    if (from != null && grp == null && (string)h["Mid"] is { Length: 32 } fm) { var ack = KomPacket("p2p-ack"); ack["to"] = from.Id; ack["mid"] = fm; ack["mac"] = Convert.ToBase64String(KomHmac(from.Key, "ack\n" + fm)); KomSendUdp(ack, null); }   // ✓✓ szare u nadawcy (plik ze skrzynki 📬)
+                    if (from != null && grp == null && (string)h["Mid"] is { Length: 32 } fm) { var ack = KomPacket("p2p-ack"); ack["to"] = from.Id; ack["mid"] = fm; ack["mac"] = Convert.ToBase64String(KomHmac(from.Key, "ack\n" + fm)); IPAddress.TryParse(from.Addr ?? "", out var ato); if (ato != null && IPAddress.IsLoopback(ato)) ato = null; _ = Task.Run(async () => { for (int ai = 0; ai < 3; ai++) { if (ato != null) KomSendUdp(ack, ato); KomSendUdp(ack, null); await Task.Delay(1500); } }); }   // ✓✓ szare u nadawcy (plik ze skrzynki 📬)
                     if (from != null) from = into;
                     if (from != null && !(_komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == from.Id))
                     {   // plik / zdjecie jak wiadomosc: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)

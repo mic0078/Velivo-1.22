@@ -42,7 +42,14 @@ namespace Velivo
                 Text = L.T("←↑→↓ wybór   ·   Enter – oglądaj   ·   Esc – wstecz / wyjście   ·   Home – Kanapa") };
             DockPanel.SetDock(hint, Dock.Bottom);
             var body = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
-            root.Children.Add(top); root.Children.Add(hint); root.Children.Add(body);
+            // ℹ opis wybranego kafelka (jak Jellyfin): tytuł, rok · ocena · gatunek · długość, opis; kanał - co teraz leci
+            var detTitle = new TextBlock { FontSize = 30, FontWeight = FontWeights.Bold, TextTrimming = TextTrimming.CharacterEllipsis };
+            var detMeta = new TextBlock { FontSize = 17, Foreground = KnGold, Margin = new Thickness(0, 4, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            var detDesc = new TextBlock { FontSize = 16, Foreground = KnDim, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.WordEllipsis, MaxHeight = 66, MaxWidth = 1100, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
+            var det = new StackPanel { Height = 140, Margin = new Thickness(8, 0, 0, 10) }; det.Children.Add(detTitle); det.Children.Add(detMeta); det.Children.Add(detDesc); DockPanel.SetDock(det, Dock.Top);
+            void Opis(string t, string meta, string desc) { detTitle.Text = t ?? ""; detMeta.Text = meta ?? ""; detDesc.Text = desc ?? ""; }
+            var infoOf = new Dictionary<Button, Action>();
+            root.Children.Add(top); root.Children.Add(hint); root.Children.Add(det); root.Children.Add(body);
             w.Content = root;
 
             var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(15) }; tm.Tick += (s, e) => clock.Text = DateTime.Now.ToString("HH:mm"); tm.Start();
@@ -61,7 +68,7 @@ namespace Velivo
                     "<ControlTemplate.Triggers><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='bd' Property='BorderBrush' Value='#F5B544'/></Trigger>" +
                     "<Trigger Property='IsMouseOver' Value='True'><Setter TargetName='bd' Property='BorderBrush' Value='#80F5B544'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
                 var sc = new ScaleTransform(1, 1); b.RenderTransform = sc;
-                b.GotKeyboardFocus += (s, e) => { sc.ScaleX = sc.ScaleY = 1.07; Panel.SetZIndex(b, 2); b.BringIntoView(new Rect(-40, -40, wd + 80, ht + 80)); };
+                b.GotKeyboardFocus += (s, e) => { sc.ScaleX = sc.ScaleY = 1.07; Panel.SetZIndex(b, 2); b.BringIntoView(new Rect(-40, -40, wd + 80, ht + 80)); if (infoOf.TryGetValue(b, out var inf)) inf(); };
                 b.LostKeyboardFocus += (s, e) => { sc.ScaleX = sc.ScaleY = 1; Panel.SetZIndex(b, 0); };
                 b.MouseEnter += (s, e) => b.Focus();
                 b.Click += (s, e) => act();
@@ -79,17 +86,30 @@ namespace Velivo
                 try { var m = MetaFor(path); if (m?.Poster != null) { var f = Path.Combine(PosterDir, m.Poster); if (File.Exists(f)) return LoadLogo(f, 360); } } catch (Exception) { }
                 return null;
             }
-            string Tytul(LibraryVideo v) => !string.IsNullOrEmpty(v.MyTitle) ? v.MyTitle : !string.IsNullOrEmpty(v.Title) ? v.Title : Path.GetFileNameWithoutExtension(v.Path);
+            string Tytul(LibraryVideo v) { try { return ShownTitle(v, MetaFor(v.Path)); } catch (Exception) { return Path.GetFileNameWithoutExtension(v.Path); } }
+            string Krotko(LibraryVideo v) { var m = MetaFor(v.Path); return string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null }.Where(x => x != null)); }
+            void FilmOpis(LibraryVideo v)
+            {
+                var m = MetaFor(v.Path); var parts = new List<string>();
+                if (m?.Year > 0) parts.Add(m.Year.ToString());
+                if (m?.Rating > 0) parts.Add("★ " + m.Rating.ToString("0.0"));
+                if (m?.Genres?.Count > 0) parts.Add(string.Join(", ", m.Genres.Take(3)));
+                if (v.Len > 0) parts.Add((int)(v.Len / 60000) + L.T(" min"));
+                if (v.Done) parts.Add(L.T("✓ obejrzany")); else if (v.Len > v.Pos && v.Pos > 0) parts.Add(L.T("Zostało ") + (int)((v.Len - v.Pos) / 60000) + L.T(" min"));
+                if (!string.IsNullOrEmpty(m?.Age)) parts.Add(m.Age);
+                Opis(Tytul(v), string.Join("   ·   ", parts), string.IsNullOrWhiteSpace(m?.Overview) ? L.T("Brak opisu – uzupełnij dane filmu w bibliotece (Jellyfin).") : m.Overview);
+            }
+            EpgItem Teraz(IptvChannel ch) { try { return _iptvEpg == null ? null : EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now); } catch (Exception) { return null; } }
             Button FilmTile(LibraryVideo v, double wd = 170)
             {
                 var g = new Grid(); var img = Poster(v.Path);
                 if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                 else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
-                g.Children.Add(Caption(Tytul(v)));
+                var kr = Krotko(v); g.Children.Add(Caption(Tytul(v), kr.Length > 0 ? kr : null));
                 if (v.Len > 0 && v.Pos > 0 && !v.Done)
                     g.Children.Add(new ProgressBar { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Minimum = 0, Maximum = v.Len, Value = v.Pos, Foreground = KnGold, Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) });
                 var path = v.Path;
-                return Tile(wd, wd * 1.5, g, () => Graj(() => PlayVideos(new[] { path }, 0)));
+                var b = Tile(wd, wd * 1.5, g, () => Graj(() => PlayVideos(new[] { path }, 0))); infoOf[b] = () => FilmOpis(v); return b;
             }
             List<IptvChannel> FavChannels()
             {
@@ -105,7 +125,18 @@ namespace Velivo
                 g.Children.Add(new Border { Background = KnLive, CornerRadius = new CornerRadius(4), Padding = new Thickness(7, 2, 7, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10),
                     Child = new TextBlock { Text = L.T("NA ŻYWO"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White } });
                 if (!string.IsNullOrEmpty(ch.Logo)) _ = SetLogo(ch.Logo, logoImg, name);
-                return Tile(260, 146, g, () => Graj(() => { foreach (var x in list) _iptvPlaying[x.Url] = x; PlayVideos(list.Select(x => x.Url).ToArray(), i); }));
+                var now = Teraz(ch);
+                if (now != null) g.Children.Add(new TextBlock { Text = now.Title, FontSize = 13, Foreground = KnFg, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(10, 12, 10, 6),
+                    Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(0xCC, 0, 0, 0), 90) });
+                var b = Tile(260, 146, g, () => Graj(() => { foreach (var x in list) _iptvPlaying[x.Url] = x; PlayVideos(list.Select(x => x.Url).ToArray(), i); }));
+                infoOf[b] = () =>
+                {
+                    var p = Teraz(ch);
+                    if (p == null) { Opis(ch.Name, string.IsNullOrEmpty(ch.Group) ? L.T("Na żywo") : "📺 " + ch.Group, L.T("Brak programu TV dla tego kanału.")); return; }
+                    var left = p.Stop - DateTime.Now;
+                    Opis(ch.Name + "  –  " + p.Title, p.Start.ToString("HH:mm") + "–" + p.Stop.ToString("HH:mm") + "   ·   " + L.T("zostało ") + Math.Max(1, (int)left.TotalMinutes) + L.T(" min") + (p.Cats?.Count > 0 ? "   ·   " + string.Join(", ", p.Cats.Take(2)) : ""), p.Desc);
+                };
+                return b;
             }
             async System.Threading.Tasks.Task SetLogo(string url, Image img, TextBlock name)
             {
@@ -129,9 +160,31 @@ namespace Velivo
             }
 
             var tabBtns = new Dictionary<string, Button>();
+            int kSort = 0, kGen = 0; Action odswiez = null;
+            var szukaj = new TextBox { Width = 380, FontSize = 18, Padding = new Thickness(12, 6, 12, 6), Background = KnCard, Foreground = KnFg, CaretBrush = KnFg, BorderBrush = KnGold, BorderThickness = new Thickness(0, 0, 0, 2), VerticalContentAlignment = VerticalAlignment.Center,
+                ToolTip = L.T("Szukaj: tytuł, aktor albo kanał i program – zacznij pisać") };
+            var tSzukaj = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+            tSzukaj.Tick += (s, e) => { tSzukaj.Stop(); odswiez?.Invoke(); };
+            szukaj.TextChanged += (s, e) => { tSzukaj.Stop(); tSzukaj.Start(); };
+            StackPanel Pasek()
+            {
+                var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 18) };
+                if (szukaj.Parent is Panel old) old.Children.Remove(szukaj);
+                bar.Children.Add(new TextBlock { Text = "🔍", FontSize = 22, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }); bar.Children.Add(szukaj);
+                return bar;
+            }
+            void Przycisk(Panel bar, Func<string> text, Action<Button> act)
+            {
+                var b = new Button { Content = text(), FontSize = 17, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(12, 0, 0, 0), Cursor = Cursors.Hand, Foreground = KnFg, Background = KnCard };
+                b.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+                    "<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+                    "<Border x:Name='bd' CornerRadius='18' Background='{TemplateBinding Background}' BorderThickness='3' BorderBrush='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border>" +
+                    "<ControlTemplate.Triggers><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='bd' Property='BorderBrush' Value='#F5B544'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+                b.Click += (s, e) => act(b); bar.Children.Add(b);
+            }
             void Pokaz(string t)
             {
-                tab = t; var lib = new List<LibraryVideo>();
+                tab = t; var lib = new List<LibraryVideo>(); odswiez = null; Opis("", "", ""); if (szukaj.Text.Length > 0) szukaj.Text = "";
                 try { lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path)).ToList(); } catch (Exception ex) { App.LogError(ex); }
                 foreach (var kv in tabBtns) { bool on = kv.Key == t; kv.Value.Background = on ? KnFg : Brushes.Transparent; kv.Value.Foreground = on ? new SolidColorBrush(Color.FromRgb(0x0B, 0x0F, 0x17)) : KnDim; }
                 var st = new StackPanel();
@@ -161,14 +214,45 @@ namespace Velivo
                 }
                 else if (t == "tv")
                 {
-                    var fav = FavChannels();
-                    var all = (KnownPlaylist()?.Channels ?? new List<IptvChannel>()).Take(120).ToList();
-                    st.Children.Add(Row(L.T("Ulubione kanały"), fav.Select((c, i) => (UIElement)ChannelTile(fav, i))));
-                    st.Children.Add(new TextBlock { Text = L.T("Wszystkie kanały"), FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
-                    st.Children.Add(Wrap(all.Select((c, i) => (UIElement)ChannelTile(all, i))));
+                    var bar = Pasek(); var box = new ContentControl { Focusable = false };
+                    var allCh = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+                    void Fill()
+                    {
+                        var q = szukaj.Text.Trim(); var sp = new StackPanel();
+                        if (q.Length == 0) { var fav = FavChannels(); sp.Children.Add(Row(L.T("Ulubione kanały"), fav.Select((c, i) => (UIElement)ChannelTile(fav, i)))); }
+                        var all = allCh.Where(c => q.Length == 0 || (c.Name ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || (Teraz(c)?.Title ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).Take(200).ToList();
+                        sp.Children.Add(new TextBlock { Text = L.T("Wszystkie kanały") + " (" + all.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+                        sp.Children.Add(Wrap(all.Select((c, i) => (UIElement)ChannelTile(all, i))));
+                        box.Content = sp;
+                    }
+                    odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }
                 else if (t == "film")
-                    st.Children.Add(Wrap(lib.OrderBy(Tytul, StringComparer.CurrentCultureIgnoreCase).Select(v => (UIElement)FilmTile(v))));
+                {
+                    var bar = Pasek(); var box = new ContentControl { Focusable = false };
+                    var genres = lib.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase).ToList();
+                    var sorts = new[] { L.T("A–Z"), L.T("Najnowsze"), L.T("Ocena"), L.T("Rok"), L.T("Nieobejrzane") };
+                    var count = new TextBlock { FontSize = 16, Foreground = KnDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+                    void Fill()
+                    {
+                        var q = szukaj.Text.Trim(); string gen = kGen > 0 && kGen <= genres.Count ? genres[kGen - 1] : null;
+                        var l = lib.Where(v => (q.Length == 0 || Tytul(v).IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || (MetaFor(v.Path)?.People?.Any(p => p.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0) ?? false))
+                            && (gen == null || (MetaFor(v.Path)?.Genres?.Contains(gen, StringComparer.CurrentCultureIgnoreCase) ?? false)) && (kSort != 4 || !v.Done));
+                        l = kSort switch
+                        {
+                            1 => l.OrderByDescending(v => v.Added),
+                            2 => l.OrderByDescending(v => MetaFor(v.Path)?.Rating ?? 0),
+                            3 => l.OrderByDescending(v => MetaFor(v.Path)?.Year ?? 0),
+                            _ => l.OrderBy(Tytul, StringComparer.CurrentCultureIgnoreCase),
+                        };
+                        var list = l.Take(400).ToList(); count.Text = list.Count + L.T(" filmów");
+                        box.Content = Wrap(list.Select(v => (UIElement)FilmTile(v)));
+                    }
+                    Przycisk(bar, () => L.T("Sortuj: ") + sorts[kSort], b => { kSort = (kSort + 1) % sorts.Length; b.Content = L.T("Sortuj: ") + sorts[kSort]; Fill(); });
+                    Przycisk(bar, () => L.T("Gatunek: ") + (kGen == 0 || kGen > genres.Count ? L.T("wszystkie") : genres[kGen - 1]), b => { kGen = (kGen + 1) % (genres.Count + 1); b.Content = L.T("Gatunek: ") + (kGen == 0 ? L.T("wszystkie") : genres[kGen - 1]); Fill(); });
+                    bar.Children.Add(count);
+                    odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
+                }
                 body.Content = st; body.ScrollToTop();
                 w.Dispatcher.BeginInvoke(new Action(() => { var first = FindTile(st); (first ?? (UIElement)tabBtns[t]).Focus(); }), System.Windows.Threading.DispatcherPriority.Loaded);
             }
@@ -188,17 +272,26 @@ namespace Velivo
             TabBtn("film", "🎬 " + L.T("Filmy"), () => Pokaz("film"));
             TabBtn(null, "🎲 " + L.T("Co dziś?"), () =>
             {   // to samo losowanie co w bibliotece
-                List<LibraryVideo> pool; try { pool = LoadLibrary().Where(v => v.Peer == null && File.Exists(v.Path)).ToList(); } catch (Exception) { return; }
-                if (pool.Count == 0) return;
-                w.Topmost = false;
+                List<LibraryVideo> pool; try { pool = LoadLibrary().Where(v => v.Peer == null && !string.IsNullOrEmpty(v.Path)).ToList(); } catch (Exception ex) { App.LogError(ex); pool = new List<LibraryVideo>(); }
+                if (pool.Count == 0) { Opis(L.T("Biblioteka jest pusta"), "", L.T("Dodaj filmy w bibliotece (🎬 → Pobierz / uzupełnij z Jellyfin), a losowanie zadziała.")); return; }
+                var before = Application.Current.Windows.OfType<Window>().ToList();
                 ShowRandomPicker(w, pool, null, ps => Graj(() => PlayVideos(ps.ToArray(), 0)));
-                if (_kanapa == w) w.Topmost = true;
+                foreach (var pw in Application.Current.Windows.OfType<Window>().Except(before).ToList())
+                {   // okno losowania „zwykłe” (Independent) - nad Kanapą na pełnym ekranie byłoby niewidoczne
+                    pw.Topmost = true; pw.Activate();
+                    pw.Closed += (s2, e2) => { if (_kanapa == w) w.Activate(); };
+                }
             });
             TabBtn(null, "✕ " + L.T("Zamknij"), Wyjdz);
 
             // strzałki: przejście do sąsiedniego kafelka (ScrollViewer nie przewija sam); Enter - jak klik; Esc - Start, potem wyjście
             w.PreviewKeyDown += (s, e) =>
             {
+                bool inBox = Keyboard.FocusedElement is TextBox;
+                if (inBox && (e.Key == Key.Left || e.Key == Key.Right || e.Key == Key.Back || e.Key == Key.Space || e.Key == Key.Home)) return;
+                if (inBox && e.Key == Key.Escape && szukaj.Text.Length > 0) { szukaj.Clear(); e.Handled = true; return; }
+                if (inBox && e.Key == Key.Enter) { var ft = FindTile((DependencyObject)body.Content ?? body); ft?.Focus(); e.Handled = true; return; }
+                if (!inBox && odswiez != null && szukaj.IsVisible && ((e.Key >= Key.A && e.Key <= Key.Z) || (e.Key >= Key.D0 && e.Key <= Key.D9)) && Keyboard.Modifiers == ModifierKeys.None) { szukaj.Focus(); return; }   // pisanie od razu szuka
                 var dir = e.Key switch { Key.Left => FocusNavigationDirection.Left, Key.Right => FocusNavigationDirection.Right, Key.Up => FocusNavigationDirection.Up, Key.Down => FocusNavigationDirection.Down, _ => (FocusNavigationDirection?)null };
                 if (dir != null && Keyboard.FocusedElement is UIElement fe) { fe.MoveFocus(new TraversalRequest(dir.Value)); e.Handled = true; return; }
                 if ((e.Key == Key.Enter || e.Key == Key.Space) && Keyboard.FocusedElement is Button fb) { fb.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }

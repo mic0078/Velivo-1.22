@@ -1617,7 +1617,8 @@ namespace Velivo
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
             swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(5, 0, 2, 0); swap.Height = 40;
             right.Children.Add(capt(swap, L.T("Przełącz")));
-            var sofa = textBtn("🛋", L.T("Kanapa – duże kafelki na telewizor, sterowanie strzałkami, Enter i Esc (Home)")); sofa.Height = 40; sofa.Margin = new Thickness(2, 0, 2, 0);
+            var sofa = textBtn("🛋", L.T("Kanapa – duże kafelki na telewizor, sterowanie strzałkami, Enter i Esc (Home)")); sofa.Height = 40; sofa.Margin = new Thickness(2, 0, 2, 0); sofa.FontSize = 18;
+            sofa.Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xB5, 0x44)); sofa.Foreground = new SolidColorBrush(Color.FromRgb(0x1A, 0x12, 0x04));   // złota jak w Kanapie - wyróżnia się obok niebieskiego „Przełącz”
             sofa.Click += (s, e) => ShowKanapa();
             right.Children.Add(capt(sofa, L.T("Kanapa")));
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data

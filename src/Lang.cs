@@ -1270,6 +1270,7 @@ namespace Velivo
             { "Wysyłam: ", "Sending: " },
             { "Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)", "Send files to a phone or computer with Velivo on this network (no pairing, with a code)" },
             { "Wyślij", "Send" },
+            { "A – oglądaj · B – wstecz · Y – szukaj · LB / RB – zakładki", "A – watch · B – back · Y – search · LB / RB – tabs" },
             { "A–Z", "A–Z" },
             { "Biblioteka jest pusta", "The library is empty" },
             { "Brak opisu – uzupełnij dane filmu w bibliotece (Jellyfin).", "No description – fill in the film details in the library (Jellyfin)." },

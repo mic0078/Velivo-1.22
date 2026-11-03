@@ -39,7 +39,7 @@ namespace Velivo
             var tabs = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             top.Children.Add(logo); top.Children.Add(clock); top.Children.Add(tabs);
             var hint = new TextBlock { Foreground = KnDim, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0),
-                Text = L.T("←↑→↓ wybór   ·   Enter – oglądaj   ·   Esc – wstecz / wyjście   ·   Home – Kanapa") };
+                Text = L.T("←↑→↓ wybór   ·   Enter – oglądaj   ·   Esc – wstecz / wyjście   ·   Home – Kanapa") + "      🎮 " + L.T("A – oglądaj · B – wstecz · Y – szukaj · LB / RB – zakładki") };
             DockPanel.SetDock(hint, Dock.Bottom);
             var body = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
             // ℹ opis wybranego kafelka (jak Jellyfin): tytuł, rok · ocena · gatunek · długość, opis; kanał - co teraz leci
@@ -185,7 +185,14 @@ namespace Velivo
             void Pokaz(string t)
             {
                 tab = t; var lib = new List<LibraryVideo>(); odswiez = null; Opis("", "", ""); if (szukaj.Text.Length > 0) szukaj.Text = "";
-                try { lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path)).ToList(); } catch (Exception ex) { App.LogError(ex); }
+                try
+                {   // ten sam film kilka razy (plik na dysku + strumień z Jellyfin, kopia z innego komputera, kilka wersji) - jeden kafelek:
+                    // obejrzany ostatnio (postęp), potem ten z plikiem na dysku
+                    lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path))
+                        .GroupBy(v => { var m = MetaFor(v.Path); return !string.IsNullOrEmpty(m?.Id) ? "j:" + m.Id : "t:" + Tytul(v).ToLowerInvariant() + "|" + (m?.Year ?? 0); })
+                        .Select(g => g.Count() == 1 ? g.First() : g.OrderByDescending(v => v.Last).ThenBy(v => v.Peer != null).ThenByDescending(v => File.Exists(v.Path)).First()).ToList();
+                }
+                catch (Exception ex) { App.LogError(ex); }
                 foreach (var kv in tabBtns) { bool on = kv.Key == t; kv.Value.Background = on ? KnFg : Brushes.Transparent; kv.Value.Foreground = on ? new SolidColorBrush(Color.FromRgb(0x0B, 0x0F, 0x17)) : KnDim; }
                 var st = new StackPanel();
                 if (t == "start")
@@ -298,9 +305,54 @@ namespace Velivo
                 if (e.Key == Key.Escape || e.Key == Key.BrowserBack || e.Key == Key.Back) { e.Handled = true; if (tab != "start") Pokaz("start"); else Wyjdz(); return; }
                 if (e.Key == Key.Home) { e.Handled = true; Wyjdz(); }
             };
-            w.Closed += (s, e) => { tm.Stop(); if (_kanapa == w) _kanapa = null; };
+            // 🎮 kontroler (Xbox i zgodne XInput): krzyżak / lewa gałka - strzałki, A - Enter, B - wstecz, Y - szukaj, LB / RB - poprzednia / następna zakładka
+            var pad = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            ushort padPrev = 0; Key padKey = Key.None; DateTime padNext = DateTime.MinValue; int padErr = 0;
+            void PadKey(Key k)
+            {
+                var src = PresentationSource.FromVisual(w); if (src == null) return;
+                w.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, src, 0, k) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+            }
+            void Zakladka(int d)
+            {
+                var keys = new[] { "start", "tv", "film" }; int i = Array.IndexOf(keys, tab);
+                Pokaz(keys[((i < 0 ? 0 : i) + d + keys.Length) % keys.Length]);
+            }
+            pad.Tick += (s, e) =>
+            {
+                if (!w.IsActive || padErr > 3) return;
+                XInputState st; int r;
+                try { r = KnPadGet(0, out st); } catch (Exception) { padErr = 99; return; }   // brak XInput w systemie - bez kontrolera
+                if (r != 0) { padPrev = 0; padKey = Key.None; return; }   // nic nie podłączone
+                ushort b = st.Buttons; short lx = st.LX, ly = st.LY;
+                const int dead = 16000;
+                Key dirKey = (b & 0x0001) != 0 || ly > dead ? Key.Up : (b & 0x0002) != 0 || ly < -dead ? Key.Down : (b & 0x0004) != 0 || lx < -dead ? Key.Left : (b & 0x0008) != 0 || lx > dead ? Key.Right : Key.None;
+                if (dirKey == Key.None) padKey = Key.None;
+                else if (dirKey != padKey) { padKey = dirKey; padNext = DateTime.UtcNow.AddMilliseconds(380); PadKey(dirKey); }
+                else if (DateTime.UtcNow >= padNext) { padNext = DateTime.UtcNow.AddMilliseconds(110); PadKey(dirKey); }   // przytrzymane - przewija
+                ushort down = (ushort)(b & ~padPrev); padPrev = b;
+                if ((down & 0x1000) != 0) PadKey(Key.Enter);           // A
+                if ((down & 0x2000) != 0) PadKey(Key.Escape);          // B
+                if ((down & 0x8000) != 0 && odswiez != null) szukaj.Focus();   // Y - szukaj
+                if ((down & 0x0010) != 0) PadKey(Key.Enter);           // Start
+                if ((down & 0x0100) != 0) Zakladka(-1);                // LB
+                if ((down & 0x0200) != 0) Zakladka(1);                 // RB
+            };
+            pad.Start();
+            w.Closed += (s, e) => { tm.Stop(); pad.Stop(); if (_kanapa == w) _kanapa = null; };
             w.Show(); w.Activate();
             Pokaz("start");
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        struct XInputState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+        [System.Runtime.InteropServices.DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")] static extern int KnPadGet14(int user, out XInputState st);
+        [System.Runtime.InteropServices.DllImport("xinput9_1_0.dll", EntryPoint = "XInputGetState")] static extern int KnPadGet91(int user, out XInputState st);
+        static bool _knPadOld;
+        static int KnPadGet(int user, out XInputState st)
+        {   // Windows 8+ - xinput1_4, starsze - xinput9_1_0
+            if (!_knPadOld) try { return KnPadGet14(user, out st); } catch (DllNotFoundException) { _knPadOld = true; } catch (EntryPointNotFoundException) { _knPadOld = true; }
+            return KnPadGet91(user, out st);
         }
 
         static Button FindTile(DependencyObject d)

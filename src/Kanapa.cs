@@ -162,7 +162,7 @@ namespace Velivo
             }
 
             var tabBtns = new Dictionary<string, Button>();
-            int kSort = int.TryParse(GetPref("kanapa-sort"), out var ks0) ? ks0 : 0, kGen = 0, kSortTv = int.TryParse(GetPref("kanapa-sorttv"), out var ks1) ? ks1 : 0, kGrp = 0;   // wybór zapamiętany (grupa, gatunek - po nazwie) Action odswiez = null; bool wyborGrupy = false;
+            int kSort = int.TryParse(GetPref("kanapa-sort"), out var ks0) ? ks0 : 0, kGen = 0, kSortTv = int.TryParse(GetPref("kanapa-sorttv"), out var ks1) ? ks1 : 0, kGrp = 0; Action odswiez = null; bool wyborGrupy = false;   // wybór zapamiętany (grupa, gatunek - po nazwie)
             var szukaj = new TextBox { Width = 380, FontSize = 18, Padding = new Thickness(12, 6, 12, 6), Background = KnCard, Foreground = KnFg, CaretBrush = KnFg, BorderBrush = KnGold, BorderThickness = new Thickness(0, 0, 0, 2), VerticalContentAlignment = VerticalAlignment.Center,
                 ToolTip = L.T("Szukaj: tytuł, aktor albo kanał i program – zacznij pisać") };
             var tSzukaj = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };

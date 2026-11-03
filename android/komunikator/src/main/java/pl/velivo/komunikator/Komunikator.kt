@@ -3253,6 +3253,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (img != null) setOnClickListener { showPhoto(m.path!!, photos(c)) }
                     else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
+                    else if (m.path != null) setOnClickListener { Toast.makeText(a, t("Nie ma już tego pliku na telefonie: ", "This file is no longer on the phone: ") + java.io.File(m.path!!).name, Toast.LENGTH_LONG).show() }   // brak pliku - powód zamiast ciszy
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     selectable(this, m)
                 })
@@ -3852,6 +3853,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun photos(c: Komunikator.Contact) = k.chat(c.id).mapNotNull { m -> m.path?.takeIf { k.isImage(it) && java.io.File(it).exists() } }
     // przesunięcie palcem ←/→ - poprzednie/następne zdjęcie z rozmowy
     private fun showPhoto(path: String, all: List<String> = listOf(path)) {
+        if (!java.io.File(path).exists()) { Toast.makeText(a, t("Nie ma już tego zdjęcia na telefonie: ", "This photo is no longer on the phone: ") + java.io.File(path).name, Toast.LENGTH_LONG).show(); return }
+        runCatching { showPhotoNow(path, all) }.onFailure { Toast.makeText(a, t("Nie udało się otworzyć zdjęcia: ", "Could not open the photo: ") + it.javaClass.simpleName + " " + (it.message ?: ""), Toast.LENGTH_LONG).show() }   // powód zamiast ciszy
+    }
+    private fun showPhotoNow(path: String, all: List<String>) {
         var i = all.indexOf(path).coerceAtLeast(0); val list = if (all.contains(path)) all else listOf(path)
         val max = maxOf(a.resources.displayMetrics.widthPixels, a.resources.displayMetrics.heightPixels)
         val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)

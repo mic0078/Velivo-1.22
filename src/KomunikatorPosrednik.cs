@@ -253,16 +253,17 @@ namespace Velivo
                         { cl = await KomTcpConnect(a, cts.Token); st = cl.GetStream(); }
                         if (st == null) { if (!_komBoxWaitLog.TryGetValue(id, out var wl) || DateTime.UtcNow - wl > TimeSpan.FromMinutes(30)) { _komBoxWaitLog[id] = DateTime.UtcNow; KomBoxLog(id, "czeka: odbiorca niepołączony z tym serwerem (" + Directory.GetFiles(dir, "*.hdr").Length + " plików)"); } return; }   // odbiorcy nie ma - zostaje w skrzynce
                         var size = new FileInfo(bin).Length; var t0 = DateTime.UtcNow;
-                        KomBoxLog(id, "wysyłam " + (size / 1024) + " KB");
+                        string sender = "?"; try { var sid = (string)JsonNode.Parse(File.ReadAllBytes(hdr))?["Id"]; sender = KomContactById(sid ?? "")?.Name ?? sid ?? "?"; } catch (Exception) { }
+                        KomBoxLog(id, "wysyłam " + (size / 1024) + " KB od " + sender);
                         await KomWriteBlock(st, File.ReadAllBytes(hdr), cts.Token);
-                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) { KomBoxLog(id, "telefon odbiorcy nie odpowiedział – ponowię za minutę"); return; }
+                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) { KomBoxLog(id, "telefon odbiorcy zamknął połączenie bez odpowiedzi (nie zna nadawcy " + sender + " albo stara wersja) – następny plik, ponowię za minutę"); continue; }   // jeden plik nie blokuje pozostałych
                         if (b[0] == 1)
                         {
                             using (var fi = File.OpenRead(bin)) await fi.CopyToAsync(st, 1 << 16, cts.Token);
                             await st.FlushAsync(cts.Token);
                             if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) { KomBoxLog(id, "przerwany po " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s – ponowię za minutę"); continue; }   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
                         }
-                        KomBoxLog(id, b[0] == 1 ? "doręczony (" + (size / 1024) + " KB, " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)" : "odbiorca odmówił (ma już ten plik albo brak miejsca)");
+                        KomBoxLog(id, b[0] == 1 ? "doręczony (" + (size / 1024) + " KB, " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)" : "odbiorca odmówił (ma już ten plik, nie zna nadawcy " + sender + " albo brak miejsca) – usunięty ze skrzynki");
                         File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
                         var gh = Path.GetFileNameWithoutExtension(hdr).Split('-').Last(); gone.Add(gh); _komBoxDoneOut[gh] = (id, DateTime.UtcNow);
                     }

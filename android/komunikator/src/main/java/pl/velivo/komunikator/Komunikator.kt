@@ -1137,6 +1137,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
         val dev = clean(h.optString("Device"))
         val out = cn.out
+        if (box && contact(h.optString("Id")) == null) { runCatching { out.write(0); out.flush() }; return }   // 📬 nadawca nieznany - odmowa słowem (serwer zapisze powód), nie ciche zamknięcie
         val key = if (box) hmac((contact(h.optString("Id")) ?: return).key, ("velivo-box\n" + h.optString("Nonce")).toByteArray(Charsets.UTF_8))
         else { val mine = ecPair(); val pubB = mine.public.encoded; writeBlock(out, pubB); agree(mine, pubA, "velivo-p2p", pubA, pubB) }   // nadawca liczy ten sam kod i pokazuje go u siebie
         val ad = fileAd(h)

@@ -314,7 +314,7 @@ object Jelly {
     fun get(c: Conf, path: String): String {
         val h = URL(base(c) + path).openConnection() as HttpURLConnection
         h.connectTimeout = 15000; h.readTimeout = 30000
-        h.setRequestProperty("X-Emby-Token", c.key)
+        h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Authorization", "MediaBrowser Token=\"" + c.key + "\"")
         h.setRequestProperty("Accept", "application/json")
         return h.inputStream.bufferedReader().use { it.readText() }
     }
@@ -322,7 +322,7 @@ object Jelly {
     fun post(c: Conf, path: String, body: JSONObject) = runCatching {
         val h = URL(base(c) + path).openConnection() as HttpURLConnection
         h.requestMethod = "POST"; h.doOutput = true; h.connectTimeout = 10000; h.readTimeout = 10000
-        h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Content-Type", "application/json")
+        h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Authorization", "MediaBrowser Token=\"" + c.key + "\""); h.setRequestProperty("Content-Type", "application/json")
         h.outputStream.use { it.write(body.toString().toByteArray()) }
         h.responseCode
     }
@@ -332,7 +332,7 @@ object Jelly {
     fun bytes(c: Conf, path: String): ByteArray {
         val h = URL(base(c) + path).openConnection() as HttpURLConnection
         h.connectTimeout = 15000; h.readTimeout = 60000
-        h.setRequestProperty("X-Emby-Token", c.key)
+        h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Authorization", "MediaBrowser Token=\"" + c.key + "\"")
         return h.inputStream.use { it.readBytes() }
     }
     // napisy tekstowe filmu (zewnętrzne pliki i wbudowane w film) - Jellyfin podaje je jako SRT; polskie najpierw
@@ -354,7 +354,7 @@ object Jelly {
     fun downloadSub(c: Conf, id: String, subId: String): Int {
         val h = URL(base(c) + "/Items/$id/RemoteSearch/Subtitles/" + java.net.URLEncoder.encode(subId, "UTF-8")).openConnection() as HttpURLConnection
         h.requestMethod = "POST"; h.connectTimeout = 15000; h.readTimeout = 60000
-        h.setRequestProperty("X-Emby-Token", c.key); h.doOutput = true
+        h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Authorization", "MediaBrowser Token=\"" + c.key + "\""); h.doOutput = true
         h.outputStream.use { }
         return h.responseCode
     }

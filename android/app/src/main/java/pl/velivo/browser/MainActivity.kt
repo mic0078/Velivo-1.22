@@ -2451,7 +2451,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun openLibrary() {
         jfNetCb
         val c = Jelly.conf(passwords) ?: return
-        val hdr = mapOf("X-Emby-Token" to c.key)
+        val hdr = mapOf("X-Emby-Token" to c.key, "Authorization" to "MediaBrowser Token=\"" + c.key + "\"")
         var mode = prefs.getInt("jf-widok2", 1)   // 0 oglądane dalej, 1 filmy (domyślnie - cała biblioteka od razu), 2 seriale
         var lib = listOf<Jelly.Item>(); var resume = listOf<Jelly.Item>()
         lateinit var scr: MediaScreen
@@ -2516,7 +2516,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     private fun showEpisodes(c: Jelly.Conf, series: Jelly.Item) {
-        val hdr = mapOf("X-Emby-Token" to c.key)
+        val hdr = mapOf("X-Emby-Token" to c.key, "Authorization" to "MediaBrowser Token=\"" + c.key + "\"")
         lateinit var scr: MediaScreen
         scr = MediaScreen("📺 " + series.name, "jf-odc", listOf(getString(R.string.tv_sort_list), getString(R.string.sort_az)),
             sorter = { l, s -> if (s == 1) l.sortedBy { it.title.lowercase() } else l },

@@ -254,7 +254,7 @@ class PlayerActivity : Activity() {
         } else {
             // Jellyfin: VLC nie wysyła własnych nagłówków - klucz w adresie (tylko w pamięci, nie w logach)
             val token = it.headers["X-Emby-Token"]
-            Media(vlc, Uri.parse(if (token != null) it.uri + (if ('?' in it.uri) "&" else "?") + "api_key=" + token else it.uri))
+            Media(vlc, Uri.parse(if (token != null) it.uri + (if ('?' in it.uri) "&" else "?") + "api_key=" + token + "&ApiKey=" + token else it.uri))
         }
         m.addOption(":http-user-agent=$UA")
         if (isAudio(it.uri)) m.addOption(":audio-visual=goom")   // muzyka: kosmiczna wizualizacja VLC (Goom) zamiast czarnego ekranu

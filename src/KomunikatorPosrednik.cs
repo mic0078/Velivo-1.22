@@ -1699,7 +1699,7 @@ namespace Velivo
             bd.AppendChild(gp);
             var rowStyle = new Style(typeof(ListViewItem));
             rowStyle.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(ListViewItem)) { VisualTree = bd }));
-            rowStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            rowStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent)); rowStyle.Setters.Add(new Setter(Control.ForegroundProperty, AdmB(0xe8ecf4)));   // jasny tekst - bez tego szary z motywu Windows, nieczytelny na granacie
             var over = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; over.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x55, 0x6B, 0x7C, 0xC4))));
             var picked = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true }; picked.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x2D, 0x4F, 0xB8)))); picked.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
             var zebra = new Trigger { Property = ItemsControl.AlternationIndexProperty, Value = 1 }; zebra.Setters.Add(new Setter(Control.BackgroundProperty, AdmB(0x1f2639)));   // co drugi wiersz ciemniejszy - łatwiej czytać
@@ -1744,13 +1744,15 @@ namespace Velivo
             public static readonly AdmColor One = new AdmColor();
             static readonly string[] Bad = { "przerwany", "błąd", "odmówił", "nie przyjmuje", "usunięty", "brak wieści", "wyłączony", "nie nasłuchuje", "różne" };
             static readonly string[] Ok = { "doręczony", "działa", "połączony z tym", "otwarty", "zgodne" };
-            static readonly string[] Wait = { "wysyłam", "czeka", "w sieci przez", "sprawdzam", "poza siecią", "przyjęty" };
+            static readonly string[] Wait = { "wysyłam", "czeka", "w sieci przez", "sprawdzam", "przyjęty" };
+            static readonly string[] Dim = { "poza siecią", "—" };
             public object Convert(object v, Type t, object p, System.Globalization.CultureInfo c)
             {
                 var x = (v as string ?? "").ToLowerInvariant();
                 if (Bad.Any(x.Contains)) return AdmB(0xf87171);
-                if (Ok.Any(x.Contains)) return AdmB(0x4ade80);
                 if (Wait.Any(x.Contains)) return AdmB(0xfbbf24);
+                if (Dim.Any(x.Contains)) return AdmB(0x8b93a7);   // poza siecią - szary, jak w makiecie
+                if (Ok.Any(x.Contains) || x.Contains("w sieci")) return AdmB(0x4ade80);
                 return DependencyProperty.UnsetValue;
             }
             public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c) => throw new NotSupportedException();
@@ -1849,7 +1851,19 @@ namespace Velivo
                     var m = System.Text.RegularExpressions.Regex.Match(r[1], @"^\[([^\]]+)\]\s+(.*)$");
                     return m.Success ? new[] { r[0], m.Groups[1].Value, m.Groups[2].Value } : new[] { r[0], Environment.MachineName, r[1] };
                 }).OrderByDescending(r => r[0]).Take(5000).ToList(), search);
-            var (tErr, rErr) = KomTable(new[] { L.T("Czas"), L.T("Błąd Velivo") }, () => LogRows("bledy.log", 3000), search);
+            // bledy.log: wpis = linia z czasem, treść (bywa wielowierszowa), pusta linia - jeden wiersz tabeli na wpis (wcześniej czas i treść w osobnych wierszach)
+            List<string[]> ErrRows()
+            {
+                var p = Path.Combine(DataDir, "bledy.log"); if (!File.Exists(p)) return new List<string[]>();
+                string txt; try { txt = File.ReadAllText(p).Replace("\r\n", "\n"); } catch (Exception) { return new List<string[]>(); }
+                return txt.Split("\n\n", StringSplitOptions.RemoveEmptyEntries).Reverse().Take(3000).Select(b =>
+                {
+                    var ls = b.Trim('\n').Split('\n'); bool t = ls[0].Length >= 19 && DateTime.TryParse(ls[0].Substring(0, 19), out _);
+                    var msg = string.Join("  ⏎ ", (t ? ls.Skip(1) : ls).Select(x => x.Trim()).Where(x => x.Length > 0));
+                    return new[] { t ? ls[0].Substring(0, 19) : "", msg.Length > 500 ? msg.Substring(0, 500) + "…" : msg };
+                }).Where(r => r[1].Length > 0).ToList();
+            }
+            var (tErr, rErr) = KomTable(new[] { L.T("Czas"), L.T("Błąd Velivo") }, ErrRows, search);
             // 5. informacje techniczne
             var (tInfo, rInfo) = KomTable(new[] { L.T("Co"), L.T("Wartość") }, () =>
             {
@@ -1942,6 +1956,13 @@ namespace Velivo
                 {   // 📜 / ⚠ wpisy dziennika: zaznaczone - usuwane z plików na tym serwerze (wiersz = czas + treść)
                     if (sel.Count == 0) { MessageBox.Show(w, L.T("Zaznacz wpisy (Ctrl+A – wszystkie). Cały dziennik czyści przycisk „🧹 Wyczyść dziennik”."), "🗑"); return; }
                     if (MessageBox.Show(w, L.T("Usunąć zaznaczone wpisy dziennika: ") + sel.Count + "?", "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    if (tab == tErr)
+                    {   // ⚠ bledy.log - wpisy blokami (czas, treść, pusta linia): usuwane całe wpisy o zaznaczonym czasie
+                        var times = new HashSet<string>(sel.Select(r => r[0]).Where(x => x.Length > 0)); var ep = Path.Combine(DataDir, "bledy.log");
+                        try { if (File.Exists(ep)) { var bl = File.ReadAllText(ep).Replace("\r\n", "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries).Where(b => { var f = b.Trim('\n'); return !(f.Length >= 19 && times.Contains(f.Substring(0, 19))); }).ToList();
+                            VelivoData.SafeWrite(ep, bl.Count == 0 ? "" : string.Join("\n\n", bl.Select(b => b.Trim('\n'))) + "\n\n"); } } catch (Exception ex) { App.LogError(ex); }
+                        All(); return;
+                    }
                     var gone = new HashSet<string>(sel.Select(r => r[0] + "|" + r[r.Length - 1]));
                     foreach (var p in tab == tLog ? new[] { "skrzynka.log", "skrzynka-serwery.log" } : new[] { "bledy.log" })
                         KomLogKeep(Path.Combine(DataDir, p), l => !(l.Length > 19 && gone.Contains(l.Substring(0, 19) + "|" + System.Text.RegularExpressions.Regex.Replace(l.Substring(19).Trim(), @"^\[[^\]]+\]\s+", ""))) && !gone.Contains("|" + l));

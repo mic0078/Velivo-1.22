@@ -195,7 +195,7 @@ namespace Velivo
                 if (_komCl.CertOf(c.Id) == null) try { _komCl.Issue(Convert.FromBase64String(theirPub), c.Id); } catch (Exception) { return; }   // certyfikat dla tamtego serwera
             }
             KomClSave(); App.LogInfo("Serwery: " + c.Name + " dołączony do moich serwerów");
-            KomClSend(c, new JsonObject { ["k"] = "join", ["cl"] = KomClState(true) });
+            KomClSend(c, new JsonObject { ["k"] = "join", ["cl"] = KomClState(true), ["adm"] = KomAdmCredOut() });
         }
         JsonObject KomClState(bool priv) { lock (_komClLock) return _komCl.ToJson(priv); }
 
@@ -242,15 +242,16 @@ namespace Velivo
                     }
                 }
             }
+            if (_komCl.CertOf(c.Id) != null && o["adm"] is JsonObject ad) KomAdmCredIn(ad);   // 🔐 dane logowania administratora od mojego serwera (nowsze wygrywa)
             if (changed) { KomClSave(); KomClSyncNow(); _komLinkOk.Clear(); KomPeerLinks(); }
         }
         // stan infrastruktury do członków co 10 min i po zmianie (suma certyfikatów i odwołań)
         void KomClSyncNow()
         {
             _komClSyncAt = DateTime.UtcNow;
-            foreach (var m in _komContacts.Where(x => KomIsMember(x.Id)).ToList()) KomClSend(m, new JsonObject { ["k"] = "sync", ["cl"] = KomClState(true) });
+            foreach (var m in _komContacts.Where(x => KomIsMember(x.Id)).ToList()) KomClSend(m, new JsonObject { ["k"] = "sync", ["cl"] = KomClState(true), ["adm"] = KomAdmCredOut() });
         }
-        void KomClTick() { if (_komRelayListener == null) return; KomClInit(); KomClMigrate(); if (DateTime.UtcNow - _komClSyncAt > TimeSpan.FromMinutes(10)) KomClSyncNow(); }
+        void KomClTick() { if (_komRelayListener == null) return; KomClInit(); KomClMigrate(); KomAdmKeysStamp(); if (DateTime.UtcNow - _komClSyncAt > TimeSpan.FromMinutes(10)) KomClSyncNow(); }
         // migracja: moje serwery sprzed infrastruktury (wspólny sekret uzgodniony) - zatwierdzone bez pytania, jak dotąd współpracowały
         void KomClMigrate()
         {
@@ -307,7 +308,7 @@ namespace Velivo
         // wykonywane raz (identyfikator), każde zapisane w dzienniku operacji (adm.log) po obu stronach. Drogi: sieć domowa i łącze serwerów (KomBoxPeers).
         public static readonly (string Op, string Name)[] KomAdmOps = {
             ("restart", "Uruchom serwer od nowa"), ("on", "Włącz serwer"), ("off", "Wyłącz serwer"), ("ports", "Sprawdź porty i router"), ("firewall", "Otwórz zaporę Windows"),
-            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę") };
+            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę"), ("logout", "Wyloguj sesje administratora") };
         readonly HashSet<string> _komAdmSeen = new HashSet<string>();
         public event Action KomAdmChanged;
         static string KomAdmMsg(JsonObject c) => "velivo-adm|" + (string)c["cid"] + "|" + (string)c["id"] + "|" + (string)c["to"] + "|" + (string)c["op"] + "|" + ((string)c["arg"] ?? "") + "|" + (long?)c["ts"];
@@ -379,6 +380,7 @@ namespace Velivo
                 case "sync": KomSrvInfoSend(); KomEvHave(); KomClSyncNow(); KomPeerLinks(); return "synchronizacja wywołana: stan, dziennik zdarzeń, infrastruktura, łącza";
                 case "syncoff": _komOpt["syncOff"] = true; KomSave(); return "synchronizacja WSTRZYMANA – ten serwer nie wysyła kopii ani zdarzeń do innych (stan i polecenia działają)";
                 case "syncon": _komOpt["syncOff"] = false; KomSave(); KomEvHave(); KomPeerLinks(); return "synchronizacja wznowiona – zaległe zdarzenia zostaną dosłane";
+                case "logout": _komOpt["admLogout"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave(); KomAdmEnd("unieważnione poleceniem administratora"); return "sesje administratora na tym serwerze zamknięte – następne otwarcie panelu wymaga logowania";
                 case "diagclr": foreach (var f in new[] { "serwery-diag.log", "serwery-diag.log.1" }) try { System.IO.File.Delete(System.IO.Path.Combine(DataDir, f)); } catch (Exception) { } return "diagnostyka wyczyszczona";
             }
             return null;
@@ -400,7 +402,32 @@ namespace Velivo
         void KomAdmSetPass(string pass)
         {
             var salt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
-            _komOpt["admPass"] = new JsonObject { ["s"] = Convert.ToBase64String(salt), ["h"] = Convert.ToBase64String(KomAdmHash(pass, salt)) }; KomSave();
+            _komOpt["admPass"] = new JsonObject { ["s"] = Convert.ToBase64String(salt), ["h"] = Convert.ToBase64String(KomAdmHash(pass, salt)), ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }; KomSave();
+            if (_komRelayListener != null) KomClSyncNow();   // to samo hasło na wszystkich moich serwerach
+        }
+        // 🔐 jeden administrator dla wszystkich serwerów: skrót hasła (z solą) i lista kluczy sprzętowych idą do członków infrastruktury
+        // (szyfrowanym kanałem pary, razem ze stanem infrastruktury); wygrywa nowsza zmiana - także po powrocie serwera po braku prądu
+        JsonObject KomAdmCredOut() => new JsonObject { ["pass"] = _komOpt["admPass"]?.DeepClone(), ["keys"] = _komOpt["klucze"]?.DeepClone(), ["keysAt"] = (long?)_komOpt["kluczeAt"] ?? 0, ["logout"] = (long?)_komOpt["admLogout"] ?? 0 };
+        void KomAdmCredIn(JsonObject a)
+        {
+            bool ch = false;
+            if (a["pass"] is JsonObject pp && ((long?)pp["at"] ?? 0) > ((long?)(_komOpt["admPass"] as JsonObject)?["at"] ?? 0)) { _komOpt["admPass"] = pp.DeepClone(); ch = true; }
+            if (a["keys"] is JsonArray ka && ((long?)a["keysAt"] ?? 0) > ((long?)_komOpt["kluczeAt"] ?? 0)) { _komOpt["klucze"] = ka.DeepClone(); _komOpt["kluczeAt"] = (long?)a["keysAt"]; _komOpt["kluczeH"] = KomKeysHash(); ch = true; }
+            if (((long?)a["logout"] ?? 0) > ((long?)_komOpt["admLogout"] ?? 0)) { _komOpt["admLogout"] = (long?)a["logout"]; KomAdmEnd("unieważnienie sesji z innego serwera"); ch = true; }
+            if (ch) KomSave();
+        }
+        string KomKeysHash() => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(_komOpt["klucze"]?.ToJsonString() ?? "")), 0, 8);
+        // zmiana listy kluczy (dodanie / usunięcie w dowolnym miejscu) - znacznik czasu, żeby rozeszła się na moje serwery
+        void KomAdmKeysStamp() { var h = KomKeysHash(); if ((string)_komOpt["kluczeH"] == h) return; bool first = _komOpt["kluczeH"] == null; _komOpt["kluczeH"] = h; if (!first) { _komOpt["kluczeAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomClSyncNow(); } KomSave(); }
+        // ⏱ sesja: wygasa tylko po 15 min bez Twojego ruchu w panelu (mysz, klawiatura) - nigdy z powodu stanu serwerów (brak prądu, wyłączenie)
+        static readonly TimeSpan KomAdmIdle = TimeSpan.FromMinutes(15);
+        public event Action<string> KomAdmEnded;
+        void KomAdmEnd(string why)
+        {
+            if (_komAdmUntil == DateTime.MinValue) return;
+            _komAdmUntil = DateTime.MinValue;
+            KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "logout", Environment.MachineName, Environment.MachineName, "sesja zakończona – " + why);
+            _ = Dispatcher.BeginInvoke(new Action(() => KomAdmEnded?.Invoke(why)));
         }
         bool KomAdmCheckPass(string pass)
         {
@@ -411,12 +438,13 @@ namespace Velivo
         async System.Threading.Tasks.Task<bool> KomAdmLogin(Window owner)
         {
             if (DateTime.UtcNow < _komAdmUntil) return true;
+            if ((long?)_komOpt["admLock"] is long lk && lk > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) _komAdmLockUntil = DateTimeOffset.FromUnixTimeMilliseconds(lk).UtcDateTime;   // blokada po błędnych próbach trwa też po ponownym uruchomieniu
             var keys = KomHwKeys(); bool hasPass = _komOpt["admPass"] is JsonObject;
             if (!hasPass && keys.Count == 0)
             {
                 MessageBox.Show(owner, L.T("Panel administratora jest chroniony. Ustaw teraz hasło administratora (później możesz też logować się kluczem sprzętowym)."), "🔐");
                 var np = KomPassword(owner, true); if (string.IsNullOrEmpty(np)) return false;
-                KomAdmSetPass(np); _komAdmUntil = DateTime.UtcNow.AddMinutes(10);
+                KomAdmSetPass(np); _komAdmUntil = DateTime.UtcNow.AddYears(1);
                 KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "ustawiono hasło administratora i zalogowano");
                 return true;
             }
@@ -425,8 +453,8 @@ namespace Velivo
             sp.Children.Add(new TextBlock { Text = L.T("Panel administratora daje pełną kontrolę nad Twoimi serwerami. Zaloguj się kluczem sprzętowym albo hasłem administratora."), TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Margin = new Thickness(0, 0, 0, 12) });
             var info = new TextBlock { Foreground = System.Windows.Media.Brushes.IndianRed, TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Margin = new Thickness(0, 0, 0, 8) };
             bool ok = false;
-            void Done(string how) { ok = true; _komAdmFails = 0; _komAdmUntil = DateTime.UtcNow.AddMinutes(10); KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "zalogowano – " + how); w.Close(); }
-            void Fail(string why) { _komAdmFails++; if (_komAdmFails >= 5) { _komAdmLockUntil = DateTime.UtcNow.AddMinutes(5); _komAdmFails = 0; } KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "NIEUDANE – " + why); info.Text = why; }
+            void Done(string how) { ok = true; _komAdmFails = 0; _komAdmUntil = DateTime.UtcNow.AddYears(1); KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "zalogowano – " + how); w.Close(); }
+            void Fail(string why) { _komAdmFails++; if (_komAdmFails >= 5) { _komAdmLockUntil = DateTime.UtcNow.AddMinutes(5); _komAdmFails = 0; _komOpt["admLock"] = new DateTimeOffset(_komAdmLockUntil).ToUnixTimeMilliseconds(); KomSave(); } KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "NIEUDANE – " + why); info.Text = why; }
             if (keys.Count > 0)
             {
                 var kb = new Button { Content = "🔑 " + L.T("Zaloguj kluczem sprzętowym"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 0, 12) };

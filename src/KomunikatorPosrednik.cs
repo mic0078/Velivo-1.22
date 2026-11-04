@@ -2339,7 +2339,8 @@ namespace Velivo
                 Act("🛡 " + L.T("Otwórz zaporę Windows teraz"), L.T("Reguła dla Velivo i portów serwera (jedno „Tak” w Windows)"), () => { _komFwAsked = DateTime.MinValue; KomFirewallCheck(); }),
                 Act("🔁 " + L.T("Uruchom serwer od nowa"), L.T("Zamyka i otwiera nasłuch serwera (połączenia wrócą same)"), () => { KomRelayStart(); All(); }),
                 Act("🔐 " + L.T("Zmień hasło administratora"), L.T("Hasło do panelu administratora na tym serwerze (logowanie także kluczem sprzętowym)"), () => KomAdmChangePass(w)),
-                Act("🚪 " + L.T("Wyloguj"), L.T("Zamyka panel; następne otwarcie wymaga logowania"), () => { _komAdmUntil = DateTime.MinValue; w.Close(); }));
+                Act("🚪 " + L.T("Wyloguj"), L.T("Zamyka panel; następne otwarcie wymaga logowania"), () => { KomAdmEnd("wylogowano"); }),
+                Act("⛔ " + L.T("Wyloguj wszystkie sesje (wszystkie serwery)"), L.T("Unieważnia sesje administratora na każdym moim serwerze – także ten panel"), () => { if (MessageBox.Show(w, L.T("Wylogować sesje administratora na wszystkich serwerach?"), "⛔", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { KomAdmSend("*", "logout"); KomClSyncNow(); } }));
             // ⚠ Wymaga uwagi (na górze) + kafelek „problemy”
             cProb = Card(L.T("problemy teraz"));
             attn = new Border { Background = AdmB(0x2a2133), BorderBrush = AdmB(0x6b3a4a), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 8) };
@@ -2552,8 +2553,12 @@ namespace Velivo
             root2.Children.Add(tabs);
             w.Content = root2;
             All();
-            var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s, e) => { if (w.IsActive || w.IsVisible) All(); }; tm.Start();
-            w.Closed += (s, e) => tm.Stop();
+            // ⏱ sesja: 15 min bez ruchu myszy / klawiatury w panelu = koniec (stan serwerów nie ma wpływu); unieważnienie z innego serwera zamyka panel od razu
+            var lastAct = DateTime.UtcNow; w.PreviewMouseMove += (s, e) => lastAct = DateTime.UtcNow; w.PreviewKeyDown += (s, e) => lastAct = DateTime.UtcNow; w.PreviewMouseDown += (s, e) => lastAct = DateTime.UtcNow;
+            Action<string> ended = why => { try { w.Close(); MessageBox.Show(owner, L.T("Sesja administratora zakończona: ") + why + L.T(". Otwórz panel i zaloguj się ponownie."), "🔐"); } catch (Exception) { } };
+            KomAdmEnded += ended;
+            var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s, e) => { if (DateTime.UtcNow - lastAct > KomAdmIdle) { KomAdmEnd("15 min bez ruchu w panelu"); return; } if (w.IsActive || w.IsVisible) All(); }; tm.Start();
+            w.Closed += (s, e) => { tm.Stop(); KomAdmEnded -= ended; };
             KomStyle(w); AdmLook(w, tabs); w.Show();
         }
         // po KomStyle (kolory motywu) - stały granatowy wygląd panelu, czytelny niezależnie od motywu

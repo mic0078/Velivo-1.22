@@ -525,6 +525,12 @@ namespace Velivo
                         if (kn[c.Id] == null) { kn[c.Id] = true; KomSave(); }
                         if ((bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }
                         if (_komAcks.TryGetValue(mid, out var tcs)) tcs.TrySetResult(true);
+                        else if (_komRelayListener != null && (bool?)p["sfw"] != true && !KomChat(c.Id).Any(x => x.Mid == mid))
+                        {   // 🔁 potwierdzenie wiadomości, którą mój inny serwer wysłał w moim imieniu - oddaję je moim serwerom (✓✓ u nadawcy)
+                            var f2 = p.DeepClone().AsObject(); f2["sfw"] = true; f2["fwd"] = true;
+                            foreach (var pa in KomPeerAddrs()) KomLanRaw(f2, pa);
+                            KomSrvNet(f2);
+                        }
                         // ✓✓ szare: plik ze skrzynki 📬 dotarł do odbiorcy
                         foreach (var m in KomChat(c.Id)) if (m.Mine && m.Mid == mid && m.Text.Contains("📬")) { m.Ok = true; m.Text = m.Text.Replace(L.T(" – 📬 czeka na serwerze"), L.T(" – odebrano")); KomSave(); _komRefresh?.Invoke(); }
                         return;

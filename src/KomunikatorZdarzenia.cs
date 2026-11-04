@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading;
 
 namespace Velivo
 {
@@ -188,7 +189,10 @@ namespace Velivo
                     return true;
                 }
                 if (t == "p2p-evs" && p["evs"] is JsonArray evs)
-                    foreach (var x in evs) if (x is JsonObject e && KomEv.Merge(e)) KomEvApply(e);
+                {
+                    int got = 0; foreach (var x in evs) if (x is JsonObject e && KomEv.Merge(e)) { KomEvApply(e); got++; }
+                    if (got > 0) { Interlocked.Add(ref _komFillEv, got); KomDiag("UZUPEŁNIONO", "zdarzenia", got + " szt.", KomSrvTag(_komNetPeer ?? KomPeerAt(addr)), KomSrvTag(_komId), "brakujące zdarzenia dziennika (przyjęcia / doręczenia) dosłane i zastosowane; duplikaty pominięte"); }
+                }
             }
             catch (Exception ex) { App.LogError(ex); }
             return true;

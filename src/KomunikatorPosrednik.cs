@@ -170,6 +170,77 @@ namespace Velivo
             }
             catch (Exception) { }
         }
+        // 🔬 DIAGNOSTYKA SYNCHRONIZACJI (serwery-diag.log): każdy etap osobno - PRZYJĘTA (od nadawcy), REPLIKA-WYSŁANA / REPLIKA-PRZYJĘTA (między serwerami),
+        // DO-ODBIORCY (przekazana na połączenie odbiorcy), POTWIERDZONA (odbiorca potwierdził odbiór pliku / inny serwer zgłosił doręczenie - kopia usunięta),
+        // UZUPEŁNIONO (po przerwie), PORÓWNANIE (odcisk zawartości skrzynek). Identyfikator wiadomości (mid) albo pliku (hid), serwer źródłowy i docelowy, SHA-256 pliku.
+        string KomSrvTag(string id) => id == null ? "-" : id == _komId ? Environment.MachineName + "[" + id.Substring(0, 6) + "]" : (KomContactById(id)?.Name ?? "?") + "[" + id.Substring(0, Math.Min(6, id.Length)) + "]";
+        void KomDiag(string stage, string kind, string objId, string src, string dst, string result, string sha = null)
+        {
+            try
+            {
+                var p = Path.Combine(DataDir, "serwery-diag.log");
+                if (File.Exists(p) && new FileInfo(p).Length > 4_000_000) { var old = p + ".1"; try { File.Delete(old); } catch (Exception) { } File.Move(p, old); }
+                File.AppendAllText(p, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " | " + Environment.MachineName + " | " + stage + " | " + kind + " | " + objId + " | z: " + src + " | do: " + dst + " | " + result + (sha != null ? " | sha256: " + sha : "") + Environment.NewLine);
+            }
+            catch (Exception) { }
+        }
+        static string KomSha(string file) { try { if (File.Exists(file + ".sha")) return File.ReadAllText(file + ".sha"); using var fs = File.OpenRead(file); var h = Convert.ToHexString(SHA256.HashData(fs)); return h; } catch (Exception) { return "?"; } }
+        // SHA-256 pliku z zapisu obok; brak (plik sprzed tej wersji) - liczony raz w tle i zapisany (bez przycięć okna przy dużych filmach)
+        static readonly ConcurrentDictionary<string, bool> _komShaBusy = new ConcurrentDictionary<string, bool>();
+        static string KomShaCached(string bin)
+        {
+            try { if (File.Exists(bin + ".sha")) return File.ReadAllText(bin + ".sha"); } catch (Exception) { }
+            if (_komShaBusy.TryAdd(bin, true)) _ = Task.Run(() => { try { var h = KomSha(bin); if (h != "?") File.WriteAllText(bin + ".sha", h); } finally { _komShaBusy.TryRemove(bin, out _); } });
+            return "?";
+        }
+        // odcisk skrzynki: posortowana lista (odbiorca, mid) wiadomości i (odbiorca, hid, sha256 zawartości) plików - ten sam stan na dwóch serwerach = ten sam odcisk
+        (int msgs, int files, string fp, JsonObject per) KomBoxFingerprint()
+        {
+            var lines = new List<string>(); var per = new JsonObject();
+            foreach (var kv in _komStore.ToArray()) { List<string> ms; lock (kv.Value) ms = kv.Value.Select(x => (string)x["mid"]).Where(x => x != null).ToList(); foreach (var m in ms) lines.Add("m|" + kv.Key + "|" + m); }
+            try
+            {
+                var root = Path.Combine(DataDir, "skrzynka");
+                if (Directory.Exists(root))
+                    foreach (var d in Directory.GetDirectories(root))
+                        foreach (var hdr in Directory.GetFiles(d, "*.hdr"))
+                        {
+                            var bin = Path.ChangeExtension(hdr, ".bin"); if (!File.Exists(bin)) continue;
+                            lines.Add("f|" + Path.GetFileName(d) + "|" + Path.GetFileNameWithoutExtension(hdr).Split('-').Last() + "|" + KomShaCached(bin));
+                        }
+            }
+            catch (Exception) { }
+            lines.Sort(StringComparer.Ordinal);
+            foreach (var g in lines.GroupBy(l => l.Split('|')[1])) per[g.Key] = g.Count(l => l[0] == 'm') + "/" + g.Count(l => l[0] == 'f') + "/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", g))), 0, 4);
+            return (lines.Count(l => l[0] == 'm'), lines.Count(l => l[0] == 'f'), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", lines))), 0, 8), per);
+        }
+        readonly ConcurrentDictionary<string, (string fp, int same)> _komFpCmp = new ConcurrentDictionary<string, (string, int)>();
+        // porównanie z innym serwerem (z jego stanu co minutę): wpis przy zmianie wyniku; różnica liczy się dopiero 3 razy z rzędu (wiadomości w drodze)
+        void KomFpCompare(string peer, JsonObject si)
+        {
+            var theirs = (string)si["fp"]; if (theirs == null) return;
+            var (m, f, mine, per) = KomBoxFingerprint();
+            bool eq = theirs == mine;
+            var prev = _komFpCmp.TryGetValue(peer, out var pv) ? pv : (null, 0);
+            int streak = eq ? 0 : (prev.fp == "R" ? prev.same : prev.same + 1);
+            string state = eq ? "Z" : streak >= 3 ? "R" : "?";
+            _komFpCmp[peer] = (state, eq ? 0 : streak);
+            if (state == prev.fp || state == "?") return;
+            if (eq) { KomDiag("PORÓWNANIE", "skrzynka", mine, KomSrvTag(_komId), KomSrvTag(peer), "ZGODNE – " + m + " wiadomości, " + f + " plików, identyczna zawartość"); return; }
+            var tp = si["fpPer"] as JsonObject; var diff = new List<string>();
+            foreach (var k in per.Select(x => x.Key).Union(tp?.Select(x => x.Key) ?? Enumerable.Empty<string>()).Distinct())
+            { var a = (string)per[k] ?? "0/0/-"; var b = (string)tp?[k] ?? "0/0/-"; if (a != b) diff.Add((KomContactById(k)?.Name ?? k.Substring(0, 6)) + " tu " + a + ", tam " + b); }
+            KomDiag("PORÓWNANIE", "skrzynka", mine + " ≠ " + theirs, KomSrvTag(_komId), KomSrvTag(peer), "RÓŻNE od 3 min – tu " + m + " wiad. / " + f + " plików, tam " + (int?)si["fpM"] + " / " + (int?)si["fpF"] + "; różnice (wiad./pliki/odcisk): " + string.Join("; ", diff));
+        }
+        // ♻ uzupełnianie po starcie: liczniki replik przyjętych od innych serwerów w pierwszych 15 min
+        readonly DateTime _komStartAt = DateTime.UtcNow; int _komFillMsg, _komFillFile, _komFillEv; bool _komFillLogged;
+        void KomFillCount(bool file) { if (DateTime.UtcNow - _komStartAt < TimeSpan.FromMinutes(15)) { if (file) Interlocked.Increment(ref _komFillFile); else Interlocked.Increment(ref _komFillMsg); } }
+        void KomFillReport()
+        {
+            if (_komFillLogged || DateTime.UtcNow - _komStartAt < TimeSpan.FromMinutes(15)) return;
+            _komFillLogged = true;
+            KomDiag("UZUPEŁNIONO", "po starcie", "-", "moje serwery", KomSrvTag(_komId), "w 15 min po uruchomieniu przyjęto od innych serwerów: " + _komFillMsg + " wiadomości, " + _komFillFile + " plików, " + _komFillEv + " zdarzeń dziennika");
+        }
         async Task KomBoxStore(JsonNode h, byte[] hb, Stream s, string fromPeer, CancellationToken token)
         {
             var to = (string)h["To"] ?? ""; long size = (long?)h["Size"] ?? -1;
@@ -177,7 +248,7 @@ namespace Velivo
             if (!await Dispatcher.InvokeAsync(() => KomContactById(to) != null && ((string)h["Id"] == _komId || KomContactById((string)h["Id"] ?? "") != null))) return;   // tylko między kontaktami tego komputera (albo plik w moim imieniu od mojego innego serwera)
             var dir = KomBoxDir(to); Directory.CreateDirectory(dir);
             var hid = Convert.ToHexString(SHA256.HashData(hb), 0, 16);   // ten sam plik u każdego pośrednika ma tę samą nazwę - kopia kasowana po doręczeniu
-            if (fromPeer != null && (_komBoxGone.ContainsKey(hid) || Directory.GetFiles(dir, "*-" + hid + ".hdr").Length > 0)) { await s.WriteAsync(new byte[] { 0 }, 0, 1, token); return; }   // już doręczony albo już jest
+            if (fromPeer != null && (_komBoxGone.ContainsKey(hid) || Directory.GetFiles(dir, "*-" + hid + ".hdr").Length > 0)) { KomDiag("REPLIKA-PRZYJĘTA", "plik", hid, KomSrvTag(fromPeer), KomSrvTag(_komId), _komBoxGone.ContainsKey(hid) ? "pominięta – już doręczony" : "pominięta – już jest (bez duplikatu)"); await s.WriteAsync(new byte[] { 0 }, 0, 1, token); return; }   // już doręczony albo już jest
             var f = Path.Combine(dir, (fromPeer != null ? "k" : "") + DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" + hid);   // k - kopia od innego pośrednika
             await s.WriteAsync(new byte[] { 1 }, 0, 1, token); await s.FlushAsync(token);
             try
@@ -194,7 +265,10 @@ namespace Velivo
                         await fo.WriteAsync(lb, 0, 4, token); await fo.WriteAsync(buf, 0, l, token);
                     }
                 }
-                File.Move(f + ".part", f + ".bin"); if (fromPeer != null) File.WriteAllText(f + ".src", fromPeer); File.WriteAllBytes(f + ".hdr", hb);   // .src - który serwer ma oryginał
+                File.Move(f + ".part", f + ".bin"); if (fromPeer != null) File.WriteAllText(f + ".src", fromPeer);
+                var fsha = KomSha(f + ".bin"); File.WriteAllText(f + ".bin.sha", fsha); File.WriteAllBytes(f + ".hdr", hb);   // .src - który serwer ma oryginał; .sha - SHA-256 zawartości (porównanie między serwerami)
+                KomDiag(fromPeer == null ? "PRZYJĘTY" : "REPLIKA-PRZYJĘTA", "plik", hid, fromPeer == null ? KomSrvTag((string)h["Id"]) + " (nadawca)" : KomSrvTag(fromPeer) + " (serwer)", KomSrvTag(_komId) + " → dla " + KomSrvTag(to), "zapisany, " + size + " B", fsha);
+                if (fromPeer != null) KomFillCount(true);
                 var fromName = await Dispatcher.InvokeAsync(() => (string)h["Id"] == _komId ? Environment.MachineName + " (w imieniu tego serwera)" : KomContactById((string)h["Id"] ?? "")?.Name ?? "?"); var peerName = fromPeer == null ? null : await Dispatcher.InvokeAsync(() => KomContactById(fromPeer)?.Name ?? fromPeer);
                 KomBoxLog(to, "przyjęty – plik od " + fromName + " (" + KomSize(size) + ") czeka na serwerze, aż odbiorca włączy telefon lub internet" + (peerName != null ? " (zapasowa kopia, oryginał na serwerze " + peerName + ")" : ""));
                 await s.WriteAsync(new byte[32], 0, 32, token); await s.FlushAsync(token);   // przechowane
@@ -225,11 +299,12 @@ namespace Velivo
                     using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
                     using var cl = await KomTcpConnect(a, cts.Token); var st = cl.GetStream();
                     await KomWriteBlock(st, File.ReadAllBytes(f + ".hdr"), cts.Token);
-                    var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token) || b[0] != 1) continue;
+                    var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token) || b[0] != 1) { KomDiag("REPLIKA-WYSŁANA", "plik", Path.GetFileName(f).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(KomPeerAt(a)), "serwer już ma albo doręczył – nie wysłano"); continue; }
                     using (var fi = File.OpenRead(f + ".bin")) await fi.CopyToAsync(st, 1 << 16, cts.Token);
-                    await st.FlushAsync(cts.Token); await ReadExactAsync(st, new byte[32], 32, cts.Token);
+                    await st.FlushAsync(cts.Token); var okc = await ReadExactAsync(st, new byte[32], 32, cts.Token);
+                    KomDiag("REPLIKA-WYSŁANA", "plik", Path.GetFileName(f).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(KomPeerAt(a)) + " (sieć domowa)", okc ? "serwer potwierdził zapis" : "brak potwierdzenia zapisu", KomSha(f + ".bin"));
                 }
-                catch (Exception) { }
+                catch (Exception ex) { KomDiag("REPLIKA-WYSŁANA", "plik", Path.GetFileName(f).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(KomPeerAt(a)), "błąd: " + ex.Message); }
             // 🔗 moje serwery poza tą siecią domową - ta sama kopia tunelem przez internet (do samego serwera)
             if (_komRelayListener != null)
                 foreach (var peer in KomMyServers().Where(c => !KomLanPeer(c.Id)))
@@ -238,11 +313,12 @@ namespace Velivo
                         using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
                         using var fs = await KomRelayConnect(peer, "tunnel", null, peer.Id, cts.Token); if (fs == null) continue;
                         await KomWriteBlock(fs, File.ReadAllBytes(f + ".hdr"), cts.Token);
-                        var b = new byte[1]; if (!await ReadExactAsync(fs, b, 1, cts.Token) || b[0] != 1) continue;
+                        var b = new byte[1]; if (!await ReadExactAsync(fs, b, 1, cts.Token) || b[0] != 1) { KomDiag("REPLIKA-WYSŁANA", "plik", Path.GetFileName(f).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(peer.Id), "serwer już ma albo doręczył – nie wysłano"); continue; }
                         using (var fi = File.OpenRead(f + ".bin")) await fi.CopyToAsync(fs, 1 << 16, cts.Token);
-                        await fs.FlushAsync(cts.Token); await ReadExactAsync(fs, new byte[32], 32, cts.Token);
+                        await fs.FlushAsync(cts.Token); var okc = await ReadExactAsync(fs, new byte[32], 32, cts.Token);
+                        KomDiag("REPLIKA-WYSŁANA", "plik", Path.GetFileName(f).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(peer.Id) + " (internet)", okc ? "serwer potwierdził zapis" : "brak potwierdzenia zapisu", KomSha(f + ".bin"));
                     }
-                    catch (Exception) { }
+                    catch (Exception ex) { KomDiag("REPLIKA-WYSŁANA", "plik", Path.GetFileName(f).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(peer.Id), "błąd: " + ex.Message); }
         }
         static readonly AsyncLocal<string> _komTunnelSrv = new AsyncLocal<string>();   // tunel otworzył mój serwer (kopia skrzynki przez internet)
         readonly ConcurrentDictionary<string, bool> _komBoxBusy = new ConcurrentDictionary<string, bool>();
@@ -292,7 +368,8 @@ namespace Velivo
                             : b[0] == 2 ? "już doręczony – telefon odbiorcy ma ten plik od " + sender + " (doszedł przez inny serwer); kopia z tego serwera skasowana"
                             : b[0] == 3 ? "odmówił – telefon odbiorcy nie ma nadawcy " + sender + " w kontaktach; plik skasowany z serwera"
                             : "odmówił – telefon odbiorcy nie chciał pliku od " + sender + " (ma go już, nie zna nadawcy albo brak miejsca w telefonie); plik usunięty z serwera");
-                        File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
+                        KomDiag(b[0] == 1 ? "POTWIERDZONA" : "DO-ODBIORCY", "plik", Path.GetFileNameWithoutExtension(hdr).Split('-').Last(), KomSrvTag(_komId), KomSrvTag(id), b[0] == 1 ? "odbiorca potwierdził odbiór całego pliku" : b[0] == 2 ? "odbiorca ma już ten plik (inny serwer)" : b[0] == 3 ? "odmowa – nie zna nadawcy" : "odmowa", KomSha(bin));
+                        File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { } try { File.Delete(bin + ".sha"); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
                         var gh = Path.GetFileNameWithoutExtension(hdr).Split('-').Last(); gone.Add(gh); _komBoxDoneOut[gh] = (id, DateTime.UtcNow);
                     }
                     catch (Exception ex) { KomBoxLog(id, "błąd – nie udało się przekazać pliku (" + ex.Message + "); serwer spróbuje znowu za minutę"); if (st == null) return; }   // zerwany przy jednym pliku - pozostałe dalej
@@ -362,7 +439,7 @@ namespace Velivo
             if ((bool?)p["fwd"] == true)
             {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
                 _komViaNet[from] = true;
-                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) { KomSendFrame(brc, cp); if ((string)cp["mid"] is string bm) { _komBoxDoneOut["m:" + bm] = (bto, DateTime.UtcNow); KomEvDone(bto, new[] { bm }); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = bto, ["mids"] = new JsonArray((JsonNode)bm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } } else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
+                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); var rsrc = KomSrvTag(_komNetPeer ?? KomPeerAt(addr)); if (_komRemote.TryGetValue(bto, out var brc)) { KomDiag("REPLIKA-PRZYJĘTA", "wiadomość", (string)cp["mid"] ?? "-", rsrc, KomSrvTag(_komId), "odbiorca " + KomSrvTag(bto) + " połączony tutaj – przekazana od razu"); KomSendFrame(brc, cp); if ((string)cp["mid"] is string bm) { _komBoxDoneOut["m:" + bm] = (bto, DateTime.UtcNow); KomEvDone(bto, new[] { bm }); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = bto, ["mids"] = new JsonArray((JsonNode)bm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } } else { KomDiag("REPLIKA-PRZYJĘTA", "wiadomość", (string)cp["mid"] ?? "-", rsrc, KomSrvTag(_komId) + " → dla " + KomSrvTag(bto), KomStoreKeep(cp, bto) ? "zapisana w skrzynce" : "nie zapisana (odbiorca w domu albo już doręczona)"); KomFillCount(false); } }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
                 if (_komNetPeer != null) { } else if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
                 return;
             }
@@ -373,7 +450,7 @@ namespace Velivo
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
                 return;
             }
-            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
+            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); try { KomFpCompare(from, si); } catch (Exception) { } if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
             if (t == "p2p-boxlogclr" && KomFromRelay(addr))
             {   // 🧹 dziennik skrzynki wyczyszczony na innym moim serwerze - tutaj też
                 foreach (var lp in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, lp)); } catch (Exception) { }
@@ -383,7 +460,7 @@ namespace Velivo
             { _komOpt["boxDays"] = bd; _komOpt["boxDaysAt"] = (long)p["at"]; KomSave(); return; }   // 📬 przechowywanie ustawione na innym moim serwerze - nowsze wygrywa
             if (t == "p2p-boxdone" && (string)p["to"] is string dto && KomFromRelay(addr))
             {   // 📬 inny pośrednik doręczył - kopie tutaj usuwane (bez podwójnej wysyłki)
-                if (p["mids"] is JsonArray dm && _komStore.TryGetValue(dto, out var dl)) { var ms = dm.Select(x => (string)x).ToHashSet(); lock (dl) dl.RemoveAll(x => ms.Contains((string)x["mid"])); KomStoreSave(); }
+                if (p["mids"] is JsonArray dm && _komStore.TryGetValue(dto, out var dl)) { var ms = dm.Select(x => (string)x).ToHashSet(); int rm; lock (dl) rm = dl.RemoveAll(x => ms.Contains((string)x["mid"])); KomStoreSave(); if (rm > 0) KomDiag("POTWIERDZONA", "wiadomość", string.Join(",", ms), KomSrvTag(_komNetPeer ?? KomPeerAt(addr)) + " (doręczył)", KomSrvTag(_komId), "inny serwer doręczył odbiorcy " + KomSrvTag(dto) + " – kopia tutaj usunięta (" + rm + ")"); }
                 if (p["files"] is JsonArray df && dto.Length == 32 && dto.All(Uri.IsHexDigit))
                 {
                     if (_komBoxGone.Count > 1000) foreach (var g in _komBoxGone) if (DateTime.UtcNow - g.Value > TimeSpan.FromDays(1)) _komBoxGone.TryRemove(g.Key, out _);
@@ -429,6 +506,7 @@ namespace Velivo
             if (!_komStore.TryRemove(id, out var l)) return;
             JsonArray mids;
             lock (l) { foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); } mids = new JsonArray(l.Select(x => (JsonNode)(string)x["mid"]).ToArray()); }
+            foreach (var m in mids) KomDiag("DO-ODBIORCY", "wiadomość", (string)m ?? "-", KomSrvTag(_komId), KomSrvTag(id), rc != null ? "przekazana na połączenie odbiorcy (internet); potwierdzenie „doręczone” idzie od odbiorcy do nadawcy" : "przekazana w sieci domowej");
             KomStoreSave();
             foreach (var m in mids) if ((string)m is string ms) _komBoxDoneOut["m:" + ms] = (id, DateTime.UtcNow);   // powtarzane przez 2 dni (KomBoxDoneRepeat)
             KomEvDone(id, mids.Select(m => (string)m));
@@ -719,7 +797,7 @@ namespace Velivo
                     if (pto == _komId) continue;
                     if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); if ((string)p["t"] == "p2p-msg" && (string)p["mid"] is string lm) { _komBoxDoneOut["m:" + lm] = (pto, DateTime.UtcNow); KomEvDone(pto, new[] { lm }); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = pto, ["mids"] = new JsonArray((JsonNode)lm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } continue; }   // doręczone wprost - kopie na innych moich serwerach kasowane   // oba urzadzenia poza domem
                     // do sieci domowej: znany adres albo do wszystkich
-                    if (pto != null && KomStoreKeep(p, pto)) { KomBoxPeers(KomFwd(p)); KomEvMsg(pto, p); continue; }   // odbiorca niedostępny - pośrednik przechowuje (kopia u innych pośredników w domu)
+                    if (pto != null && KomStoreKeep(p, pto)) { KomDiag("PRZYJĘTA", "wiadomość", (string)p["mid"] ?? "-", KomSrvTag(id) + " (nadawca)", KomSrvTag(_komId) + " → dla " + KomSrvTag(pto), "czeka w skrzynce; replikacja do: " + string.Join(", ", KomPeerAddrs().Select(KomPeerAt).Concat(KomMyServers().Where(c => !KomLanPeer(c.Id) && _komLinkOk.ContainsKey(c.Id)).Select(c => c.Id)).Distinct().Select(KomSrvTag).DefaultIfEmpty("brak innych serwerów"))); KomBoxPeers(KomFwd(p)); KomEvMsg(pto, p); continue; }   // odbiorca niedostępny - pośrednik przechowuje (kopia u innych pośredników w domu)
                     KomLanRaw(KomFwd(p), pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
                     if (pto == null) foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p);
                 }
@@ -1806,10 +1884,12 @@ namespace Velivo
         static string KomBuild => (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "?") + " (" + (File.Exists(Environment.ProcessPath) ? File.GetLastWriteTime(Environment.ProcessPath).ToString("yyyy-MM-dd HH:mm") : "?") + ")";
         JsonObject KomSrvInfoNow()
         {
+            var fpv = KomBoxFingerprint();
             int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
             return new JsonObject { ["t"] = "p2p-srvinfo", ["id"] = _komId, ["name"] = Environment.MachineName, ["ver"] = KomBuild, ["on"] = _komRelayListener != null, ["port"] = _komRelayPort,
                 ["host"] = _komRelayHost, ["router"] = _komRelayRouter, ["conns"] = string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")), ["connIds"] = string.Join(",", _komRemote.Keys), ["files"] = files,
                 ["msgs"] = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }), ["since"] = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToString("yyyy-MM-dd HH:mm"), ["lan"] = KomLanIp(),
+                ["fp"] = fpv.fp, ["fpM"] = fpv.msgs, ["fpF"] = fpv.files, ["fpPer"] = fpv.per,
                 ["ports"] = string.Join(",", ((_komOpt["ports"] as System.Text.Json.Nodes.JsonArray)?.Select(x => (int?)x ?? 0) ?? Enumerable.Empty<int>()).Append(_komRelayPort).Concat(_komRelayAlt && !_komRelayAltOther ? new[] { KomRelayAltPort } : new int[0]).Where(x => x > 0).Distinct()) };
         }
         // 🌍 w sieci przez którykolwiek mój serwer (stan od innych serwerów, co minutę) - Ryzen widzi mamę połączoną z NUCBOX
@@ -1931,7 +2011,7 @@ namespace Velivo
             }
             finally { _komSrvAsking = false; }
         }
-        void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
+        void KomSrvInfoSend() { _ = Task.Run(() => { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }); }   // w tle - odcisk skrzynki czyta pliki
         static void KomLogKeep(string p, Func<string, bool> keep)
         {
             try { if (File.Exists(p)) { var l = File.ReadAllLines(p).Where(x => !string.IsNullOrWhiteSpace(x)).Where(keep).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, l) + (l.Count > 0 ? Environment.NewLine : "")); } } catch (Exception ex) { App.LogError(ex); }

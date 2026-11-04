@@ -3174,6 +3174,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         listRefresh = null
         k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id); k.tidy(c.id)   // ⏳ stare znikające - usunięte
         var query = ""   // 🔍 szukanie w rozmowie
+        var loadingThumbs = false   // ⚡ miniatury i długości głosówek liczone w tle - rozmowa pokazuje się od razu
         var shownN = 60   // ⚡ jak WhatsApp: przy otwarciu tylko ostatnie wiadomości (300 dymków z miniaturami otwierało rozmowę coraz dłużej), starsze przyciskiem
         k.sendRead(c)
         val msgs = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
@@ -3241,6 +3242,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(8) }
                 setOnClickListener { shownN += 100; fill() }
             })
+            val miss = part.mapNotNull { it.path }.filter { pth -> if (pth.contains("Glosowa-")) !lengths.containsKey(pth) else !thumbs.containsKey(pth) && (k.isImage(pth) || pth.substringAfterLast('.').lowercase() in setOf("mp4", "3gp", "webm", "mkv", "mov")) }.distinct()
+            if (miss.isNotEmpty() && !loadingThumbs) { loadingThumbs = true
+                Thread { miss.forEach { pth -> runCatching { if (pth.contains("Glosowa-")) voiceLength(pth) else if (k.isImage(pth)) thumb(pth) else if (java.io.File(pth).exists()) vthumb(pth) }
+                    if (pth.contains("Glosowa-")) { if (!lengths.containsKey(pth)) lengths[pth] = "" } else if (!thumbs.containsKey(pth)) thumbs[pth] = null }   // brak pliku też zapamiętany - bez ponownego liczenia w kółko
+                    msgs.post { loadingThumbs = false; if (chatWith == c.id) fill() } }.start() }
             for (m in part) {
                 val day = dayFmt.format(java.util.Date(m.ts))
                 if (day != lastDay) {
@@ -3253,7 +3259,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 }
                 // zdjęcie: miniatura nad dymkiem; stuknięcie - pełny ekran
                 val vid = m.path?.takeIf { it.substringAfterLast('.').lowercase() in setOf("mp4", "3gp", "webm", "mkv", "mov") && java.io.File(it).exists() }   // 🎬 film - klatka z ▶ i długością (jak WhatsApp)
-                val img = if (vid != null) vthumb(vid) else m.path?.takeIf { k.isImage(it) }?.let { thumb(it) }
+                val img = m.path?.let { pth -> if (vid == null && !k.isImage(pth)) null else if (thumbs.containsKey(pth)) thumbs[pth] else waitBmp() }   // ⚡ jeszcze nieobliczona miniatura - szare miejsce, obraz dochodzi za chwilę (w tle)
                 if (img != null) msgs.addView(android.widget.ImageView(a).apply {
                     setImageBitmap(img); m.path?.let { gif(this, it) }   // 🎞 GIF rusza się w rozmowie
                     adjustViewBounds = true; maxWidth = px(240); maxHeight = px(280); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
@@ -3284,7 +3290,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     val shown = if (img != null) "" else if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) (if (m.mine && m.heard) "🎧 ▶" else "🎤 ▶") else m.text
                     text = android.text.SpannableStringBuilder(shown).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
-                        voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
+                        m.path?.takeIf { lengths.containsKey(it) }?.let { voiceLength(it) }?.let { append(" · $it") }   // 🎤 długość głosówki
                         append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append((k.sendPct[m.mid]?.let { "⬆ $it% · " } ?: "") + fmt.format(java.util.Date(m.ts)) + tick)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp); reakcje - osobny dymek pod spodem
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
@@ -3757,7 +3763,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         v.text = android.text.SpannableStringBuilder(o).replace(0, head.length, "🎤 ⏸ · " + "%d:%02d".format(Locale.ROOT, left / 60000, left / 1000 % 60))
     }
     // 🎤 długość głosówki (raz na plik)
-    private val lengths = HashMap<String, String>()
+    private val lengths: MutableMap<String, String> = java.util.Collections.synchronizedMap(HashMap<String, String>())
     private fun voiceLength(path: String?): String? {
         if (path == null || !path.contains("Glosowa-") || !java.io.File(path).exists()) return null
         return lengths.getOrPut(path) {
@@ -3882,10 +3888,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     // miniatury raz na plik (rozmowa odświeża się często)
-    private val thumbs = HashMap<String, android.graphics.Bitmap?>()
+    private val thumbs: MutableMap<String, android.graphics.Bitmap?> = java.util.Collections.synchronizedMap(HashMap<String, android.graphics.Bitmap?>())
+    private var waitB: android.graphics.Bitmap? = null
+    private fun waitBmp(): android.graphics.Bitmap = waitB ?: android.graphics.Bitmap.createBitmap(px(240), px(160), android.graphics.Bitmap.Config.ARGB_8888).apply { eraseColor(Color.argb(60, 128, 128, 128)) }.also { waitB = it }   // miejsce na miniaturę, zanim policzy się w tle
     private fun thumb(path: String): android.graphics.Bitmap? = if (thumbs.containsKey(path)) thumbs[path] else decode(path, px(240)).also { thumbs[path] = it }   // nieudane też zapamiętane (getOrPut z null dekodował za każdym razem)
     // 🎬 miniatura filmu: pierwsza klatka (z obrotem z telefonu), na środku ▶, w rogu 🎥 i długość
-    private fun vthumb(path: String): android.graphics.Bitmap? = thumbs.getOrPut(path) { runCatching {
+    private fun vthumb(path: String): android.graphics.Bitmap? = if (thumbs.containsKey(path)) thumbs[path] else vthumbMake(path).also { thumbs[path] = it }
+    private fun vthumbMake(path: String): android.graphics.Bitmap? = run { runCatching {
         val r = android.media.MediaMetadataRetriever(); r.setDataSource(path)
         val fr = r.getFrameAtTime(500_000) ?: r.frameAtTime; val ms = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L; r.release()
         fr ?: return@runCatching null

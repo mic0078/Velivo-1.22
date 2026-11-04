@@ -1877,6 +1877,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }
     }
 
+    fun bubbleShown(id: String): Boolean = android.os.Build.VERSION.SDK_INT >= 29 && runCatching { ctx.getSystemService(NotificationManager::class.java)?.activeNotifications?.any { it.id == id.hashCode() && (it.notification.flags and Notification.FLAG_BUBBLE) != 0 } == true }.getOrDefault(false)   // 🫧 czy ta rozmowa ma bąbelek na ekranie
+    fun closeBubble(id: String) { runCatching { ctx.getSystemService(NotificationManager::class.java)?.cancel(id.hashCode()) } }   // 🫧 bąbelek znika razem z powiadomieniem rozmowy
     fun closeBubbles() { val nm = ctx.getSystemService(NotificationManager::class.java) ?: return; synchronized(this) { contacts.toList() }.forEach { runCatching { nm.cancel(it.id.hashCode()) } } }   // 🫧 wyłączenie bąbelków - otwarte znikają razem z powiadomieniami rozmów
     fun clearNotification(id: String) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
@@ -2728,7 +2730,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val more = icon("⋮", t("Więcej: ułatwienia, motyw, powiadomienia", "More: accessibility, theme, notifications"), 24f) {   // jak WhatsApp: mniej ikon u góry, reszta w ⋮
             val sizes = floatArrayOf(0.9f, 1f, 1.15f, 1.3f, 1.5f); val sizeNames = arrayOf(t("Mała", "Small"), t("Normalna", "Normal"), t("Większa", "Larger"), t("Duża", "Big"), t("Bardzo duża", "Very big"))
             val cur = sizes.indices.minByOrNull { kotlin.math.abs(sizes[it] - k.textScale) } ?: 1
-            Dlg().setItems(arrayOf("🔠 " + t("Wielkość liter w rozmowach: ", "Text size in chats: ") + sizeNames[cur], access.contentDescription.toString().let { "♿ $it" }, "🎨 " + palette.contentDescription, (if (k.background) "🔔 " else "🔕 ") + bell.contentDescription)) { _, i ->
+            Dlg().setItems(arrayOf("🔠 " + t("Wielkość liter w rozmowach: ", "Text size in chats: ") + sizeNames[cur], access.contentDescription.toString().let { "♿ $it" }, "🎨 " + palette.contentDescription, (if (k.background) "🔔 " else "🔕 ") + bell.contentDescription) + (if (k.bubbleIntent != null && android.os.Build.VERSION.SDK_INT >= 30) arrayOf("🫧 " + if (k.bubblesOff) t("Bąbelki: wyłączone – stuknij, aby włączyć", "Bubbles: off – tap to turn on") else t("Bąbelki: włączone – stuknij, aby wyłączyć", "Bubbles: on – tap to turn off")) else emptyArray())) { _, i ->
+                if (i == 4) { k.bubblesOff = !k.bubblesOff; if (k.bubblesOff) k.closeBubbles(); Toast.makeText(a, if (k.bubblesOff) t("Bąbelki wyłączone – otwarte zniknęły, nowe się nie pojawią", "Bubbles off – open ones closed, no new ones") else t("Bąbelki włączone", "Bubbles on"), Toast.LENGTH_LONG).show(); return@setItems }
                 when (i) {
                     0 -> Dlg().setTitle("🔠 " + t("Wielkość liter w rozmowach", "Text size in chats")).setSingleChoiceItems(sizeNames, cur) { d, j -> d.dismiss(); k.textScale = sizes[j]; show() }.show()
                     1 -> accessibility(); 2 -> chooseTheme(); else -> { k.background = !k.background; bellLabel(); Toast.makeText(a, bell.contentDescription, Toast.LENGTH_SHORT).show() } }
@@ -2969,12 +2972,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
             "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("🧹 " + t("Wyczyść rozmowę…", "Clear chat…"), "♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille")) +
-            if (k.bubbleIntent != null && android.os.Build.VERSION.SDK_INT >= 30) (if (k.bubblesOff) arrayOf("🫧 " + t("Włącz bąbelki", "Turn bubbles on")) else arrayOf("🫧 " + t("Bąbelek na ekranie (rozmowa nad innymi aplikacjami)", "Chat bubble (over other apps)"), "🫧 " + t("Wyłącz bąbelki (wszystkie rozmowy)", "Turn bubbles off (all chats)"))) else emptyArray()
+            if (k.bubbleIntent != null && android.os.Build.VERSION.SDK_INT >= 30) (if (k.bubblesOff) arrayOf("🫧 " + t("Włącz bąbelki", "Turn bubbles on")) else arrayOf(if (k.bubbleShown(c.id)) "🫧 " + t("Bąbelek tej rozmowy jest na ekranie – stuknij, aby go zamknąć", "This chat's bubble is on screen – tap to close it") else "🫧 " + t("Bąbelek na ekranie (rozmowa nad innymi aplikacjami)", "Chat bubble (over other apps)"), "🫧 " + t("Wyłącz bąbelki (wszystkie rozmowy)", "Turn bubbles off (all chats)"))) else emptyArray()
         Dlg().setTitle(c.name).setItems(items) { _, i ->
             if (items[i].startsWith("🫧")) {
                 when {
                     k.bubblesOff -> { k.bubblesOff = false; Toast.makeText(a, t("Bąbelki włączone", "Bubbles on"), Toast.LENGTH_SHORT).show() }
                     items[i].contains(t("Wyłącz", "off")) -> { k.bubblesOff = true; k.closeBubbles(); Toast.makeText(a, t("Bąbelki wyłączone – otwarte zniknęły, nowe się nie pojawią", "Bubbles off – open ones closed, no new ones"), Toast.LENGTH_LONG).show() }
+                    items[i].contains(t("zamknąć", "close")) -> { k.closeBubble(c.id); Toast.makeText(a, t("Bąbelek zamknięty", "Bubble closed"), Toast.LENGTH_SHORT).show() }
                     else -> bubble(c)
                 }
                 return@setItems

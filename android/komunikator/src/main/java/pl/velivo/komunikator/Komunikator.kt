@@ -705,8 +705,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (text.startsWith(EDIT)) { editIn(c, text.substring(EDIT.length)); return }   // ✏ nadawca poprawił wiadomość
         if (text.startsWith(REACT)) { reactIn(c, text.substring(REACT.length)); return }   // 😀 reakcja na wiadomość
         if (text.startsWith(PHOTO)) { photoIn(c, text.substring(PHOTO.length)); return }   // 🖼 zdjęcie profilowe kontaktu
-        if (text.startsWith(CLIP)) { if (clipOn(c.id)) { val t = text.substring(CLIP.length); lastClip = t   // 📋 wspólny schowek - tylko z urządzeniem, dla którego jest włączony
-            main.post { runCatching { ctx.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText("Velivo", t)) } } }; return }
+        // 📋 wspólny schowek - tylko z urządzeniem, dla którego jest włączony; tylko świeży (do 2 min): stare schowki ze skrzynki serwera po uruchomieniu
+        // wpisywały się do schowka telefonu, a Android 13+ pokazywał wtedy w lewym dolnym rogu podgląd schowka z „Udostępnij”; ten sam tekst - bez ponownego wpisu
+        if (text.startsWith(CLIP)) { if (clipOn(c.id) && Math.abs(System.currentTimeMillis() - p.optLong("ts")) < 120_000) { val t = text.substring(CLIP.length)
+            if (t != lastClip) { lastClip = t; main.post { runCatching { ctx.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText("Velivo", t)) } } } }; return }
         if (text.startsWith(TIMER)) { timerIn(c, text.substring(TIMER.length)); return }   // ⏳ znikające wiadomości
         if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
         if (text.startsWith(ADDR) || text.startsWith(ASKOK)) return   // dla pośrednika (Windows)

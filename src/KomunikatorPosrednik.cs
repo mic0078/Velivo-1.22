@@ -211,8 +211,8 @@ namespace Velivo
             }
             catch (Exception) { }
             lines.Sort(StringComparer.Ordinal);
-            foreach (var g in lines.GroupBy(l => l.Split('|')[1])) per[g.Key] = g.Count(l => l[0] == 'm') + "/" + g.Count(l => l[0] == 'f') + "/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", g))), 0, 4);
-            return (lines.Count(l => l[0] == 'm'), lines.Count(l => l[0] == 'f'), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", lines))), 0, 8), per);
+            foreach (var g in lines.GroupBy(l => l.Split('|')[1])) per[g.Key] = g.Count(l => l[0] == 'm') + "/" + g.Count(l => l[0] == 'f') + "/" + KomCanon.ShaList(g).Substring(0, 11);
+            return (lines.Count(l => l[0] == 'm'), lines.Count(l => l[0] == 'f'), KomCanon.ShaList(lines).Substring(0, 19), per);   // elementy z długością (bez kolizji sklejania), wersja v1 w skrócie
         }
         // wiadomości w skrzynce dla odbiorcy: mid -> SHA-256 kanonicznego zapisanego obiektu (zaszyfrowana treść + metadane)
         List<(string mid, string sha)> KomStoreShas(string to)
@@ -255,6 +255,13 @@ namespace Velivo
         // porównanie z innym serwerem (z jego stanu co minutę): wpis przy zmianie wyniku; różnica liczy się dopiero 3 razy z rzędu (wiadomości w drodze)
         void KomFpCompare(string peer, JsonObject si, IPAddress addr)
         {
+            if ((int?)si["fpV"] != KomCanon.Version)
+            {   // inna wersja formatu skrótu (starsza / nowsza wersja Velivo) - nie porównuję, żeby nie dać fałszywej niezgodności
+                if (!_komFpCmp.TryGetValue(peer + "|v", out var vv) || vv.fp != "V") { _komFpCmp[peer + "|v"] = ("V", 0); KomDiag("PORÓWNANIE", "skrzynka", "-", KomSrvTag(_komId), KomSrvTag(peer), "nie porównuję – inna wersja formatu skrótu (tu v" + KomCanon.Version + ", tam " + ((int?)si["fpV"] is int tv ? "v" + tv : "brak – starsza wersja Velivo") + ")"); }
+                return;
+            }
+            _komFpCmp.TryRemove(peer + "|v", out _);
+            KomEvCompare(peer, si);
             var theirs = (string)si["fp"]; if (theirs == null) return;
             var (m, f, mine, per) = KomBoxFingerprint();
             bool eq = theirs == mine;
@@ -263,12 +270,28 @@ namespace Velivo
             string state = eq ? "Z" : streak >= 3 ? "R" : "?";
             _komFpCmp[peer] = (state, eq ? 0 : streak);
             if (state == prev.fp || state == "?") return;
-            if (eq) { KomDiag("PORÓWNANIE", "skrzynka", mine, KomSrvTag(_komId), KomSrvTag(peer), "ZGODNE – " + m + " wiadomości, " + f + " plików, identyczna zawartość"); return; }
+            if (eq) { KomDiag("PORÓWNANIE", "skrzynka", mine, KomSrvTag(_komId), KomSrvTag(peer), "SKRZYNKA ZGODNA – aktualna zawartość identyczna: " + m + " wiadomości i " + f + " plików czekających na odbiorców (skróty zapisanych obiektów)"); return; }
             var tp = si["fpPer"] as JsonObject; var diff = new List<string>(); var diffTo = new List<string>();
             foreach (var k in per.Select(x => x.Key).Union(tp?.Select(x => x.Key) ?? Enumerable.Empty<string>()).Distinct())
             { var a = (string)per[k] ?? "0/0/-"; var b = (string)tp?[k] ?? "0/0/-"; if (a != b) diffTo.Add(k); if (a != b) diff.Add((KomContactById(k)?.Name ?? k.Substring(0, 6)) + " tu " + a + ", tam " + b); }
             if (diffTo.Count > 0) KomFpAsk(peer, diffTo, addr);
-            KomDiag("PORÓWNANIE", "skrzynka", mine + " ≠ " + theirs, KomSrvTag(_komId), KomSrvTag(peer), "RÓŻNE od 3 min – tu " + m + " wiad. / " + f + " plików, tam " + (int?)si["fpM"] + " / " + (int?)si["fpF"] + "; różnice (wiad./pliki/odcisk): " + string.Join("; ", diff));
+            KomDiag("PORÓWNANIE", "skrzynka", mine + " ≠ " + theirs, KomSrvTag(_komId), KomSrvTag(peer), "SKRZYNKA RÓŻNA od 3 min – tu " + m + " wiad. / " + f + " plików, tam " + (int?)si["fpM"] + " / " + (int?)si["fpF"] + "; różnice (wiad./pliki/odcisk): " + string.Join("; ", diff));
+        }
+        // 🗄 historia zdarzeń (dziennik przyjęć i doręczeń) - osobno od skrzynki: skrzynka = co teraz czeka, historia = wszystko, co się wydarzyło
+        void KomEvCompare(string peer, JsonObject si)
+        {
+            var theirs = (string)si["evD"]; if (theirs == null) return;
+            var mine = KomEv.Digest(); bool eq = mine == theirs;
+            var key = peer + "|ev"; var prev = _komFpCmp.TryGetValue(key, out var pv) ? pv : (null, 0);
+            int streak = eq ? 0 : (prev.fp == "R" ? prev.same : prev.same + 1);
+            string state = eq ? "Z" : streak >= 3 ? "R" : "?";
+            _komFpCmp[key] = (state, eq ? 0 : streak);
+            if (state == prev.fp || state == "?") return;
+            if (eq) { KomDiag("PORÓWNANIE", "historia zdarzeń", mine, KomSrvTag(_komId), KomSrvTag(peer), "HISTORIA ZGODNA – identyczny dziennik zdarzeń (" + KomEv.Count + " zdarzeń przyjęć i doręczeń, w okresie przechowywania)"); return; }
+            var th = si["evHave"] as JsonObject; var me = KomEv.Have(); var d = new List<string>();
+            foreach (var o in me.Select(x => x.Key).Union(th?.Select(x => x.Key) ?? Enumerable.Empty<string>()).Distinct())
+            { long a = (long?)me[o] ?? 0, b = (long?)th?[o] ?? 0; if (a != b) d.Add("od " + KomSrvTag(o) + ": tu do nr " + a + ", tam do nr " + b); }
+            KomDiag("PORÓWNANIE", "historia zdarzeń", mine + " ≠ " + theirs, KomSrvTag(_komId), KomSrvTag(peer), "HISTORIA RÓŻNA od 3 min – tu " + KomEv.Count + " zdarzeń, tam " + (int?)si["evN"] + (d.Count > 0 ? "; braki: " + string.Join("; ", d) : "; numery te same, inna treść albo różne porządki wg „Przechowuj”"));
         }
         // ♻ uzupełnianie po starcie: liczniki replik przyjętych od innych serwerów w pierwszych 15 min
         readonly DateTime _komStartAt = DateTime.UtcNow; int _komFillMsg, _komFillFile, _komFillEv; bool _komFillLogged;
@@ -1928,7 +1951,7 @@ namespace Velivo
             return new JsonObject { ["t"] = "p2p-srvinfo", ["id"] = _komId, ["name"] = Environment.MachineName, ["ver"] = KomBuild, ["on"] = _komRelayListener != null, ["port"] = _komRelayPort,
                 ["host"] = _komRelayHost, ["router"] = _komRelayRouter, ["conns"] = string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")), ["connIds"] = string.Join(",", _komRemote.Keys), ["files"] = files,
                 ["msgs"] = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }), ["since"] = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToString("yyyy-MM-dd HH:mm"), ["lan"] = KomLanIp(),
-                ["fp"] = fpv.fp, ["fpM"] = fpv.msgs, ["fpF"] = fpv.files, ["fpPer"] = fpv.per,
+                ["fp"] = fpv.fp, ["fpM"] = fpv.msgs, ["fpF"] = fpv.files, ["fpPer"] = fpv.per, ["fpV"] = KomCanon.Version, ["evN"] = KomEv.Count, ["evD"] = KomEv.Digest(), ["evHave"] = KomEv.Have(),
                 ["ports"] = string.Join(",", ((_komOpt["ports"] as System.Text.Json.Nodes.JsonArray)?.Select(x => (int?)x ?? 0) ?? Enumerable.Empty<int>()).Append(_komRelayPort).Concat(_komRelayAlt && !_komRelayAltOther ? new[] { KomRelayAltPort } : new int[0]).Where(x => x > 0).Distinct()) };
         }
         // 🌍 w sieci przez którykolwiek mój serwer (stan od innych serwerów, co minutę) - Ryzen widzi mamę połączoną z NUCBOX

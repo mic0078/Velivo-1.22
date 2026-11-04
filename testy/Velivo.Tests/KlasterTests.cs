@@ -70,4 +70,29 @@ public class KlasterTests
         var d = JsonNode.Parse("{\"t\":\"p2p-msg\",\"id\":\"n\",\"to\":\"x\",\"mid\":\"1\",\"c\":\"QUJD\",\"ts\":5}");   // inny odbiorca (metadane)
         Assert.NotEqual(KomCanon.Sha(a), KomCanon.Sha(c)); Assert.NotEqual(KomCanon.Sha(a), KomCanon.Sha(d));
     }
+
+    [Fact]
+    public void Diagnostyka_KodowanieJednoznaczne_IWersja()
+    {
+        Assert.NotEqual(KomCanon.ShaList(new[] { "ab", "c" }), KomCanon.ShaList(new[] { "a", "bc" }));   // sklejanie bez długości dałoby to samo
+        Assert.Equal(KomCanon.ShaList(new[] { "b", "a" }), KomCanon.ShaList(new[] { "a", "b" }));   // kolejność bez znaczenia
+        Assert.Equal(KomCanon.Sha(JsonNode.Parse("{\"n\":5}")), KomCanon.Sha(JsonNode.Parse("{\"n\":5.0}")));   // ta sama liczba
+        Assert.NotEqual(KomCanon.Sha(JsonNode.Parse("{\"n\":10}")), KomCanon.Sha(JsonNode.Parse("{\"n\":1}")));
+        Assert.NotEqual(KomCanon.Sha(JsonNode.Parse("{\"n\":\"5\"}")), KomCanon.Sha(JsonNode.Parse("{\"n\":5}")));   // tekst ≠ liczba
+        Assert.NotEqual(KomCanon.Sha(JsonNode.Parse("{\"a\":\"b\",\"c\":\"d\"}")), KomCanon.Sha(JsonNode.Parse("{\"a\":\"b\\\"c\"}")));
+        Assert.StartsWith("v1:", KomCanon.Sha(JsonNode.Parse("{}")));
+        var x = new JsonObject { ["fwd"] = true, ["inner"] = new JsonObject { ["fwd"] = true } };   // znacznik transportu tylko na górze
+        Assert.NotEqual(KomCanon.Sha(x), KomCanon.Sha(new JsonObject { ["inner"] = new JsonObject() }));
+    }
+
+    [Fact]
+    public void Diagnostyka_HistoriaZdarzen_OdciskTenSamPoSynchronizacji()
+    {
+        var a = new KomEventLog(System.IO.Path.GetTempFileName(), "A"); var b = new KomEventLog(System.IO.Path.GetTempFileName(), "B");
+        a.Add("msg", "x", new JsonObject { ["mid"] = "1" }); b.Add("done", "x", new JsonObject { ["mid"] = "1" });
+        Assert.NotEqual(a.Digest(), b.Digest());
+        foreach (var e in a.Missing(b.Have(), 8000)) b.Merge(e);
+        foreach (var e in b.Missing(a.Have(), 8000)) a.Merge(e);
+        Assert.Equal(a.Digest(), b.Digest());
+    }
 }

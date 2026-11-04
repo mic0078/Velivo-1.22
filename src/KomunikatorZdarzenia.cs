@@ -110,6 +110,8 @@ namespace Velivo
 
         public IEnumerable<JsonObject> All(string kind) { lock (_lock) return _ev.Where(x => (string)x["k"] == kind).Select(x => (JsonObject)x.DeepClone()).ToList(); }
         public int Count { get { lock (_lock) return _ev.Count; } }
+        // 🔬 odcisk całej historii: skróty kanoniczne wszystkich zdarzeń (KomCanon v1), w kolejności bajtów - ten sam zbiór zdarzeń = ten sam odcisk
+        public string Digest() { lock (_lock) return KomCanon.ShaList(_ev.Select(x => KomCanon.Sha(x))).Substring(0, 19); }
 
         // porządki: zdarzenia starsze niż granica usuwane; „mam do N” zostaje (nagłówek pliku), więc nic nie wraca od innych serwerów
         public int Prune(long beforeTs)

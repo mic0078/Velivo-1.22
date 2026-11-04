@@ -12,17 +12,46 @@ namespace Velivo
     // Serwer: własny klucz (ECDSA P-256), identyfikator = skrót klucza publicznego. Certyfikat członkostwa = podpis klastra na
     // {klaster, serwer, klucz publiczny serwera, identyfikator w komunikatorze, czas}. Odwołanie = podpisany wpis {serwer, czas} - wygrywa z certyfikatem.
     // Klasa bez okien i sieci - testowana osobno (KlasterTests).
-    // 🔬 diagnostyka: SHA-256 kanonicznej postaci zapisanego obiektu wiadomości (zaszyfrowana treść + metadane dostarczenia),
-    // bez znaczników transportu między serwerami (fwd, box); klucze w kolejności alfabetycznej - ten sam obiekt = ten sam skrót na każdym serwerze.
+    // 🔬 diagnostyka: SHA-256 kanonicznej postaci zapisanego obiektu (zaszyfrowana treść + metadane dostarczenia), bez znaczników transportu
+    // między serwerami (fwd, box). Kodowanie jednoznaczne (wersja v1): każdy element ma typ i długość - O<liczba pól>{K<bajty>:<klucz><wartość>} (klucze
+    // w kolejności bajtów UTF-8), A<liczba>…, S<bajty>:<tekst>, N<liczba w postaci R>, T/F, Z. Bez łączenia separatorami - brak kolizji z samego sklejania.
+    // Wersja w skrócie („v1:…”) - zmiana formatu nie da fałszywej niezgodności: serwery porównują tylko tę samą wersję.
     public static class KomCanon
     {
+        public const int Version = 1;
         static readonly HashSet<string> Skip = new HashSet<string> { "fwd", "box" };
-        public static string Sha(JsonNode n) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Write(n, true))));
-        static string Write(JsonNode n, bool top)
+        public static string Sha(JsonNode n) { var sb = new StringBuilder("velivo-diag-v1|"); Write(sb, n, true); return "v1:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()))); }
+        // lista elementów (np. wierszy skrzynki) - każdy z długością, w kolejności bajtów
+        public static string ShaList(IEnumerable<string> items)
         {
-            if (n is JsonObject o) return "{" + string.Join(",", o.Where(kv => !(top && Skip.Contains(kv.Key))).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => System.Text.Json.JsonSerializer.Serialize(kv.Key) + ":" + Write(kv.Value, false))) + "}";
-            if (n is JsonArray a) return "[" + string.Join(",", a.Select(x => Write(x, false))) + "]";
-            return n == null ? "null" : n.ToJsonString();
+            var sb = new StringBuilder("velivo-diag-v1-list|");
+            foreach (var x in items.OrderBy(x => x, StringComparer.Ordinal)) Str(sb, x);
+            return "v1:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString())));
+        }
+        static void Str(StringBuilder sb, string x) => sb.Append('S').Append(Encoding.UTF8.GetByteCount(x)).Append(':').Append(x);
+        static void Write(StringBuilder sb, JsonNode n, bool top)
+        {
+            switch (n)
+            {
+                case null: sb.Append('Z'); return;
+                case JsonObject o:
+                    var kv = o.Where(x => !(top && Skip.Contains(x.Key))).OrderBy(x => x.Key, StringComparer.Ordinal).ToList();
+                    sb.Append('O').Append(kv.Count).Append('{');
+                    foreach (var x in kv) { sb.Append('K'); Str(sb, x.Key); Write(sb, x.Value, false); }
+                    sb.Append('}'); return;
+                case JsonArray a:
+                    sb.Append('A').Append(a.Count).Append('[');
+                    foreach (var x in a) Write(sb, x, false);
+                    sb.Append(']'); return;
+                case JsonValue v:
+                    if (v.TryGetValue<string>(out var st)) { Str(sb, st); return; }
+                    if (v.TryGetValue<bool>(out var bo)) { sb.Append(bo ? 'T' : 'F'); return; }
+                    var raw = v.ToJsonString();
+                    if (decimal.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var dm)) { sb.Append('N').Append((dm / 1.0000000000000000000000000000m).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(';'); return; }   // 5 = 5.0 = 5e0
+                    if (raw == "true" || raw == "false") { sb.Append(raw == "true" ? 'T' : 'F'); return; }
+                    if (raw.StartsWith("\"")) { Str(sb, System.Text.Json.JsonSerializer.Deserialize<string>(raw)); return; }
+                    sb.Append('R'); Str(sb, raw); return;
+            }
         }
     }
 

@@ -1162,7 +1162,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
         val dev = clean(h.optString("Device"))
         val out = cn.out
-        if (box && contact(h.optString("Id")) == null) { runCatching { out.write(0); out.flush() }; return }   // 📬 nadawca nieznany - odmowa słowem (serwer zapisze powód), nie ciche zamknięcie
+        if (box && contact(h.optString("Id")) == null) { runCatching { out.write(3); out.flush() }; return }   // 📬 nadawca nieznany - odmowa słowem (serwer zapisze powód), nie ciche zamknięcie
         val key = if (box) hmac((contact(h.optString("Id")) ?: return).key, ("velivo-box\n" + h.optString("Nonce")).toByteArray(Charsets.UTF_8))
         else { val mine = ecPair(); val pubB = mine.public.encoded; writeBlock(out, pubB); agree(mine, pubA, "velivo-p2p", pubA, pubB) }   // nadawca liczy ten sam kod i pokazuje go u siebie
         val ad = fileAd(h)
@@ -1176,7 +1176,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val dup = fmid != null && from != null && (synchronized(fileIn) { fmid in fileIn } || chat(from.id).any { it.mid == fmid })
         val ok = !dup && (!box || from != null) && (auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) })
         val go = ok && (fmid == null || synchronized(fileIn) { fileIn.add(fmid) })
-        out.write(if (go) 1 else 0); out.flush()
+        out.write(if (go) 1 else if (dup || (ok && fmid != null)) 2 else if (from == null) 3 else 0); out.flush()   // odmowa z powodem dla serwera: 2 - mam już, 3 - nie znam nadawcy
         if (!go) return
         cn.timeout(60000)
         val tmp = java.io.File(tmpDir, "odbior-" + UUID.randomUUID() + ".part")

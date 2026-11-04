@@ -274,7 +274,10 @@ namespace Velivo
                             await st.FlushAsync(cts.Token);
                             if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) { KomBoxLog(id, "przerwany – połączenie z odbiorcą zerwało się po " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s (słaby zasięg?); serwer spróbuje znowu za minutę"); continue; }   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
                         }
-                        KomBoxLog(id, b[0] == 1 ? "doręczony – odbiorca dostał plik od " + sender + " (" + KomSize(size) + ", " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)" : "odmówił – telefon odbiorcy nie chciał pliku od " + sender + " (ma go już, nie zna nadawcy albo brak miejsca w telefonie); plik usunięty z serwera");
+                        KomBoxLog(id, b[0] == 1 ? "doręczony – odbiorca dostał plik od " + sender + " (" + KomSize(size) + ", " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)"
+                            : b[0] == 2 ? "już doręczony – telefon odbiorcy ma ten plik od " + sender + " (doszedł przez inny serwer); kopia z tego serwera skasowana"
+                            : b[0] == 3 ? "odmówił – telefon odbiorcy nie ma nadawcy " + sender + " w kontaktach; plik skasowany z serwera"
+                            : "odmówił – telefon odbiorcy nie chciał pliku od " + sender + " (ma go już, nie zna nadawcy albo brak miejsca w telefonie); plik usunięty z serwera");
                         File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
                         var gh = Path.GetFileNameWithoutExtension(hdr).Split('-').Last(); gone.Add(gh); _komBoxDoneOut[gh] = (id, DateTime.UtcNow);
                     }

@@ -1357,7 +1357,7 @@ namespace Velivo
                 await KomWriteBlock(s, pubB, token);
                 key = KomAgree(me, pubA, "velivo-p2p", pubA, pubB);
             }
-            string target = null; bool accept = false;
+            string target = null; bool accept = false; byte refuseWhy = 0;   // odmowa dla serwera: 2 - mam już ten plik, 3 - nie znam nadawcy, 0 - inny powód (odmówiłem / brak miejsca)
             var ad = KomFileAd(h);
             // od kontaktu (podpis kluczem kontaktu) - bez kodu, jak zalacznik w rozmowie; zgoda zawsze
             KomContact from = null;
@@ -1366,9 +1366,9 @@ namespace Velivo
                 var c = KomContactById(id); var mac = KomB64((string)h["Mac"]);
                 if (c != null) using (var hm = new HMACSHA256(c.Key)) { var exp = hm.ComputeHash(ad); if (mac.Length == 32 && CryptographicOperations.FixedTimeEquals(mac, exp)) from = c; }
                 if (from == null && c != null && !c.IsGroup && c.Dom && mac.Length == 32 && (string)h["Type"] != "p2p-box") { from = c; App.LogInfo("Komunikator: plik od kontaktu " + c.Name + " podpisany innym kluczem pary – przyjęty bez kodu"); }   // kontakt z mojej sieci nigdy nie pyta o kod
-                if (from == null) { App.LogInfo("Komunikator: plik od nieznanego nadawcy (" + dev + ") – odrzucony bez pytania"); return; }   // nigdy okienka z kodem (serwer pytał o pliki idące do kogoś innego)
+                if (from == null) { refuseWhy = 3; App.LogInfo("Komunikator: plik od nieznanego nadawcy (" + dev + ") – odrzucony bez pytania"); return; }   // nigdy okienka z kodem (serwer pytał o pliki idące do kogoś innego)
                 // ten sam plik (Mid) z kilku serwerów (skrzynka 📬 u każdego) albo już w rozmowie - odmowa, serwer kasuje swoją kopię
-                if ((string)h["Mid"] is { Length: 32 } dm && (_komFileIn.ContainsKey(dm) || _komChats.Values.Any(l => l.Any(m => m.Mid == dm)))) { App.LogInfo("Komunikator: ten sam plik drugi raz (" + name + ") – pominięty"); return; }
+                if ((string)h["Mid"] is { Length: 32 } dm && (_komFileIn.ContainsKey(dm) || _komChats.Values.Any(l => l.Any(m => m.Mid == dm)))) { refuseWhy = 2; App.LogInfo("Komunikator: ten sam plik drugi raz (" + name + ") – pominięty"); return; }
                 dev = from.Name;
                 if (_komAutoImages)
                 {   // zdjecie / plik od kontaktu - od razu do rozmowy (bez pytania i bez okna zapisu)
@@ -1390,8 +1390,8 @@ namespace Velivo
                 if (dlg.ShowDialog((Window)_komWindow ?? PairDialogOwner()) == true) target = dlg.FileName; else accept = false;
             });
             var fmid = accept && (string)h["Mid"] is { Length: 32 } m0 ? m0 : null;
-            if (fmid != null && !_komFileIn.TryAdd(fmid, true)) accept = false;   // dwie kopie naraz - przyjmuje pierwsza
-            await s.WriteAsync(new[] { (byte)(accept ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
+            if (fmid != null && !_komFileIn.TryAdd(fmid, true)) { accept = false; refuseWhy = 2; }   // dwie kopie naraz - przyjmuje pierwsza
+            await s.WriteAsync(new[] { accept ? (byte)1 : refuseWhy }, 0, 1, token); await s.FlushAsync(token);
             if (!accept) return;
             string tmp = target + ".velivo-part";
             try

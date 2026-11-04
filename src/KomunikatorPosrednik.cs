@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -358,7 +358,7 @@ namespace Velivo
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
                 return;
             }
-            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); return; }   // 📊 stan innego mojego serwera
+            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
             if (t == "p2p-boxlogclr" && KomFromRelay(addr))
             {   // 🧹 dziennik skrzynki wyczyszczony na innym moim serwerze - tutaj też
                 foreach (var lp in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, lp)); } catch (Exception) { }
@@ -1205,7 +1205,7 @@ namespace Velivo
         static bool KomPrivateIp(string ip) => IPAddress.TryParse(ip, out var a) && a.GetAddressBytes() is var b && b.Length == 4 &&
             (b[0] == 10 || b[0] == 127 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || (b[0] == 100 && b[1] >= 64 && b[1] < 128) || (b[0] == 169 && b[1] == 254));
         // UPnP (IGD): adres zewnetrzny routera i przekierowanie portu TCP na ten komputer; note: "taken" - port juz zajety (np. recznie)
-        static async Task<(string ext, bool mapped, string note)> KomUpnpAsync(int port, int intPort = 0)
+        static async Task<(string ext, bool mapped, string note)> KomUpnpAsync(int port, int intPort = 0, bool takeOver = false)
         {
             try
             {
@@ -1251,9 +1251,11 @@ namespace Velivo
                     // port już przekierowany na INNY komputer w domu (np. NUCBOX) - nie nadpisujemy (część routerów nadpisuje bez błędu 718 i drugi pośrednik zabierał porty pierwszemu)
                     var (c0, b0) = await Soap("GetSpecificPortMappingEntry", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol>");
                     var who0 = c0 == 200 ? System.Text.RegularExpressions.Regex.Match(b0, @"<NewInternalClient>(.*?)</NewInternalClient>").Groups[1].Value.Trim() : "";
-                    if (who0.Length > 0 && who0 != local) return (ext, false, "taken");
+                    // 🔁 zastępstwo: działający serwer przejmuje port wyłączonego (takeOver), a ten po powrocie od razu go odbiera (opis „Velivo zastępstwo”)
+                    if (who0.Length > 0 && who0 != local && (takeOver || b0.Contains(KomTakeDesc))) await Soap("DeletePortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol>");
+                    else if (who0.Length > 0 && who0 != local) return (ext, false, "taken");
                     var (c2, b2) = await Soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + (intPort > 0 ? intPort : port) +
-                        "</NewInternalPort><NewInternalClient>" + local + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Velivo</NewPortMappingDescription><NewLeaseDuration>0</NewLeaseDuration>");
+                        "</NewInternalPort><NewInternalClient>" + local + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>" + (takeOver ? KomTakeDesc : "Velivo") + "</NewPortMappingDescription><NewLeaseDuration>0</NewLeaseDuration>");
                     if (c2 != 200 && b2.Contains("718"))
                     {
                         // juz przekierowany (np. recznie w routerze) - jesli na ten komputer, to dziala
@@ -1789,11 +1791,42 @@ namespace Velivo
             int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
             return new JsonObject { ["t"] = "p2p-srvinfo", ["id"] = _komId, ["name"] = Environment.MachineName, ["ver"] = KomBuild, ["on"] = _komRelayListener != null, ["port"] = _komRelayPort,
                 ["host"] = _komRelayHost, ["router"] = _komRelayRouter, ["conns"] = string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")), ["connIds"] = string.Join(",", _komRemote.Keys), ["files"] = files,
-                ["msgs"] = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }), ["since"] = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToString("yyyy-MM-dd HH:mm") };
+                ["msgs"] = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }), ["since"] = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToString("yyyy-MM-dd HH:mm"), ["lan"] = KomLanIp(),
+                ["ports"] = string.Join(",", ((_komOpt["ports"] as System.Text.Json.Nodes.JsonArray)?.Select(x => (int?)x ?? 0) ?? Enumerable.Empty<int>()).Append(_komRelayPort).Concat(_komRelayAlt && !_komRelayAltOther ? new[] { KomRelayAltPort } : new int[0]).Where(x => x > 0).Distinct()) };
         }
         // 🌍 w sieci przez którykolwiek mój serwer (stan od innych serwerów, co minutę) - Ryzen widzi mamę połączoną z NUCBOX
         string KomPeerWith(string id) => _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) && ((string)kv.Value.Info["connIds"] ?? "").Split(',').Contains(id)).Select(kv => kv.Key).FirstOrDefault();
         bool KomOnlineAny(string id) => KomOnline(id) || KomPeerWith(id) != null;
+        // 🔁 zastępstwo serwerów: starszy telefon (mama) zna tylko port jednego serwera (NUCBOX 41921). Gdy ten serwer nie działa
+        // (brak wieści 3 min i nie odpowiada w sieci domowej), JEDEN działający serwer (najmniejsze id) przekierowuje w routerze jego porty na siebie
+        // i obsługuje jego ludzi (alias); po powrocie właściciel portu sam go odbiera (opis KomTakeDesc), a my oddajemy bez walki.
+        // Działa tylko przez UPnP - ręczne przekierowania w routerze wygrywają z UPnP.
+        const string KomTakeDesc = "Velivo zastepstwo";
+        readonly ConcurrentDictionary<string, (string Lan, int Port, int[] Ports)> _komPeerPorts = new ConcurrentDictionary<string, (string, int, int[])>();
+        readonly ConcurrentDictionary<int, string> _komTaken = new ConcurrentDictionary<int, string>();
+        int _komTakeBusy;
+        async Task KomTakeover()
+        {
+            if (Interlocked.Exchange(ref _komTakeBusy, 1) == 1) return;
+            try
+            {
+                bool Fresh(string id) => _komSrvInfo.TryGetValue(id, out var v) && DateTime.UtcNow - v.At < TimeSpan.FromMinutes(3) && (bool?)v.Info["on"] == true;
+                foreach (var kv in _komPeerPorts.ToList())
+                {
+                    var (lan, mainPort, ports) = kv.Value;
+                    bool alive = Fresh(kv.Key);
+                    if (!alive && mainPort > 0) try { using var cl = new TcpClient(); using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2)); await cl.ConnectAsync(lan, mainPort, cts.Token); alive = true; } catch (Exception) { }
+                    if (alive) { foreach (var p in _komTaken.Where(x => x.Value == kv.Key).Select(x => x.Key).ToList()) if (_komTaken.TryRemove(p, out _)) App.LogInfo("Zastępstwo: serwer " + KomSrvName(kv.Key) + " znowu działa – oddaję mu port " + p); continue; }
+                    var boss = _komSrvInfo.Keys.Where(Fresh).Append(_komId).OrderBy(x => x, StringComparer.Ordinal).First();
+                    if (boss != _komId) continue;   // przejmuje tylko jeden działający serwer - bez przepychanki
+                    foreach (var p in ports.Where(p => p != _komRelayPort && !_komTaken.ContainsKey(p)))
+                        if ((await KomUpnpAsync(p, _komRelayPort, true)).mapped && _komTaken.TryAdd(p, kv.Key)) App.LogInfo("Zastępstwo: serwer " + KomSrvName(kv.Key) + " nie działa – port " + p + " w routerze prowadzi teraz do tego komputera");
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            finally { _komTakeBusy = 0; }
+        }
+        string KomSrvName(string id) => _komSrvInfo.TryGetValue(id, out var v) ? (string)v.Info["name"] ?? id : KomContactById(id)?.Name ?? id;
         void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
         static void KomLogKeep(string p, Func<string, bool> keep)
         {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -1152,7 +1152,7 @@ namespace Velivo
             {
                 _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
                 // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
-                if (_komRelayListener != null) { KomBoxDoneRepeat(); KomBoxExpire(); KomSrvInfoSend(); KomEvHave(); }
+                if (_komRelayListener != null) { KomBoxDoneRepeat(); KomBoxExpire(); KomSrvInfoSend(); KomEvHave(); _ = Task.Run(KomTakeover); }
                 // 📬 odbiorca połączony z innym moim serwerem (mama z NUCBOX) - czekające tu wiadomości idą do tamtego serwera; on doręcza i odsyła „doręczone”, kopia tu znika
                 if (_komRelayListener != null) foreach (var kv in _komStore.ToArray()) if (!_komRemote.ContainsKey(kv.Key) && KomPeerWith(kv.Key) != null) { List<System.Text.Json.Nodes.JsonNode> sq; lock (kv.Value) sq = kv.Value.ToList(); foreach (var q in sq) KomBoxPeers(KomFwd(q)); }
                 if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id);

@@ -26,7 +26,7 @@ namespace Velivo
         }
         void KomApiStart()
         {
-            if (_komApi != null || _komRelayListener == null) return;
+            if (_komApi != null || KomOddany) return;   // każde Velivo (polecenia innym serwerom i konta - gdy jest serwerem)
             try { var l = new TcpListener(IPAddress.Loopback, KomApiPort); l.Start(); _komApi = l; } catch (Exception ex) { App.LogInfo("API serwera: port " + KomApiPort + " zajęty – " + ex.Message); return; }
             var key = KomApiKey();
             App.LogInfo("API serwera: http://127.0.0.1:" + KomApiPort + "/api (klucz w api-klucz.txt)");

@@ -1172,6 +1172,7 @@ namespace Velivo
         void KomStartResend()
         {
             if (_komResend != null || KomOddany) return;
+            KomApiStart();   // 🔌 API serwera od razu przy starcie (127.0.0.1:41930, api-klucz.txt)
             KomRelayStart(); KomUpStart();   // 🌍 pośrednik (gdy wlaczony) i laczenie z pośrednikiem poza domem
             Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // kontakty sprzed tej wersji - takze poza domem
             _komResend = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };

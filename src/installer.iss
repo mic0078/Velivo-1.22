@@ -202,6 +202,8 @@ Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueN
 
 [Run]
 Filename: "{app}\Velivo.exe"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; ciche instalowanie (aktualizacja serwera) - Velivo, które działało przed instalacją, wraca samo (serwer nie zostaje wyłączony)
+Filename: "{app}\Velivo.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent and WasRunning
 
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"
@@ -437,11 +439,19 @@ begin
   end;
 end;
 
+var VelivoWasRunning: Boolean;
+function WasRunning: Boolean;
+begin
+  Result := VelivoWasRunning;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code, I: Integer;
 begin
   Result := InstallPrereqs;
   if Result <> '' then exit;
+  Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq Velivo.exe" | find /I "Velivo.exe"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  VelivoWasRunning := Code = 0;
   // ukryte procesy Velivo (np. sprzatanie przy zamykaniu) razem z ich procesami WebView2
   // czekamy, aż Velivo naprawdę zniknie (pliki zwolnione) - do 10 s; nie da się zamknąć (Velivo jako administrator) - jasny komunikat zamiast „Odmowa dostępu”
   for I := 1 to 20 do

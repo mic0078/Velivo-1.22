@@ -5,7 +5,7 @@ Stan: 2026-11-04. Kod: `src/KomunikatorApi.cs`. Na serwerach jeszcze nie sprawdz
 ## 1. API HTTP (dla programów na tym komputerze)
 
 - Adres: `http://127.0.0.1:41930/api` – tylko ten komputer (z sieci i internetu niedostępne).
-- Działa, gdy Velivo jest serwerem (włączony pośrednik). Start: do minuty po uruchomieniu.
+- Startuje razem z Velivo (każdym; konta i polecenia innym serwerom – gdy ten komputer jest serwerem).
 - Klucz API: plik `api-klucz.txt` w folderze danych Velivo. Każde zapytanie: nagłówek `Authorization: Bearer <klucz>` albo `?klucz=<klucz>`.
 - Zamiast klucza API można zalogować się **kluczem sprzętowym administratora** (te same klucze co w panelu) – punkt 1.2.
 - Odpowiedzi: JSON (UTF-8). Błąd: `{"blad": "…"}` z kodem 400 / 401 / 404.
@@ -38,7 +38,7 @@ Uwaga: przeglądarka nie pozwoli strony z innego adresu użyć rpId `velivo.loca
 
 Przykład (PowerShell):
 ```
-$k = Get-Content "<folder danych>\api-klucz.txt"   # folder danych: panel administratora → 📂 Folder danych (zależy od profilu)
+$k = (Get-Content "$env:LOCALAPPDATA\Programs\Velivo\Dane\api-klucz.txt").Trim()   # starsze instalacje: $env:LOCALAPPDATA\Przegladarka
 Invoke-RestMethod http://127.0.0.1:41930/api/serwery -Headers @{Authorization="Bearer $k"}
 ```
 

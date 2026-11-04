@@ -2032,7 +2032,7 @@ namespace Velivo
         void KomPeerLinks()
         {
             if (_komRelayListener == null) return;
-            KomApiStart(); KomInfraSync();
+            KomInfraSync();
             foreach (var c in KomMyServers())
             {
                 if (KomLanPeer(c.Id) || _komRemote.ContainsKey(c.Id) || _komPeerLink.ContainsKey(c.Id) || !_komPeerDial.TryAdd(c.Id, true)) continue;

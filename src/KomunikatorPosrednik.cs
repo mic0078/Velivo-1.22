@@ -594,6 +594,7 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); KomInfo(L.T("🌍 Pośrednik: port zajęty lub zablokowany – ") + ex.Message); }
         }
 
+        readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _komRejLog = new System.Collections.Concurrent.ConcurrentDictionary<string, DateTime>();   // ten sam odrzucony co 40 s zaśmiecał Błędy Velivo
         void KomRelayStop(bool bye = false)
         {
             try { if (bye && _komRelayListener != null) KomBoxPeers(new JsonObject { ["t"] = "p2p-srvbye", ["id"] = _komId }); } catch (Exception) { }   // ☕ wyłączam się (zamknięcie Velivo / wyłączenie serwera) - inne serwery przejmują; nie przy ponownym uruchomieniu serwera
@@ -643,7 +644,7 @@ namespace Velivo
                 if (c != null && rel != _komId && _komOpt["alias"] is JsonObject al && (string)al[c.Id + "|" + rel] is { } ak) { try { rk = Convert.FromBase64String(ak); } catch (Exception) { } if (rk?.Length == 32) { rel = _komId; who += " (zamiast " + (KomContactById((string)h["Relay"])?.Name ?? "innego serwera") + ")"; } }
                 string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : rel != _komId ? "połączenie do innego serwera: " + (KomContactById(rel)?.Name ?? (rel.Length >= 6 ? rel.Substring(0, 6) : "?")) + " (adres wskazuje ten komputer; brak klucza zastępczego od tamtego serwera)"
                     : Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000 ? "zły czas zegara (różnica ponad 5 min)" : null;
-                if (why != null) { App.LogInfo("Pośrednik: odrzucono " + who + " – " + why); _komLastReject = (c?.Name ?? L.T("nieznane urządzenie")) + " – " + why; _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
+                if (why != null) { var rejKey = who + why; if (!_komRejLog.TryGetValue(rejKey, out var rejAt) || DateTime.UtcNow - rejAt > TimeSpan.FromMinutes(30)) { _komRejLog[rejKey] = DateTime.UtcNow; App.LogInfo("Pośrednik: odrzucono " + who + " – " + why + " (powtórki przez 30 min nie są zapisywane)"); } _komLastReject = (c?.Name ?? L.T("nieznane urządzenie")) + " – " + why; _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
                 var exp = KomMacBytes(rk, "relay-hello\n", hello);
                 if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) { App.LogInfo("Pośrednik: odrzucono " + who + " – inny klucz (kontakt dodany na nowo tylko po jednej stronie)"); _komLastReject = c.Name + " – " + L.T("inny klucz (ten kontakt trzeba usunąć i dodać na nowo)"); _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
                 if ((string)h["Mode"] == "main") App.LogInfo("Pośrednik: połączono " + who);

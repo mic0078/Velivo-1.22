@@ -251,6 +251,7 @@ namespace Velivo
                 }
             if (n == 0) KomDiag("RÓŻNICA", "skrzynka", "-", me, them, "dla " + who + ": przy sprawdzeniu pozycja po pozycji już zgodne (wiadomość była w drodze)");
         }
+        readonly ConcurrentDictionary<string, DateTime> _komSyncTry = new ConcurrentDictionary<string, DateTime>(), _komSyncOk = new ConcurrentDictionary<string, DateTime>();   // ostatnie porównanie / ostatnia pełna zgodność z każdym moim serwerem
         readonly ConcurrentDictionary<string, (string fp, int same)> _komFpCmp = new ConcurrentDictionary<string, (string, int)>();
         // porównanie z innym serwerem (z jego stanu co minutę): wpis przy zmianie wyniku; różnica liczy się dopiero 3 razy z rzędu (wiadomości w drodze)
         void KomFpCompare(string peer, JsonObject si, IPAddress addr)
@@ -269,6 +270,7 @@ namespace Velivo
             int streak = eq ? 0 : (prev.fp == "R" ? prev.same : prev.same + 1);
             string state = eq ? "Z" : streak >= 3 ? "R" : "?";
             _komFpCmp[peer] = (state, eq ? 0 : streak);
+            _komSyncTry[peer] = DateTime.Now; if (eq && _komFpCmp.TryGetValue(peer + "|ev", out var evs) && evs.fp == "Z") _komSyncOk[peer] = DateTime.Now;   // pasek synchronizacji w panelu
             if (state == prev.fp || state == "?") return;
             if (eq) { KomDiag("PORÓWNANIE", "skrzynka", mine, KomSrvTag(_komId), KomSrvTag(peer), "SKRZYNKA ZGODNA – aktualna zawartość identyczna: " + m + " wiadomości i " + f + " plików czekających na odbiorców (skróty zapisanych obiektów)"); return; }
             var tp = si["fpPer"] as JsonObject; var diff = new List<string>(); var diffTo = new List<string>();
@@ -2559,7 +2561,23 @@ namespace Velivo
             Ctx(tOver, ("🌍 " + L.T("Adres domu, port, 443…"), () => KomRelayDialog(w)), ("🔍 " + L.T("Sprawdź porty i router teraz"), () => { _ = Task.Run(async () => { await KomRelayAutoAsync(); _ = Dispatcher.BeginInvoke(new Action(() => All())); }); }),
                 ("🛡 " + L.T("Otwórz zaporę Windows teraz"), () => { _komFwAsked = DateTime.MinValue; KomFirewallCheck(); }), ("🔁 " + L.T("Uruchom serwer od nowa"), () => { KomRelayStart(); All(); }), ("🏛 " + L.T("Infrastruktura"), () => tabs.SelectedIndex = 7));
             var root2 = new DockPanel { Margin = new Thickness(16) };
-            foreach (var el in new FrameworkElement[] { cards, attn, help, bar }) { DockPanel.SetDock(el, Dock.Top); root2.Children.Add(el); }
+            // 🔄 pasek synchronizacji na górze (jak w programach do synchronizacji): każdy mój serwer - ostatnia pełna zgodność, ostatnie sprawdzenie, wynik
+            var syncTxt = new TextBlock { Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+            var syncBar = new Border { Background = AdmB(0x1d4ed8), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 0, 8), CornerRadius = new CornerRadius(6), Child = syncTxt, ToolTip = L.T("Synchronizacja z moimi serwerami: zgodne = skrzynka i historia identyczne na obu serwerach. Szczegóły: zakładka Diagnostyka.") };
+            void SyncFill()
+            {
+                var ls = new List<string>();
+                foreach (var c in KomMyServers().Where(c => c.Id != _komId))
+                {
+                    _komSyncTry.TryGetValue(c.Id, out var tr); _komSyncOk.TryGetValue(c.Id, out var ok);
+                    var box = _komFpCmp.TryGetValue(c.Id, out var b1) ? b1.fp : null; var ev = _komFpCmp.TryGetValue(c.Id + "|ev", out var b2) ? b2.fp : null;
+                    string res = tr == default ? L.T("brak wieści (wyłączony albo starsza wersja)") : DateTime.Now - tr > TimeSpan.FromMinutes(3) ? L.T("brak wieści od ") + tr.ToString("dd.MM HH:mm") : box == "Z" && ev == "Z" ? L.T("zgodne") : box == "R" || ev == "R" ? L.T("RÓŻNE – ") + (box == "R" ? L.T("skrzynka ") : "") + (ev == "R" ? L.T("historia") : "") : L.T("wyrównuję…");
+                    ls.Add("🔄 " + c.Name + ":  " + L.T("ostatnia pełna zgodność: ") + (ok == default ? "–" : ok.ToString("dd.MM.yyyy HH:mm:ss")) + "   ·   " + L.T("ostatnie sprawdzenie: ") + (tr == default ? "–" : tr.ToString("HH:mm:ss")) + "   ·   " + L.T("wynik: ") + res);
+                }
+                syncTxt.Text = ls.Count == 0 ? L.T("🔄 Brak innych moich serwerów – nie ma z kim synchronizować.") : string.Join("\n", ls);
+            }
+            SyncFill(); var syncTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; syncTimer.Tick += (_, _) => SyncFill(); syncTimer.Start(); w.Closed += (_, _) => syncTimer.Stop();
+            foreach (var el in new FrameworkElement[] { syncBar, cards, attn, help, bar }) { DockPanel.SetDock(el, Dock.Top); root2.Children.Add(el); }
             root2.Children.Add(tabs);
             w.Content = root2;
             All();

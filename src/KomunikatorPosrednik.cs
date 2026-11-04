@@ -342,17 +342,18 @@ namespace Velivo
         void KomRelayFromLan(JsonNode p, IPAddress addr)
         {
             var from = (string)p["id"]; var t = (string)p["t"];
-            if (from == null || from.Length != 32 || IPAddress.IsLoopback(addr)) return;
+            if (from == null || from.Length != 32 || (_komNetPeer == null && IPAddress.IsLoopback(addr))) return;
             if (KomEvIn(p, t, from, addr)) return;   // 🗄 dziennik zdarzeń moich serwerów
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
             if ((bool?)p["fwd"] == true)
             {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
                 _komViaNet[from] = true;
                 if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) { KomSendFrame(brc, cp); if ((string)cp["mid"] is string bm) { _komBoxDoneOut["m:" + bm] = (bto, DateTime.UtcNow); KomEvDone(bto, new[] { bm }); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = bto, ["mids"] = new JsonArray((JsonNode)bm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } } else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
-                if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
+                if (_komNetPeer != null) { } else if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
                 return;
             }
-            _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
+            if (_komNetPeer == null) { _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _); }
+            else if (t != "p2p-boxlog" && t != "p2p-srvinfo" && t != "p2p-boxlogclr" && t != "p2p-boxdays" && t != "p2p-boxdone") return;   // łączem serwerów tylko dane serwerów
             if (t == "p2p-boxlog" && KomFromRelay(addr) && (string)p["line"] is string bl && bl.Length < 1000)
             {   // 📬 wpis dziennika z innego mojego serwera - do wspólnego widoku w Centrum serwera
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
@@ -424,6 +425,7 @@ namespace Velivo
         {
             if (p["t"]?.GetValue<string>() == "p2p-msg") { p = p.DeepClone(); p["box"] = true; }
             foreach (var a in KomPeerAddrs()) KomLanRaw(p, a);
+            KomSrvNet(p);   // 🔗 moje serwery poza tą siecią domową (dodane przez internet) - te same dane łączem serwerów
         }
         List<IPAddress> KomPeerAddrs() => _komLanRelays.Keys.Where(k => k != _komId && _komLanSeen.TryGetValue(k, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10))
             .Select(k => _komLanAddr.TryGetValue(k, out var a) ? a : null).Where(a => a != null).ToList();
@@ -530,7 +532,7 @@ namespace Velivo
             .OrderByDescending(c => (c.Dom ? 2 : 0) + ((_komUp != null && _komUpRelay?.Id == c.Id) || (_komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) ? 1 : 0)).FirstOrDefault();
         // mój serwer: domowy albo ten, przez który to urządzenie jest teraz połączone z internetu (obcy kontakt nim nie jest)
         bool KomTrustedRelay(KomContact c) => c != null && (c.Dom || (_komUp != null && _komUpRelay?.Id == c.Id));
-        bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
+        bool KomFromRelay(IPAddress addr) => _komNetPeer != null || _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         string KomPeerAt(IPAddress addr) => addr == null ? null : _komLanRelays.Keys.FirstOrDefault(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");
         void KomStoreSave()
@@ -695,6 +697,7 @@ namespace Velivo
                     }
                     if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal) || (string)p["id"] != id) continue;   // tylko pakiety tego urzadzenia
                     var pto = (string)p["to"];
+                    if (t == "p2p-srv") { KomSrvIn(id, p["p"]); continue; }   // 🔗 łącze serwerów: mój serwer połączony ze mną przez internet
                     if (t == "p2p-who") { KomSendFrame(me, KomRelayHere()); KomLanRaw(KomFwd(p), null); foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p); continue; }
                     // do pośrednika (albo do wszystkich) - obsluga tutaj; odpowiedzi ida do urzadzenia przez "to"
                     if (pto == null || pto == _komId) { var pp = p; _ = Dispatcher.BeginInvoke(new Action(() => { try { KomHandle(pp, IPAddress.Loopback); } catch (Exception ex) { App.LogError(ex); } })); }
@@ -1827,6 +1830,69 @@ namespace Velivo
             finally { _komTakeBusy = 0; }
         }
         string KomSrvName(string id) => _komSrvInfo.TryGetValue(id, out var v) ? (string)v.Info["name"] ?? id : KomContactById(id)?.Name ?? id;
+        // 🔗 ŁĄCZE SERWERÓW: moje serwery są równorzędne bez względu na to, jak je dodano (dom / internet). W domu wymieniają dane pakietami w sieci domowej;
+        // serwer, którego nie widać w tej sieci (inny dom, dodany przez internet), dostaje te same pakiety (kopie skrzynki, „doręczone”, dziennik zdarzeń,
+        // stan, przechowywanie) przez stałe połączenie z jego serwerem (jak telefon poza domem), ponawiane co minutę. Pakiet w „kopercie” p2p-srv -
+        // nadawcą jest serwer (połączenie sprawdzone kluczem), w środku oryginał; po stronie odbiorcy ta sama obsługa co z sieci domowej (idempotentna: mid / id zdarzenia).
+        [ThreadStatic] static string _komNetPeer;   // obsługuję pakiet od mojego serwera przez internet (zaufany jak serwer w domu)
+        readonly ConcurrentDictionary<string, KomRemoteConn> _komPeerLink = new ConcurrentDictionary<string, KomRemoteConn>();
+        readonly ConcurrentDictionary<string, bool> _komPeerDial = new ConcurrentDictionary<string, bool>();
+        IEnumerable<KomContact> KomMyServers() => _komContacts.Where(c => !c.IsGroup && c.Dom && !string.IsNullOrEmpty(c.Relay) && c.Id != _komId).ToList();
+        bool KomLanPeer(string id) => _komLanSeen.TryGetValue(id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100) && _komLanRelays.ContainsKey(id);
+        void KomSrvNet(JsonNode p)
+        {
+            if (_komRelayListener == null || p == null) return;
+            foreach (var c in KomMyServers())
+            {
+                if (KomLanPeer(c.Id)) continue;   // w tej samej sieci domowej - już dostał pakietem
+                var link = _komRemote.TryGetValue(c.Id, out var r) ? r : _komPeerLink.TryGetValue(c.Id, out var l) ? l : null;
+                if (link != null) KomSendFrame(link, new JsonObject { ["t"] = "p2p-srv", ["id"] = _komId, ["to"] = c.Id, ["p"] = p.DeepClone() });
+            }
+        }
+        // pakiet od mojego serwera łączem: to, co w domu przyszłoby pakietem z sieci domowej
+        void KomSrvIn(string peerId, JsonNode inner)
+        {
+            var pc = KomContactById(peerId); if (inner == null || pc == null || !pc.Dom || string.IsNullOrEmpty(pc.Relay)) return;   // tylko moje serwery
+            _komNetPeer = peerId;
+            try { KomRelayFromLan(inner, IPAddress.None); } catch (Exception ex) { App.LogError(ex); } finally { _komNetPeer = null; }
+        }
+        // co minutę: stałe połączenie z każdym moim serwerem spoza tej sieci domowej (gdy on nie połączył się już ze mną)
+        void KomPeerLinks()
+        {
+            if (_komRelayListener == null) return;
+            foreach (var c in KomMyServers())
+            {
+                if (KomLanPeer(c.Id) || _komRemote.ContainsKey(c.Id) || _komPeerLink.ContainsKey(c.Id) || !_komPeerDial.TryAdd(c.Id, true)) continue;
+                var peer = c;
+                _ = Task.Run(async () =>
+                {
+                    KomRemoteConn me = null;
+                    try
+                    {
+                        var fs = await KomRelayConnect(peer, "main", null, null, CancellationToken.None); if (fs == null) return;
+                        me = new KomRemoteConn { Fs = fs }; _komPeerLink[peer.Id] = me;
+                        App.LogInfo("Łącze serwerów: połączono z " + peer.Name + " przez internet");
+                        KomSendFrame(me, new JsonObject { ["t"] = "p2p-srv", ["id"] = _komId, ["to"] = peer.Id, ["p"] = KomSrvInfoNow() });
+                        KomEvHave();
+                        while (true)
+                        {
+                            var p = JsonNode.Parse(fs.ReadFrame()); var t = (string)p?["t"];
+                            if (t == "p2p-srv" && (string)p["id"] == peer.Id) { KomSrvIn(peer.Id, p["p"]); continue; }
+                            if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal)) continue;
+                            if ((string)p["to"] is string pt && pt != _komId) continue;   // tylko do mnie (wiadomości od ludzi do tego komputera)
+                            await Dispatcher.InvokeAsync(() => { try { KomHandle(p, IPAddress.Loopback); } catch (Exception ex) { App.LogError(ex); } });
+                        }
+                    }
+                    catch (Exception) { }
+                    finally
+                    {
+                        if (me != null) { _komPeerLink.TryRemove(new KeyValuePair<string, KomRemoteConn>(peer.Id, me)); try { me.Fs.Dispose(); } catch (Exception) { } App.LogInfo("Łącze serwerów: rozłączono z " + peer.Name + " – ponowię za minutę"); }
+                        _komPeerDial.TryRemove(peer.Id, out _);
+                    }
+                });
+            }
+            foreach (var kv in _komPeerLink) KomSendFrame(kv.Value, new JsonObject { ["t"] = "relay-ping" });   // utrzymanie połączenia (jak telefon)
+        }
         void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
         static void KomLogKeep(string p, Func<string, bool> keep)
         {

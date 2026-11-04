@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -158,11 +158,12 @@ namespace Velivo
         {
             var p = new JsonObject { ["t"] = "p2p-evs", ["id"] = _komId, ["evs"] = new JsonArray(e) };
             foreach (var a in KomPeerAddrs()) KomLanRaw(p, a);
+            KomSrvNet(p);
         }
         // co minutę i po starcie: „mam do N” do moich serwerów - kto ma więcej, dosyła brakujące
         void KomEvHave()
         {
-            try { if (_komRelayListener == null) return; var p = new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }; foreach (var a in KomPeerAddrs()) KomLanRaw(p, a); }
+            try { if (_komRelayListener == null) return; var p = new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }; foreach (var a in KomPeerAddrs()) KomLanRaw(p, a); KomSrvNet(p); }
             catch (Exception ex) { App.LogError(ex); }
         }
 
@@ -180,10 +181,10 @@ namespace Velivo
                     for (int i = 0; i < 30; i++)   // do 30 paczek naraz (po ~8 KB - mało fragmentów UDP), reszta w następnej minucie
                     {
                         var miss = KomEv.Missing(have, 8000); if (miss.Count == 0) break;
-                        KomLanRaw(new JsonObject { ["t"] = "p2p-evs", ["id"] = _komId, ["evs"] = new JsonArray(miss.Select(x => (JsonNode)x).ToArray()) }, addr);
+                        KomSrvReply(new JsonObject { ["t"] = "p2p-evs", ["id"] = _komId, ["evs"] = new JsonArray(miss.Select(x => (JsonNode)x).ToArray()) }, addr);
                         foreach (var e in miss) { var o = (string)e["o"]; if ((long)e["n"] > ((long?)have[o] ?? 0)) have[o] = (long)e["n"]; }
                     }
-                    if (KomEv.Behind(peerHave)) KomLanRaw(new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }, addr);   // tamten ma więcej - niech mi dośle
+                    if (KomEv.Behind(peerHave)) KomSrvReply(new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }, addr);   // tamten ma więcej - niech mi dośle
                     return true;
                 }
                 if (t == "p2p-evs" && p["evs"] is JsonArray evs)
@@ -193,6 +194,13 @@ namespace Velivo
             return true;
         }
 
+        // odpowiedź temu serwerowi, od którego przyszedł pakiet: w domu pakietem, przez internet łączem serwerów
+        void KomSrvReply(JsonObject p, IPAddress addr)
+        {
+            if (_komNetPeer == null) { KomLanRaw(p, addr); return; }
+            var link = _komRemote.TryGetValue(_komNetPeer, out var r) ? r : _komPeerLink.TryGetValue(_komNetPeer, out var l) ? l : null;
+            if (link != null) KomSendFrame(link, new JsonObject { ["t"] = "p2p-srv", ["id"] = _komId, ["to"] = _komNetPeer, ["p"] = p });
+        }
         // zastosowanie zdarzenia od innego serwera w stanie tego serwera
         void KomEvApply(JsonObject e)
         {

@@ -603,6 +603,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun setPinned(id: String, on: Boolean) { prefs.edit().putBoolean("pin-$id", on).apply(); main.post { onChange() } }
     fun muted(id: String) = prefs.getLong("cisza-$id", 0) > System.currentTimeMillis()
     fun mute(id: String, ms: Long) { prefs.edit().putLong("cisza-$id", if (ms <= 0) 0 else if (ms == Long.MAX_VALUE) ms else System.currentTimeMillis() + ms).apply(); main.post { onChange() } }
+    var bubblesOff: Boolean get() = prefs.getBoolean("babelki-wyl", false); set(v) { prefs.edit().putBoolean("babelki-wyl", v).apply() }   // 🫧 wyłącznik bąbelków w aplikacji (bez szukania w ustawieniach telefonu)
     fun draft(id: String) = prefs.getString("szkic-$id", "") ?: ""
     fun setDraft(id: String, s: String) { if (s != draft(id)) prefs.edit().putString("szkic-$id", s).apply() }
     fun tidy(id: String) = saveChat(id)
@@ -1777,7 +1778,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 .setContentTitle("Velivo · " + c.name).setContentText(last.lastOrNull()?.text ?: "")
                 .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
                 .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true)
-            bubbleOn(nb, c, them, faceBmp, false)   // 💬 przycisk „dymek” w powiadomieniu (Android 11+), a gdy bąbelek już jest - wiadomość w nim
+            if (!bubblesOff) bubbleOn(nb, c, them, faceBmp, false)   // 💬 przycisk „dymek” w powiadomieniu (Android 11+), a gdy bąbelek już jest - wiadomość w nim
             nm.notify(c.id.hashCode(), nb.build())
         }
     }
@@ -1876,6 +1877,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }
     }
 
+    fun closeBubbles() { val nm = ctx.getSystemService(NotificationManager::class.java) ?: return; synchronized(this) { contacts.toList() }.forEach { runCatching { nm.cancel(it.id.hashCode()) } } }   // 🫧 wyłączenie bąbelków - otwarte znikają razem z powiadomieniami rozmów
     fun clearNotification(id: String) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         // 🫧 skasowanie powiadomienia zabiera też jego dymek - otwarta rozmowa w bąbelku znikała; bąbelek zostaje, aż sam go zamkniesz
@@ -2967,9 +2969,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
             "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("🧹 " + t("Wyczyść rozmowę…", "Clear chat…"), "♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille")) +
-            if (k.bubbleIntent != null && android.os.Build.VERSION.SDK_INT >= 30) arrayOf("🫧 " + t("Bąbelek na ekranie (rozmowa nad innymi aplikacjami)", "Chat bubble (over other apps)")) else emptyArray()
+            if (k.bubbleIntent != null && android.os.Build.VERSION.SDK_INT >= 30) (if (k.bubblesOff) arrayOf("🫧 " + t("Włącz bąbelki", "Turn bubbles on")) else arrayOf("🫧 " + t("Bąbelek na ekranie (rozmowa nad innymi aplikacjami)", "Chat bubble (over other apps)"), "🫧 " + t("Wyłącz bąbelki (wszystkie rozmowy)", "Turn bubbles off (all chats)"))) else emptyArray()
         Dlg().setTitle(c.name).setItems(items) { _, i ->
-            if (items[i].startsWith("🫧")) { bubble(c); return@setItems }
+            if (items[i].startsWith("🫧")) {
+                when {
+                    k.bubblesOff -> { k.bubblesOff = false; Toast.makeText(a, t("Bąbelki włączone", "Bubbles on"), Toast.LENGTH_SHORT).show() }
+                    items[i].contains(t("Wyłącz", "off")) -> { k.bubblesOff = true; k.closeBubbles(); Toast.makeText(a, t("Bąbelki wyłączone – otwarte zniknęły, nowe się nie pojawią", "Bubbles off – open ones closed, no new ones"), Toast.LENGTH_LONG).show() }
+                    else -> bubble(c)
+                }
+                return@setItems
+            }
             if (items[i].startsWith("♿")) { accessibility(); return@setItems }
             if (items[i].startsWith("🧹")) { clearChat(c); return@setItems }
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }

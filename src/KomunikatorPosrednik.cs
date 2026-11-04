@@ -474,6 +474,7 @@ namespace Velivo
         {
             var up = _komUp;
             if (up != null) { KomSendFrame(up, p); return false; }   // poza domem - przez pośrednika, a sieć domowa i tak dalej (gdy „poza domem” to pomyłka, w domu nic nie znika)
+            if ((string)p["to"] is string tl && _komPeerLink.TryGetValue(tl, out var pl)) { KomSendFrame(pl, p); return true; }   // 🏛 mój serwer przez internet (łącze serwerów) - karty kontaktów, wiadomości
             if (_komRemote.IsEmpty) return false;
             var to = (string)p["to"];
             if (to != null && _komRemote.TryGetValue(to, out var rc)) { KomSendFrame(rc, p); return true; }
@@ -2022,6 +2023,9 @@ namespace Velivo
         void KomPeerLinks()
         {
             if (_komRelayListener == null) return;
+            // 🏛 serwery mojej infrastruktury przez internet też wymieniają kontakty i klucze z nimi (alias) - jak w domu, co 10 min; każdy obsłuży każdego mojego użytkownika
+            foreach (var c in KomMyServers().Where(x => !KomLanPeer(x.Id) && _komLinkOk.ContainsKey(x.Id)).ToList())
+                if (!_komSyncAt.TryGetValue(c.Id, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10)) { _komSyncAt[c.Id] = DateTime.UtcNow; KomRelaySync(c.Id); }
             foreach (var c in KomMyServers())
             {
                 if (KomLanPeer(c.Id) || _komRemote.ContainsKey(c.Id) || _komPeerLink.ContainsKey(c.Id) || !_komPeerDial.TryAdd(c.Id, true)) continue;

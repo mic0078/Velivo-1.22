@@ -112,6 +112,9 @@ namespace Velivo
         // dowód przy połączeniu: serwer podpisuje swoim kluczem (od, do, klaster) - certyfikat + podpis
         public static string ProofMsg(string clusterId, string from, string to) => "velivo-member|" + clusterId + "|" + from + "|" + to;
         public static byte[] Proof(byte[] serverPriv, string clusterId, string from, string to) => Sign(serverPriv, ProofMsg(clusterId, from, to));
+        // podpis dowolnej wiadomości kluczem serwera (polecenia administratora) i sprawdzenie certyfikatem
+        public static byte[] ProofSign(byte[] serverPriv, string msg) => Sign(serverPriv, msg);
+        public static bool ProofCheck(JsonObject cert, string msg, string sigB64) { try { return Check(B64(cert["p"]), msg, Convert.FromBase64String(sigB64 ?? "")); } catch (Exception) { return false; } }
         public bool CheckProof(JsonObject cert, string from, string to, byte[] sig) => Valid(cert) && (string)cert["d"] == from && Check(B64(cert["p"]), ProofMsg(Id, from, to), sig);
 
         public JsonObject ToJson(bool withPriv)
@@ -291,6 +294,168 @@ namespace Velivo
             _komLinkOk.TryRemove(c.Id, out _);
             if (_komPeerLink.TryRemove(c.Id, out var l)) try { l.Fs.Dispose(); } catch (Exception) { }
             KomClSave(); App.LogInfo("Serwery: odłączono " + c.Name + " od moich serwerów");
+        }
+    }
+}
+
+namespace Velivo
+{
+    public partial class MainWindow
+    {
+        // 🛠 POLECENIA ADMINISTRATORA dla dowolnego mojego serwera (p2p-admcmd / p2p-admack): panel na jednym serwerze każe innemu (albo wszystkim) coś zrobić -
+        // wykonuje backend tamtego serwera, wynik wraca do panelu. Polecenie podpisane kluczem serwera-nadawcy, sprawdzane certyfikatem infrastruktury,
+        // wykonywane raz (identyfikator), każde zapisane w dzienniku operacji (adm.log) po obu stronach. Drogi: sieć domowa i łącze serwerów (KomBoxPeers).
+        public static readonly (string Op, string Name)[] KomAdmOps = {
+            ("restart", "Uruchom serwer od nowa"), ("on", "Włącz serwer"), ("off", "Wyłącz serwer"), ("ports", "Sprawdź porty i router"), ("firewall", "Otwórz zaporę Windows"),
+            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę") };
+        readonly HashSet<string> _komAdmSeen = new HashSet<string>();
+        public event Action KomAdmChanged;
+        static string KomAdmMsg(JsonObject c) => "velivo-adm|" + (string)c["cid"] + "|" + (string)c["id"] + "|" + (string)c["to"] + "|" + (string)c["op"] + "|" + ((string)c["arg"] ?? "") + "|" + (long?)c["ts"];
+        void KomAdmLog(string dir, string cid, string op, string from, string to, string result)
+        {
+            try
+            {
+                var p = System.IO.Path.Combine(DataDir, "adm.log");
+                if (System.IO.File.Exists(p) && new System.IO.FileInfo(p).Length > 2_000_000) System.IO.File.Delete(p);
+                System.IO.File.AppendAllText(p, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " | " + Environment.MachineName + " | " + dir + " | " + cid.Substring(0, 8) + " | " + op + " | " + from + " → " + to + " | " + result + Environment.NewLine);
+            }
+            catch (Exception) { }
+            _ = Dispatcher.BeginInvoke(new Action(() => KomAdmChanged?.Invoke()));
+        }
+        bool KomSyncOff => (bool?)_komOpt["syncOff"] == true;
+        // wysłanie polecenia: to = identyfikator serwera albo "*" (wszystkie); ten serwer wykonuje u siebie od razu
+        void KomAdmSend(string to, string op, string arg = null)
+        {
+            KomClInit();
+            var c = new JsonObject { ["t"] = "p2p-admcmd", ["id"] = _komId, ["cid"] = Guid.NewGuid().ToString("N"), ["to"] = to, ["op"] = op, ["arg"] = arg, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+            lock (_komClLock) c["sig"] = Convert.ToBase64String(KomCluster.ProofSign(_komSrvPriv, KomAdmMsg(c)));
+            KomAdmLog("WYSŁANE", (string)c["cid"], op, KomSrvTag(_komId), to == "*" ? "wszystkie serwery" : KomSrvTag(to), "polecenie wysłane");
+            if (to == _komId || to == "*") KomAdmIn(c);
+            if (to != _komId) KomBoxPeers(c);
+        }
+        void KomAdmIn(JsonNode p)
+        {
+            if (p is not JsonObject c) return;
+            var from = (string)c["id"]; var cid = (string)c["cid"] ?? ""; if (cid.Length != 32) return;
+            if ((string)c["t"] == "p2p-admack")
+            {
+                if ((string)c["to"] == _komId) KomAdmLog((bool?)c["ok"] == true ? "WYKONANE" : "BŁĄD", cid, (string)c["op"] ?? "?", KomSrvTag(from), KomSrvTag(_komId), (string)c["msg"] ?? "");
+                return;
+            }
+            var to = (string)c["to"]; if (to != _komId && to != "*") return;
+            lock (_komAdmSeen) { if (!_komAdmSeen.Add(cid)) return; if (_komAdmSeen.Count > 5000) _komAdmSeen.Clear(); }
+            if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ((long?)c["ts"] ?? 0)) > 86_400_000) { KomAdmLog("ODRZUCONE", cid, (string)c["op"] ?? "?", KomSrvTag(from), KomSrvTag(_komId), "polecenie starsze niż doba"); return; }
+            bool okSig = from == _komId;
+            if (!okSig) { KomClInit(); lock (_komClLock) { var cert = _komCl?.CertOf(from); okSig = cert != null && KomCluster.ProofCheck(cert, KomAdmMsg(c), (string)c["sig"]); } }
+            var op = (string)c["op"] ?? "";
+            if (!okSig) { KomAdmLog("ODRZUCONE", cid, op, KomSrvTag(from), KomSrvTag(_komId), "nadawca nie jest moim serwerem albo zły podpis"); return; }
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                string msg; bool ok = true;
+                try { msg = KomAdmRun(op, (string)c["arg"]); }
+                catch (Exception ex) { ok = false; msg = ex.Message; }
+                if (msg == null) { ok = false; msg = "nieznane polecenie"; }
+                KomAdmLog(ok ? "WYKONANE" : "BŁĄD", cid, op, KomSrvTag(from), KomSrvTag(_komId), msg);
+                if (from != _komId) KomBoxPeers(new JsonObject { ["t"] = "p2p-admack", ["id"] = _komId, ["to"] = from, ["cid"] = cid, ["op"] = op, ["ok"] = ok, ["msg"] = msg });
+            }));
+        }
+        // wykonanie u siebie (wątek okna) - zwraca opis wyniku słowami
+        string KomAdmRun(string op, string arg)
+        {
+            switch (op)
+            {
+                case "restart": KomRelayStart(); return _komRelayListener != null ? "serwer uruchomiony od nowa – nasłuch na porcie " + _komRelayPort : "serwer wyłączony (włącz go poleceniem „Włącz serwer”)";
+                case "on": _komRelayOn = true; KomSave(); KomRelayStart(); KomAnnounce(); return _komRelayListener != null ? "serwer włączony – port " + _komRelayPort : "nie udało się otworzyć portu " + _komRelayPort;
+                case "off": _komRelayOn = false; _komRelayAsked = true; KomSave(); KomRelayStart(); return "serwer wyłączony – osoby przejdą na inne moje serwery";
+                case "ports": _komRelayRouter = L.T("Sprawdzam porty…"); _ = KomRelayAutoAsync(); return "sprawdzanie portów i routera rozpoczęte (wynik w panelu tego serwera po ~1 min)";
+                case "firewall": _komFwAsked = DateTime.MinValue; KomFirewallCheck(); return "zapora: sprawdzenie i otwarcie (na tamtym komputerze Windows może zapytać „Tak”)";
+                case "flush":
+                    {
+                        int n = 0; var root = System.IO.Path.Combine(DataDir, "skrzynka");
+                        if (System.IO.Directory.Exists(root)) foreach (var d in System.IO.Directory.GetDirectories(root)) { _ = KomBoxFlush(System.IO.Path.GetFileName(d)); n++; }
+                        foreach (var id in _komStore.Keys.ToList()) if (_komRemote.TryGetValue(id, out var rc)) KomStoreFlush(id, rc, null);
+                        return "kolejki ponowione dla " + n + " odbiorców plików; wiadomości do połączonych wysłane";
+                    }
+                case "sync": KomSrvInfoSend(); KomEvHave(); KomClSyncNow(); KomPeerLinks(); return "synchronizacja wywołana: stan, dziennik zdarzeń, infrastruktura, łącza";
+                case "syncoff": _komOpt["syncOff"] = true; KomSave(); return "synchronizacja WSTRZYMANA – ten serwer nie wysyła kopii ani zdarzeń do innych (stan i polecenia działają)";
+                case "syncon": _komOpt["syncOff"] = false; KomSave(); KomEvHave(); KomPeerLinks(); return "synchronizacja wznowiona – zaległe zdarzenia zostaną dosłane";
+                case "diagclr": foreach (var f in new[] { "serwery-diag.log", "serwery-diag.log.1" }) try { System.IO.File.Delete(System.IO.Path.Combine(DataDir, f)); } catch (Exception) { } return "diagnostyka wyczyszczona";
+            }
+            return null;
+        }
+    }
+}
+
+namespace Velivo
+{
+    using System.Windows;
+    using System.Windows.Controls;
+    public partial class MainWindow
+    {
+        // 🔐 LOGOWANIE DO PANELU ADMINISTRATORA: klucz sprzętowy (WebAuthn, te same klucze co komunikator) albo hasło administratora
+        // (PBKDF2-SHA256, 300 000 powtórzeń, sól; w ustawieniach tylko skrót). Pierwsze otwarcie bez hasła i kluczy - ustawienie hasła (wymagane).
+        // 5 błędnych prób = blokada 5 min; każde logowanie (udane i nie) w dzienniku operacji (adm.log). Sesja ważna 10 min od ostatniego logowania.
+        DateTime _komAdmUntil, _komAdmLockUntil; int _komAdmFails;
+        static byte[] KomAdmHash(string pass, byte[] salt) => System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(System.Text.Encoding.UTF8.GetBytes(pass), salt, 300000, System.Security.Cryptography.HashAlgorithmName.SHA256, 32);
+        void KomAdmSetPass(string pass)
+        {
+            var salt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+            _komOpt["admPass"] = new JsonObject { ["s"] = Convert.ToBase64String(salt), ["h"] = Convert.ToBase64String(KomAdmHash(pass, salt)) }; KomSave();
+        }
+        bool KomAdmCheckPass(string pass)
+        {
+            try { var o = _komOpt["admPass"] as JsonObject; if (o == null) return false; var salt = Convert.FromBase64String((string)o["s"]); return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(KomAdmHash(pass, salt), Convert.FromBase64String((string)o["h"])); }
+            catch (Exception) { return false; }
+        }
+        void KomAdmChangePass(Window owner) { var p = KomPassword(owner, true); if (string.IsNullOrEmpty(p)) return; KomAdmSetPass(p); KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "haslo", Environment.MachineName, Environment.MachineName, "hasło administratora zmienione"); MessageBox.Show(owner, L.T("Hasło administratora zmienione."), "🔐"); }
+        async System.Threading.Tasks.Task<bool> KomAdmLogin(Window owner)
+        {
+            if (DateTime.UtcNow < _komAdmUntil) return true;
+            var keys = KomHwKeys(); bool hasPass = _komOpt["admPass"] is JsonObject;
+            if (!hasPass && keys.Count == 0)
+            {
+                MessageBox.Show(owner, L.T("Panel administratora jest chroniony. Ustaw teraz hasło administratora (później możesz też logować się kluczem sprzętowym)."), "🔐");
+                var np = KomPassword(owner, true); if (string.IsNullOrEmpty(np)) return false;
+                KomAdmSetPass(np); _komAdmUntil = DateTime.UtcNow.AddMinutes(10);
+                KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "ustawiono hasło administratora i zalogowano");
+                return true;
+            }
+            var w = new Window { Title = "🔐 " + L.T("Logowanie administratora") + " – " + Environment.MachineName, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var sp = new StackPanel { Margin = new Thickness(18) };
+            sp.Children.Add(new TextBlock { Text = L.T("Panel administratora daje pełną kontrolę nad Twoimi serwerami. Zaloguj się kluczem sprzętowym albo hasłem administratora."), TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Margin = new Thickness(0, 0, 0, 12) });
+            var info = new TextBlock { Foreground = System.Windows.Media.Brushes.IndianRed, TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Margin = new Thickness(0, 0, 0, 8) };
+            bool ok = false;
+            void Done(string how) { ok = true; _komAdmFails = 0; _komAdmUntil = DateTime.UtcNow.AddMinutes(10); KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "zalogowano – " + how); w.Close(); }
+            void Fail(string why) { _komAdmFails++; if (_komAdmFails >= 5) { _komAdmLockUntil = DateTime.UtcNow.AddMinutes(5); _komAdmFails = 0; } KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "NIEUDANE – " + why); info.Text = why; }
+            if (keys.Count > 0)
+            {
+                var kb = new Button { Content = "🔑 " + L.T("Zaloguj kluczem sprzętowym"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 0, 12) };
+                kb.Click += async (s, e) =>
+                {
+                    if (DateTime.UtcNow < _komAdmLockUntil) { info.Text = L.T("Za dużo błędnych prób – spróbuj za kilka minut."); return; }
+                    kb.IsEnabled = false; info.Text = L.T("Dotknij klucz…");
+                    var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle; bool good;
+                    try { good = (await System.Threading.Tasks.Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, keys, null)))?.Key != null; } catch (Exception) { good = false; }
+                    kb.IsEnabled = true; if (good) Done(L.T("klucz sprzętowy")); else Fail(L.T("Klucz nie został potwierdzony."));
+                };
+                sp.Children.Add(kb);
+            }
+            if (hasPass)
+            {
+                sp.Children.Add(new TextBlock { Text = L.T("Hasło administratora:") });
+                var pb = new PasswordBox { MinWidth = 300, Margin = new Thickness(0, 4, 0, 8) }; sp.Children.Add(pb);
+                var lb = new Button { Content = L.T("Zaloguj"), IsDefault = true, Padding = new Thickness(18, 5, 18, 5), HorizontalAlignment = HorizontalAlignment.Right };
+                lb.Click += (s, e) =>
+                {
+                    if (DateTime.UtcNow < _komAdmLockUntil) { info.Text = L.T("Za dużo błędnych prób – spróbuj za kilka minut."); return; }
+                    if (KomAdmCheckPass(pb.Password)) Done(L.T("hasło")); else { pb.Clear(); Fail(L.T("Złe hasło.")); }
+                };
+                sp.Children.Add(lb); w.Loaded += (s, e) => pb.Focus();
+            }
+            else sp.Children.Add(new TextBlock { Text = L.T("Hasło administratora nie jest ustawione – po zalogowaniu kluczem ustaw je w zakładce Ustawienia (zapas, gdy klucza nie ma przy sobie)."), TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Opacity = 0.75 });
+            sp.Children.Add(info);
+            w.Content = sp; KomStyle(w); w.ShowDialog();
+            return ok;
         }
     }
 }

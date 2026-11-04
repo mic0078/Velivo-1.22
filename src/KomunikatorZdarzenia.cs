@@ -159,6 +159,7 @@ namespace Velivo
         }
         void KomEvPush(JsonObject e)
         {
+            if (KomSyncOff) return;
             var p = new JsonObject { ["t"] = "p2p-evs", ["id"] = _komId, ["evs"] = new JsonArray(e) };
             foreach (var a in KomPeerAddrs()) KomLanRaw(p, a);
             KomSrvNet(p);
@@ -166,7 +167,7 @@ namespace Velivo
         // co minutę i po starcie: „mam do N” do moich serwerów - kto ma więcej, dosyła brakujące
         void KomEvHave()
         {
-            try { if (_komRelayListener == null) return; var p = new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }; foreach (var a in KomPeerAddrs()) KomLanRaw(p, a); KomSrvNet(p); }
+            try { if (_komRelayListener == null || KomSyncOff) return; var p = new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }; foreach (var a in KomPeerAddrs()) KomLanRaw(p, a); KomSrvNet(p); }
             catch (Exception ex) { App.LogError(ex); }
         }
 
@@ -180,6 +181,7 @@ namespace Velivo
                 if (t == "p2p-srvbye") { _komSrvInfo.TryRemove(from, out _); return true; }   // ☕ „wyłączam się” - nie liczę go jako działającego, jego ludzie przechodzą do mnie
                 if (t == "p2p-evhave" && p["have"] is JsonObject have)
                 {
+                    if (KomSyncOff) return true;   // ⏸ wstrzymana - nie dosyłam innym
                     var peerHave = (JsonObject)have.DeepClone();
                     for (int i = 0; i < 30; i++)   // do 30 paczek naraz (po ~8 KB - mało fragmentów UDP), reszta w następnej minucie
                     {

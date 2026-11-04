@@ -354,6 +354,7 @@ namespace Velivo
         readonly ConcurrentDictionary<string, DateTime> _komBoxGone = new ConcurrentDictionary<string, DateTime>();   // doręczone przez innego pośrednika - spóźniona kopia odrzucana
         async Task KomBoxCopy(string f)
         {
+            if (KomSyncOff) return;   // ⏸ synchronizacja wstrzymana przez administratora - kopie po wznowieniu (KomBoxFlush / ponowienie)
             foreach (var a in KomPeerAddrs())
                 try
                 {
@@ -496,6 +497,7 @@ namespace Velivo
             var from = (string)p["id"]; var t = (string)p["t"];
             if (from == null || from.Length != 32 || (_komNetPeer == null && IPAddress.IsLoopback(addr))) return;
             if (KomEvIn(p, t, from, addr)) return;   // 🗄 dziennik zdarzeń moich serwerów
+            if (t == "p2p-admcmd" || t == "p2p-admack") { if (from != _komId && KomFromRelay(addr)) KomAdmIn(p); return; }   // 🛠 polecenie administratora (podpis sprawdza KomAdmIn)
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
             if ((bool?)p["fwd"] == true)
             {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
@@ -577,7 +579,9 @@ namespace Velivo
         // 📬 pośrednicy w domu (NUCBOX, CHUWI, …) dzielą skrzynkę: kopia wiadomości u każdego, po doręczeniu kasowana
         void KomBoxPeers(JsonNode p)
         {
-            if (p["t"]?.GetValue<string>() == "p2p-msg") { p = p.DeepClone(); p["box"] = true; }
+            var pt0 = p["t"]?.GetValue<string>();
+            if (KomSyncOff && pt0 != "p2p-admcmd" && pt0 != "p2p-admack" && pt0 != "p2p-srvinfo") return;   // ⏸ synchronizacja wstrzymana przez administratora
+            if (pt0 == "p2p-msg") { p = p.DeepClone(); p["box"] = true; }
             foreach (var a in KomPeerAddrs()) KomLanRaw(p, a);
             KomSrvNet(p);   // 🔗 moje serwery poza tą siecią domową (dodane przez internet) - te same dane łączem serwerów
         }
@@ -1999,6 +2003,7 @@ namespace Velivo
         void KomSrvNet(JsonNode p)
         {
             if (_komRelayListener == null || p == null) return;
+            var pt1 = (string)p["t"]; if (KomSyncOff && pt1 != "p2p-admcmd" && pt1 != "p2p-admack" && pt1 != "p2p-srvinfo") return;   // ⏸ wstrzymana
             foreach (var c in KomMyServers())
             {
                 if (KomLanPeer(c.Id)) continue;   // w tej samej sieci domowej - już dostał pakietem
@@ -2103,11 +2108,12 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); }
             KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdays", ["id"] = _komId, ["days"] = KomBoxDays, ["at"] = (long?)_komOpt["boxDaysAt"] ?? 0 });   // moje serwery - to samo przechowywanie (nowsze ustawienie wygrywa)
         }
-        void KomServerCenter(Window owner)
+        async void KomServerCenter(Window owner)
         {
+            if (!await KomAdmLogin(owner)) return;   // 🔐 klucz sprzętowy albo hasło administratora
             var w = new Window { Title = "🛠 " + L.T("Panel administratora") + " – " + Environment.MachineName, Width = 1100, Height = 760, WindowState = WindowState.Maximized, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             string Ago(DateTime t) => t.ToString("yyyy-MM-dd HH:mm");
-            Action rInfra = null, rFiles = null, rDiag = null, rAcc = null, rKeys = null, AttnFill = null; Border attn = null; TextBlock cProb = null; string attnSig = null; TabControl tabs = null;   // używane w All() (przyciski tworzone wcześniej)
+            Action rOps = null, rInfra = null, rFiles = null, rDiag = null, rAcc = null, rKeys = null, AttnFill = null; Border attn = null; TextBlock cProb = null; string attnSig = null; TabControl tabs = null;   // używane w All() (przyciski tworzone wcześniej)
             // kafelki
             var cards = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
             TextBlock Card(string sub) { var v = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold }; cards.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = AdmB(0x34405e), Background = AdmB(0x232b42), CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 8, 0),
@@ -2257,10 +2263,36 @@ namespace Velivo
                     l.Add(new[] { c.Name, KomClMine(c.Id) ? L.T("czeka na „Tak” po tamtej stronie") : (_komOpt["srvNo"] as JsonArray)?.Any(n => (string)n == c.Id) == true ? L.T("serwer znajomego (odmówiono)") : L.T("serwer Velivo – nie należy do moich"), "-", KomOnline(c.Id) ? L.T("● w sieci") : L.T("○ poza siecią"), "-", "-", "k|" + c.Id });
                 return l;
             }, search);
+            // 🛠 polecenia dla serwerów: wykonuje backend wybranego serwera, wynik w „Operacje administratora”
+            void AdmDo(IEnumerable<string> targets, string op)
+            {
+                var ts = targets.ToList(); if (ts.Count == 0) { MessageBox.Show(w, L.T("Zaznacz serwer (członka) na liście Infrastruktura."), "🛠"); return; }
+                var name = KomAdmOps.First(x => x.Op == op).Name;
+                if ((op == "off" || op == "syncoff") && MessageBox.Show(w, L.T(name) + ": " + string.Join(", ", ts.Select(x => x == "*" ? L.T("wszystkie serwery") : KomSrvTag(x))) + "?", "🛠", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                foreach (var x in ts) KomAdmSend(x, op);
+                tabs.SelectedIndex = 13; All();
+            }
+            List<string> SelSrv() => Sel(tInfraT).Where(r => r[6].StartsWith("m|")).Select(r => r[6].Substring(2)).ToList();
+            Button OpsButton(string text, string tip, Func<List<string>> targets)
+            {
+                var b = Act(text, tip, () => { }); var cm = new ContextMenu();
+                foreach (var (op, nm) in KomAdmOps) { var o2 = op; var mi = new MenuItem { Header = L.T(nm) }; mi.Click += (s, e) => AdmDo(targets(), o2); cm.Items.Add(mi); }
+                b.ContextMenu = cm; b.Click += (s, e) => { cm.PlacementTarget = b; cm.IsOpen = true; }; return b;
+            }
+            FrameworkElement tOpsT; (tOpsT, rOps) = KomTable(new[] { L.T("Czas"), L.T("Serwer"), L.T("Kierunek"), L.T("Polecenie"), L.T("Czynność"), L.T("Od → do"), L.T("Wynik") }, () =>
+            {
+                var l = new List<string[]>(); var p = Path.Combine(DataDir, "adm.log");
+                try { if (File.Exists(p)) foreach (var line in File.ReadLines(p)) { var a = line.Split(" | "); if (a.Length >= 7) { var n = KomAdmOps.FirstOrDefault(x => x.Op == a[4]).Name; a[4] = n != null ? L.T(n) : a[4]; l.Add(a); } } } catch (Exception) { }
+                l.Reverse(); return l.Take(3000).ToList();
+            }, search);
+            var tOps = Page(L.T("Dziennik operacji administratora: każde polecenie (kto, komu, kiedy) i wynik zwrócony przez serwer, który je wykonał. WYSŁANE → WYKONANE / BŁĄD / ODRZUCONE (zły podpis, nie mój serwer, starsze niż doba)."), tOpsT,
+                OpsButton("🛠 " + L.T("Polecenie dla wszystkich serwerów ▾"), L.T("Wykonują wszystkie moje serwery (także ten)"), () => new List<string> { "*" }));
             var tInfra = Page(L.T("Moje serwery tworzą jedną infrastrukturę: każdy ma własny klucz i certyfikat podpisany kluczem infrastruktury, sprawdzany przy każdym połączeniu. Serwer znajomego bez Twojego „Tak” nie dostaje żadnych danych. Odłączenie = nowy klucz dla pozostałych."), tInfraT,
                 Act("🤝 " + L.T("Dołącz zaznaczony serwer"), L.T("Zaznaczony serwer Velivo zostanie Twoim serwerem (na tamtym serwerze też potwierdź „Tak”)"), () => { foreach (var r in Sel(tInfraT).Where(r => r[6].StartsWith("k|"))) if (KomContactById(r[6].Substring(2)) is { } c) { if (_komOpt["srvNo"] is JsonArray no) foreach (var x in no.Where(x => (string)x == c.Id).ToList()) no.Remove(x); KomClApprove(c); } All(); }),
                 Act("⛔ " + L.T("Odłącz zaznaczony serwer"), L.T("Przestanie dostawać Twoje dane; pozostałe serwery dostaną nowy klucz"), () => { var ids = Sel(tInfraT).Where(r => r[6].StartsWith("m|") && r[6] != "m|" + _komId).Select(r => r[6].Substring(2)).ToList(); if (ids.Count == 0) { MessageBox.Show(w, L.T("Zaznacz serwer (członka) na liście."), "⛔"); return; } if (MessageBox.Show(w, L.T("Odłączyć od Twoich serwerów: ") + string.Join(", ", ids.Select(x => KomContactById(x)?.Name ?? x)) + "?", "⛔", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return; foreach (var x in ids) if (KomContactById(x) is { } c) KomClRevoke(c); All(); }),
-                Act("🔄 " + L.T("Wyślij stan infrastruktury teraz"), L.T("Od razu wymienia certyfikaty i odwołania z moimi serwerami (normalnie co 10 min)"), () => { KomClSyncNow(); KomPeerLinks(); }));
+                Act("🔄 " + L.T("Wyślij stan infrastruktury teraz"), L.T("Od razu wymienia certyfikaty i odwołania z moimi serwerami (normalnie co 10 min)"), () => { KomClSyncNow(); KomPeerLinks(); }),
+                OpsButton("🛠 " + L.T("Polecenie dla zaznaczonych ▾"), L.T("Uruchom od nowa, włącz / wyłącz, porty, zapora, kolejki, synchronizacja – wykonuje zaznaczony serwer"), SelSrv),
+                OpsButton("🛠 " + L.T("Polecenie dla wszystkich ▾"), L.T("Wykonują wszystkie moje serwery (także ten)"), () => new List<string> { "*" }));
             // 📎 Pliki: los każdego pliku w jednym wierszu (z diagnostyki wszystkich etapów)
             List<string[]> DiagRows() { var l = new List<string[]>(); foreach (var f in new[] { "serwery-diag.log.1", "serwery-diag.log" }) { var p = Path.Combine(DataDir, f); if (!File.Exists(p)) continue; try { foreach (var line in File.ReadLines(p)) { if (line.Trim().Length == 0) continue; var a = line.Split(" | "); if (a.Length >= 8) l.Add(a); } } catch (Exception) { } } return l; }
             FrameworkElement tFilesT; (tFilesT, rFiles) = KomTable(new[] { L.T("Czas"), L.T("Od → do"), L.T("Etapy (wszystkie serwery)"), L.T("Stan"), L.T("SHA-256"), L.T("Plik") }, () =>
@@ -2295,7 +2327,8 @@ namespace Velivo
                 Act("⚙ " + L.T("Usuń / wymień klucz…"), L.T("Usunięcie zgubionego albo zepsutego klucza (po Windows Hello)"), () => { KomHwKeySetup(w); All(); }),
                 Act("🔒 " + L.T("Blokada komunikatora: ") + (_komLock ? L.T("wł.") : L.T("wył.")), L.T("Otwieranie komunikatora po Windows Hello albo kluczu"), () => { _komLock = !_komLock; KomSave(); MessageBox.Show(w, L.T("Blokada komunikatora: ") + (_komLock ? L.T("wł.") : L.T("wył.")), "🔒"); }));
             // ⚙ Ustawienia serwera: wszystko, co dotąd było w różnych oknach
-            var tSet = Page(L.T("Ustawienia tego serwera i moich serwerów w jednym miejscu."), new StackPanel(),
+            var tSet = Page(L.T("Ustawienia tego serwera i moich serwerów w jednym miejscu."), new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.85, Margin = new Thickness(0, 10, 0, 0),
+                    Text = L.T("NIE ZAIMPLEMENTOWANE (jeszcze nie działa – nie udaję): blokowanie / odblokowanie użytkownika, tworzenie konta przez administratora, urządzenia osoby i rozłączanie sesji, backup i przywracanie serwera z panelu, role i priorytety serwerów, zasoby (procesor, pamięć, dysk) innych serwerów, historia awarii, wspólny dokument konfiguracji dla wszystkich serwerów, zmiana portu / adresu innego serwera zdalnie, historia rozmów i połączeń na serwerach. Kolejność: dokumentacja/architektura-panel-administratora.md.") },
                 Act("🌍 " + L.T("Adres domu, port, rozmowy poza domem…"), L.T("Okno serwera: adres domu, port, 443, sprawdzanie portów"), () => KomRelayDialog(w)),
                 KomServerContactsButton(w),
                 Act("🔗 " + L.T("Mój adres / zaproszenie…"), L.T("Link, przez który ktoś (albo Twój nowy serwer) dodaje ten serwer"), () => KomMyAddressDialog(w)),
@@ -2304,7 +2337,9 @@ namespace Velivo
                 Act("📂 " + L.T("Folder danych"), L.T("Otwórz folder danych Velivo (dzienniki, skrzynka)"), () => { try { System.Diagnostics.Process.Start("explorer.exe", DataDir); } catch (Exception) { } }),
                 Act("🔍 " + L.T("Sprawdź porty i router teraz"), L.T("Połączenie z adresem domu na porcie serwera i 443, odnowienie UPnP"), () => { _komRelayRouter = L.T("Sprawdzam porty…"); _ = Task.Run(async () => { await KomRelayAutoAsync(); _ = Dispatcher.BeginInvoke(new Action(() => All())); }); }),
                 Act("🛡 " + L.T("Otwórz zaporę Windows teraz"), L.T("Reguła dla Velivo i portów serwera (jedno „Tak” w Windows)"), () => { _komFwAsked = DateTime.MinValue; KomFirewallCheck(); }),
-                Act("🔁 " + L.T("Uruchom serwer od nowa"), L.T("Zamyka i otwiera nasłuch serwera (połączenia wrócą same)"), () => { KomRelayStart(); All(); }));
+                Act("🔁 " + L.T("Uruchom serwer od nowa"), L.T("Zamyka i otwiera nasłuch serwera (połączenia wrócą same)"), () => { KomRelayStart(); All(); }),
+                Act("🔐 " + L.T("Zmień hasło administratora"), L.T("Hasło do panelu administratora na tym serwerze (logowanie także kluczem sprzętowym)"), () => KomAdmChangePass(w)),
+                Act("🚪 " + L.T("Wyloguj"), L.T("Zamyka panel; następne otwarcie wymaga logowania"), () => { _komAdmUntil = DateTime.MinValue; w.Close(); }));
             // ⚠ Wymaga uwagi (na górze) + kafelek „problemy”
             cProb = Card(L.T("problemy teraz"));
             attn = new Border { Background = AdmB(0x2a2133), BorderBrush = AdmB(0x6b3a4a), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 8) };
@@ -2336,6 +2371,7 @@ namespace Velivo
                 foreach (var kv in _komFpCmp.Where(kv => kv.Value.fp == "R"))
                     ps.Add(("🔬 " + (kv.Key.EndsWith("|ev") ? L.T("Historia zdarzeń") : L.T("Skrzynka")) + L.T(" różni się od serwera ") + KomSrvTag(kv.Key.Split('|')[0]) + L.T(" od ponad 3 min"), new (string, Action)[] { (L.T("Diagnostyka"), () => { tabs.SelectedIndex = 9; search.Text = "RÓŻN"; }) }));
                 if (_komRelayRouter.Contains(L.T("nie odpowiada"))) ps.Add(("🌍 " + _komRelayRouter, new (string, Action)[] { (L.T("Serwery"), () => tabs.SelectedIndex = 1) }));
+                if (KomSyncOff) ps.Add(("⏸ " + L.T("Synchronizacja tego serwera jest WSTRZYMANA – nie wysyła kopii ani zdarzeń do innych serwerów"), new (string, Action)[] { (L.T("Wznów"), () => { KomAdmSend(_komId, "syncon"); All(); }) }));
                 if (KomHwKeys().Count == 1) ps.Add(("🔑 " + L.T("Masz tylko jeden klucz sprzętowy – dodaj zapasowy (zgubienie jedynego = tylko hasło)"), new (string, Action)[] { (L.T("Klucze"), () => tabs.SelectedIndex = 11) }));
                 cProb.Text = ps.Count.ToString(); cProb.Foreground = AdmB(ps.Count > 0 ? 0xf87171 : 0x4ade80);
                 var sig = string.Join("\n", ps.Select(p => p.Text)); if (sig == attnSig) return; attnSig = sig;
@@ -2353,7 +2389,7 @@ namespace Velivo
                 attn.Child = sp; KomStyle(w); AdmLook(w, tabs);
             };
             tabs = new TabControl();
-            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo), ("🏛 " + L.T("Infrastruktura"), tInfra), ("📎 " + L.T("Pliki"), tFiles), ("🔬 " + L.T("Diagnostyka"), tDiag), ("📝 " + L.T("Konta"), tAcc), ("🔑 " + L.T("Klucze sprzętowe"), tKeys), ("⚙ " + L.T("Ustawienia"), tSet) })
+            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo), ("🏛 " + L.T("Infrastruktura"), tInfra), ("📎 " + L.T("Pliki"), tFiles), ("🔬 " + L.T("Diagnostyka"), tDiag), ("📝 " + L.T("Konta"), tAcc), ("🔑 " + L.T("Klucze sprzętowe"), tKeys), ("⚙ " + L.T("Ustawienia"), tSet), ("📋 " + L.T("Operacje administratora"), tOps) })
                 tabs.Items.Add(new TabItem { Header = h, Content = el });
             // 👆 kafelki prowadzą do szczegółów: klik = właściwa zakładka z odfiltrowaną listą (tam zaznaczasz i usuwasz / sprawdzasz)
             void Go(TextBlock card, int tab, string q, string tip)
@@ -2379,7 +2415,7 @@ namespace Velivo
                 cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
                 cSrv.Foreground = AdmB(_komRelayListener != null ? 0x4ade80 : 0xf87171); cVer.Foreground = AdmB(vers <= 1 ? 0x4ade80 : 0xf87171);
                 cFiles.Foreground = AdmB(files > 0 ? 0xfbbf24 : 0xe8ecf4); cMsg.Foreground = AdmB(cMsg.Text != "0" ? 0xfbbf24 : 0xe8ecf4);
-                rOver(); SrvFill(); rBox(); rPeople(); rLog(); rErr(); rInfo(); rInfra?.Invoke(); rFiles?.Invoke(); rDiag?.Invoke(); rAcc?.Invoke(); rKeys?.Invoke(); AttnFill?.Invoke();
+                rOver(); SrvFill(); rBox(); rPeople(); rLog(); rErr(); rInfo(); rInfra?.Invoke(); rFiles?.Invoke(); rDiag?.Invoke(); rAcc?.Invoke(); rKeys?.Invoke(); rOps?.Invoke(); AttnFill?.Invoke();
             }
             // przechowywanie: ustawia właściciel, idzie do moich serwerów
             var days = new[] { 7, 14, 30, 90, 365 };
@@ -2500,6 +2536,9 @@ namespace Velivo
             Ctx(tInfraT, ("🤝 " + L.T("Dołącz jako mój serwer"), () => { foreach (var r in Sel(tInfraT).Where(r => r[6].StartsWith("k|"))) if (KomContactById(r[6].Substring(2)) is { } c) KomClApprove(c); All(); }),
                 ("⛔ " + L.T("Odłącz od moich serwerów"), () => { foreach (var r in Sel(tInfraT).Where(r => r[6].StartsWith("m|") && r[6] != "m|" + _komId)) if (KomContactById(r[6].Substring(2)) is { } c && MessageBox.Show(w, L.T("Odłączyć ") + c.Name + "?", "⛔", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) KomClRevoke(c); All(); }),
                 ("🚫 " + L.T("To serwer znajomego – nie pytaj"), () => { foreach (var r in Sel(tInfraT).Where(r => r[6].StartsWith("k|"))) KomClAdd(_komOpt, "srvNo", r[6].Substring(2)); KomSave(); All(); }),
+                ("-", null), ("🔁 " + L.T("Uruchom serwer od nowa"), () => AdmDo(SelSrv(), "restart")), ("▶ " + L.T("Włącz serwer"), () => AdmDo(SelSrv(), "on")), ("⏹ " + L.T("Wyłącz serwer"), () => AdmDo(SelSrv(), "off")),
+                ("🔍 " + L.T("Sprawdź porty i router"), () => AdmDo(SelSrv(), "ports")), ("🛡 " + L.T("Otwórz zaporę Windows"), () => AdmDo(SelSrv(), "firewall")), ("📬 " + L.T("Wyślij ponownie kolejki (skrzynka)"), () => AdmDo(SelSrv(), "flush")),
+                ("🔄 " + L.T("Synchronizuj teraz"), () => AdmDo(SelSrv(), "sync")), ("⏸ " + L.T("Wstrzymaj synchronizację"), () => AdmDo(SelSrv(), "syncoff")), ("▶ " + L.T("Wznów synchronizację"), () => AdmDo(SelSrv(), "syncon")), ("-", null),
                 ("🔄 " + L.T("Wyślij stan infrastruktury teraz"), () => { KomClSyncNow(); KomPeerLinks(); }), ("🔬 " + L.T("Diagnostyka tego serwera"), () => { var n = SelName(tInfraT, 0); tabs.SelectedIndex = 9; search.Text = n; }));
             Ctx(tFilesT, ("🔬 " + L.T("Wszystkie etapy tego pliku (Diagnostyka)"), () => { var id = SelName(tFilesT, 5); tabs.SelectedIndex = 9; search.Text = id; }), ("📋 " + L.T("Kopiuj SHA-256 i identyfikator"), () => { try { Clipboard.SetText(string.Join(Environment.NewLine, Sel(tFilesT).Select(r => r[5] + "  " + r[4]))); } catch (Exception) { } }));
             Ctx(tDiagT, ("🔎 " + L.T("Pokaż tylko ten identyfikator"), () => search.Text = SelName(tDiagT, 4)), ("⚠ " + L.T("Tylko różnice"), () => search.Text = "RÓŻN"), ("📊 " + L.T("Tylko porównania"), () => search.Text = "PORÓWNANIE"));

@@ -2275,9 +2275,7 @@ namespace Velivo
             Func<Action, System.Threading.Tasks.Task> vlcRun = a => vlcTail = vlcTail.ContinueWith(_ => { try { a(); } catch (Exception ex) { App.LogError(ex); } }, System.Threading.Tasks.TaskScheduler.Default);
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
             DateTime dFixed = DateTime.MinValue;   // ⏱ zapis zmierzonej różnicy dźwięku do vlc.log
-            var aDelayFile = System.IO.Path.Combine(DataDir, "dzwiek-przesuniecie.txt");
-            int aDelayMs = 0;   // przesunięcie J/K zapamiętane dla tego komputera (monitor/TV opóźnia obraz, głośniki na kablu nie) - plik lokalny, bez synchronizacji
-            try { if (File.Exists(aDelayFile)) aDelayMs = Math.Max(-5000, Math.Min(5000, int.Parse(File.ReadAllText(aDelayFile).Trim()))); } catch (Exception) { aDelayMs = 0; }
+            int aDelayMs = 0;   // zawsze od 0 - ręczne przesunięcie J/K tylko do zamknięcia odtwarzacza (zapamiętane dawało stałe opóźnienie na każdym kanale)
             Func<string> aDelayText = () => L.T("Dźwięk: ") + (aDelayMs > 0 ? "+" : "") + aDelayMs + " ms" + (aDelayMs > 0 ? L.T("  (później)") : aDelayMs < 0 ? L.T("  (wcześniej)") : "");
             Action aDelayTips = () =>
             {
@@ -2289,7 +2287,6 @@ namespace Velivo
             {
                 aDelayMs = Math.Max(-5000, Math.Min(5000, ms));
                 try { mp.SetAudioDelay(aDelayMs * 1000L); } catch (Exception) { }
-                try { File.WriteAllText(aDelayFile, aDelayMs.ToString()); } catch (Exception) { }
                 aDelayTips(); showOsd(aDelayText());
             };
             // ⇆ wyrównanie obrazu z dźwiękiem: film - skok w to samo miejsce (VLC opróżnia bufory i zaczyna synchronizację od nowa), TV - odświeżenie kanału

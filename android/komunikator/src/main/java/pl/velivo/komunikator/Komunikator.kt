@@ -3078,6 +3078,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }.isSuccess; a.runOnUiThread { Toast.makeText(a, if (ok) "🤟 " + t("Zapisane: ", "Saved: ") + key else t("To nie jest zdjęcie", "This is not a photo"), Toast.LENGTH_SHORT).show(); signDone?.invoke() } }.start(); return }
         val c = attachTo; attachTo = null
         if (c != null && !confirmed) { preview(c, uris); return }   // 👁 najpierw podgląd i „Wyślij” (jak w WhatsApp)
+        if (c != null) sailSound()
         if (c != null && c.isGroup) {   // 👥 do każdego w grupie osobno
             Thread {
                 for (u in uris) {
@@ -3379,7 +3380,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val replyBar = TextView(a).apply { textSize = 13f; setTextColor(dim); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; visibility = View.GONE; setPadding(px(16), px(6), px(16), px(2))
             contentDescription = t("Anuluj odpowiedź", "Cancel reply"); setOnClickListener { replyTo = null; visibility = View.GONE } }
         onReply = { m -> replyTo = m; replyBar.text = "↩ " + k.quote(m).trim() + "   ✕"; replyBar.visibility = View.VISIBLE; input.requestFocus() }
-        fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, (replyTo?.let { k.quote(it) } ?: "") + s); replyTo = null; replyBar.visibility = View.GONE; fill() }
+        fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); sailSound(); k.send(c, (replyTo?.let { k.quote(it) } ?: "") + s); replyTo = null; replyBar.visibility = View.GONE; fill() }
         // 📎 plik albo 🎬 wiadomość wideo (aparat telefonu; nagranie idzie jak plik - także do skrzynki 📬)
         var camShot: () -> Unit = {}
         val clip = round("📎", t("Załącz plik albo nagraj wiadomość wideo", "Attach a file or record a video message"), pal().button) {
@@ -3764,6 +3765,37 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
     // 🎤 długość głosówki (raz na plik)
     private val lengths: MutableMap<String, String> = java.util.Collections.synchronizedMap(HashMap<String, String>())
+    // ⛵ dźwięk wysłania: Velivo (łac. velivolus – „lecący na żaglach”) - krótki, miękki powiew wiatru w żaglu z lekko wznoszącym się tonem.
+    // Liczony w programie raz (bez pliku dźwiękowego), cicho (kanał dźwięków systemu), nie gra w trybie cichym ani wibracji.
+    private var sail: ShortArray? = null
+    private fun sailSound() {
+        val am = a.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        if (am.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) return
+        Thread {
+            runCatching {
+                val rate = 44100
+                val pcm = sail ?: run {
+                    val n = rate * 26 / 100; val out = ShortArray(n); val rnd = java.util.Random(7); var lp = 0.0; var lp2 = 0.0; var ph = 0.0
+                    for (i in 0 until n) {
+                        val x = i.toDouble() / n
+                        val env = Math.sin(Math.PI * Math.pow(x, 0.7)).let { it * it }   // narasta i łagodnie gaśnie
+                        val cut = 0.04 + 0.10 * x   // szum coraz jaśniejszy - powiew
+                        lp += cut * (rnd.nextGaussian() - lp); lp2 += cut * (lp - lp2)
+                        val f = 520.0 + 380.0 * x * x; ph += 2 * Math.PI * f / rate   // ton żagla 520 → 900 Hz
+                        val tone = Math.sin(ph) * 0.22 * Math.sin(Math.PI * x)
+                        out[i] = ((lp2 * 2.2 * env + tone * env) * 9000).coerceIn(-32000.0, 32000.0).toInt().toShort()
+                    }
+                    out.also { sail = it }
+                }
+                val tr = android.media.AudioTrack.Builder()
+                    .setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                    .setAudioFormat(android.media.AudioFormat.Builder().setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setTransferMode(android.media.AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.size * 2).build()
+                tr.write(pcm, 0, pcm.size); tr.play()
+                Thread.sleep(400); tr.release()
+            }
+        }.start()
+    }
     private fun voiceLength(path: String?): String? {
         if (path == null || !path.contains("Glosowa-") || !java.io.File(path).exists()) return null
         return lengths.getOrPut(path) {

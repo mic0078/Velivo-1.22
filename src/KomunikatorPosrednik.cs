@@ -2227,6 +2227,19 @@ namespace Velivo
             var tabs = new TabControl();
             foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo) })
                 tabs.Items.Add(new TabItem { Header = h, Content = el });
+            // 👆 kafelki prowadzą do szczegółów: klik = właściwa zakładka z odfiltrowaną listą (tam zaznaczasz i usuwasz / sprawdzasz)
+            void Go(TextBlock card, int tab, string q, string tip)
+            {
+                if (card.Parent is not StackPanel sp || sp.Parent is not Border b) return;
+                b.Cursor = System.Windows.Input.Cursors.Hand; b.ToolTip = tip;
+                b.MouseEnter += (s, e) => b.BorderBrush = AdmB(0x6d7cff); b.MouseLeave += (s, e) => b.BorderBrush = AdmB(0x34405e);
+                b.MouseLeftButtonUp += (s, e) => { tabs.SelectedIndex = tab; search.Text = q; search.Focus(); };
+            }
+            Go(cSrv, 1, "", L.T("Kliknij – zakładka Serwery: stan, włącz / wyłącz, uruchom od nowa, sprawdź porty, zapora, adres i port"));
+            Go(cFiles, 2, "KB", L.T("Kliknij – zakładka Skrzynka z samymi plikami: komu, od kiedy czeka i dlaczego; zaznacz i „Usuń zaznaczone”, a co doręczono – Dziennik skrzynki"));
+            Go(cMsg, 2, L.T("wiadomość (tekst)"), L.T("Kliknij – zakładka Skrzynka z samymi wiadomościami: komu, od kiedy czeka i dlaczego; zaznacz i „Usuń zaznaczone”"));
+            Go(cOn, 3, "", L.T("Kliknij – zakładka Osoby i urządzenia: kto jest w sieci, przez który serwer, ostatnio widziany"));
+            Go(cVer, 0, "", L.T("Kliknij – zakładka Przegląd: wersja i stan każdego mojego serwera"));
             void All()
             {
                 int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }

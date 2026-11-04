@@ -1907,6 +1907,28 @@ namespace Velivo
             }
             foreach (var kv in _komPeerLink) KomSendFrame(kv.Value, new JsonObject { ["t"] = "relay-ping" });   // utrzymanie połączenia (jak telefon)
         }
+        // 🤝 DOŁĄCZANIE SERWERA: serwer dodany zaproszeniem albo „Mój adres” jest zwykłym kontaktem (znajomym) - dostępu do moich danych nie ma.
+        // Gdy ogłasza się jako serwer Velivo (p2p-here srv), ten serwer raz pyta właściciela: „to mój serwer?”. Tak = uprawnienie „moje urządzenie” (Dom):
+        // wspólny sekret kluczy, wymiana kontaktów, skrzynki, dziennika i łącze serwerów (tożsamość = klucz pary sprawdzany przy każdym połączeniu).
+        // Drugi serwer pyta swojego właściciela tak samo - zaufanie zawsze po obu stronach, więc serwer znajomego nigdy nie wejdzie sam. Nie = pamiętane, bez ponownych pytań.
+        bool _komSrvAsking;
+        void KomSrvAsk()
+        {
+            if (_komRelayListener == null || _komSrvAsking || KomOddany) return;
+            var no = _komOpt["srvNo"] as JsonArray;
+            var c = _komContacts.FirstOrDefault(x => !x.IsGroup && !x.Dom && x.Id != _komId && _komSrvAt.TryGetValue(x.Id, out var sa) && sa != DateTime.MinValue && DateTime.UtcNow - sa < TimeSpan.FromMinutes(10)
+                && (no == null || !no.Any(n => (string)n == x.Id)));
+            if (c == null) return;
+            _komSrvAsking = true;
+            try
+            {
+                var yes = MessageBox.Show(PairDialogOwner(), "„" + c.Name + L.T("” to serwer Velivo.\n\nCzy to Twój serwer?\n\nTak – będzie działał razem z Twoimi serwerami: te same wiadomości, pliki, kontakty i kopie; gdy jeden serwer się wyłączy, drugi przejmie pracę. Na tamtym serwerze zatwierdź to samo.\n\nNie – zostaje zwykłym kontaktem (np. serwer znajomego) i nie dostanie Twoich danych."),
+                    L.T("Twój serwer?"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                if (yes) { c.Dom = true; App.LogInfo("Serwery: " + c.Name + " zatwierdzony jako mój serwer"); KomSave(); KomRelaySync(c.Id); KomPeerLinks(); }
+                else { if (no == null) _komOpt["srvNo"] = no = new JsonArray(); no.Add(c.Id); KomSave(); }
+            }
+            finally { _komSrvAsking = false; }
+        }
         void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
         static void KomLogKeep(string p, Func<string, bool> keep)
         {

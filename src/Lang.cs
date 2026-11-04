@@ -1517,6 +1517,8 @@ namespace Velivo
             { ": z internetu nie odpowiada – przekieruj w routerze TCP ", ": not reachable from the internet – in the router forward TCP " },
             { " i zezwól w zaporze", " and allow it in the firewall" },
             { "Sprawdzam porty…", "Checking ports…" },
+            { "” to serwer Velivo.\n\nCzy to Twój serwer?\n\nTak – będzie działał razem z Twoimi serwerami: te same wiadomości, pliki, kontakty i kopie; gdy jeden serwer się wyłączy, drugi przejmie pracę. Na tamtym serwerze zatwierdź to samo.\n\nNie – zostaje zwykłym kontaktem (np. serwer znajomego) i nie dostanie Twoich danych.", "” is a Velivo server.\n\nIs it your server?\n\nYes – it will work together with your servers: the same messages, files, contacts and backups; when one server turns off, another takes over. Confirm the same on that server.\n\nNo – it stays an ordinary contact (e.g. a friend's server) and will not get your data." },
+            { "Twój serwer?", "Your server?" },
             { "Nie udało się sprawdzić portów – router nie odpowiedział w 60 s", "Could not check the ports – the router did not answer within 60 s" },
             { "Zapasowo port 443: w routerze prowadzi do innego komputera w domu (np. CHUWI) – tam działa zapasowy dostęp; tutaj nic nie trzeba", "Backup port 443: the router sends it to another computer at home (e.g. CHUWI) – the backup access works there; nothing needed here" },
             { " działa", " working" },

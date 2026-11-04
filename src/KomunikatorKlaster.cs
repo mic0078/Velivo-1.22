@@ -308,7 +308,7 @@ namespace Velivo
         // wykonywane raz (identyfikator), każde zapisane w dzienniku operacji (adm.log) po obu stronach. Drogi: sieć domowa i łącze serwerów (KomBoxPeers).
         public static readonly (string Op, string Name)[] KomAdmOps = {
             ("restart", "Uruchom serwer od nowa"), ("on", "Włącz serwer"), ("off", "Wyłącz serwer"), ("ports", "Sprawdź porty i router"), ("firewall", "Otwórz zaporę Windows"),
-            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę"), ("logout", "Wyloguj sesje administratora") };
+            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę"), ("logout", "Wyloguj sesje administratora"), ("repair", "Wyrównaj dane z innymi serwerami") };
         readonly HashSet<string> _komAdmSeen = new HashSet<string>();
         public event Action KomAdmChanged;
         static string KomAdmMsg(JsonObject c) => "velivo-adm|" + (string)c["cid"] + "|" + (string)c["id"] + "|" + (string)c["to"] + "|" + (string)c["op"] + "|" + ((string)c["arg"] ?? "") + "|" + (long?)c["ts"];
@@ -381,6 +381,17 @@ namespace Velivo
                 case "syncoff": _komOpt["syncOff"] = true; KomSave(); return "synchronizacja WSTRZYMANA – ten serwer nie wysyła kopii ani zdarzeń do innych (stan i polecenia działają)";
                 case "syncon": _komOpt["syncOff"] = false; KomSave(); KomEvHave(); KomPeerLinks(); return "synchronizacja wznowiona – zaległe zdarzenia zostaną dosłane";
                 case "logout": _komOpt["admLogout"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave(); KomAdmEnd("unieważnione poleceniem administratora"); return "sesje administratora na tym serwerze zamknięte – następne otwarcie panelu wymaga logowania";
+                case "repair":
+                    {   // 🔧 naprawa synchronizacji: każda czekająca wiadomość i każdy plik (oryginał) jeszcze raz jako kopia do moich serwerów - odbiorca kopii odrzuca to, co już ma (mid / hid)
+                        int nm = 0, nf = 0;
+                        foreach (var kv in _komStore.ToArray()) { List<JsonNode> ms; lock (kv.Value) ms = kv.Value.ToList(); foreach (var m in ms) { var c = m.DeepClone(); c["fwd"] = true; KomBoxPeers(c); nm++; } }
+                        var root = System.IO.Path.Combine(DataDir, "skrzynka");
+                        if (System.IO.Directory.Exists(root))
+                            foreach (var hdr in System.IO.Directory.GetFiles(root, "*.hdr", System.IO.SearchOption.AllDirectories).Where(h => !System.IO.Path.GetFileName(h).StartsWith("k")))
+                            { var f = hdr.Substring(0, hdr.Length - 4); if (System.IO.File.Exists(f + ".bin")) { _ = KomBoxCopy(f); nf++; } }
+                        KomEvHave(); KomSrvInfoSend();
+                        return "wyrównywanie: " + nm + " wiadomości i " + nf + " plików wysłane jeszcze raz do moich serwerów (duplikaty odrzucane), historia zdarzeń porównana od nowa";
+                    }
                 case "diagclr": foreach (var f in new[] { "serwery-diag.log", "serwery-diag.log.1" }) try { System.IO.File.Delete(System.IO.Path.Combine(DataDir, f)); } catch (Exception) { } return "diagnostyka wyczyszczona";
             }
             return null;

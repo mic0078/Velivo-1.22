@@ -7,6 +7,11 @@ html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-
 #you{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#120f24}
 #me{position:fixed;right:12px;top:12px;width:28vw;max-width:220px;border-radius:12px;border:2px solid #7c4dff;transform:scaleX(-1);background:#000}
 #st{position:fixed;left:0;right:0;top:40%;text-align:center;font-size:20px;text-shadow:0 1px 4px #000}
+/* łączenie: czarny ekran, napis i mrugające kropki (bez obrazu kamery) – jak w innych komunikatorach */
+body.wait,body.wait #you{background:#000}body.wait #me,body.wait #you{visibility:hidden}
+#dots{position:fixed;left:0;right:0;top:calc(40% + 34px);text-align:center;font-size:34px;letter-spacing:6px;display:none}body.wait #dots{display:block}
+#dots i{font-style:normal;animation:blink 1.4s infinite both}#dots i:nth-child(2){animation-delay:.2s}#dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.15}40%{opacity:1}}
 #bar{position:fixed;left:0;right:0;bottom:24px;display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:0 8px}#bar button{flex:0 0 auto}
 @media (max-width:640px){#bar{gap:8px}#bar button{width:48px;height:48px;font-size:20px}}
 button{width:60px;height:60px;border-radius:50%;border:0;font-size:24px;background:#3a2f6b;color:#fff}
@@ -23,7 +28,7 @@ body.audio #cam.off{width:auto;border-radius:30px;padding:0 18px;font-size:16px}
 body.view #you,body.view #shot{height:calc(100% - 100px)}body.view #me{display:none}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><img id="shot" alt=""><div id="dot"></div><video id="me" autoplay playsinline muted></video>
-<div id="st"></div><div id="cap" aria-live="polite"></div>
+<div id="st"></div><div id="dots"><i>•</i><i>•</i><i>•</i></div><div id="cap" aria-live="polite"></div>
 <div id="chat"><div id="log"></div><input id="say" autocomplete="off"></div>
 <div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="cc">💬</button><button id="scr">🖥</button><button id="help">🖱</button><button id="swap">⇄</button><button id="end">⏹</button></div>
 <script>
@@ -143,8 +148,8 @@ function ringback(on) {
 const soundOk = () => { tone(660, 990, 0, 0.18, 0.10); tone(990, 1320, 0.14, 0.22, 0.08); };   // połączono – wznoszące
 const soundEnd = () => { tone(740, 520, 0, 0.30, 0.10); tone(520, 330, 0.22, 0.45, 0.09); };   // koniec – opadające
 async function start() {
-  status(caller ? T('Dzwonię…', 'Calling…') : T('Łączę…', 'Connecting…'));
-  if (caller) ringback(true);
+  status(caller ? T('Dzwonię', 'Calling') : T('Łączenie', 'Connecting'));
+  document.body.classList.add('wait'); if (caller) ringback(true);
   // bez kamery i mikrofonu (np. komputer stacjonarny) - rozmowa tylko w odbiorze; ekran 🖥 nadal można pokazać
   try { local = await media(); } catch (e) { local = new MediaStream(); status(T('Bez kamery i mikrofonu – tylko odbiór (ekran możesz pokazać 🖥)', 'No camera or microphone – receive only (you can still share the screen 🖥)')); }
   me.srcObject = local;
@@ -165,7 +170,7 @@ async function start() {
   pc.onicecandidate = e => { if (e.candidate) out({ k: 'ice', c: e.candidate.toJSON() }); };
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
-    if (s === 'connected') { if (!connected) { ringback(false); soundOk(); } connected = true; status(pomoc ? T('🖥 Pomoc zdalna – pokaż swój ekran albo poproś rozmówcę: ⇄ Zamień strony', '🖥 Remote help – share your screen or ask the other person: ⇄ Swap sides') : ''); }
+    if (s === 'connected') { if (!connected) { ringback(false); soundOk(); document.body.classList.remove('wait'); } connected = true; status(pomoc ? T('🖥 Pomoc zdalna – pokaż swój ekran albo poproś rozmówcę: ⇄ Zamień strony', '🖥 Remote help – share your screen or ask the other person: ⇄ Swap sides') : ''); }
     else if (s === 'disconnected') status(T('Słabe połączenie…', 'Weak connection…'));
     else if (s === 'failed') { status(T('Nie udało się połączyć', 'Could not connect')); hang(); }
   };
@@ -177,7 +182,7 @@ window.onSig = async function (o) {
   if (typeof o === 'string') o = JSON.parse(o);
   if (done) return;
   try {
-    if (o.k === 'accept' && caller && pc) { ringback(false); status(T('Łączę…', 'Connecting…')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
+    if (o.k === 'accept' && caller && pc) { ringback(false); status(T('Łączenie', 'Connecting')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
     else if (o.k === 'offer' && pc) { await pc.setRemoteDescription({ type: 'offer', sdp: o.sdp }); flush();
       pc.getTransceivers().forEach(t => { if (t.receiver.track && t.receiver.track.kind === 'video' && !t.sender.track && t.direction === 'recvonly') { t.direction = 'sendrecv'; if (t.sender.setStreams) t.sender.setStreams(local); } });   // bez kamery - miejsce na obraz ekranu
       const an = await pc.createAnswer(); await pc.setLocalDescription(an); out({ k: 'answer', sdp: an.sdp }); }
@@ -201,7 +206,7 @@ cc.onclick = () => {
 };
 window.capText = (t, fin) => dsend({ k: 'cap', t, f: fin });
 window.capFail = () => dsend({ k: 'cap-no' });
-function finish() { if (done) return; ringback(false); soundEnd(); if (window.velivo && velivo.captions) velivo.captions(false); ctlOff(); if (phoneScr) velivo.screen(false); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
+function finish() { if (done) return; ringback(false); soundEnd(); document.body.classList.remove('wait'); if (window.velivo && velivo.captions) velivo.captions(false); ctlOff(); if (phoneScr) velivo.screen(false); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
 function hang() { if (done) return; out({ k: 'end' }); finish(); }
 window.hang = hang;
 end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };

@@ -734,33 +734,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (c.isGroup) { groupOut(c, m.text, m.mid); m.ok = true }   // 👥 do każdego z grupy osobno (szyfrowane jego kluczem)
         saveChat(c.id)
         if (c.isGroup) return m
-        val url = firstUrl(m.text)
-        if (url == null) deliver(c, m)
-        else Thread { linkPreview(url)?.let { m.lp = it; saveChat(c.id); main.post { onChange() } }; deliver(c, m) }.start()   // 🔗 najpierw podgląd (najwyżej kilka sekund)
+        deliver(c, m)   // 🔗 linki bez podglądu (właściciel: samo łącze, bez zbędnych grafik)
         return m
     }
 
-    // 🔗 podgląd linku jak w Signal: tytuł i opis strony pobiera nadawca i wysyła zaszyfrowane razem z wiadomością (odbiorca i pośrednik nie łączą się ze stroną)
-    private val urlRx = Regex("(https?://|www\\.)[^\\s<>\"]+[^\\s<>\".,;:!?)\\]]", RegexOption.IGNORE_CASE)
-    private fun firstUrl(text: String) = urlRx.find(text)?.value?.let { if (it.startsWith("www.", true)) "https://$it" else it }
-    private fun linkPreview(url: String): String? = runCatching {
-        val cn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-        try {
-            cn.connectTimeout = 4000; cn.readTimeout = 4000; cn.instanceFollowRedirects = true
-            cn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) Velivo")
-            if (cn.responseCode !in 200..299 || cn.contentType?.contains("html", true) == false) return@runCatching null
-            val html = cn.inputStream.use { s -> val o = java.io.ByteArrayOutputStream(); val b = ByteArray(16384); while (o.size() < 300000) { val r = s.read(b); if (r < 0) break; o.write(b, 0, r) }; String(o.toByteArray(), Charsets.UTF_8) }   // tylko początek strony
-            fun clean(x: String) = android.text.Html.fromHtml(x, 0).toString().trim().ifEmpty { null }
-            fun meta(k: String): String? {
-                val tag = Regex("<meta[^>]+(?:property|name)=[\"']$k[\"'][^>]*>", RegexOption.IGNORE_CASE).find(html) ?: return null
-                val v = Regex("content=(?:\"([^\"]*)\"|'([^']*)')", RegexOption.IGNORE_CASE).find(tag.value) ?: return null
-                return clean(v.groupValues[1].ifEmpty { v.groupValues[2] })
-            }
-            val title = meta("og:title") ?: meta("twitter:title") ?: Regex("<title[^>]*>([^<]*)</title>", RegexOption.IGNORE_CASE).find(html)?.groupValues?.get(1)?.let { clean(it) } ?: return@runCatching null
-            fun cut(x: String, l: Int) = if (x.length > l) x.take(l) + "…" else x
-            JSONObject().put("u", url).put("t", cut(title, 150)).put("d", cut(meta("og:description") ?: meta("description") ?: "", 300)).put("s", cut(meta("og:site_name") ?: (java.net.URL(url).host ?: ""), 60)).toString()
-        } finally { cn.disconnect() }
-    }.getOrNull()
 
     // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość idzie do każdego członka osobno, z nazwą i składem grupy;
     // u odbiorcy grupa tworzy się sama; członkowie, których ktoś nie ma w kontaktach, dostają ją od innych
@@ -3272,21 +3249,6 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     setOnClickListener { if (vid != null) openFile(vid) else showPhoto(m.path!!, photos(c)) }
                     selectable(this, m)
                 })
-                if (m.lp.isNotEmpty() && m.path == null) runCatching {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - stuknięcie otwiera stronę
-                    val lj = JSONObject(m.lp); val lu = lj.optString("u")
-                    msgs.addView(TextView(a).apply {
-                        text = android.text.SpannableStringBuilder(lj.optString("s")).apply {
-                            setSpan(android.text.style.RelativeSizeSpan(0.8f), 0, length, 0)
-                            append("\n"); val st = length; append(lj.optString("t")); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, length, 0)
-                            lj.optString("d").takeIf { it.isNotEmpty() }?.let { append("\n"); val s2 = length; append(it); setSpan(android.text.style.RelativeSizeSpan(0.85f), s2, length, 0) }
-                        }
-                        textSize = 14f * fs; maxLines = 6; ellipsize = android.text.TextUtils.TruncateAt.END; setTextColor(if (m.mine) pal().mineFg else ink); setPadding(px(12), px(7), px(12), px(8))
-                        background = GradientDrawable().apply { setColor(if (m.mine) violet else pal().theirs); cornerRadius = px(12).toFloat(); setStroke(px(2), if (m.mine) pal().mineFg else violet) }
-                        layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
-                        contentDescription = t("Podgląd linku: ", "Link preview: ") + lj.optString("t")
-                        if (lu.startsWith("http", true)) setOnClickListener { openLink(lu) }
-                    })
-                }
                 msgs.addView(TextView(a).apply {
                     val tick = if (m.mine) "  \uFFFC" else ""   // znak stanu z ikony Velivo (VStan) zamiast ptaszków
                     // jak WhatsApp: zdjęcie / film - tylko obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - 🎤 i długość

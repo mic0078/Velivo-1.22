@@ -830,37 +830,10 @@ namespace Velivo
         static string KomFirstUrl(string text) { var m = KomUrlRx.Match(text ?? ""); return !m.Success ? null : m.Value.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + m.Value : m.Value; }
         async Task KomPreviewThenDeliver(KomContact c, KomMsg m, string url)
         {
-            m.Lp = await KomLinkPreview(url);
-            if (m.Lp != null) { KomSave(); _komRefresh?.Invoke(); }
+            await Task.CompletedTask;   // 🔗 bez podglądu linku (właściciel: samo łącze, bez zbędnych grafik) - wiadomość od razu
             KomDeliver(c, m);
         }
         static readonly System.Net.Http.HttpClient KomHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        static async Task<string> KomLinkPreview(string url)
-        {
-            try
-            {
-                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
-                req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Velivo");
-                using var res = await KomHttp.SendAsync(req, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
-                if (!res.IsSuccessStatusCode || res.Content.Headers.ContentType?.MediaType?.Contains("html") == false) return null;
-                var buf = new byte[300000]; int n = 0;
-                using (var s = await res.Content.ReadAsStreamAsync()) { int r; while (n < buf.Length && (r = await s.ReadAsync(buf, n, buf.Length - n)) > 0) n += r; }   // tylko początek strony (nagłówek z tytułem)
-                var html = Encoding.UTF8.GetString(buf, 0, n);
-                const System.Text.RegularExpressions.RegexOptions I = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
-                string Meta(string k)
-                {
-                    var tag = System.Text.RegularExpressions.Regex.Match(html, "<meta[^>]+(?:property|name)=[\"']" + k + "[\"'][^>]*>", I); if (!tag.Success) return null;
-                    var v = System.Text.RegularExpressions.Regex.Match(tag.Value, "content=(?:\"([^\"]*)\"|'([^']*)')", I); if (!v.Success) return null;
-                    var t = WebUtility.HtmlDecode(v.Groups[1].Success ? v.Groups[1].Value : v.Groups[2].Value).Trim(); return t.Length > 0 ? t : null;
-                }
-                var tt = System.Text.RegularExpressions.Regex.Match(html, "<title[^>]*>([^<]*)</title>", I);
-                var title = Meta("og:title") ?? Meta("twitter:title") ?? (tt.Success ? WebUtility.HtmlDecode(tt.Groups[1].Value).Trim() : "");
-                if (title.Length == 0) return null;
-                string Cut(string x, int l) => x.Length > l ? x.Substring(0, l) + "…" : x;
-                return new JsonObject { ["u"] = url, ["t"] = Cut(title, 150), ["d"] = Cut(Meta("og:description") ?? Meta("description") ?? "", 300), ["s"] = Cut(Meta("og:site_name") ?? new Uri(url).Host, 60) }.ToJsonString();
-            }
-            catch (Exception) { return null; }
-        }
 
         // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość do każdego członka osobno, z nazwą i składem grupy; u odbiorcy grupa tworzy się sama
         const string KomGroupTag = "\u0001velivo-grupa\n";
@@ -2022,18 +1995,7 @@ namespace Velivo
                         KomDragOut(vg, vp);
                         body.Children.Add(vg);
                     }
-                    if (!hasFile && m.Lp != null) try
-                    {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - kliknięcie otwiera stronę
-                        var lj = JsonNode.Parse(m.Lp); var lu = (string)lj["u"] ?? "";
-                        var card = new StackPanel();
-                        card.Children.Add(new TextBlock { Text = (string)lj["s"] ?? "", FontSize = 11, Foreground = fg, Opacity = 0.75, TextTrimming = TextTrimming.CharacterEllipsis });
-                        card.Children.Add(new TextBlock { Text = (string)lj["t"] ?? "", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = fg, TextWrapping = TextWrapping.Wrap, MaxHeight = 40, TextTrimming = TextTrimming.CharacterEllipsis });
-                        if (((string)lj["d"] ?? "").Length > 0) card.Children.Add(new TextBlock { Text = (string)lj["d"], FontSize = 12, Foreground = fg, Opacity = 0.85, TextWrapping = TextWrapping.Wrap, MaxHeight = 50, TextTrimming = TextTrimming.CharacterEllipsis });
-                        var lb = new Border { Child = card, Background = new SolidColorBrush(Color.FromArgb(0x30, 0, 0, 0)), BorderBrush = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Mine), BorderThickness = new Thickness(3, 0, 0, 0), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 5, 8, 6), Margin = new Thickness(0, 2, 0, 6), MaxWidth = 340, Cursor = Cursors.Hand, ToolTip = lu };
-                        if (lu.StartsWith("http", StringComparison.OrdinalIgnoreCase)) lb.MouseLeftButtonUp += (s2, e2) => { if (!selMode) { AddTab(lu); KomShowBrowser(); } };
-                        body.Children.Add(lb);
-                    }
-                    catch (Exception) { }
+                    // 🔗 link w wiadomości - samo łącze (bez karty podglądu)
                     var txt = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
                     // 🔗 adresy w wiadomości - kliknięcie otwiera kartę w Velivo
                     int at = 0;

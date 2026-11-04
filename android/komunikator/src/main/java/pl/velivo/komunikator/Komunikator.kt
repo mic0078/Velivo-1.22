@@ -3174,6 +3174,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         listRefresh = null
         k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id); k.tidy(c.id)   // ⏳ stare znikające - usunięte
         var query = ""   // 🔍 szukanie w rozmowie
+        var shownN = 60   // ⚡ jak WhatsApp: przy otwarciu tylko ostatnie wiadomości (300 dymków z miniaturami otwierało rozmowę coraz dłużej), starsze przyciskiem
         k.sendRead(c)
         val msgs = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
         val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
@@ -3233,7 +3234,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             selUpdate()
             msgs.removeAllViews()
             var lastDay = ""; var prevMine: Boolean? = null
-            for (m in k.chat(c.id).takeLast(300).filter { query.isEmpty() || it.text.contains(query, true) }) {
+            val all = k.chat(c.id).filter { query.isEmpty() || it.text.contains(query, true) }; val part = all.takeLast(shownN)
+            if (all.size > part.size) msgs.addView(TextView(a).apply {
+                text = "⬆ " + t("Starsze wiadomości", "Older messages") + " (" + (all.size - part.size) + ")"; textSize = 14f * fs; setTextColor(ink); gravity = Gravity.CENTER
+                setPadding(px(14), px(8), px(14), px(8)); background = bg(Color.argb(60, 0, 0, 0), 14)
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(8) }
+                setOnClickListener { shownN += 100; fill() }
+            })
+            for (m in part) {
                 val day = dayFmt.format(java.util.Date(m.ts))
                 if (day != lastDay) {
                     lastDay = day; prevMine = null
@@ -3875,7 +3883,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // miniatury raz na plik (rozmowa odświeża się często)
     private val thumbs = HashMap<String, android.graphics.Bitmap?>()
-    private fun thumb(path: String): android.graphics.Bitmap? = thumbs.getOrPut(path) { decode(path, px(240)) }
+    private fun thumb(path: String): android.graphics.Bitmap? = if (thumbs.containsKey(path)) thumbs[path] else decode(path, px(240)).also { thumbs[path] = it }   // nieudane też zapamiętane (getOrPut z null dekodował za każdym razem)
     // 🎬 miniatura filmu: pierwsza klatka (z obrotem z telefonu), na środku ▶, w rogu 🎥 i długość
     private fun vthumb(path: String): android.graphics.Bitmap? = thumbs.getOrPut(path) { runCatching {
         val r = android.media.MediaMetadataRetriever(); r.setDataSource(path)

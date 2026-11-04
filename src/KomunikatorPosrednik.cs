@@ -196,7 +196,7 @@ namespace Velivo
                 }
                 File.Move(f + ".part", f + ".bin"); if (fromPeer != null) File.WriteAllText(f + ".src", fromPeer); File.WriteAllBytes(f + ".hdr", hb);   // .src - który serwer ma oryginał
                 var fromName = await Dispatcher.InvokeAsync(() => (string)h["Id"] == _komId ? Environment.MachineName + " (w imieniu tego serwera)" : KomContactById((string)h["Id"] ?? "")?.Name ?? "?"); var peerName = fromPeer == null ? null : await Dispatcher.InvokeAsync(() => KomContactById(fromPeer)?.Name ?? fromPeer);
-                KomBoxLog(to, "przyjęty do skrzynki od " + fromName + ", " + (size / 1024) + " KB" + (peerName != null ? " (kopia od serwera " + peerName + ")" : ""));
+                KomBoxLog(to, "przyjęty – plik od " + fromName + " (" + KomSize(size) + ") czeka na serwerze, aż odbiorca włączy telefon lub internet" + (peerName != null ? " (zapasowa kopia, oryginał na serwerze " + peerName + ")" : ""));
                 await s.WriteAsync(new byte[32], 0, 32, token); await s.FlushAsync(token);   // przechowane
             }
             finally { try { File.Delete(f + ".part"); } catch (Exception) { } }
@@ -256,29 +256,29 @@ namespace Velivo
                         if (_komRemote.ContainsKey(id)) st = await KomRelayOpenTo(id, cts.Token);
                         else if (_komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100))
                         { cl = await KomTcpConnect(a, cts.Token); st = cl.GetStream(); }
-                        if (st == null) { if (!_komBoxWaitLog.TryGetValue(id, out var wl) || DateTime.UtcNow - wl > TimeSpan.FromMinutes(30)) { _komBoxWaitLog[id] = DateTime.UtcNow; KomBoxLog(id, "czeka: odbiorca niepołączony z tym serwerem (" + Directory.GetFiles(dir, "*.hdr").Length + " plików)"); } return; }   // odbiorcy nie ma - zostaje w skrzynce
+                        if (st == null) { if (!_komBoxWaitLog.TryGetValue(id, out var wl) || DateTime.UtcNow - wl > TimeSpan.FromMinutes(30)) { _komBoxWaitLog[id] = DateTime.UtcNow; KomBoxLog(id, "czeka – telefonu odbiorcy nie ma teraz w sieci (brak zasięgu, internetu albo jest zgaszony); plików do oddania: " + Directory.GetFiles(dir, "*.hdr").Length + ", serwer spróbuje sam co minutę"); } return; }   // odbiorcy nie ma - zostaje w skrzynce
                         var size = new FileInfo(bin).Length; var t0 = DateTime.UtcNow;
                         string sender = "?"; try { var sid = (string)JsonNode.Parse(File.ReadAllBytes(hdr))?["Id"]; sender = KomContactById(sid ?? "")?.Name ?? sid ?? "?"; } catch (Exception) { }
-                        if (!_komBoxSilent.ContainsKey(hdr)) KomBoxLog(id, "wysyłam " + (size / 1024) + " KB od " + sender);   // ponowienia odrzucanego pliku - bez wpisu co minutę
+                        if (!_komBoxSilent.ContainsKey(hdr)) KomBoxLog(id, "wysyłam – odbiorca jest dostępny, przekazuję plik od " + sender + " (" + KomSize(size) + ")");   // ponowienia odrzucanego pliku - bez wpisu co minutę
                         await KomWriteBlock(st, File.ReadAllBytes(hdr), cts.Token);
                         var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token))
                         {   // telefon zamknął bez odpowiedzi (nie zna nadawcy / stara wersja): wpis raz, po 10 próbach plik usuwany - nie zaśmieca skrzynki i dziennika w nieskończoność
                             int n = _komBoxSilent.AddOrUpdate(hdr, 1, (_, v) => v + 1);
-                            if (n == 1) KomBoxLog(id, "telefon odbiorcy nie przyjmuje pliku " + (size / 1024) + " KB od " + sender + " (nie zna nadawcy albo ma starą wersję) – ponawiam, po 10 próbach usunę");
-                            if (n >= 10) { foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { } _komBoxSilent.TryRemove(hdr, out _); KomBoxLog(id, "usunięty po 10 próbach: plik " + (size / 1024) + " KB od " + sender + " – telefon odbiorcy go nie przyjmuje"); }
+                            if (n == 1) KomBoxLog(id, "nie przyjmuje – telefon odbiorcy nie przyjął pliku od " + sender + " (" + KomSize(size) + "). Zwykle: nie ma nadawcy w kontaktach albo ma starą wersję Velivo. Serwer spróbuje jeszcze kilka razy");
+                            if (n >= 10) { foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { } _komBoxSilent.TryRemove(hdr, out _); KomBoxLog(id, "usunięty – po 10 próbach plik od " + sender + " (" + KomSize(size) + ") nie został przyjęty przez telefon odbiorcy. Wyślij go jeszcze raz po aktualizacji Velivo u odbiorcy"); }
                             continue;
                         }
                         if (b[0] == 1)
                         {
                             using (var fi = File.OpenRead(bin)) await fi.CopyToAsync(st, 1 << 16, cts.Token);
                             await st.FlushAsync(cts.Token);
-                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) { KomBoxLog(id, "przerwany po " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s – ponowię za minutę"); continue; }   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
+                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) { KomBoxLog(id, "przerwany – połączenie z odbiorcą zerwało się po " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s (słaby zasięg?); serwer spróbuje znowu za minutę"); continue; }   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
                         }
-                        KomBoxLog(id, b[0] == 1 ? "doręczony (" + (size / 1024) + " KB, " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)" : "odbiorca odmówił (ma już ten plik, nie zna nadawcy " + sender + " albo brak miejsca) – usunięty ze skrzynki");
+                        KomBoxLog(id, b[0] == 1 ? "doręczony – odbiorca dostał plik od " + sender + " (" + KomSize(size) + ", " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)" : "odmówił – telefon odbiorcy nie chciał pliku od " + sender + " (ma go już, nie zna nadawcy albo brak miejsca w telefonie); plik usunięty z serwera");
                         File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
                         var gh = Path.GetFileNameWithoutExtension(hdr).Split('-').Last(); gone.Add(gh); _komBoxDoneOut[gh] = (id, DateTime.UtcNow);
                     }
-                    catch (Exception ex) { KomBoxLog(id, "błąd: " + ex.Message); if (st == null) return; }   // zerwany przy jednym pliku - pozostałe dalej
+                    catch (Exception ex) { KomBoxLog(id, "błąd – nie udało się przekazać pliku (" + ex.Message + "); serwer spróbuje znowu za minutę"); if (st == null) return; }   // zerwany przy jednym pliku - pozostałe dalej
                     finally { st?.Dispose(); cl?.Dispose(); }
                 }
                 if (Directory.GetFiles(dir).Length == 0) Directory.Delete(dir);
@@ -1810,7 +1810,7 @@ namespace Velivo
                     foreach (var hdr in Directory.GetFiles(d, "*.hdr").Where(x => File.GetLastWriteTime(x) < limit))
                     {
                         foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { }
-                        KomBoxLog(Path.GetFileName(d), "usunięty – czekał dłużej niż " + KomBoxDays + " dni");
+                        KomBoxLog(Path.GetFileName(d), "usunięty – odbiorca nie odebrał pliku przez " + KomBoxDays + " dni (ustawienie „Przechowuj”)");
                     }
                 long lim = DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds(); bool ch = false;
                 foreach (var kv in _komStore) lock (kv.Value) ch |= kv.Value.RemoveAll(x => (long?)x["ts"] is long t && t < lim) > 0;
@@ -1925,7 +1925,7 @@ namespace Velivo
             });
             var acts = new WrapPanel { Children = {
                 onOff,
-                Act("🔄 " + L.T("Uruchom serwer od nowa"), L.T("Zamyka połączenia i uruchamia serwer ponownie (telefony połączą się same w ciągu kilkudziesięciu sekund)"), () => { if (!_komRelayOn) return; KomRelayStart(); KomAnnounce(); KomBoxLog(_komId, "serwer uruchomiony od nowa z panelu administratora"); All(); }),
+                Act("🔄 " + L.T("Uruchom serwer od nowa"), L.T("Zamyka połączenia i uruchamia serwer ponownie (telefony połączą się same w ciągu kilkudziesięciu sekund)"), () => { if (!_komRelayOn) return; KomRelayStart(); KomAnnounce(); KomBoxLog(_komId, "serwer uruchomiony ponownie (przycisk w panelu administratora)"); All(); }),
                 Act("🔍 " + L.T("Sprawdź porty i router teraz"), L.T("Sprawdza połączeniem z adresu domu, czy port serwera i 443 są otwarte, i odnawia przekierowanie w routerze (UPnP)"), () => { _komRelayRouter = L.T("Sprawdzam porty…"); All(); _ = Task.Run(async () => { await KomRelayAutoAsync(); _ = Dispatcher.BeginInvoke(new Action(All)); }); }),
                 Act("🛡 " + L.T("Otwórz zaporę Windows"), L.T("Sprawdza zaporę Windows i w razie potrzeby otwiera port serwera (Windows zapyta o zgodę)"), () => { int pt = _komRelayPort; _ = Task.Run(() => { bool ok = KomFirewallOk(pt); _ = Dispatcher.BeginInvoke(new Action(() => { if (ok) MessageBox.Show(w, L.T("Zapora Windows jest otwarta dla serwera."), "🛡"); else { _komFwAsked = DateTime.MinValue; KomFirewallCheck(); } })); }); }),
                 Act("⚙ " + L.T("Adres domu i port…"), L.T("Okno ustawień serwera: adres domu, port, konta i kontakty"), () => KomRelayDialog(w)),
@@ -1999,7 +1999,7 @@ namespace Velivo
                     var ids = sel.Where(r => r.Length > 6).Select(r => r[6]).ToList();
                     if (ids.Count == 0) { MessageBox.Show(w, L.T("Zaznacz osoby w zakładce Osoby i urządzenia."), "🗑"); return; }
                     if (MessageBox.Show(w, L.T("Usunąć na wszystkich moich serwerach: ") + string.Join(", ", ids.Select(x => KomContactById(x)?.Name ?? x)) + L.T("? Nie będą mogli pisać przez moje serwery; ich czekające pliki i wiadomości znikną."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                    foreach (var x in ids) { KomBoxLog(x, "osoba usunięta ręcznie z Centrum serwera (na wszystkich moich serwerach)"); _komStore.TryRemove(x, out _); try { Directory.Delete(KomBoxDir(x), true); } catch (Exception) { } KomForget(x, true); }
+                    foreach (var x in ids) { KomBoxLog(x, "osoba usunięta ręcznie przez właściciela – nie może już pisać przez moje serwery"); _komStore.TryRemove(x, out _); try { Directory.Delete(KomBoxDir(x), true); } catch (Exception) { } KomForget(x, true); }
                     KomStoreSave(); All(); return;
                 }
                 if (tab != tBox) { MessageBox.Show(w, L.T("W tej zakładce nie ma czego usuwać."), "🗑"); return; }
@@ -2014,7 +2014,7 @@ namespace Velivo
                         var what = r[4].Substring(r[4].IndexOf('|') + 1);
                         if (what.StartsWith("m:")) { var mid = what.Substring(2); if (_komStore.TryGetValue(g.Key, out var l2)) lock (l2) l2.RemoveAll(x => (string)x["mid"] == mid); mids.Add(mid); }
                         else { foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(what, ext)); } catch (Exception) { } files.Add(Path.GetFileNameWithoutExtension(what).Split('-').Last()); }
-                        KomBoxLog(g.Key, "usunięty ręcznie z Centrum serwera: " + r[1]);
+                        KomBoxLog(g.Key, "usunięty ręcznie przez właściciela: " + r[1]);
                     }
                     KomStoreSave();
                     // inne moje serwery kasują swoje kopie (to samo „doręczone”, które już rozumieją; powtarzane 2 dni - wyłączony też skasuje)

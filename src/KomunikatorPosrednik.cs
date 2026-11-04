@@ -1874,7 +1874,7 @@ namespace Velivo
                 {
                     var m = System.Text.RegularExpressions.Regex.Match(r[1], @"^\[([^\]]+)\]\s+(.*)$");
                     return m.Success ? new[] { r[0], m.Groups[1].Value, m.Groups[2].Value } : new[] { r[0], Environment.MachineName, r[1] };
-                }).OrderByDescending(r => r[0]).Take(5000).ToList(), search);
+                }).GroupBy(r => r[0] + "|" + r[1] + "|" + r[2]).Select(g => g.First()).OrderByDescending(r => r[0]).Take(5000).ToList(), search);   // ten sam wpis od innego serwera przychodzi dwoma portami - pokazywany raz
             // bledy.log: wpis = linia z czasem, treść (bywa wielowierszowa), pusta linia - jeden wiersz tabeli na wpis (wcześniej czas i treść w osobnych wierszach)
             List<string[]> ErrRows()
             {

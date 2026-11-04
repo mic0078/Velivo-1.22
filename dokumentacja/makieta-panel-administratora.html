@@ -1,0 +1,60 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panel administratora – makieta</title>
+<style>
+:root{--bg:#161b2b;--card:#1f2639;--card2:#232b42;--line:#34405e;--txt:#e8ecf4;--dim:#9aa4bd;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--blue:#6d7cff}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 Segoe UI,system-ui,sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 4px}.sub{color:var(--dim);margin:0 0 14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.t{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}.t:hover{border-color:var(--blue)}
+.t b{font-size:22px;display:block}.t small{color:var(--dim)}.t i{display:block;font-style:normal;font-size:11px;color:var(--dim);margin-top:3px}
+.attn{background:#2a2133;border:1px solid #6b3a4a;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.attn h2{font-size:15px;margin:0 0 6px;color:var(--warn)}.attn div{padding:5px 0;border-top:1px solid #3a2e44}.attn div:first-of-type{border:0}
+.attn button{float:right;background:var(--blue);color:#fff;border:0;border-radius:5px;padding:3px 10px;margin-left:6px;cursor:pointer}
+.row{display:flex;gap:12px;flex-wrap:wrap}.col{flex:1;min-width:300px;background:var(--card);border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.col h3{font-size:14px;margin:0 0 8px}
+.srv{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line)}.srv:first-of-type{border:0}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.file{border-top:1px solid var(--line);padding:7px 0}.file:first-of-type{border:0}
+.steps{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}.s{font-size:11px;padding:2px 7px;border-radius:10px;background:#2e3650;color:var(--dim)}
+.s.ok{background:#16382d;color:var(--ok)}.s.w{background:#3a3016;color:var(--warn)}.s.b{background:#3e1f25;color:var(--bad)}
+.chips{margin-bottom:8px}.chip{display:inline-block;padding:3px 9px;border-radius:12px;background:#2e3650;margin:0 4px 4px 0;font-size:12px;cursor:pointer}.chip.on{background:var(--blue)}
+.note{color:var(--dim);font-size:12px;margin-top:14px}
+</style></head><body>
+<h1>🛠 Panel administratora – makieta (propozycja)</h1>
+<p class="sub">Najważniejsze na górze: co wymaga uwagi. Każdy kafelek i każda pozycja – klik = szczegóły i czynności.</p>
+
+<div class="tiles">
+ <div class="t"><b style="color:var(--ok)">Działa</b><small>2 z 3 moich serwerów</small><i>▸ serwery i porty</i></div>
+ <div class="t"><b style="color:var(--warn)">10</b><small>plików czeka (najstarszy 3 dni)</small><i>▸ komu i dlaczego</i></div>
+ <div class="t"><b>0</b><small>wiadomości czeka</small><i>▸ skrzynka</i></div>
+ <div class="t"><b>5 / 6</b><small>osób w sieci</small><i>▸ kto i przez który serwer</i></div>
+ <div class="t"><b style="color:var(--ok)">zgodne</b><small>skrzynki i historia serwerów</small><i>▸ porównanie (diagnostyka)</i></div>
+ <div class="t"><b style="color:var(--bad)">2</b><small>problemy dziś</small><i>▸ lista poniżej</i></div>
+</div>
+
+<div class="attn"><h2>⚠ Wymaga uwagi (2)</h2>
+ <div>📎 7 plików do <b>Mama</b> czeka od 3 dni – jej telefon nie łączy się z żadnym serwerem od 01.11 <button>Pokaż pliki</button><button>Usuń stare</button></div>
+ <div>🖥 Serwer <b>CHUWI</b> (DESKTOP-VPQLV7D) działa, choć miał być odłączony – przyjmuje pliki <button>Pokaż</button><button>Odłącz</button></div>
+</div>
+
+<div class="row">
+ <div class="col"><h3>🖥 Moje serwery</h3>
+  <div class="srv"><span><span class="dot" style="background:var(--ok)"></span>NUCBOX – port 41921, internet ✓, 443 –</span><span>wersja 04.11 17:10</span></div>
+  <div class="srv"><span><span class="dot" style="background:var(--ok)"></span>RYZENMIC (ten) – port 41923, internet ✓</span><span>wersja 04.11 17:10</span></div>
+  <div class="srv"><span><span class="dot" style="background:var(--warn)"></span>CHUWI – port 41929, 443 ✓</span><span>wersja 03.11 – <b style="color:var(--warn)">starsza</b></span></div>
+ </div>
+ <div class="col"><h3>📎 Pliki – los każdego pliku w jednym wierszu</h3>
+  <div class="chips"><span class="chip on">wszystkie</span><span class="chip">czekają</span><span class="chip">doręczone</span><span class="chip">problem</span><span class="chip">dziś</span></div>
+  <div class="file">Ryzen → <b>Xiaomi Mi 10</b> · zdjęcie 462 KB · 15:26
+   <div class="steps"><span class="s ok">przyjęty</span><span class="s ok">kopia na NUCBOX</span><span class="s ok">wysłany</span><span class="s ok">doręczony 0 s</span></div></div>
+  <div class="file">Ryzen → <b>Xiaomi Mi 10</b> · 457 KB · 15:14
+   <div class="steps"><span class="s ok">przyjęty</span><span class="s ok">doręczony przez CHUWI</span><span class="s">kopia z Ryzena – już był (bez duplikatu)</span></div></div>
+  <div class="file">Motorola → <b>Mama</b> · film 56 MB · 01.11
+   <div class="steps"><span class="s ok">przyjęty</span><span class="s ok">kopia na NUCBOX</span><span class="s w">czeka 3 dni – telefon offline</span></div></div>
+ </div>
+</div>
+
+<div class="col"><h3>📜 Dziennik (pełny) – zostaje jako zakładka, z filtrami: serwer · osoba · rodzaj (doręczony / czeka / problem / ręcznie) · dzień</h3>
+ <span style="color:var(--dim)">Wpisy z kilku serwerów o tym samym pliku łączone w jeden wiersz „Pliki” powyżej; dziennik do szukania szczegółów.</span></div>
+
+<p class="note">Kolory: zielony – udało się, żółty – czeka, czerwony – nie udało się, szary – czynność właściciela. Jasny i ciemny motyw, wąskie okno – kafelki zawijają się.</p>
+</body></html>

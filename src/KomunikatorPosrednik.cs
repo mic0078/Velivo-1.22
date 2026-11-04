@@ -2233,7 +2233,8 @@ namespace Velivo
                 if (card.Parent is not StackPanel sp || sp.Parent is not Border b) return;
                 b.Cursor = System.Windows.Input.Cursors.Hand; b.ToolTip = tip;
                 b.MouseEnter += (s, e) => b.BorderBrush = AdmB(0x6d7cff); b.MouseLeave += (s, e) => b.BorderBrush = AdmB(0x34405e);
-                b.MouseLeftButtonUp += (s, e) => { tabs.SelectedIndex = tab; search.Text = q; search.Focus(); };
+                b.PreviewMouseLeftButtonDown += (s, e) => { e.Handled = true; tabs.SelectedIndex = tab; search.Text = q; search.Focus(); };   // Preview - klik działa też na napisach w kafelku
+                sp.Children.Add(new TextBlock { Text = "▸ " + L.T("pokaż szczegóły"), FontSize = 11, Opacity = 0.6, Margin = new Thickness(0, 2, 0, 0) });
             }
             Go(cSrv, 1, "", L.T("Kliknij – zakładka Serwery: stan, włącz / wyłącz, uruchom od nowa, sprawdź porty, zapora, adres i port"));
             Go(cFiles, 2, "KB", L.T("Kliknij – zakładka Skrzynka z samymi plikami: komu, od kiedy czeka i dlaczego; zaznacz i „Usuń zaznaczone”, a co doręczono – Dziennik skrzynki"));

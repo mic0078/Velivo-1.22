@@ -540,7 +540,7 @@ namespace Velivo
             if (t == "p2p-here" && from != _komId && _komContacts.ToArray().Any(c => c.Id == from && c.Dom))
             {   // mój serwer albo moje urządzenie (telefon, laptop) - serwer oddaje mu kontakty, których nie ma (np. po ponownej instalacji)
                 if (p["relay"] != null) _komLanRelays[from] = p.DeepClone();
-                if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); }
+                if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(1))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); }
             }
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) { KomEvMsg(sto, p); return; }
@@ -2020,12 +2020,17 @@ namespace Velivo
             try { KomRelayFromLan(inner, IPAddress.None); } catch (Exception ex) { App.LogError(ex); } finally { _komNetPeer = null; }
         }
         // co minutę: stałe połączenie z każdym moim serwerem spoza tej sieci domowej (gdy on nie połączył się już ze mną)
+        // 🏛 kontakty i klucze z nimi (alias) do WSZYSTKICH moich serwerów (dom i internet) od razu - przy zmianie, przy połączeniu i co minutę;
+        // wysyłane tylko to, czego tamten jeszcze nie dostał (znaczniki w KomRelaySync), więc częste wołanie nic nie kosztuje
+        void KomInfraSync()
+        {
+            if (_komRelayListener == null) return;
+            foreach (var c in KomMyServers().Where(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id)).ToList()) KomRelaySync(c.Id);
+        }
         void KomPeerLinks()
         {
             if (_komRelayListener == null) return;
-            // 🏛 serwery mojej infrastruktury przez internet też wymieniają kontakty i klucze z nimi (alias) - jak w domu, co 10 min; każdy obsłuży każdego mojego użytkownika
-            foreach (var c in KomMyServers().Where(x => !KomLanPeer(x.Id) && _komLinkOk.ContainsKey(x.Id)).ToList())
-                if (!_komSyncAt.TryGetValue(c.Id, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10)) { _komSyncAt[c.Id] = DateTime.UtcNow; KomRelaySync(c.Id); }
+            KomInfraSync();
             foreach (var c in KomMyServers())
             {
                 if (KomLanPeer(c.Id) || _komRemote.ContainsKey(c.Id) || _komPeerLink.ContainsKey(c.Id) || !_komPeerDial.TryAdd(c.Id, true)) continue;

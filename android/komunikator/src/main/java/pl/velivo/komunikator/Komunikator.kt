@@ -3477,10 +3477,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
             val on = k.online(c.id); tName.text = c.name
             if (k.typing(c.id)) { tSub.text = "✍ " + t("pisze…", "typing…"); tSub.setTextColor(green); return }   // ✍ „pisze…”
-            val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
-            tSub.text = if (on) "● " + (if (k.viaInternet(c.id)) t("🌍 internet", "🌍 internet") else t("🏠 sieć domowa", "🏠 home network")) else "● " + t("poza siecią", "offline") + seen
+            // jak WhatsApp: „w sieci” albo „widziano dzisiaj o 17:07 / wczoraj o … / dnia …”; rodzaj połączenia tylko w opisie dla czytnika
+            val seen = k.lastSeenAt(c.id)?.let { ts -> val hm = java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(ts))
+                when (daysAgo(ts)) { 0L -> t("widziano dzisiaj o ", "last seen today at ") + hm; 1L -> t("widziano wczoraj o ", "last seen yesterday at ") + hm
+                    in 2L..6L -> t("widziano ", "last seen ") + java.text.SimpleDateFormat("EEEE", Locale.getDefault()).format(java.util.Date(ts)) + t(" o ", " at ") + hm
+                    else -> t("widziano ", "last seen ") + java.text.SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(java.util.Date(ts)) + t(" o ", " at ") + hm } }
+            tSub.text = if (on) t("w sieci", "online") else seen ?: t("poza siecią", "offline")
             tSub.setTextColor(if (on) green else Color.GRAY)
-            title.contentDescription = c.name + ", " + tSub.text + if (on) "" else ", " + t("wiadomości dojdą, gdy wróci", "messages arrive when back")
+            title.contentDescription = c.name + ", " + tSub.text + (if (on) ", " + (if (k.viaInternet(c.id)) t("przez internet", "over the internet") else t("w sieci domowej", "on the home network")) else ", " + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
         }
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back)
             addView(avatar(c, !c.isGroup && k.online(c.id)))   // 🖼 zdjęcie profilowe rozmówcy (bez zdjęcia - litera)

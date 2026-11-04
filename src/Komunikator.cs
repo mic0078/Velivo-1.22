@@ -667,7 +667,7 @@ namespace Velivo
             void Reply()
             {
                 var t = reply.Text.Trim(); if (t.Length == 0) return;
-                KomSend(c, t); _komUnread.Remove(c.Id); KomSave(); _komRefresh?.Invoke(); w.Close();
+                KomSailSound(); KomSend(c, t); _komUnread.Remove(c.Id); KomSave(); _komRefresh?.Invoke(); w.Close();
             }
             send.Click += (s, e) => Reply();
             like.Click += (s, e) => { reply.Text = "👍"; Reply(); };
@@ -773,6 +773,37 @@ namespace Velivo
             return new Viewbox { Width = size, Height = size, Child = c };
         }
 
+        // ⛵ dźwięk wysłania (jak w Komunikatorze na telefonie): Velivo – łac. velivolus, „lecący na żaglach” - krótki, miękki powiew wiatru w żaglu
+        // z lekko wznoszącym się tonem; liczony raz w programie (bez pliku), odtwarzany w tle (głośność – mikser Windows)
+        static byte[] _komSail;
+        void KomSailSound()
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var wav = _komSail ??= KomSailWav();
+                    using var ms = new MemoryStream(wav); using var sp = new System.Media.SoundPlayer(ms); sp.PlaySync();
+                }
+                catch (Exception) { }
+            });
+        }
+        static byte[] KomSailWav()
+        {
+            const int rate = 44100; int n = rate * 26 / 100; var rnd = new Random(7); double lp = 0, lp2 = 0, ph = 0;
+            using var ms = new MemoryStream(); using var bw = new BinaryWriter(ms);
+            bw.Write(Encoding.ASCII.GetBytes("RIFF")); bw.Write(36 + n * 2); bw.Write(Encoding.ASCII.GetBytes("WAVEfmt ")); bw.Write(16); bw.Write((short)1); bw.Write((short)1);
+            bw.Write(rate); bw.Write(rate * 2); bw.Write((short)2); bw.Write((short)16); bw.Write(Encoding.ASCII.GetBytes("data")); bw.Write(n * 2);
+            for (int i = 0; i < n; i++)
+            {
+                double x = (double)i / n, env = Math.Pow(Math.Sin(Math.PI * Math.Pow(x, 0.7)), 2), cut = 0.04 + 0.10 * x;
+                double g = Math.Sqrt(-2 * Math.Log(1 - rnd.NextDouble())) * Math.Cos(2 * Math.PI * rnd.NextDouble());   // szum (rozkład normalny)
+                lp += cut * (g - lp); lp2 += cut * (lp - lp2);
+                ph += 2 * Math.PI * (520 + 380 * x * x) / rate;   // ton żagla 520 → 900 Hz
+                bw.Write((short)Math.Clamp((lp2 * 2.2 * env + Math.Sin(ph) * 0.22 * Math.Sin(Math.PI * x) * env) * 9000, -32000, 32000));
+            }
+            bw.Flush(); return ms.ToArray();
+        }
         void KomSend(KomContact c, string text)
         {
             var m = new KomMsg { Mine = true, Text = text.Length > 4000 ? text.Substring(0, 4000) : text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") };
@@ -2175,7 +2206,7 @@ namespace Velivo
             {
                 var c = Current(); var text = input.Text.Trim();
                 if (c == null || text.Length == 0) return;
-                input.Clear(); KomSend(c, (replyTo != null ? KomQuote(replyTo) : "") + text); replyTo = null; replyBar.Visibility = Visibility.Collapsed; FillList(); FillChat();
+                input.Clear(); KomSailSound(); KomSend(c, (replyTo != null ? KomQuote(replyTo) : "") + text); replyTo = null; replyBar.Visibility = Visibility.Collapsed; FillList(); FillChat();
             }
             sendBtn.Click += (s, e) => DoSend();
             // ☑ zaznaczone wiadomości
@@ -2902,7 +2933,7 @@ namespace Velivo
                 sv.ScrollToEnd();
                 if (d.IsActive) { if (_komUnread.Remove(c.Id)) { KomSave(); KomTrayUpdate(); _komRefresh?.Invoke(); } KomSendRead(c); }
             }
-            void Send() { var t = box.Text.Trim(); if (t.Length == 0) return; box.Clear(); KomSend(c, t); Fill(); _komRefresh?.Invoke(); box.Focus(); }
+            void Send() { var t = box.Text.Trim(); if (t.Length == 0) return; box.Clear(); KomSailSound(); KomSend(c, t); Fill(); _komRefresh?.Invoke(); box.Focus(); }
             async Task Files(string[] files)
             {
                 if (files == null) { var dlg = new Microsoft.Win32.OpenFileDialog { Title = "📎 " + c.Name, Multiselect = true }; if (dlg.ShowDialog(d) != true) return; files = dlg.FileNames; }
@@ -3237,6 +3268,7 @@ namespace Velivo
                 if (dlg.ShowDialog(owner) != true) return;
                 files = dlg.FileNames;
             }
+            if (to != null && files.Length > 0) KomSailSound();
             foreach (var f in files)
             {
                 Window codeWin = null;

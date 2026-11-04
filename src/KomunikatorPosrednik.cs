@@ -230,7 +230,21 @@ namespace Velivo
                     await st.FlushAsync(cts.Token); await ReadExactAsync(st, new byte[32], 32, cts.Token);
                 }
                 catch (Exception) { }
+            // 🔗 moje serwery poza tą siecią domową - ta sama kopia tunelem przez internet (do samego serwera)
+            if (_komRelayListener != null)
+                foreach (var peer in KomMyServers().Where(c => !KomLanPeer(c.Id)))
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
+                        using var fs = await KomRelayConnect(peer, "tunnel", null, peer.Id, cts.Token); if (fs == null) continue;
+                        await KomWriteBlock(fs, File.ReadAllBytes(f + ".hdr"), cts.Token);
+                        var b = new byte[1]; if (!await ReadExactAsync(fs, b, 1, cts.Token) || b[0] != 1) continue;
+                        using (var fi = File.OpenRead(f + ".bin")) await fi.CopyToAsync(fs, 1 << 16, cts.Token);
+                        await fs.FlushAsync(cts.Token); await ReadExactAsync(fs, new byte[32], 32, cts.Token);
+                    }
+                    catch (Exception) { }
         }
+        static readonly AsyncLocal<string> _komTunnelSrv = new AsyncLocal<string>();   // tunel otworzył mój serwer (kopia skrzynki przez internet)
         readonly ConcurrentDictionary<string, bool> _komBoxBusy = new ConcurrentDictionary<string, bool>();
         async Task KomBoxFlush(string id)
         {
@@ -671,7 +685,7 @@ namespace Velivo
                     return;
                 }
                 if (mode == "tunnel-in") { if (_komTunnels.TryRemove(tid, out var w)) { w.TrySetResult(fs); fs = null; } return; }   // strumien odbiera czekajacy tunel
-                if (mode == "tunnel") { await KomRelayTunnel(fs, to, token); return; }
+                if (mode == "tunnel") { if (c.Dom && !string.IsNullOrEmpty(c.Relay)) _komTunnelSrv.Value = id; await KomRelayTunnel(fs, to, token); return; }
                 if (mode == "backup") { await Task.Run(() => KomBackupReceive(fs, c), token); return; }   // ☁ kopia kontaktów i rozmów urządzenia
                 if (mode != "main") return;
 

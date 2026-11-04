@@ -59,4 +59,15 @@ public class KlasterTests
         Assert.NotNull(po.CertOf("nucbox")); Assert.NotNull(po.CertOf("ryzen")); Assert.NotNull(po.Priv);
         Assert.False(a.Merge(KomCluster.FromJson(b.ToJson(false))));   // powtórka - bez duplikatów
     }
+
+    [Fact]
+    public void Diagnostyka_SkrotWiadomosci_TenSamObiekt_TaSamaWartosc()
+    {
+        var a = JsonNode.Parse("{\"t\":\"p2p-msg\",\"id\":\"n\",\"to\":\"m\",\"mid\":\"1\",\"c\":\"QUJD\",\"ts\":5}");
+        var b = JsonNode.Parse("{\"ts\":5,\"c\":\"QUJD\",\"mid\":\"1\",\"to\":\"m\",\"id\":\"n\",\"t\":\"p2p-msg\",\"fwd\":true,\"box\":true}");   // kopia u drugiego serwera
+        Assert.Equal(KomCanon.Sha(a), KomCanon.Sha(b));
+        var c = JsonNode.Parse("{\"t\":\"p2p-msg\",\"id\":\"n\",\"to\":\"m\",\"mid\":\"1\",\"c\":\"QUJE\",\"ts\":5}");   // inna treść (szyfrogram)
+        var d = JsonNode.Parse("{\"t\":\"p2p-msg\",\"id\":\"n\",\"to\":\"x\",\"mid\":\"1\",\"c\":\"QUJD\",\"ts\":5}");   // inny odbiorca (metadane)
+        Assert.NotEqual(KomCanon.Sha(a), KomCanon.Sha(c)); Assert.NotEqual(KomCanon.Sha(a), KomCanon.Sha(d));
+    }
 }

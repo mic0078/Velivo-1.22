@@ -197,7 +197,7 @@ namespace Velivo
         (int msgs, int files, string fp, JsonObject per) KomBoxFingerprint()
         {
             var lines = new List<string>(); var per = new JsonObject();
-            foreach (var kv in _komStore.ToArray()) { List<string> ms; lock (kv.Value) ms = kv.Value.Select(x => (string)x["mid"]).Where(x => x != null).ToList(); foreach (var m in ms) lines.Add("m|" + kv.Key + "|" + m); }
+            foreach (var kv in _komStore.ToArray()) foreach (var (mid, sha) in KomStoreShas(kv.Key)) lines.Add("m|" + kv.Key + "|" + mid + "|" + sha);   // zawartość, nie tylko identyfikator
             try
             {
                 var root = Path.Combine(DataDir, "skrzynka");
@@ -214,9 +214,46 @@ namespace Velivo
             foreach (var g in lines.GroupBy(l => l.Split('|')[1])) per[g.Key] = g.Count(l => l[0] == 'm') + "/" + g.Count(l => l[0] == 'f') + "/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", g))), 0, 4);
             return (lines.Count(l => l[0] == 'm'), lines.Count(l => l[0] == 'f'), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", lines))), 0, 8), per);
         }
+        // wiadomości w skrzynce dla odbiorcy: mid -> SHA-256 kanonicznego zapisanego obiektu (zaszyfrowana treść + metadane)
+        List<(string mid, string sha)> KomStoreShas(string to)
+        {
+            if (!_komStore.TryGetValue(to, out var l)) return new List<(string, string)>();
+            lock (l) return l.Where(x => (string)x["mid"] != null).Select(x => ((string)x["mid"], KomCanon.Sha(x))).ToList();
+        }
+        // różnica w skrzynce u odbiorcy: prośba o listę (mid, skrót) do serwera, odpowiedź porównywana wiadomość po wiadomości
+        void KomFpAsk(string peer, IEnumerable<string> tos, IPAddress addr) => KomSrvReply(new JsonObject { ["t"] = "p2p-fpreq", ["id"] = _komId, ["tos"] = new JsonArray(tos.Select(x => (JsonNode)x).ToArray()) }, addr);
+        void KomFpIn(string from, JsonNode p, IPAddress addr)
+        {
+            if ((string)p["t"] == "p2p-fpreq" && p["tos"] is JsonArray tos)
+            {
+                foreach (var to in tos.Select(x => (string)x).Where(x => x is { Length: 32 }).Take(20))
+                {
+                    var files = new JsonObject();
+                    try { var d = KomBoxDir(to); if (Directory.Exists(d)) foreach (var hdr in Directory.GetFiles(d, "*.hdr")) { var bin = Path.ChangeExtension(hdr, ".bin"); if (File.Exists(bin)) files[Path.GetFileNameWithoutExtension(hdr).Split('-').Last()] = KomShaCached(bin); } } catch (Exception) { }
+                    var ms = new JsonObject(); foreach (var (mid, sha) in KomStoreShas(to).Take(400)) ms[mid] = sha;
+                    KomSrvReply(new JsonObject { ["t"] = "p2p-fprep", ["id"] = _komId, ["to"] = to, ["m"] = ms, ["f"] = files }, addr);
+                }
+                return;
+            }
+            if ((string)p["t"] != "p2p-fprep" || (string)p["to"] is not { Length: 32 } rto) return;
+            var mine = KomStoreShas(rto).ToDictionary(x => x.mid, x => x.sha);
+            var theirs = (p["m"] as JsonObject)?.ToDictionary(kv => kv.Key, kv => (string)kv.Value) ?? new Dictionary<string, string>();
+            var mf = new Dictionary<string, string>();
+            try { var d = KomBoxDir(rto); if (Directory.Exists(d)) foreach (var hdr in Directory.GetFiles(d, "*.hdr")) { var bin = Path.ChangeExtension(hdr, ".bin"); if (File.Exists(bin)) mf[Path.GetFileNameWithoutExtension(hdr).Split('-').Last()] = KomShaCached(bin); } } catch (Exception) { }
+            var tf = (p["f"] as JsonObject)?.ToDictionary(kv => kv.Key, kv => (string)kv.Value) ?? new Dictionary<string, string>();
+            string me = KomSrvTag(_komId), them = KomSrvTag(from), who = KomSrvTag(rto); int n = 0;
+            foreach (var (kind, a, b) in new[] { ("wiadomość", mine, theirs), ("plik", mf, tf) })
+                foreach (var id in a.Keys.Union(b.Keys).OrderBy(x => x, StringComparer.Ordinal))
+                {
+                    a.TryGetValue(id, out var x); b.TryGetValue(id, out var y);
+                    if (x == y) continue; n++;
+                    KomDiag("RÓŻNICA", kind, id, me, them, "dla " + who + ": " + (x == null ? "brak na " + me + ", jest na " + them : y == null ? "jest na " + me + ", brak na " + them : "inna zawartość – " + me + " sha " + x + ", " + them + " sha " + y));
+                }
+            if (n == 0) KomDiag("RÓŻNICA", "skrzynka", "-", me, them, "dla " + who + ": przy sprawdzeniu pozycja po pozycji już zgodne (wiadomość była w drodze)");
+        }
         readonly ConcurrentDictionary<string, (string fp, int same)> _komFpCmp = new ConcurrentDictionary<string, (string, int)>();
         // porównanie z innym serwerem (z jego stanu co minutę): wpis przy zmianie wyniku; różnica liczy się dopiero 3 razy z rzędu (wiadomości w drodze)
-        void KomFpCompare(string peer, JsonObject si)
+        void KomFpCompare(string peer, JsonObject si, IPAddress addr)
         {
             var theirs = (string)si["fp"]; if (theirs == null) return;
             var (m, f, mine, per) = KomBoxFingerprint();
@@ -227,9 +264,10 @@ namespace Velivo
             _komFpCmp[peer] = (state, eq ? 0 : streak);
             if (state == prev.fp || state == "?") return;
             if (eq) { KomDiag("PORÓWNANIE", "skrzynka", mine, KomSrvTag(_komId), KomSrvTag(peer), "ZGODNE – " + m + " wiadomości, " + f + " plików, identyczna zawartość"); return; }
-            var tp = si["fpPer"] as JsonObject; var diff = new List<string>();
+            var tp = si["fpPer"] as JsonObject; var diff = new List<string>(); var diffTo = new List<string>();
             foreach (var k in per.Select(x => x.Key).Union(tp?.Select(x => x.Key) ?? Enumerable.Empty<string>()).Distinct())
-            { var a = (string)per[k] ?? "0/0/-"; var b = (string)tp?[k] ?? "0/0/-"; if (a != b) diff.Add((KomContactById(k)?.Name ?? k.Substring(0, 6)) + " tu " + a + ", tam " + b); }
+            { var a = (string)per[k] ?? "0/0/-"; var b = (string)tp?[k] ?? "0/0/-"; if (a != b) diffTo.Add(k); if (a != b) diff.Add((KomContactById(k)?.Name ?? k.Substring(0, 6)) + " tu " + a + ", tam " + b); }
+            if (diffTo.Count > 0) KomFpAsk(peer, diffTo, addr);
             KomDiag("PORÓWNANIE", "skrzynka", mine + " ≠ " + theirs, KomSrvTag(_komId), KomSrvTag(peer), "RÓŻNE od 3 min – tu " + m + " wiad. / " + f + " plików, tam " + (int?)si["fpM"] + " / " + (int?)si["fpF"] + "; różnice (wiad./pliki/odcisk): " + string.Join("; ", diff));
         }
         // ♻ uzupełnianie po starcie: liczniki replik przyjętych od innych serwerów w pierwszych 15 min
@@ -444,13 +482,14 @@ namespace Velivo
                 return;
             }
             if (_komNetPeer == null) { _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _); }
-            else if (t != "p2p-boxlog" && t != "p2p-srvinfo" && t != "p2p-boxlogclr" && t != "p2p-boxdays" && t != "p2p-boxdone") return;   // łączem serwerów tylko dane serwerów
+            else if (t != "p2p-fpreq" && t != "p2p-fprep" && t != "p2p-boxlog" && t != "p2p-srvinfo" && t != "p2p-boxlogclr" && t != "p2p-boxdays" && t != "p2p-boxdone") return;   // łączem serwerów tylko dane serwerów
             if (t == "p2p-boxlog" && KomFromRelay(addr) && (string)p["line"] is string bl && bl.Length < 1000)
             {   // 📬 wpis dziennika z innego mojego serwera - do wspólnego widoku w Centrum serwera
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
                 return;
             }
-            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); try { KomFpCompare(from, si); } catch (Exception) { } if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
+            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); try { KomFpCompare(from, si, addr); } catch (Exception) { } if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
+            if ((t == "p2p-fpreq" || t == "p2p-fprep") && KomFromRelay(addr)) { try { KomFpIn(from, p, addr); } catch (Exception ex) { App.LogError(ex); } return; }   // 🔬 porównanie pozycja po pozycji
             if (t == "p2p-boxlogclr" && KomFromRelay(addr))
             {   // 🧹 dziennik skrzynki wyczyszczony na innym moim serwerze - tutaj też
                 foreach (var lp in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, lp)); } catch (Exception) { }

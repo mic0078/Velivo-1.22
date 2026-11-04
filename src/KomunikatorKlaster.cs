@@ -12,6 +12,20 @@ namespace Velivo
     // Serwer: własny klucz (ECDSA P-256), identyfikator = skrót klucza publicznego. Certyfikat członkostwa = podpis klastra na
     // {klaster, serwer, klucz publiczny serwera, identyfikator w komunikatorze, czas}. Odwołanie = podpisany wpis {serwer, czas} - wygrywa z certyfikatem.
     // Klasa bez okien i sieci - testowana osobno (KlasterTests).
+    // 🔬 diagnostyka: SHA-256 kanonicznej postaci zapisanego obiektu wiadomości (zaszyfrowana treść + metadane dostarczenia),
+    // bez znaczników transportu między serwerami (fwd, box); klucze w kolejności alfabetycznej - ten sam obiekt = ten sam skrót na każdym serwerze.
+    public static class KomCanon
+    {
+        static readonly HashSet<string> Skip = new HashSet<string> { "fwd", "box" };
+        public static string Sha(JsonNode n) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Write(n, true))));
+        static string Write(JsonNode n, bool top)
+        {
+            if (n is JsonObject o) return "{" + string.Join(",", o.Where(kv => !(top && Skip.Contains(kv.Key))).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => System.Text.Json.JsonSerializer.Serialize(kv.Key) + ":" + Write(kv.Value, false))) + "}";
+            if (n is JsonArray a) return "[" + string.Join(",", a.Select(x => Write(x, false))) + "]";
+            return n == null ? "null" : n.ToJsonString();
+        }
+    }
+
     public sealed class KomCluster
     {
         public string Id;

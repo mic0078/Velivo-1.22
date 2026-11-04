@@ -3252,10 +3252,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 msgs.addView(TextView(a).apply {
                     val tick = if (m.mine) "  \uFFFC" else ""   // znak stanu z ikony Velivo (VStan) zamiast ptaszków
                     // jak WhatsApp: zdjęcie / film - tylko obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - 🎤 i długość
-                    val shown = if (img != null) "" else if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) (if (m.mine && m.heard) "🎧 ▶" else "🎤 ▶") else m.text
+                    val isVoice = m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()
+                    val shown = if (img != null || isVoice) "" else m.text   // 🎤 głosówka: ▶, fala i długość w osobnym układzie (niżej), tu tylko godzina i stan
                     text = android.text.SpannableStringBuilder(shown).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
-                        m.path?.takeIf { lengths.containsKey(it) }?.let { voiceLength(it) }?.let { append(" · $it") }   // 🎤 długość głosówki
                         append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append((k.sendPct[m.mid]?.let { "⬆ $it% · " } ?: "") + fmt.format(java.util.Date(m.ts)) + tick)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp); reakcje - osobny dymek pod spodem
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
@@ -3285,10 +3285,31 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     selectable(this, m)
                 })
-                if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) {   // 🎤 obok głosówki ⏩ szybkość, w trakcie odsłuchu odliczanie (jak WhatsApp)
-                    val bv = msgs.getChildAt(msgs.childCount - 1) as TextView; val lp = bv.layoutParams
-                    voiceViews[m.path!!] = bv; bv.tag = bv.text
-                    msgs.removeView(bv); bv.layoutParams = LinearLayout.LayoutParams(-2, -2)
+                if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) {   // 🎤 głosówka jak WhatsApp: zdjęcie z mikrofonem, ▶, fala z kropką postępu, pod spodem długość (mała) i godzina ze stanem
+                    val vp = m.path!!
+                    val bv = msgs.getChildAt(msgs.childCount - 1) as TextView; val lp = bv.layoutParams; val bub = bv.background
+                    msgs.removeView(bv); bv.background = null; bv.setPadding(0, 0, 0, 0)
+                    val who = if (m.mine) k.myId else c.id
+                    val face = android.widget.FrameLayout(a).apply {
+                        val bmp = voiceFaces.getOrPut(who) { k.photo(who)?.let { decode(it.path, px(48)) } }
+                        addView(if (bmp != null) android.widget.ImageView(a).apply { setImageBitmap(bmp); scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setOval(0, 0, v.width, v.height) } } }
+                            else TextView(a).apply { text = (if (m.mine) "🙂" else c.name.trim().take(1).uppercase().ifEmpty { "?" }); textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.WHITE); background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.HSVToColor(floatArrayOf((who.hashCode() and 0x7fffffff) % 360f, 0.55f, 0.75f))) } },
+                            android.widget.FrameLayout.LayoutParams(px(48), px(48)))
+                        addView(TextView(a).apply { text = if (m.mine && m.heard) "🎧" else "🎤"; textSize = 13f }, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.BOTTOM))
+                        layoutParams = LinearLayout.LayoutParams(px(54), px(52)).apply { rightMargin = px(6) }
+                    }
+                    val fg = if (m.mine) pal().mineFg else ink
+                    val playV = TextView(a).apply { text = "▶"; textSize = 26f * fs; setTextColor(fg); setPadding(px(4), 0, px(8), 0) }
+                    val wave = VoiceWave(a, vp, fg).apply { layoutParams = LinearLayout.LayoutParams(-1, px(26)) }
+                    val durV = TextView(a).apply { text = voiceLength(vp) ?: ""; textSize = 12f * fs; setTextColor(Color.argb(0xC0, Color.red(fg), Color.green(fg), Color.blue(fg))); layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+                    val col = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(px(170), -2)
+                        addView(wave); addView(LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; addView(durV); addView(bv, LinearLayout.LayoutParams(-2, -2)) }) }
+                    val box = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = bub; setPadding(px(8), px(6), px(12), px(4))
+                        addView(face); addView(playV); addView(col)
+                        contentDescription = bv.contentDescription; setOnClickListener { bv.performClick() } }
+                    playV.setOnClickListener { bv.performClick() }
+                    selectable(box, m)
+                    voiceViews[vp] = VoiceUi(durV, playV, wave)
                     val sp = TextView(a).apply {
                         text = "⏩ " + speedText(k.voiceSpeed); textSize = 13f * fs; setTextColor(ink); setPadding(px(10), px(6), px(10), px(6)); background = bg(pal().theirs, 14)
                         contentDescription = t("Szybkość odtwarzania głosówek", "Voice playback speed")
@@ -3296,7 +3317,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     }
                     val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; layoutParams = lp }
                     val gap = LinearLayout.LayoutParams(-2, -2).apply { if (m.mine) rightMargin = px(6) else leftMargin = px(6) }
-                    if (m.mine) { row.addView(sp, gap); row.addView(bv) } else { row.addView(bv); row.addView(sp, gap) }
+                    if (m.mine) { row.addView(sp, gap); row.addView(box) } else { row.addView(box); row.addView(sp, gap) }
                     msgs.addView(row)
                 }
                 // 😀 reakcje jak w WhatsApp: osobny mały dymek pod wiadomością (nie w jej tekście); stuknięcie - kto zareagował
@@ -3724,12 +3745,30 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun nextSpeed() = when (k.voiceSpeed) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }
     private fun speedText(x: Float) = if (x == 1.5f) t("1,5×", "1.5×") else "${x.toInt()}×"
     // ⏳ odliczanie w dymku głosówki: „🎤 ⏸ · 0:04” zamiast „🎤 ▶ · 0:06”; left < 0 - powrót do zwykłego napisu
-    private val voiceViews = HashMap<String, TextView>(); private val voiceTick = Handler(Looper.getMainLooper())
+    private class VoiceUi(val dur: TextView, val play: TextView, val wave: VoiceWave)
+    private val voiceViews = HashMap<String, VoiceUi>(); private val voiceTick = Handler(Looper.getMainLooper())
+    private val voiceFaces = HashMap<String, android.graphics.Bitmap?>()   // zdjęcia przy głosówkach - raz na osobę
     private fun voiceShow(path: String?, left: Long) {
-        val v = voiceViews[path ?: return] ?: return; val o = v.tag as? CharSequence ?: return
-        if (left < 0) { v.text = o; return }
-        val head = "🎤 ▶ · " + (voiceLength(path) ?: return); if (!o.startsWith(head)) return
-        v.text = android.text.SpannableStringBuilder(o).replace(0, head.length, "🎤 ⏸ · " + "%d:%02d".format(Locale.ROOT, left / 60000, left / 1000 % 60))
+        val v = voiceViews[path ?: return] ?: return; val full = voiceLength(path) ?: ""
+        if (left < 0) { v.dur.text = full; v.play.text = "▶"; v.wave.at = 0f; v.wave.invalidate(); return }
+        val tot = full.split(':').let { p -> (p.getOrNull(0)?.toLongOrNull() ?: 0L) * 60000 + (p.getOrNull(1)?.toLongOrNull() ?: 0L) * 1000 }
+        v.dur.text = "%d:%02d".format(Locale.ROOT, left / 60000, left / 1000 % 60); v.play.text = "⏸"
+        v.wave.at = if (tot > 0) (1f - left.toFloat() / tot).coerceIn(0f, 1f) else 0f; v.wave.invalidate()
+    }
+    // 〰 fala głosówki: słupki (wzór stały dla pliku - nie z dźwięku), odsłuchana część jaśniejsza, kropka = miejsce odtwarzania
+    class VoiceWave(ctx: Context, path: String, private val col: Int) : View(ctx) {
+        var at = 0f
+        private val bars = java.util.Random(path.hashCode().toLong()).let { r -> FloatArray(32) { 0.25f + 0.75f * r.nextFloat() } }
+        private val pt = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        override fun onDraw(cv: android.graphics.Canvas) {
+            val w = width.toFloat(); val h = height.toFloat(); val r = h * 0.18f; val x0 = r; val bw = (w - 2 * r) / bars.size
+            for (i in bars.indices) {
+                val x = x0 + i * bw + bw / 2; val bh = bars[i] * h * 0.8f
+                pt.color = if ((i + 0.5f) / bars.size <= at) col else Color.argb(0x80, Color.red(col), Color.green(col), Color.blue(col)); pt.strokeWidth = bw * 0.55f; pt.strokeCap = android.graphics.Paint.Cap.ROUND
+                cv.drawLine(x, (h - bh) / 2, x, (h + bh) / 2, pt)
+            }
+            pt.color = col; cv.drawCircle(x0 + at * (w - 2 * r), h / 2, r, pt)
+        }
     }
     // 🎤 długość głosówki (raz na plik)
     private val lengths: MutableMap<String, String> = java.util.Collections.synchronizedMap(HashMap<String, String>())

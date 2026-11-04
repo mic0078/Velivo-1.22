@@ -90,7 +90,7 @@ open class Start : Activity() {
             Intent.ACTION_SEND -> listOfNotNull(if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else @Suppress("DEPRECATION") i.getParcelableExtra(Intent.EXTRA_STREAM))
             Intent.ACTION_SEND_MULTIPLE -> (if (Build.VERSION.SDK_INT >= 33) i.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java) else @Suppress("DEPRECATION") i.getParcelableArrayListExtra(Intent.EXTRA_STREAM)) ?: emptyList()
             else -> emptyList()
-        }
+        }.ifEmpty { if (i?.action == Intent.ACTION_SEND || i?.action == Intent.ACTION_SEND_MULTIPLE) i.clipData?.let { c -> (0 until c.itemCount).mapNotNull { n -> c.getItemAt(n).uri } } ?: emptyList() else emptyList() }   // WhatsApp i inne aplikacje podają czasem pliki tylko w clipData
         val id = i?.getStringExtra("czat")
         when {
             shared.isNotEmpty() -> okno.sendFiles(shared)

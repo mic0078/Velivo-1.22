@@ -1584,7 +1584,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     // plik do nas od urządzenia w domu (przez pośrednika)
     private fun tunnelIn(relay: Contact, tid: String) {
-        val f = relayConnect(relay, "tunnel-in", tunnel = tid) ?: return
+        // ten sam adres i port co działające połączenie z tym serwerem (np. 443 albo adres domu innego serwera) - zapisany adres serwera bywa poza domem nieosiągalny i plik ze skrzynki dochodził dopiero w domowym Wi-Fi
+        val live = upMore[relay.id] ?: up?.takeIf { upRelay?.id == relay.id }
+        val f = live?.sock?.let { s -> s.inetAddress?.hostAddress?.let { h -> relayConnectPort(relay, h, s.port, 7000, "tunnel-in", tid, null) } } ?: relayConnect(relay, "tunnel-in", tunnel = tid) ?: return
         f.use { runCatching {
             val inp = DataInputStream(f.input)
             val hb = readBlock(inp, 4096) ?: return

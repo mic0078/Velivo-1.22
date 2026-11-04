@@ -141,10 +141,11 @@ namespace Velivo
         HashSet<string> _komEvDone;   // wiadomości już doręczone (przez dowolny mój serwer) - nie wracają do skrzynki
         HashSet<string> KomEvDoneSet { get { if (_komEvDone == null) { var s = new HashSet<string>(); foreach (var e in KomEv.All("done")) if (e["d"] is JsonArray a) foreach (var x in a) if ((string)x is string m) s.Add(m); _komEvDone = s; } return _komEvDone; } }
 
+        readonly HashSet<string> _komEvMsgSeen = new HashSet<string>();   // ta sama wiadomość ponawiana co minutę dawała nowe zdarzenie za każdym razem (170 tys. zdarzeń)
         // wiadomość przyjęta do skrzynki na tym serwerze - zapis i od razu do moich serwerów
         void KomEvMsg(string to, JsonNode p)
         {
-            try { if (_komRelayListener == null || to == null || p == null || Encoding.UTF8.GetByteCount(p.ToJsonString()) > 50000) return; KomEvPush(KomEv.Add("msg", to, p)); } catch (Exception ex) { App.LogError(ex); }
+            try { if (_komRelayListener == null || to == null || p == null || Encoding.UTF8.GetByteCount(p.ToJsonString()) > 50000) return; if ((string)p["mid"] is string mid && !_komEvMsgSeen.Add(mid)) return; KomEvPush(KomEv.Add("msg", to, p)); } catch (Exception ex) { App.LogError(ex); }
         }
         // wiadomości doręczone odbiorcy przez ten serwer - inne serwery kasują swoje kopie
         void KomEvDone(string to, IEnumerable<string> mids)

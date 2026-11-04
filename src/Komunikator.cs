@@ -513,7 +513,13 @@ namespace Velivo
                         if (c == null) return;
                         var mid = (string)p["mid"] ?? "";
                         var mac = KomB64((string)p["mac"]); var exp = KomHmac(c.Key, "ack\n" + mid);
-                        if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) return;
+                        if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp))
+                        {   // potwierdzenie wiadomości wysłanej w imieniu mojego innego serwera (alias) - ✓✓, ale bez „zna ten komputer”
+                            var (aId, aKey) = KomAliasFor(c); if (aId == _komId) return;
+                            var ea = KomHmac(aKey, "ack\n" + mid); if (mac.Length != ea.Length || !CryptographicOperations.FixedTimeEquals(mac, ea)) return;
+                            if (_komAcks.TryGetValue(mid, out var ta)) ta.TrySetResult(true);
+                            return;
+                        }
                         // potwierdzenie podpisane NASZYM kluczem pary = ten kontakt naprawdę zna ten komputer - pliki do niego w moim imieniu; sama obecność (bez podpisu) tego nie dowodzi (mama: „obecna”, a pliki od Ryzena odrzucała)
                         if (_komOpt["knows2"] is not JsonObject kn) _komOpt["knows2"] = kn = new JsonObject();
                         if (kn[c.Id] == null) { kn[c.Id] = true; KomSave(); }
@@ -1090,6 +1096,15 @@ namespace Velivo
             finally { _komInFlight.Remove(m.Mid); }
         }
 
+        // 🔁 nadawca dla odbiorcy, który nie zna tego serwera: mój inny serwer, który teraz działa i który ta osoba zna (klucz z `alias`); inaczej ja
+        (string, byte[]) KomAliasFor(KomContact to)
+        {
+            if (_komRelayListener != null && to != null && !to.Dom && !to.IsGroup && _komOpt["alias"] is JsonObject al && (_komOpt["knows2"] as JsonObject)?[to.Id] == null)
+                foreach (var kv in al.Where(x => x.Key.StartsWith(to.Id + "|") && KomOnline(x.Key.Substring(to.Id.Length + 1))).ToList())
+                    try { if (kv.Value?.GetValue<string>() is string ak && Convert.FromBase64String(ak) is { Length: 32 } k2) return (kv.Key.Substring(to.Id.Length + 1), k2); } catch (Exception) { }
+            return (_komId, to?.Key);
+        }
+
         // najpierw na znany adres, potem do calej sieci; 4 proby co 1,5 s; potem co minute (zegar) i gdy kontakt sie odezwie
         async void KomDeliver(KomContact c, KomMsg m)
         {
@@ -1097,14 +1112,15 @@ namespace Velivo
             try
             {
                 var p = KomPacket("p2p-msg"); p["ts"] = m.Ts; p["to"] = c.Id; p["mid"] = m.Mid;
+                var (asId, mKey) = KomAliasFor(c); p["id"] = asId;   // 🔁 odbiorca zna tylko mój inny serwer (mama: NUCBOX) - wiadomość w jego imieniu, jego kluczem z tą osobą
                 var n = RandomNumberGenerator.GetBytes(12); p["n"] = Convert.ToBase64String(n);
                 var plain = Encoding.UTF8.GetBytes(m.Text); var ct = new byte[plain.Length]; var tag = new byte[16];
-                using (var g = new AesGcm(c.Key, 16)) g.Encrypt(n, plain, ct, tag, KomMsgAd(_komId, c.Id, m.Mid, m.Ts));
+                using (var g = new AesGcm(mKey, 16)) g.Encrypt(n, plain, ct, tag, KomMsgAd(asId, c.Id, m.Mid, m.Ts));
                 p["c"] = Convert.ToBase64String(ct.Concat(tag).ToArray());
                 if (m.Lp != null)
                 {   // 🔗 podgląd linku - zaszyfrowany jak wiadomość (osobne pole: starsze Velivo go pomija)
                     var ln = RandomNumberGenerator.GetBytes(12); var lpl = Encoding.UTF8.GetBytes(m.Lp); var lct = new byte[lpl.Length]; var ltag = new byte[16];
-                    using (var g = new AesGcm(c.Key, 16)) g.Encrypt(ln, lpl, lct, ltag, KomMsgAd(_komId, c.Id, m.Mid, m.Ts).Concat(Encoding.UTF8.GetBytes("\nlp")).ToArray());
+                    using (var g = new AesGcm(mKey, 16)) g.Encrypt(ln, lpl, lct, ltag, KomMsgAd(asId, c.Id, m.Mid, m.Ts).Concat(Encoding.UTF8.GetBytes("\nlp")).ToArray());
                     p["ln"] = Convert.ToBase64String(ln); p["lp"] = Convert.ToBase64String(lct.Concat(ltag).ToArray());
                 }
                 var tcs = new TaskCompletionSource<bool>(); _komAcks[m.Mid] = tcs;

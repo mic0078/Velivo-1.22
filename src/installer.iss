@@ -40,7 +40,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 pl.VelivoRunning=Velivo nadal działa (prawdopodobnie uruchomione jako administrator) i instalator nie może go zamknąć. Zamknij Velivo: ikona przy zegarze → Zakończ (albo Menedżer zadań → Velivo → Zakończ zadanie), potem uruchom instalację ponownie.
 en.VelivoRunning=Velivo is still running (probably started as administrator) and the installer cannot close it. Close Velivo: tray icon → Exit (or Task Manager → Velivo → End task), then run the installation again.
 pl.DesktopIcon=Skrót na pulpicie
-pl.MessengerIcon=Komunikator Velivo na pulpicie (rozmowy w domu i przez internet)
+pl.MessengerIcon=Skrót Komunikatora Velivo na pulpicie
 pl.Addons=Dodatki (opcjonalne):
 en.Addons=Add-ons (optional):
 pl.VideoPlayer=Odtwarzacz filmów jak VLC – AVI, MKV, WMV i inne formaty, biblioteka filmów (pobiera ok. 145 MB z oficjalnej paczki VideoLAN; można go później odinstalować w Velivo)
@@ -52,7 +52,11 @@ en.VideoPlayerFailed=Could not download the video player:%n%1%n%nVelivo will be 
 pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo działa bez niego. Uruchom instalator ponownie, aby spróbować jeszcze raz.
 en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
-en.MessengerIcon=Velivo messenger on the desktop (chats at home and over the internet)
+en.MessengerIcon=Velivo Messenger desktop shortcut
+pl.Network=Sieć:
+en.Network=Network:
+pl.Firewall=Otwórz porty Velivo w zaporze Windows (polecane) – bez tego rozmowy, pliki i serwer nie działają przez internet ani między komputerami. Windows zapyta raz – kliknij „Tak”.
+en.Firewall=Open Velivo ports in Windows Firewall (recommended) – without it chats, files and the server do not work over the internet or between computers. Windows will ask once – click "Yes".
 pl.Shortcuts=Skróty:
 en.Shortcuts=Shortcuts:
 pl.RunApp=Uruchom %1
@@ -85,6 +89,7 @@ en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included i
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
 Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{cm:Shortcuts}"
+Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
 ; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
 ; telewizja IPTV - osobny modul na odtwarzaczu filmow (bez wlasnego pobierania)
@@ -356,7 +361,7 @@ begin
   // jezyk wybrany w instalatorze = jezyk programu (Velivo czyta go, gdy w ustawieniach jest "automatycznie")
   if CurStep = ssPostInstall then
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);
-  if (CurStep = ssPostInstall) and not WizardSilent then
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('firewall') then
     OpenFirewall(ExpandConstant('{app}\Velivo.exe'));
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then
     InstallVlc;

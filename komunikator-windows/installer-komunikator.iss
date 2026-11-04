@@ -1,4 +1,4 @@
-; Instalator „Velivo Komunikator” (Windows) - samodzielny program: rozmowy, pliki, rozmowy wideo i serwer (pośrednik), bez przeglądarki Velivo.
+﻿; Instalator „Velivo Komunikator” (Windows) - samodzielny program: rozmowy, pliki, rozmowy wideo i serwer (pośrednik), bez przeglądarki Velivo.
 ; Kompilacja: ISCC.exe installer-komunikator.iss (po dotnet publish do ..\build\komunikator)
 #define AppName "Velivo Komunikator"
 #define AppVer "1.22"
@@ -36,6 +36,10 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 pl.DesktopIcon=Skrót na pulpicie
 en.DesktopIcon=Desktop shortcut
+pl.Network=Sieć:
+en.Network=Network:
+pl.Firewall=Otwórz porty Velivo w zaporze Windows (polecane) – bez tego rozmowy i pliki nie działają przez internet ani między komputerami. Windows zapyta raz – kliknij „Tak”.
+en.Firewall=Open Velivo ports in Windows Firewall (recommended) – without it chats and files do not work over the internet or between computers. Windows will ask once – click "Yes".
 pl.RunApp=Uruchom Velivo Komunikator
 en.RunApp=Launch Velivo Komunikator
 pl.GetWebView=Pobieranie Microsoft Edge WebView2 (rozmowy wideo)…
@@ -45,6 +49,7 @@ en.StillRunning=Velivo Komunikator is still running and the installer cannot clo
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"
+Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
 
 [Files]
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -117,6 +122,6 @@ begin
   if CurStep = ssPostInstall then
   begin
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);   // język wybrany w instalatorze
-    if not WizardSilent then OpenFirewall(ExpandConstant('{app}\VelivoKomunikator.exe'));
+    if WizardIsTaskSelected('firewall') then OpenFirewall(ExpandConstant('{app}\VelivoKomunikator.exe'));
   end;
 end;

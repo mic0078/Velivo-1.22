@@ -224,7 +224,8 @@ namespace Velivo
             bool ok;
             try { lock (_komClLock) ok = _komCl != null && p["cert"] is JsonObject cert && _komCl.CheckProof(cert, peerId, _komId, Convert.FromBase64String((string)p["proof"] ?? "")) && _komCl.CertOf(peerId) != null; }
             catch (Exception) { ok = false; }
-            if (ok) _komLinkOk[peerId] = true; else _komLinkOk.TryRemove(peerId, out _);
+            if (ok) { if (_komLinkOk.TryAdd(peerId, true)) App.LogInfo("Serwery: " + (KomContactById(peerId)?.Name ?? peerId) + " – certyfikat sprawdzony, łącze serwerów aktywne"); }
+            else { _komLinkOk.TryRemove(peerId, out _); var rk = "srvid" + peerId; if (!_komRejLog.TryGetValue(rk, out var ra) || DateTime.UtcNow - ra > TimeSpan.FromMinutes(30)) { _komRejLog[rk] = DateTime.UtcNow; App.LogInfo("Serwery: " + (KomContactById(peerId)?.Name ?? peerId) + " – odrzucono: brak ważnego certyfikatu mojej infrastruktury (nie dołączony albo odłączony)"); } }
             return ok;
         }
 

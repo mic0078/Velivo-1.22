@@ -1768,6 +1768,7 @@ namespace Velivo
             public object Convert(object v, Type t, object p, System.Globalization.CultureInfo c)
             {
                 var x = (v as string ?? "").ToLowerInvariant();
+                if (x.Contains("ręcznie")) return AdmB(0x9aa4bd);   // usunięte przez właściciela (Usuń zaznaczone / wyczyść) - zwykła czynność, nie błąd: szare, nie czerwone
                 if (Bad.Any(x.Contains)) return AdmB(0xf87171);
                 if (Wait.Any(x.Contains)) return AdmB(0xfbbf24);
                 if (Dim.Any(x.Contains)) return AdmB(0x8b93a7);   // poza siecią - szary, jak w makiecie

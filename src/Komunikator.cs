@@ -588,6 +588,7 @@ namespace Velivo
             if (text.StartsWith(KomRestoreTag, StringComparison.Ordinal)) return;   // ♻ starsza wersja (kod odzyskiwania) - kopia idzie teraz osobnym połączeniem
             if (text.StartsWith(KomForgetTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomForget(text.Substring(KomForgetTag.Length).Trim(), false); return; }   // 🗑 kontakt usunięty na moim drugim serwerze
             if (text.StartsWith(KomAcctTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomAcctIn(text.Substring(KomAcctTag.Length)); return; }   // 📝 konta z mojego drugiego serwera - jedna baza
+            if (text.StartsWith(KomClTag, StringComparison.Ordinal)) { KomClIn(c, text.Substring(KomClTag.Length)); return; }   // 🏛 infrastruktura moich serwerów (członkostwo)
             if (text.StartsWith(KomSekTag, StringComparison.Ordinal)) { if (c.Dom) KomSekIn(c, text.Substring(KomSekTag.Length)); return; }   // 🔑 wspólny sekret przedstawiania moich serwerów
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomDelTag, StringComparison.Ordinal)) { KomDelIn(c, text.Substring(KomDelTag.Length)); return; }   // 🚫 nadawca usunął wiadomość u wszystkich
@@ -1152,7 +1153,7 @@ namespace Velivo
             {
                 _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
                 // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
-                if (_komRelayListener != null) { KomBoxDoneRepeat(); KomBoxExpire(); KomSrvInfoSend(); KomEvHave(); _ = Task.Run(KomTakeover); KomPeerLinks(); Dispatcher.BeginInvoke(new Action(KomSrvAsk)); }
+                if (_komRelayListener != null) { KomBoxDoneRepeat(); KomBoxExpire(); KomSrvInfoSend(); KomEvHave(); _ = Task.Run(KomTakeover); KomPeerLinks(); Dispatcher.BeginInvoke(new Action(KomSrvAsk)); KomClTick(); }
                 // 📬 odbiorca połączony z innym moim serwerem (mama z NUCBOX) - czekające tu wiadomości idą do tamtego serwera; on doręcza i odsyła „doręczone”, kopia tu znika
                 if (_komRelayListener != null) foreach (var kv in _komStore.ToArray()) if (!_komRemote.ContainsKey(kv.Key) && KomPeerWith(kv.Key) != null) { List<System.Text.Json.Nodes.JsonNode> sq; lock (kv.Value) sq = kv.Value.ToList(); foreach (var q in sq) KomBoxPeers(KomFwd(q)); }
                 if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id);
@@ -1901,6 +1902,7 @@ namespace Velivo
                     var clrKeep = new MenuItem { Header = L.T("Wyczyść – pliki zostają na dysku") }; clrKeep.Click += (s, e) => KomClearChat(w, c, false);
                     var clrDel = new MenuItem { Header = L.T("Wyczyść i usuń pliki z dysku") }; clrDel.Click += (s, e) => KomClearChat(w, c, true);
                     clr.Items.Add(clrKeep); clr.Items.Add(clrDel);
+                    if (KomIsMember(c.Id)) { var odl = new MenuItem { Header = "⛔ " + L.T("Odłącz od moich serwerów…"), ToolTip = L.T("Ten serwer przestanie dostawać Twoje dane; pozostałe serwery dostaną nowy klucz") }; odl.Click += (s, e) => { if (MessageBox.Show(w, L.T("Odłączyć ") + c.Name + L.T(" od Twoich serwerów?\n\nPrzestanie dostawać Twoje wiadomości, pliki i kontakty. Zostanie zwykłym kontaktem."), L.T("Odłącz serwer"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) KomClRevoke(c); }; cm.Items.Add(odl); }
                     cm.Items.Add(med); cm.Items.Add(clr); cm.Items.Add(del); item.ContextMenu = cm;
                     list.Items.Add(item);
                     if (c.Id == sel) item.IsSelected = true;

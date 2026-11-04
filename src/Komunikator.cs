@@ -1106,7 +1106,7 @@ namespace Velivo
         (string, byte[]) KomAliasFor(KomContact to)
         {
             if (_komRelayListener != null && to != null && !to.Dom && !to.IsGroup && _komOpt["alias"] is JsonObject al && (_komOpt["knows2"] as JsonObject)?[to.Id] == null)
-                foreach (var kv in al.Where(x => x.Key.StartsWith(to.Id + "|") && KomOnline(x.Key.Substring(to.Id.Length + 1))).ToList())
+                foreach (var kv in al.Where(x => x.Key.StartsWith(to.Id + "|")).OrderBy(x => KomOnline(x.Key.Substring(to.Id.Length + 1)) ? 0 : 1).ToList())   // najpierw serwer, który działa; wyłączony też (mama zna tylko NUCBOX - przy wyłączonym NUCBOX inny serwer pisze w jego imieniu)
                     try { if (kv.Value?.GetValue<string>() is string ak && Convert.FromBase64String(ak) is { Length: 32 } k2) return (kv.Key.Substring(to.Id.Length + 1), k2); } catch (Exception) { }
             return (_komId, to?.Key);
         }
@@ -1501,7 +1501,7 @@ namespace Velivo
                         string asId = _komId; var fileKey = to?.Key;
                         // tylko gdy odbiorca NIE zna tego komputera (nigdy nie przysłał nic naszym kluczem); najpierw serwer, który działa - inaczej plik z Ryzena szedł do Motoroli jako „od CHUWI” (wyłączonego)
                         if (box && to != null && !to.Dom && group == null && _komOpt["alias"] is JsonObject al && (_komOpt["knows2"] as JsonObject)?[to.Id] == null)
-                            foreach (var kv in al.Where(x => KomOnline(x.Key.Substring(x.Key.IndexOf('|') + 1))).ToList()) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)   // tylko serwer, który teraz działa - wyłączony (CHUWI, HP) nigdy jako nadawca
+                            foreach (var kv in al.OrderBy(x => KomOnline(x.Key.Substring(x.Key.IndexOf('|') + 1)) ? 0 : 1).ToList()) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)   // tylko serwer, który teraz działa - wyłączony (CHUWI, HP) nigdy jako nadawca
                                 try { var k2 = Convert.FromBase64String(ak); if (k2.Length == 32) { asId = kv.Key.Substring(to.Id.Length + 1); fileKey = k2; break; } } catch (Exception) { }
                         var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = asId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;

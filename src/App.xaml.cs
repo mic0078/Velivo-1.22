@@ -133,10 +133,12 @@ namespace Velivo
             }
             Velivo.MainWindow.ApplyPendingRestore();   // przywracanie kopii danych - zanim cokolwiek otworzy pliki
             var urls = args.Where(a => a.Length > 0).Select(Velivo.MainWindow.ArgToUrl).ToArray();
-            // Velivo juz dziala: oddaj mu adresy (otworzy je w nowych kartach) i zakoncz.
-            // Gdyby przekazanie sie nie udalo, otwieramy normalnie drugie okno.
-            if (!Velivo.MainWindow.TryBecomePrimary() && Velivo.MainWindow.SendToPrimary(kbdOnly ? new[] { "--klawiatura" } : chatOnly ? new[] { "--komunikator" } : urls))
+            // Velivo juz dziala: oddaj mu adresy (otworzy je w nowych kartach) i zakoncz - nigdy drugie Velivo
+            // (pierwsze przyjmuje adresy dopiero po wczytaniu kart; dawniej nieudane przekazanie w tym czasie otwieralo drugie okno: dwa serwery, dwie synchronizacje)
+            if (!Velivo.MainWindow.TryBecomePrimary())
             {
+                var fwd = kbdOnly ? new[] { "--klawiatura" } : chatOnly ? new[] { "--komunikator" } : urls;
+                for (int i = 0; i < 20 && !Velivo.MainWindow.SendToPrimary(fwd); i++) System.Threading.Thread.Sleep(1000);   // do ~80 s (3 s na probe + 1 s)
                 Shutdown();
                 return;
             }

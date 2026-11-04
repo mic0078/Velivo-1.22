@@ -124,8 +124,27 @@ async function media() {
   try { return await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
   catch (e) { return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
 }
+// 🔔 dźwięki rozmowy (jak w innych komunikatorach, w stylu Velivo – miękkie, jak wiatr w żaglach): sygnał oczekiwania u dzwoniącego (dwa łagodne tony co 2,6 s),
+// krótki sygnał „połączono” i opadający „koniec rozmowy”; Web Audio, bez plików, cicho (nie zagłusza rozmowy)
+let ac = null, ringT = null;
+function tone(f1, f2, t0, dur, vol) {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume();
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + t0; o.type = 'sine';
+    o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.05); } catch (e) { }
+}
+function ringback(on) {
+  if (ringT) { clearInterval(ringT); ringT = null; }
+  if (!on) return;
+  const ring = () => { tone(587, 600, 0, 0.55, 0.12); tone(880, 900, 0.32, 0.7, 0.10); };   // D5 → A5, łagodnie
+  ring(); ringT = setInterval(ring, 2600);
+}
+const soundOk = () => { tone(660, 990, 0, 0.18, 0.10); tone(990, 1320, 0.14, 0.22, 0.08); };   // połączono – wznoszące
+const soundEnd = () => { tone(740, 520, 0, 0.30, 0.10); tone(520, 330, 0.22, 0.45, 0.09); };   // koniec – opadające
 async function start() {
   status(caller ? T('Dzwonię…', 'Calling…') : T('Łączę…', 'Connecting…'));
+  if (caller) ringback(true);
   // bez kamery i mikrofonu (np. komputer stacjonarny) - rozmowa tylko w odbiorze; ekran 🖥 nadal można pokazać
   try { local = await media(); } catch (e) { local = new MediaStream(); status(T('Bez kamery i mikrofonu – tylko odbiór (ekran możesz pokazać 🖥)', 'No camera or microphone – receive only (you can still share the screen 🖥)')); }
   me.srcObject = local;
@@ -146,7 +165,7 @@ async function start() {
   pc.onicecandidate = e => { if (e.candidate) out({ k: 'ice', c: e.candidate.toJSON() }); };
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
-    if (s === 'connected') { connected = true; status(pomoc ? T('🖥 Pomoc zdalna – pokaż swój ekran albo poproś rozmówcę: ⇄ Zamień strony', '🖥 Remote help – share your screen or ask the other person: ⇄ Swap sides') : ''); }
+    if (s === 'connected') { if (!connected) { ringback(false); soundOk(); } connected = true; status(pomoc ? T('🖥 Pomoc zdalna – pokaż swój ekran albo poproś rozmówcę: ⇄ Zamień strony', '🖥 Remote help – share your screen or ask the other person: ⇄ Swap sides') : ''); }
     else if (s === 'disconnected') status(T('Słabe połączenie…', 'Weak connection…'));
     else if (s === 'failed') { status(T('Nie udało się połączyć', 'Could not connect')); hang(); }
   };
@@ -158,13 +177,13 @@ window.onSig = async function (o) {
   if (typeof o === 'string') o = JSON.parse(o);
   if (done) return;
   try {
-    if (o.k === 'accept' && caller && pc) { status(T('Łączę…', 'Connecting…')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
+    if (o.k === 'accept' && caller && pc) { ringback(false); status(T('Łączę…', 'Connecting…')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
     else if (o.k === 'offer' && pc) { await pc.setRemoteDescription({ type: 'offer', sdp: o.sdp }); flush();
       pc.getTransceivers().forEach(t => { if (t.receiver.track && t.receiver.track.kind === 'video' && !t.sender.track && t.direction === 'recvonly') { t.direction = 'sendrecv'; if (t.sender.setStreams) t.sender.setStreams(local); } });   // bez kamery - miejsce na obraz ekranu
       const an = await pc.createAnswer(); await pc.setLocalDescription(an); out({ k: 'answer', sdp: an.sdp }); }
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
-    else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
+    else if (o.k === 'reject' || o.k === 'busy') { ringback(false); status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
     else if (o.k === 'ctl-blocked') dsend({ k: 'ctl-blocked' });   // Windows nie pozwala klikać okna administratora - powiedz pomagającemu
     else if (o.k === 'ctl-answer') { if (o.id === 'swap') swapYes(o.yes); else ctlYes(o.yes); }
     else if (o.k === 'ctl-stop') ctlOff();
@@ -182,7 +201,7 @@ cc.onclick = () => {
 };
 window.capText = (t, fin) => dsend({ k: 'cap', t, f: fin });
 window.capFail = () => dsend({ k: 'cap-no' });
-function finish() { if (done) return; if (window.velivo && velivo.captions) velivo.captions(false); ctlOff(); if (phoneScr) velivo.screen(false); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
+function finish() { if (done) return; ringback(false); soundEnd(); if (window.velivo && velivo.captions) velivo.captions(false); ctlOff(); if (phoneScr) velivo.screen(false); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
 function hang() { if (done) return; out({ k: 'end' }); finish(); }
 window.hang = hang;
 end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };

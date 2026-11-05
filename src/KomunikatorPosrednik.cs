@@ -1898,7 +1898,14 @@ namespace Velivo
             var hb = new FrameworkElementFactory(typeof(Border)); hb.SetValue(Border.BackgroundProperty, AdmB(0x232b42)); hb.SetValue(Border.BorderBrushProperty, AdmB(0x34405e));
             hb.SetValue(Border.BorderThicknessProperty, new Thickness(0, 0, 1, 1)); hb.SetValue(Border.PaddingProperty, new Thickness(8, 6, 8, 6));
             var hc = new FrameworkElementFactory(typeof(ContentPresenter)); hc.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left); hb.AppendChild(hc);
-            var hs = new Style(typeof(GridViewColumnHeader)); hs.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(GridViewColumnHeader)) { VisualTree = hb }));
+            // ↔ uchwyt na prawej krawędzi nagłówka (PART_HeaderGripper) - bez niego kolumn nie dało się poszerzać
+            var hg = new FrameworkElementFactory(typeof(Grid)); hg.AppendChild(hb);
+            var gt = new FrameworkElementFactory(typeof(Border)); gt.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            var grip = new FrameworkElementFactory(typeof(System.Windows.Controls.Primitives.Thumb), "PART_HeaderGripper");
+            grip.SetValue(FrameworkElement.WidthProperty, 8.0); grip.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right); grip.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, -4, 0));
+            grip.SetValue(FrameworkElement.CursorProperty, System.Windows.Input.Cursors.SizeWE); grip.SetValue(Control.TemplateProperty, new ControlTemplate(typeof(System.Windows.Controls.Primitives.Thumb)) { VisualTree = gt });
+            hg.AppendChild(grip);
+            var hs = new Style(typeof(GridViewColumnHeader)); hs.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(GridViewColumnHeader)) { VisualTree = hg }));
             hs.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White)); hs.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
             gv.ColumnHeaderContainerStyle = hs;
             lv.ItemContainerStyle = rowStyle;
@@ -2391,9 +2398,14 @@ namespace Velivo
                 foreach (var kv in _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)))
                     if (((string)kv.Value.Info["ver"] ?? "").Split(' ')[0] != KomBuild.Split(' ')[0] || ((string)kv.Value.Info["ver"] ?? "").Length > 0 && (string)kv.Value.Info["ver"] != KomBuild && false)
                         ps.Add(("🖥 " + L.T("Serwer ") + ((string)kv.Value.Info["name"] ?? "?") + L.T(" ma inną wersję Velivo (") + (string)kv.Value.Info["ver"] + L.T(") – zaktualizuj, by działały te same funkcje"), new (string, Action)[] { (L.T("Serwery"), () => tabs.SelectedIndex = 1) }));
+                foreach (var c in _komContacts.Where(x => !x.IsGroup && x.Dom && !string.IsNullOrEmpty(x.Relay) && x.Id != _komId && KomClMine(x.Id) && !KomIsMember(x.Id)).ToList())
+                {   // ja powiedziałem „Tak”, tamten serwer jeszcze nie - widać, na kogo czekamy
+                    var cc = c;
+                    ps.Add(("🤝 " + L.T("Czekam na zgodę serwera ") + c.Name + L.T(" – otwórz panel NA TAMTYM serwerze i odpowiedz „Tak, to mój serwer” (ten serwer już się zgodził)."), new (string, Action)[] { (L.T("Wyślij pytanie ponownie"), () => { KomClApprove(cc); All(); }) }));
+                }
                 foreach (var c in KomMyServers().Where(c => !KomLanPeer(c.Id) && !_komLinkOk.ContainsKey(c.Id)))
                     ps.Add(("🔗 " + L.T("Brak połączenia z moim serwerem ") + c.Name + L.T(" (ani w domu, ani przez internet) – wyłączony albo bez dostępu"), new (string, Action)[] { (L.T("Infrastruktura"), () => tabs.SelectedIndex = 7) }));
-                foreach (var c in _komContacts.Where(x => !x.IsGroup && x.Id != _komId && !KomIsMember(x.Id) && !KomClMine(x.Id) && (_komOpt["srvNo"] as JsonArray)?.Any(n => (string)n == x.Id) != true && _komSrvAt.TryGetValue(x.Id, out var sa) && sa != DateTime.MinValue && DateTime.UtcNow - sa < TimeSpan.FromMinutes(10)).ToList())
+                foreach (var c in _komContacts.Where(x => !x.IsGroup && x.Id != _komId && !KomIsMember(x.Id) && !KomClMine(x.Id) && (_komOpt["srvNo"] as JsonArray)?.Any(n => (string)n == x.Id) != true && ((x.Dom && !string.IsNullOrEmpty(x.Relay)) || (_komSrvAt.TryGetValue(x.Id, out var sa) && sa != DateTime.MinValue && DateTime.UtcNow - sa < TimeSpan.FromMinutes(10)))).ToList())   // mój serwer z domu (np. NUCBOX ↔ Ryzen) - pytanie zawsze widoczne, póki nie są jedną infrastrukturą
                 {
                     var cc = c;
                     ps.Add(("🖥 " + L.T("Serwer Velivo ") + c.Name + L.T(" działa, ale nie należy do Twoich serwerów"), new (string, Action)[] { (L.T("To mój serwer"), () => { KomClApprove(cc); All(); }), (L.T("Nie (znajomy)"), () => { KomClAdd(_komOpt, "srvNo", cc.Id); KomSave(); All(); }) }));

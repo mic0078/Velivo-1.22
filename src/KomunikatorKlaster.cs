@@ -419,12 +419,21 @@ namespace Velivo
         }
         // 🔐 jeden administrator dla wszystkich serwerów: skrót hasła (z solą) i lista kluczy sprzętowych idą do członków infrastruktury
         // (szyfrowanym kanałem pary, razem ze stanem infrastruktury); wygrywa nowsza zmiana - także po powrocie serwera po braku prądu
-        JsonObject KomAdmCredOut() => new JsonObject { ["pass"] = _komOpt["admPass"]?.DeepClone(), ["keys"] = _komOpt["klucze"]?.DeepClone(), ["keysAt"] = (long?)_komOpt["kluczeAt"] ?? 0, ["logout"] = (long?)_komOpt["admLogout"] ?? 0 };
+        JsonObject KomAdmCredOut() => new JsonObject { ["pass"] = _komOpt["admPass"]?.DeepClone(), ["keys"] = _komOpt["klucze"]?.DeepClone(), ["keysDel"] = _komOpt["kluczeDel"]?.DeepClone(), ["keysAt"] = (long?)_komOpt["kluczeAt"] ?? 0, ["logout"] = (long?)_komOpt["admLogout"] ?? 0 };
         void KomAdmCredIn(JsonObject a)
         {
             bool ch = false;
             if (a["pass"] is JsonObject pp && ((long?)pp["at"] ?? 0) > ((long?)(_komOpt["admPass"] as JsonObject)?["at"] ?? 0)) { _komOpt["admPass"] = pp.DeepClone(); ch = true; }
-            if (a["keys"] is JsonArray ka && ((long?)a["keysAt"] ?? 0) > ((long?)_komOpt["kluczeAt"] ?? 0)) { _komOpt["klucze"] = ka.DeepClone(); _komOpt["kluczeAt"] = (long?)a["keysAt"]; _komOpt["kluczeH"] = KomKeysHash(); ch = true; }
+            // 🔑 klucze sprzętowe administratora: SUMA kluczy wszystkich moich serwerów (klucz dodany na Ryzenie i klucz dodany na NUCBOX - oba ważne wszędzie);
+            // usunięty klucz (lista kluczeDel) znika na wszystkich i nie wraca przy wymianie. Wcześniej „nowsza lista wygrywa” - klucz jednego serwera kasował klucz drugiego.
+            if (_komOpt["kluczeDel"] is not JsonArray del) _komOpt["kluczeDel"] = del = new JsonArray();
+            var dset = del.Select(x => (string)x).Where(x => x != null).ToHashSet();
+            if (a["keysDel"] is JsonArray kd) foreach (var x in kd) if ((string)x is string di && dset.Add(di)) { del.Add(di); ch = true; }
+            if (_komOpt["klucze"] is not JsonArray mine) _komOpt["klucze"] = mine = new JsonArray();
+            foreach (var x in mine.Where(k => dset.Contains((string)k?["id"] ?? "")).ToList()) { mine.Remove(x); ch = true; }
+            var have = mine.Select(k => (string)k?["id"]).ToHashSet();
+            if (a["keys"] is JsonArray ka) foreach (var k in ka) if ((string)k?["id"] is string kid && !have.Contains(kid) && !dset.Contains(kid)) { mine.Add(k.DeepClone()); have.Add(kid); ch = true; }
+            if (ch) { _komOpt["kluczeH"] = KomKeysHash(); _komOpt["kluczeAt"] = Math.Max((long?)_komOpt["kluczeAt"] ?? 0, (long?)a["keysAt"] ?? 0); }
             if (((long?)a["logout"] ?? 0) > ((long?)_komOpt["admLogout"] ?? 0)) { _komOpt["admLogout"] = (long?)a["logout"]; KomAdmEnd("unieważnienie sesji z innego serwera"); ch = true; }
             if (ch) KomSave();
         }

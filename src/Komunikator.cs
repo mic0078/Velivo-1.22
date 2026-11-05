@@ -3089,6 +3089,7 @@ namespace Velivo
                 {   // po dotknięciu innego klucza albo Windows Hello - obcy przy komputerze nie usunie Twojego klucza
                     if (!await KomUnlock()) return;
                     if (_komOpt["klucze"] is JsonArray l) foreach (var x in l.ToList()) if ((string)x["id"] == k.Id) l.Remove(x);
+                    if (_komOpt["kluczeDel"] is not JsonArray kdel) _komOpt["kluczeDel"] = kdel = new JsonArray(); kdel.Add(k.Id);   // usunięty klucz znika też na innych moich serwerach i nie wraca
                     KomSave(); KomInfo("🔑 " + L.T("Klucz usunięty: ") + k.Name);
                 };
                 cm.Items.Add(rm);

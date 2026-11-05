@@ -2044,7 +2044,7 @@ namespace Velivo
         void KomInfraSync()
         {
             if (_komRelayListener == null) return;
-            foreach (var c in KomMyServers().Where(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komPeerLink.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id)).ToList()) KomRelaySync(c.Id);
+            foreach (var c in KomMyServers().Where(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komPeerLink.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id)).ToList()) KomStep("RelaySync " + c.Name, () => KomRelaySync(c.Id));
         }
         // 🔑 na żądanie administratora (polecenie „keys”, panel / API): od nowa sekret, konta, kontakty i klucze z nimi (alias) do wszystkich moich serwerów - bez czekania na limity i „wysłane dziś”
         string KomInfraSyncForce()

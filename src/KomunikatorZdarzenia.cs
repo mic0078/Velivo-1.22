@@ -90,10 +90,10 @@ namespace Velivo
             lock (_lock)
             {
                 var res = new List<JsonObject>(); int size = 0;
-                foreach (var e in _ev.OrderBy(x => (string)x["o"], StringComparer.Ordinal).ThenBy(x => (long)x["n"]))
+                // najpierw tylko brakujące (tanie porównanie), sortowane tylko one - sortowanie całej historii (170 tys.) pod blokadą zatrzymywało okno Velivo na dziesiątki sekund
+                var need = _ev.Where(e => (long)e["n"] > (have != null && (long?)have[(string)e["o"]] is long v ? v : 0)).ToList();
+                foreach (var e in need.OrderBy(x => (string)x["o"], StringComparer.Ordinal).ThenBy(x => (long)x["n"]))
                 {
-                    long h = have != null && (long?)have[(string)e["o"]] is long v ? v : 0;
-                    if ((long)e["n"] <= h) continue;
                     var len = Encoding.UTF8.GetByteCount(e.ToJsonString());
                     if (res.Count > 0 && size + len > maxBytes) break;
                     res.Add((JsonObject)e.DeepClone()); size += len;
@@ -176,9 +176,9 @@ namespace Velivo
             KomSrvNet(p);
         }
         // co minutę i po starcie: „mam do N” do moich serwerów - kto ma więcej, dosyła brakujące
-        void KomEvHave()
+        async void KomEvHave()
         {
-            try { if (_komRelayListener == null || KomSyncOff) return; var p = new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = KomEv.Have() }; foreach (var a in KomPeerAddrs()) KomLanRaw(p, a); KomSrvNet(p); }
+            try { if (_komRelayListener == null || KomSyncOff) return; var have = await System.Threading.Tasks.Task.Run(KomEv.Have); var p = new JsonObject { ["t"] = "p2p-evhave", ["id"] = _komId, ["have"] = have }; foreach (var a in KomPeerAddrs()) KomLanRaw(p, a); KomSrvNet(p); }   // Have w tle - blokada dziennika nigdy w wątku okna
             catch (Exception ex) { App.LogError(ex); }
         }
 

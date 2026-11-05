@@ -308,7 +308,7 @@ namespace Velivo
         // wykonywane raz (identyfikator), każde zapisane w dzienniku operacji (adm.log) po obu stronach. Drogi: sieć domowa i łącze serwerów (KomBoxPeers).
         public static readonly (string Op, string Name)[] KomAdmOps = {
             ("restart", "Uruchom serwer od nowa"), ("on", "Włącz serwer"), ("off", "Wyłącz serwer"), ("ports", "Sprawdź porty i router"), ("firewall", "Otwórz zaporę Windows"),
-            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę"), ("logout", "Wyloguj sesje administratora"), ("repair", "Wyrównaj dane z innymi serwerami") };
+            ("flush", "Wyślij ponownie kolejki (skrzynka)"), ("sync", "Synchronizuj teraz"), ("keys", "Wymień kontakty i klucze teraz"), ("syncoff", "Wstrzymaj synchronizację"), ("syncon", "Wznów synchronizację"), ("diagclr", "Wyczyść diagnostykę"), ("logout", "Wyloguj sesje administratora"), ("repair", "Wyrównaj dane z innymi serwerami") };
         readonly HashSet<string> _komAdmSeen = new HashSet<string>();
         public event Action KomAdmChanged;
         static string KomAdmMsg(JsonObject c) => "velivo-adm|" + (string)c["cid"] + "|" + (string)c["id"] + "|" + (string)c["to"] + "|" + (string)c["op"] + "|" + ((string)c["arg"] ?? "") + "|" + (long?)c["ts"];
@@ -378,6 +378,7 @@ namespace Velivo
                         return "kolejki ponowione dla " + n + " odbiorców plików; wiadomości do połączonych wysłane";
                     }
                 case "sync": KomSrvInfoSend(); KomEvHave(); KomClSyncNow(); KomPeerLinks(); return "synchronizacja wywołana: stan, dziennik zdarzeń, infrastruktura, łącza";
+                case "keys": return KomInfraSyncForce();
                 case "syncoff": _komOpt["syncOff"] = true; KomSave(); return "synchronizacja WSTRZYMANA – ten serwer nie wysyła kopii ani zdarzeń do innych (stan i polecenia działają)";
                 case "syncon": _komOpt["syncOff"] = false; KomSave(); KomEvHave(); KomPeerLinks(); return "synchronizacja wznowiona – zaległe zdarzenia zostaną dosłane";
                 case "logout": _komOpt["admLogout"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave(); KomAdmEnd("unieważnione poleceniem administratora"); return "sesje administratora na tym serwerze zamknięte – następne otwarcie panelu wymaga logowania";

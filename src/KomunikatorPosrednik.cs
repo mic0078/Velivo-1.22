@@ -2032,6 +2032,16 @@ namespace Velivo
             if (_komRelayListener == null) return;
             foreach (var c in KomMyServers().Where(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id)).ToList()) KomRelaySync(c.Id);
         }
+        // 🔑 na żądanie administratora (polecenie „keys”, panel / API): od nowa sekret, konta, kontakty i klucze z nimi (alias) do wszystkich moich serwerów - bez czekania na limity i „wysłane dziś”
+        string KomInfraSyncForce()
+        {
+            if (_komRelayListener == null) return "ten komputer nie jest serwerem";
+            _komSekSent.Clear(); _komSekAt.Clear(); _komAccSent.Clear();
+            if (_komOpt["intro"] is JsonArray done) foreach (var x in done.Where(n => ((string)n ?? "").Contains("|s|")).ToList()) done.Remove(x);
+            KomClSyncNow(); KomPeerLinks(); KomInfraSync();
+            int n = KomMyServers().Count(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id));
+            return "kontakty i klucze wysłane od nowa do moich serwerów w sieci: " + n + "; alias (klucze innych serwerów z osobami) tutaj: " + ((_komOpt["alias"] as JsonObject)?.Count ?? 0);
+        }
         void KomPeerLinks()
         {
             if (_komRelayListener == null) return;
@@ -2282,6 +2292,7 @@ namespace Velivo
             {
                 var ts = targets.ToList(); if (ts.Count == 0) { MessageBox.Show(w, L.T("Zaznacz serwer (członka) na liście Infrastruktura."), "🛠"); return; }
                 var name = KomAdmOps.First(x => x.Op == op).Name;
+                if (op == "keys" && MessageBox.Show(w, L.T("Serwery pytają: wymienić teraz wszystkie kontakty i klucze z nimi między moimi serwerami?") + "\n\n" + string.Join(", ", ts.Select(x => x == "*" ? L.T("wszystkie serwery") : KomSrvTag(x))) + "\n\n" + L.T("Tak – każdy serwer dostaje osoby znane innym serwerom i może do nich pisać w imieniu serwera, który znają (np. mama zna tylko NUCBOX). Nie – nic się nie zmienia."), "🔑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                 if ((op == "off" || op == "syncoff") && MessageBox.Show(w, L.T(name) + ": " + string.Join(", ", ts.Select(x => x == "*" ? L.T("wszystkie serwery") : KomSrvTag(x))) + "?", "🛠", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 foreach (var x in ts) KomAdmSend(x, op);
                 tabs.SelectedIndex = 13; All();

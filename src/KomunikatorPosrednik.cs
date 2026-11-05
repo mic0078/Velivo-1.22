@@ -2347,6 +2347,7 @@ namespace Velivo
             FrameworkElement tKeysT; (tKeysT, rKeys) = KomTable(new[] { L.T("Klucz"), L.T("Identyfikator"), L.T("Chroni") }, () =>
                 KomHwKeys().Select(k => new[] { string.IsNullOrEmpty(k.Name) ? L.T("Klucz sprzętowy") : k.Name, Short(k.Id), L.T("otwieranie komunikatora, kopia zapasowa (zamiast hasła)") }).ToList(), search);
             var tKeys = Page(L.T("Klucze sprzętowe (YubiKey i inne FIDO2): otwierają komunikator dotknięciem i odblokowują kopię zapasową bez hasła. Miej co najmniej dwa (zapasowy w bezpiecznym miejscu). Ostatnie sprawdzenie: ") + ((long?)_komOpt["klucze-test"] is long kt && kt > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(kt).LocalDateTime.ToString("yyyy-MM-dd") : L.T("nigdy")), tKeysT,
+                Act("🔑 " + L.T("Wymień kontakty i klucze teraz"), L.T("Klucze sprzętowe (i kontakty) ze wszystkich moich serwerów – od razu na wszystkie (pyta Tak/Nie)"), () => AdmDo(new[] { "*" }, "keys")),
                 Act("➕ " + L.T("Dodaj klucz"), L.T("Windows Hello / PIN, potem dotknij nowy klucz"), () => { KomHwKeyAdd(w); }),
                 Act("✔ " + L.T("Sprawdź klucze"), L.T("Dotknij po kolei każdy klucz – sprawdzenie, czy działa"), () => { KomHwKeyTest(w); }),
                 Act("⚙ " + L.T("Usuń / wymień klucz…"), L.T("Usunięcie zgubionego albo zepsutego klucza (po Windows Hello)"), () => { KomHwKeySetup(w); All(); }),

@@ -2107,6 +2107,7 @@ namespace Velivo
             { "Otwórz Velivo", "Open Velivo" },
             { "Synchronizuj teraz", "Sync now" },
             { "Wymień kontakty i klucze teraz", "Exchange contacts and keys now" },
+            { "Klucze sprzętowe (i kontakty) ze wszystkich moich serwerów – od razu na wszystkie (pyta Tak/Nie)", "Hardware keys (and contacts) from all my servers – to all of them now (asks Yes/No)" },
             { "Wszystkie moje serwery", "All my servers" },
             { "Kontakty, konta, klucze sprzętowe administratora i klucze do pisania w imieniu innego serwera – od razu do wszystkich moich serwerów (pyta Tak/Nie)", "Contacts, accounts, administrator hardware keys and keys for writing on behalf of another server – to all my servers now (asks Yes/No)" },
             { "Stan, dziennik zdarzeń i infrastruktura – od razu na wszystkich moich serwerach", "State, event log and infrastructure – on all my servers now" },

@@ -517,7 +517,8 @@ namespace Velivo
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
                 return;
             }
-            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); try { KomFpCompare(from, si, addr); } catch (Exception) { } if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
+            if (t == "p2p-srvinfo" && from != _komId && KomFromRelay(addr) && p is JsonObject si) {   // własny stan, który wrócił od innego serwera, to nie „inny serwer” (RYZENMIC podwójnie w panelu)
+                 _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); try { KomFpCompare(from, si, addr); } catch (Exception) { } if ((string)si["lan"] is string pl && pl.Length > 0) _komPeerPorts[from] = (pl, (int?)si["port"] ?? 0, ((string)si["ports"] ?? "").Split(',').Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).ToArray()); return; }   // 📊 stan innego mojego serwera
             if ((t == "p2p-fpreq" || t == "p2p-fprep") && KomFromRelay(addr)) { try { KomFpIn(from, p, addr); } catch (Exception ex) { App.LogError(ex); } return; }   // 🔬 porównanie pozycja po pozycji
             if (t == "p2p-boxlogclr" && KomFromRelay(addr))
             {   // 🧹 dziennik skrzynki wyczyszczony na innym moim serwerze - tutaj też
@@ -1976,7 +1977,9 @@ namespace Velivo
                 ["ports"] = string.Join(",", ((_komOpt["ports"] as System.Text.Json.Nodes.JsonArray)?.Select(x => (int?)x ?? 0) ?? Enumerable.Empty<int>()).Append(_komRelayPort).Concat(_komRelayAlt && !_komRelayAltOther ? new[] { KomRelayAltPort } : new int[0]).Where(x => x > 0).Distinct()) };
         }
         // 🌍 w sieci przez którykolwiek mój serwer (stan od innych serwerów, co minutę) - Ryzen widzi mamę połączoną z NUCBOX
-        string KomPeerWith(string id) => _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) && ((string)kv.Value.Info["connIds"] ?? "").Split(',').Contains(id)).Select(kv => kv.Key).FirstOrDefault();
+        // komputer daje znak życia w sieci domowej / łączem / przez internet w ostatnich 3 min (niezależnie od stanu serwera)
+        bool KomSeenRecently(string id) => (_komLanSeen.TryGetValue(id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(3)) || _komRemote.ContainsKey(id) || _komPeerLink.ContainsKey(id) || KomOnline(id);
+        string KomPeerWith(string id) => _komSrvInfo.Where(kv => kv.Key != _komId && DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) && ((string)kv.Value.Info["connIds"] ?? "").Split(',').Contains(id)).Select(kv => kv.Key).FirstOrDefault();
         bool KomOnlineAny(string id) => KomOnline(id) || KomPeerWith(id) != null;
         // 🔁 zastępstwo serwerów: starszy telefon (mama) zna tylko port jednego serwera (NUCBOX 41921). Gdy ten serwer nie działa
         // (brak wieści 3 min i nie odpowiada w sieci domowej), JEDEN działający serwer (najmniejsze id) przekierowuje w routerze jego porty na siebie
@@ -2257,7 +2260,7 @@ namespace Velivo
                 var l = new List<string[]>();
                 string[] Row(JsonObject i, string state, string last) => new[] { (string)i["name"], state, (string)i["ver"], ((int?)i["port"])?.ToString() ?? "", (string)i["host"], (string)i["router"], (string)i["conns"], ((int?)i["files"])?.ToString() ?? "", ((int?)i["msgs"])?.ToString() ?? "", (string)i["since"], last };
                 var me = KomSrvInfoNow(); l.Add(Row(me, (bool?)me["on"] == true ? L.T("● działa (ten komputer)") : L.T("○ serwer wyłączony (ten komputer)"), L.T("teraz")));
-                foreach (var kv in _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromHours(12))) l.Add(Row(kv.Value.Info, DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) ? ((bool?)kv.Value.Info["on"] == true ? L.T("● działa") : L.T("○ serwer wyłączony")) : L.T("○ brak wieści – wyłączony albo poza siecią domową"), Ago(kv.Value.At.ToLocalTime())));
+                foreach (var kv in _komSrvInfo.Where(kv => kv.Key != _komId && DateTime.UtcNow - kv.Value.At < TimeSpan.FromHours(12))) l.Add(Row(kv.Value.Info, DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) ? ((bool?)kv.Value.Info["on"] == true ? L.T("● działa") : L.T("○ serwer wyłączony")) : KomSeenRecently(kv.Key) ? L.T("● włączony – nie przysyła stanu (inna wersja Velivo? zainstaluj tę samą)") : L.T("○ brak wieści – wyłączony albo poza siecią domową"), Ago(kv.Value.At.ToLocalTime())));
                 // serwery bez wieści od 12 h (odłączone: CHUWI, HP) - nie zaśmiecają listy; wracają same, gdy się odezwą
                 foreach (var c in _komContacts.Where(x => !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && !_komSrvInfo.ContainsKey(x.Id) && (KomOnline(x.Id) || (_komSeenAt.TryGetValue(x.Id, out var xs) && DateTime.Now - xs < TimeSpan.FromHours(12)))))
                     l.Add(new[] { c.Name, KomOnline(c.Id) ? L.T("● w sieci – starsza wersja (nie podaje stanu)") : L.T("○ brak wieści – wyłączony albo starsza wersja"), "?", "", c.Relay, "", "", "", "", "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "" });
@@ -2421,7 +2424,7 @@ namespace Velivo
                     }
                 }
                 catch (Exception) { }
-                foreach (var kv in _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)))
+                foreach (var kv in _komSrvInfo.Where(kv => kv.Key != _komId && DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)))
                     if (((string)kv.Value.Info["ver"] ?? "").Split(' ')[0] != KomBuild.Split(' ')[0] || ((string)kv.Value.Info["ver"] ?? "").Length > 0 && (string)kv.Value.Info["ver"] != KomBuild && false)
                         ps.Add(("🖥 " + L.T("Serwer ") + ((string)kv.Value.Info["name"] ?? "?") + L.T(" ma inną wersję Velivo (") + (string)kv.Value.Info["ver"] + L.T(") – zaktualizuj, by działały te same funkcje"), new (string, Action)[] { (L.T("Serwery"), () => tabs.SelectedIndex = 1) }));
                 foreach (var c in KomMyServers().Where(c => !KomLanPeer(c.Id) && !_komLinkOk.ContainsKey(c.Id)))
@@ -2479,7 +2482,7 @@ namespace Velivo
                 int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
                 cSrv.Text = _komRelayListener != null ? L.T("Działa") : L.T("Wyłączony"); cFiles.Text = files.ToString(); cMsg.Text = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }).ToString();
                 cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnlineAny(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
-                var vers = _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)).Select(kv => ((string)kv.Value.Info["ver"] ?? "").Split(' ')[0]).Append(KomBuild.Split(' ')[0]).Distinct().Count();
+                var vers = _komSrvInfo.Where(kv => kv.Key != _komId && DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)).Select(kv => ((string)kv.Value.Info["ver"] ?? "").Split(' ')[0]).Append(KomBuild.Split(' ')[0]).Distinct().Count();
                 cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
                 cSrv.Foreground = AdmB(_komRelayListener != null ? 0x4ade80 : 0xf87171); cVer.Foreground = AdmB(vers <= 1 ? 0x4ade80 : 0xf87171);
                 cFiles.Foreground = AdmB(files > 0 ? 0xfbbf24 : 0xe8ecf4); cMsg.Foreground = AdmB(cMsg.Text != "0" ? 0xfbbf24 : 0xe8ecf4);
@@ -2632,7 +2635,7 @@ namespace Velivo
                     _komSyncOk.TryGetValue(c.Id, out var ok);
                     var box = _komFpCmp.TryGetValue(c.Id, out var b1) ? b1.fp : null; var ev = _komFpCmp.TryGetValue(c.Id + "|ev", out var b2) ? b2.fp : null;
                     bool otherVer = _komFpCmp.TryGetValue(c.Id + "|v", out var vv) && vv.fp == "V";
-                    string res = !on ? L.T("wyłączony – ostatnia wieść ") + si.At.ToLocalTime().ToString("dd.MM HH:mm")
+                    string res = !on && KomSeenRecently(c.Id) ? L.T("włączony – nie przysyła stanu (inna wersja Velivo? zainstaluj tę samą)") : !on ? L.T("wyłączony – ostatnia wieść ") + si.At.ToLocalTime().ToString("dd.MM HH:mm")
                         : otherVer ? L.T("inna wersja Velivo – zainstaluj tę samą na obu")
                         : box == "Z" && ev == "Z" ? L.T("zgodne")
                         : box == "R" || ev == "R" ? L.T("RÓŻNE – ") + (box == "R" ? L.T("skrzynka ") : "") + (ev == "R" ? L.T("historia") : "")

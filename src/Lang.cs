@@ -2107,6 +2107,8 @@ namespace Velivo
             { "Otwórz Velivo", "Open Velivo" },
             { "Synchronizuj teraz", "Sync now" },
             { "Wymień kontakty i klucze teraz", "Exchange contacts and keys now" },
+            { "włączony – nie przysyła stanu (inna wersja Velivo? zainstaluj tę samą)", "on – sends no state (different Velivo version? install the same)" },
+            { "● włączony – nie przysyła stanu (inna wersja Velivo? zainstaluj tę samą)", "● on – sends no state (different Velivo version? install the same)" },
             { "wyłączony – ostatnia wieść ", "off – last heard " },
             { "ostatnia wieść: ", "last heard: " },
             { "🔄 Brak wieści od innych moich serwerów (12 h) – nie ma z kim synchronizować.", "🔄 No news from my other servers (12 h) – nothing to sync with." },

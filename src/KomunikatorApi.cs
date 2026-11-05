@@ -133,7 +133,7 @@ namespace Velivo
                 case "/api/serwery":
                     var a = new JsonArray();
                     a.Add(new JsonObject { ["id"] = _komId, ["ten"] = true, ["stan"] = KomSrvInfoNow() });
-                    foreach (var kv in _komSrvInfo) a.Add(new JsonObject { ["id"] = kv.Key, ["ostatnio"] = kv.Value.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), ["dziala"] = DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3), ["stan"] = kv.Value.Info.DeepClone() });
+                    foreach (var kv in _komSrvInfo.Where(x => x.Key != _komId)) a.Add(new JsonObject { ["id"] = kv.Key, ["ostatnio"] = kv.Value.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), ["dziala"] = DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3), ["stan"] = kv.Value.Info.DeepClone() });
                     return a;
                 case "/api/polecenia": return new JsonArray(KomAdmOps.Select(o => (JsonNode)new JsonObject { ["op"] = o.Op, ["opis"] = o.Name }).ToArray());
                 case "/api/polecenie":

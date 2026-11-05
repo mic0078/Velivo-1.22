@@ -3308,9 +3308,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     }
                     val fg = if (m.mine) pal().mineFg else ink
                     val playV = TextView(a).apply { text = "▶"; textSize = 26f * fs; setTextColor(fg); setPadding(px(4), 0, px(8), 0) }
-                    val wave = VoiceWave(a, vp, fg).apply { layoutParams = LinearLayout.LayoutParams(-1, px(26)) }
-                    val durV = TextView(a).apply { text = voiceLength(vp) ?: ""; textSize = 12f * fs; setTextColor(Color.argb(0xC0, Color.red(fg), Color.green(fg), Color.blue(fg))); layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
-                    val col = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(px(170), -2)
+                    val wave = VoiceWave(a, vp, fg).apply { layoutParams = LinearLayout.LayoutParams(px(140), px(26)) }
+                    val durV = TextView(a).apply { text = voiceLength(vp) ?: ""; textSize = 12f * fs; setTextColor(Color.argb(0xC0, Color.red(fg), Color.green(fg), Color.blue(fg))); layoutParams = LinearLayout.LayoutParams(-2, -2).apply { rightMargin = px(10) } }
+                    val col = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(-2, -2)
                         addView(wave); addView(LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; addView(durV); addView(bv, LinearLayout.LayoutParams(-2, -2)) }) }
                     val box = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = bub; setPadding(px(8), px(6), px(12), px(4))
                         addView(face); addView(playV); addView(col)

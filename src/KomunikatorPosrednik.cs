@@ -542,7 +542,7 @@ namespace Velivo
             }
             if (t == "p2p-here" && from != _komId && _komContacts.ToArray().Any(c => c.Id == from && c.Dom))
             {   // mój serwer albo moje urządzenie (telefon, laptop) - serwer oddaje mu kontakty, których nie ma (np. po ponownej instalacji)
-                if (p["relay"] != null) _komLanRelays[from] = p.DeepClone();
+                if (p["relay"] != null || ((bool?)p["srv"] == true && KomDomSrv(from))) _komLanRelays[from] = p.DeepClone();   // mój serwer bez ustalonego adresu domu też jest serwerem obok (wymiana danych, pasek)
                 if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(1))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); }
             }
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
@@ -848,7 +848,7 @@ namespace Velivo
                 _komRemote[id] = me;
                 _komViaNet[id] = true;
                 KomSendFrame(me, KomRelayHere());   // pośrednik jest w sieci
-                foreach (var kv in _komLanRelays) if (_komLanSeen.TryGetValue(kv.Key, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10)) { var rh = kv.Value.DeepClone(); rh["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); rh["fwd"] = true; KomSendFrame(me, rh); }   // adresy innych pośredników w domu (np. CHUWI) - telefon zna je, gdy ten zgaśnie
+                foreach (var kv in _komLanRelays) if (kv.Value?["relay"] != null && _komLanSeen.TryGetValue(kv.Key, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10)) { var rh = kv.Value.DeepClone(); rh["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); rh["fwd"] = true; KomSendFrame(me, rh); }   // adresy innych pośredników w domu (np. CHUWI) - telefon zna je, gdy ten zgaśnie
                 KomStoreFlush(id, me, null);   // 📬 wiadomości, które czekały, aż się pojawi
                 await Dispatcher.InvokeAsync(() => { KomRelayStatus(); _komRefresh?.Invoke(); });
                 while (!token.IsCancellationRequested)
@@ -2623,16 +2623,23 @@ namespace Velivo
             var syncTxt = new TextBlock { Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
             var syncBar = new Border { Background = AdmB(0x1d4ed8), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 0, 8), CornerRadius = new CornerRadius(6), Child = syncTxt, ToolTip = L.T("Synchronizacja z moimi serwerami: zgodne = skrzynka i historia identyczne na obu serwerach. Szczegóły: zakładka Diagnostyka.") };
             void SyncFill()
-            {
+            {   // tylko serwery, od których była wieść w ostatnich 12 h (stare, odłączone – HP, CHUWI – nie zaśmiecają); „działa” = stan od niego w ostatnich 3 min
                 var ls = new List<string>();
-                foreach (var c in KomMyServers().Where(c => c.Id != _komId))
+                foreach (var c in KomMyServers())
                 {
-                    _komSyncTry.TryGetValue(c.Id, out var tr); _komSyncOk.TryGetValue(c.Id, out var ok);
+                    if (!_komSrvInfo.TryGetValue(c.Id, out var si) || DateTime.UtcNow - si.At > TimeSpan.FromHours(12)) continue;
+                    bool on = DateTime.UtcNow - si.At < TimeSpan.FromMinutes(3);
+                    _komSyncOk.TryGetValue(c.Id, out var ok);
                     var box = _komFpCmp.TryGetValue(c.Id, out var b1) ? b1.fp : null; var ev = _komFpCmp.TryGetValue(c.Id + "|ev", out var b2) ? b2.fp : null;
-                    string res = _komFpCmp.TryGetValue(c.Id + "|v", out var vv) && vv.fp == "V" && tr != default && DateTime.Now - tr < TimeSpan.FromMinutes(3) ? L.T("inna wersja Velivo – zainstaluj tę samą na obu") : tr == default ? L.T("brak wieści (wyłączony albo starsza wersja)") : DateTime.Now - tr > TimeSpan.FromMinutes(3) ? L.T("brak wieści od ") + tr.ToString("dd.MM HH:mm") : box == "Z" && ev == "Z" ? L.T("zgodne") : box == "R" || ev == "R" ? L.T("RÓŻNE – ") + (box == "R" ? L.T("skrzynka ") : "") + (ev == "R" ? L.T("historia") : "") : L.T("wyrównuję…");
-                    ls.Add("🔄 " + c.Name + ":  " + L.T("ostatnia pełna zgodność: ") + (ok == default ? "–" : ok.ToString("dd.MM.yyyy HH:mm:ss")) + "   ·   " + L.T("ostatnie sprawdzenie: ") + (tr == default ? "–" : tr.ToString("HH:mm:ss")) + "   ·   " + L.T("wynik: ") + res);
+                    bool otherVer = _komFpCmp.TryGetValue(c.Id + "|v", out var vv) && vv.fp == "V";
+                    string res = !on ? L.T("wyłączony – ostatnia wieść ") + si.At.ToLocalTime().ToString("dd.MM HH:mm")
+                        : otherVer ? L.T("inna wersja Velivo – zainstaluj tę samą na obu")
+                        : box == "Z" && ev == "Z" ? L.T("zgodne")
+                        : box == "R" || ev == "R" ? L.T("RÓŻNE – ") + (box == "R" ? L.T("skrzynka ") : "") + (ev == "R" ? L.T("historia") : "")
+                        : L.T("wyrównuję…");
+                    ls.Add("🔄 " + c.Name + ":  " + res + "   ·   " + L.T("ostatnia pełna zgodność: ") + (ok == default ? "–" : ok.ToString("dd.MM HH:mm:ss")) + "   ·   " + L.T("ostatnia wieść: ") + si.At.ToLocalTime().ToString("HH:mm:ss"));
                 }
-                syncTxt.Text = ls.Count == 0 ? L.T("🔄 Brak innych moich serwerów – nie ma z kim synchronizować.") : string.Join("\n", ls);
+                syncTxt.Text = ls.Count == 0 ? L.T("🔄 Brak wieści od innych moich serwerów (12 h) – nie ma z kim synchronizować.") : string.Join("\n", ls);
             }
             SyncFill(); var syncTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; syncTimer.Tick += (_, _) => SyncFill(); syncTimer.Start(); w.Closed += (_, _) => syncTimer.Stop();
             foreach (var el in new FrameworkElement[] { syncBar, cards, attn, help, bar }) { DockPanel.SetDock(el, Dock.Top); root2.Children.Add(el); }

@@ -627,7 +627,19 @@ namespace Velivo
                 bool again = (!_komSekAt.TryGetValue(peerId, out var sa0) || DateTime.UtcNow - sa0 > TimeSpan.FromMinutes(10));
                 if (!agreed && (sent0 < 3 || again)) { _komSekSent[peerId] = sent0 + 1; _komSekAt[peerId] = DateTime.UtcNow;
                 KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
-                if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
+                if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin)
+                {   // 🔁 sekret jeszcze nieuzgodniony - mimo to mój klucz z każdym kontaktem (rk) do drugiego mojego serwera, raz dziennie: bez tego zastępstwo
+                    // (mama zna tylko NUCBOX, NUCBOX wyłączony) nie działało wcale. Karta bez „key” - drugi serwer zapisuje tylko klucz zastępczy, kontaktu nie dodaje
+                    if (_komOpt["intro"] is not JsonArray d0) _komOpt["intro"] = d0 = new JsonArray();
+                    var t0 = "|rk|" + peerId + "|" + DateTime.UtcNow.ToString("yyyyMMdd");
+                    if (!d0.Any(n => (string)n == t0))
+                    {
+                        foreach (var x in _komContacts.Where(x => !x.IsGroup && !x.Dom && x.Key != null && x.Id != peerId && x.Id != _komId).ToList())
+                            KomDeliver(peer, new KomMsg { Mine = true, Text = KomCardTag + new JsonObject { ["id"] = x.Id, ["name"] = x.Name, ["dev"] = x.Device, ["relay"] = x.Relay ?? "", ["rk"] = Convert.ToBase64String(x.Key), ["rv"] = _komId }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                        d0.Add(t0); KomSave();
+                    }
+                    return;
+                }
                 // 📝 jedna baza na moich serwerach: konta (numer + PIN) i usunięci - drugiemu serwerowi tylko po zmianie (skrót), tą samą drogą co wiadomość (dom albo internet)
                 var acc = new JsonObject { ["konta"] = JsonNode.Parse(KomAccounts().ToJsonString()), ["removed"] = JsonNode.Parse((_komOpt["removed"] ?? new JsonArray()).ToJsonString()) }.ToJsonString();
                 var ah = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(acc)), 0, 8);

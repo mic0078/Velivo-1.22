@@ -340,6 +340,22 @@ namespace Velivo
             finally { try { File.Delete(f + ".part"); } catch (Exception) { } }
             _ = Task.Run(async () => { await KomBoxFlush(to); if (fromPeer == null && File.Exists(f + ".hdr")) await KomBoxCopy(f); });   // nie doręczony od razu - kopia u innych pośredników w domu
         }
+        // ✓✓ plik ze skrzynki oddany odbiorcy - serwer mówi to nadawcy (podpis kluczem serwera z nadawcą), 3 razy wszystkimi drogami
+        void KomBoxOk(byte[] hb)
+        {
+            try
+            {
+                var h = JsonNode.Parse(hb); var sid = (string)h?["Id"]; var mid = (string)h?["Mid"];
+                if (sid == null || sid == _komId || mid is not { Length: 32 }) return;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    var c = KomContactById(sid); if (c?.Key == null) return;
+                    var p = KomPacket("p2p-boxok"); p["to"] = sid; p["mid"] = mid; p["mac"] = Convert.ToBase64String(KomHmac(c.Key, "boxok\n" + mid));
+                    _ = Task.Run(async () => { for (int i = 0; i < 3; i++) { KomSendUdp(p, null); await Task.Delay(1500); } });
+                }));
+            }
+            catch (Exception) { }
+        }
         // 📬 „doręczone” powtarzane co minutę przez 2 dni - serwer, który był wyłączony, po powrocie skasuje swoją kopię zamiast wysłać drugi raz
         readonly ConcurrentDictionary<string, (string To, DateTime At)> _komBoxDoneOut = new ConcurrentDictionary<string, (string, DateTime)>();
         void KomBoxDoneRepeat()
@@ -429,6 +445,7 @@ namespace Velivo
                             await st.FlushAsync(cts.Token);
                             if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) { KomBoxLog(id, "przerwany – połączenie z odbiorcą zerwało się po " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s (słaby zasięg?); serwer spróbuje znowu za minutę"); continue; }   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
                         }
+                        if (b[0] == 1 || b[0] == 2) KomBoxOk(File.ReadAllBytes(hdr));   // ✓✓ u nadawcy - odbiorca (także starsza wersja) nie zawsze sam potwierdza plik ze skrzynki
                         KomBoxLog(id, b[0] == 1 ? "doręczony – odbiorca dostał plik od " + sender + " (" + KomSize(size) + ", " + (int)(DateTime.UtcNow - t0).TotalSeconds + " s)"
                             : b[0] == 2 ? "już doręczony – telefon odbiorcy ma ten plik od " + sender + " (doszedł przez inny serwer); kopia z tego serwera skasowana"
                             : b[0] == 3 ? "odmówił – telefon odbiorcy nie ma nadawcy " + sender + " w kontaktach; plik skasowany z serwera"

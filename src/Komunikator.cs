@@ -508,6 +508,16 @@ namespace Velivo
                 case "p2p-who": KomSendUdp(KomPacket("p2p-here"), sender); break;
                 case "p2p-typing": if (c != null && (string)p["to"] == _komId) { _komTypingAt[c.Id] = DateTime.UtcNow; _komRefresh?.Invoke(); _ = Task.Delay(6500).ContinueWith(_ => _komRefresh?.Invoke()); } return;   // ✍ „pisze…”
                 case "p2p-here": if ((bool?)p["fwd"] != true) _komFound[from] = (KomClean((string)p["device"]), sender); break;
+                case "p2p-boxok":   // ✓✓ serwer oddał mój plik ze skrzynki odbiorcy
+                    {
+                        if (c == null || (string)p["to"] != _komId) return;
+                        var mid = (string)p["mid"] ?? ""; var mac = KomB64((string)p["mac"]); var exp = KomHmac(c.Key, "boxok\n" + mid);
+                        if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) return;
+                        bool any = false;
+                        foreach (var cc in _komContacts.ToList()) foreach (var m in KomChat(cc.Id)) if (m.Mine && m.Mid == mid && !m.Ok) { m.Ok = true; m.Text = m.Text.Replace(L.T(" – 📬 czeka na serwerze"), L.T(" – odebrano")); any = true; }
+                        if (any) { KomSave(); _komRefresh?.Invoke(); }
+                        return;
+                    }
                 case "p2p-ack":
                     {
                         if (c == null) return;

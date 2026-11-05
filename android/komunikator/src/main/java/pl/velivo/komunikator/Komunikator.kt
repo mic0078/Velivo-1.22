@@ -462,6 +462,14 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 synchronized(this) { chat(c.id).forEach { if (it.mine && it.mid == mid && it.text.contains("📬")) { it.ok = true; it.text = it.text.replace(" – 📬 czeka na serwerze", " – odebrano").replace(" – 📬 waiting on the server", " – received"); any = true } } }
                 if (any) { saveChat(c.id); main.post { onChange() } }
             }
+            // ✓✓ serwer oddał nasz plik ze skrzynki odbiorcy (odbiorca na starszej wersji sam nie potwierdza)
+            "p2p-boxok" -> {
+                val c = contact(from) ?: return true; val mid = p.optString("mid")
+                if (p.optString("to") != myId || !MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "boxok\n$mid".toByteArray()))) return true
+                val hit = mutableSetOf<String>()
+                synchronized(this) { contacts.toList().forEach { cc -> chat(cc.id).forEach { if (it.mine && it.mid == mid && !it.ok) { it.ok = true; it.text = it.text.replace(" – 📬 czeka na serwerze", " – odebrano").replace(" – 📬 waiting on the server", " – received"); hit.add(cc.id) } } } }
+                if (hit.isNotEmpty()) { hit.forEach { saveChat(it) }; main.post { onChange() } }
+            }
             // 🎧 odbiorca odsłuchał naszą głosówkę
             "p2p-heard" -> {
                 val c = contact(from) ?: return true; val mid = p.optString("mid")

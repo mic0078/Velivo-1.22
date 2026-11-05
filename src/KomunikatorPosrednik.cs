@@ -2151,7 +2151,7 @@ namespace Velivo
         void KomBoxExpire()
         {
             if (DateTime.UtcNow - _komExpireAt < TimeSpan.FromHours(1)) return; _komExpireAt = DateTime.UtcNow;
-            try { KomEv.Prune(DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds()); } catch (Exception ex) { App.LogError(ex); }   // 🗄 dziennik zdarzeń - tylko z okresu przechowywania
+            var evLim = DateTimeOffset.UtcNow.AddDays(-Math.Min(KomBoxDays, 3)).ToUnixTimeMilliseconds(); _ = Task.Run(() => { try { KomEv.Prune(evLim); } catch (Exception ex) { App.LogError(ex); } });   // 🗄 dziennik zdarzeń - tylko z okresu przechowywania
             var limit = DateTime.Now.AddDays(-KomBoxDays);
             try
             {

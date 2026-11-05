@@ -173,6 +173,8 @@ namespace Velivo
         }
         void KomClSave() { _komOpt["klaster"] = _komCl.ToJson(true); KomSave(); }
         bool KomIsMember(string komId) { lock (_komClLock) return komId != _komId && _komCl?.CertOf(komId) != null; }
+        // 🏠 mój serwer z domu (kontakt „moje urządzenie” z adresem serwera) - właściciel: „mają się widzieć, koniec kropka”: zaufany bez certyfikatu i bez pytań
+        bool KomDomSrv(string id) => id != _komId && KomContactById(id) is { IsGroup: false, Dom: true } c && !string.IsNullOrEmpty(c.Relay);
         bool KomClMine(string id) => _komOpt["clMine"] is JsonArray a && a.Any(x => (string)x == id);
         static void KomClAdd(JsonObject opt, string key, string id) { if (opt[key] is not JsonArray a) opt[key] = a = new JsonArray(); if (!a.Any(x => (string)x == id)) a.Add(id); }
         void KomClSend(KomContact c, JsonObject o) => KomDeliver(c, new KomMsg { Mine = true, Text = KomClTag + o.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
@@ -334,6 +336,7 @@ namespace Velivo
             KomClInit();
             var c = new JsonObject { ["t"] = "p2p-admcmd", ["id"] = _komId, ["cid"] = Guid.NewGuid().ToString("N"), ["to"] = to, ["op"] = op, ["arg"] = arg, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
             lock (_komClLock) c["sig"] = Convert.ToBase64String(KomCluster.ProofSign(_komSrvPriv, KomAdmMsg(c)));
+            c["pub"] = Convert.ToBase64String(_komSrvPub);
             KomAdmLog("WYSŁANE", (string)c["cid"], op, KomSrvTag(_komId), to == "*" ? "wszystkie serwery" : KomSrvTag(to), "polecenie wysłane");
             if (to == _komId || to == "*") KomAdmIn(c);
             if (to != _komId) KomBoxPeers(c);
@@ -352,6 +355,8 @@ namespace Velivo
             if (Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ((long?)c["ts"] ?? 0)) > 86_400_000) { KomAdmLog("ODRZUCONE", cid, (string)c["op"] ?? "?", KomSrvTag(from), KomSrvTag(_komId), "polecenie starsze niż doba"); return; }
             bool okSig = from == _komId;
             if (!okSig) { KomClInit(); lock (_komClLock) { var cert = _komCl?.CertOf(from); okSig = cert != null && KomCluster.ProofCheck(cert, KomAdmMsg(c), (string)c["sig"]); } }
+            if (!okSig && KomDomSrv(from) && (string)c["pub"] is string pb)   // mój serwer z domu bez certyfikatu - podpis jego kluczem serwera (dołączonym)
+                try { using var ek = System.Security.Cryptography.ECDsa.Create(); ek.ImportSubjectPublicKeyInfo(Convert.FromBase64String(pb), out _); okSig = ek.VerifyData(System.Text.Encoding.UTF8.GetBytes(KomAdmMsg(c)), Convert.FromBase64String((string)c["sig"] ?? ""), System.Security.Cryptography.HashAlgorithmName.SHA256); } catch (Exception) { }
             var op = (string)c["op"] ?? "";
             if (!okSig) { KomAdmLog("ODRZUCONE", cid, op, KomSrvTag(from), KomSrvTag(_komId), "nadawca nie jest moim serwerem albo zły podpis"); return; }
             _ = Dispatcher.BeginInvoke(new Action(() =>

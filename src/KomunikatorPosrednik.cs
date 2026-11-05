@@ -2011,7 +2011,7 @@ namespace Velivo
         [ThreadStatic] static string _komNetPeer;   // obsługuję pakiet od mojego serwera przez internet (zaufany jak serwer w domu)
         readonly ConcurrentDictionary<string, KomRemoteConn> _komPeerLink = new ConcurrentDictionary<string, KomRemoteConn>();
         readonly ConcurrentDictionary<string, bool> _komPeerDial = new ConcurrentDictionary<string, bool>();
-        IEnumerable<KomContact> KomMyServers() => _komContacts.Where(c => !c.IsGroup && !string.IsNullOrEmpty(c.Relay) && c.Id != _komId && KomIsMember(c.Id)).ToList();   // członkowie mojej infrastruktury (certyfikat), nie „moje urządzenie”
+        IEnumerable<KomContact> KomMyServers() => _komContacts.Where(c => !c.IsGroup && !string.IsNullOrEmpty(c.Relay) && c.Id != _komId && (KomIsMember(c.Id) || KomDomSrv(c.Id))).ToList();   // członkowie mojej infrastruktury (certyfikat), nie „moje urządzenie”
         bool KomLanPeer(string id) => _komLanSeen.TryGetValue(id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100) && _komLanRelays.ContainsKey(id);
         void KomSrvNet(JsonNode p)
         {
@@ -2021,13 +2021,13 @@ namespace Velivo
             {
                 if (KomLanPeer(c.Id)) continue;   // w tej samej sieci domowej - już dostał pakietem
                 var link = _komRemote.TryGetValue(c.Id, out var r) ? r : _komPeerLink.TryGetValue(c.Id, out var l) ? l : null;
-                if (link != null && _komLinkOk.ContainsKey(c.Id)) KomSendFrame(link, new JsonObject { ["t"] = "p2p-srv", ["id"] = _komId, ["to"] = c.Id, ["p"] = p.DeepClone() });
+                if (link != null && (_komLinkOk.ContainsKey(c.Id) || KomDomSrv(c.Id))) KomSendFrame(link, new JsonObject { ["t"] = "p2p-srv", ["id"] = _komId, ["to"] = c.Id, ["p"] = p.DeepClone() });
             }
         }
         // pakiet od mojego serwera łączem: to, co w domu przyszłoby pakietem z sieci domowej
         void KomSrvIn(string peerId, JsonNode inner)
         {
-            if (inner == null || !_komLinkOk.ContainsKey(peerId) || !KomIsMember(peerId)) return;   // tylko członek z dowodem tożsamości na tym połączeniu   // tylko moje serwery
+            if (inner == null || !((_komLinkOk.ContainsKey(peerId) && KomIsMember(peerId)) || KomDomSrv(peerId))) return;   // tylko członek z dowodem tożsamości na tym połączeniu   // tylko moje serwery
             _komNetPeer = peerId;
             try { KomRelayFromLan(inner, IPAddress.None); } catch (Exception ex) { App.LogError(ex); } finally { _komNetPeer = null; }
         }
@@ -2037,7 +2037,7 @@ namespace Velivo
         void KomInfraSync()
         {
             if (_komRelayListener == null) return;
-            foreach (var c in KomMyServers().Where(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id)).ToList()) KomRelaySync(c.Id);
+            foreach (var c in KomMyServers().Where(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komPeerLink.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id)).ToList()) KomRelaySync(c.Id);
         }
         // 🔑 na żądanie administratora (polecenie „keys”, panel / API): od nowa sekret, konta, kontakty i klucze z nimi (alias) do wszystkich moich serwerów - bez czekania na limity i „wysłane dziś”
         string KomInfraSyncForce()
@@ -2398,14 +2398,9 @@ namespace Velivo
                 foreach (var kv in _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)))
                     if (((string)kv.Value.Info["ver"] ?? "").Split(' ')[0] != KomBuild.Split(' ')[0] || ((string)kv.Value.Info["ver"] ?? "").Length > 0 && (string)kv.Value.Info["ver"] != KomBuild && false)
                         ps.Add(("🖥 " + L.T("Serwer ") + ((string)kv.Value.Info["name"] ?? "?") + L.T(" ma inną wersję Velivo (") + (string)kv.Value.Info["ver"] + L.T(") – zaktualizuj, by działały te same funkcje"), new (string, Action)[] { (L.T("Serwery"), () => tabs.SelectedIndex = 1) }));
-                foreach (var c in _komContacts.Where(x => !x.IsGroup && x.Dom && !string.IsNullOrEmpty(x.Relay) && x.Id != _komId && KomClMine(x.Id) && !KomIsMember(x.Id)).ToList())
-                {   // ja powiedziałem „Tak”, tamten serwer jeszcze nie - widać, na kogo czekamy
-                    var cc = c;
-                    ps.Add(("🤝 " + L.T("Czekam na zgodę serwera ") + c.Name + L.T(" – otwórz panel NA TAMTYM serwerze i odpowiedz „Tak, to mój serwer” (ten serwer już się zgodził)."), new (string, Action)[] { (L.T("Wyślij pytanie ponownie"), () => { KomClApprove(cc); All(); }) }));
-                }
                 foreach (var c in KomMyServers().Where(c => !KomLanPeer(c.Id) && !_komLinkOk.ContainsKey(c.Id)))
                     ps.Add(("🔗 " + L.T("Brak połączenia z moim serwerem ") + c.Name + L.T(" (ani w domu, ani przez internet) – wyłączony albo bez dostępu"), new (string, Action)[] { (L.T("Infrastruktura"), () => tabs.SelectedIndex = 7) }));
-                foreach (var c in _komContacts.Where(x => !x.IsGroup && x.Id != _komId && !KomIsMember(x.Id) && !KomClMine(x.Id) && (_komOpt["srvNo"] as JsonArray)?.Any(n => (string)n == x.Id) != true && ((x.Dom && !string.IsNullOrEmpty(x.Relay)) || (_komSrvAt.TryGetValue(x.Id, out var sa) && sa != DateTime.MinValue && DateTime.UtcNow - sa < TimeSpan.FromMinutes(10)))).ToList())   // mój serwer z domu (np. NUCBOX ↔ Ryzen) - pytanie zawsze widoczne, póki nie są jedną infrastrukturą
+                foreach (var c in _komContacts.Where(x => !x.IsGroup && x.Id != _komId && !KomIsMember(x.Id) && !KomClMine(x.Id) && (_komOpt["srvNo"] as JsonArray)?.Any(n => (string)n == x.Id) != true && !KomDomSrv(x.Id) && _komSrvAt.TryGetValue(x.Id, out var sa) && sa != DateTime.MinValue && DateTime.UtcNow - sa < TimeSpan.FromMinutes(10)).ToList())   // obcy serwer (np. znajomego) - pytanie; moje z domu działają bez pytań
                 {
                     var cc = c;
                     ps.Add(("🖥 " + L.T("Serwer Velivo ") + c.Name + L.T(" działa, ale nie należy do Twoich serwerów"), new (string, Action)[] { (L.T("To mój serwer"), () => { KomClApprove(cc); All(); }), (L.T("Nie (znajomy)"), () => { KomClAdd(_komOpt, "srvNo", cc.Id); KomSave(); All(); }) }));

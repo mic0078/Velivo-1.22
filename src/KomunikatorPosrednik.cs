@@ -2422,7 +2422,7 @@ namespace Velivo
             foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo), ("🏛 " + L.T("Infrastruktura"), tInfra), ("📎 " + L.T("Pliki"), tFiles), ("🔬 " + L.T("Diagnostyka"), tDiag), ("📝 " + L.T("Konta"), tAcc), ("🔑 " + L.T("Klucze sprzętowe"), tKeys), ("⚙ " + L.T("Ustawienia"), tSet), ("📋 " + L.T("Operacje administratora"), tOps) })
                 tabs.Items.Add(new TabItem { Header = h, Content = el });
             // 👆 kafelki prowadzą do szczegółów: klik = właściwa zakładka z odfiltrowaną listą (tam zaznaczasz i usuwasz / sprawdzasz)
-            tabs.SelectionChanged += (s, e) => { if (e.Source == tabs) search.Text = ""; };   // 🔍 filtr tylko dla zakładki, w której go wpisano (kafelek ustawia go po przełączeniu)
+            tabs.SelectionChanged += (s, e) => { if (e.Source == tabs) { search.Text = ""; All(); } };   // 🔍 filtr tylko dla zakładki, w której go wpisano (kafelek ustawia go po przełączeniu)
             void Go(TextBlock card, int tab, string q, string tip)
             {
                 if (card.Parent is not StackPanel sp || sp.Parent is not Border b) return;
@@ -2446,7 +2446,10 @@ namespace Velivo
                 cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
                 cSrv.Foreground = AdmB(_komRelayListener != null ? 0x4ade80 : 0xf87171); cVer.Foreground = AdmB(vers <= 1 ? 0x4ade80 : 0xf87171);
                 cFiles.Foreground = AdmB(files > 0 ? 0xfbbf24 : 0xe8ecf4); cMsg.Foreground = AdmB(cMsg.Text != "0" ? 0xfbbf24 : 0xe8ecf4);
-                rOver(); SrvFill(); rBox(); rPeople(); rLog(); rErr(); rInfo(); rInfra?.Invoke(); rFiles?.Invoke(); rDiag?.Invoke(); rAcc?.Invoke(); rKeys?.Invoke(); rOps?.Invoke(); AttnFill?.Invoke();
+                // ⚡ tylko widoczna zakładka - przebudowa wszystkich 14 (całe dzienniki, diagnostyka, tysiące wierszy) co 5 s w wątku okna zacinała całe Velivo
+                var per = new Action[] { rOver, SrvFill, rBox, rPeople, rLog, rErr, rInfo, rInfra, rFiles, rDiag, rAcc, rKeys, null, rOps };
+                int ti = tabs?.SelectedIndex ?? 0; if (ti >= 0 && ti < per.Length) per[ti]?.Invoke();
+                AttnFill?.Invoke();
             }
             // przechowywanie: ustawia właściciel, idzie do moich serwerów
             var days = new[] { 7, 14, 30, 90, 365 };
@@ -2603,7 +2606,7 @@ namespace Velivo
             var lastAct = DateTime.UtcNow; w.PreviewMouseMove += (s, e) => lastAct = DateTime.UtcNow; w.PreviewKeyDown += (s, e) => lastAct = DateTime.UtcNow; w.PreviewMouseDown += (s, e) => lastAct = DateTime.UtcNow;
             Action<string> ended = why => { try { w.Close(); MessageBox.Show(owner, L.T("Sesja administratora zakończona: ") + why + L.T(". Otwórz panel i zaloguj się ponownie."), "🔐"); } catch (Exception) { } };
             KomAdmEnded += ended;
-            var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s, e) => { if (DateTime.UtcNow - lastAct > KomAdmIdle) { KomAdmEnd("15 min bez ruchu w panelu"); return; } if (w.IsActive || w.IsVisible) All(); }; tm.Start();
+            var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s, e) => { if (DateTime.UtcNow - lastAct > KomAdmIdle) { KomAdmEnd("15 min bez ruchu w panelu"); return; } if (w.IsActive && w.WindowState != WindowState.Minimized) All(); }; tm.Start();   // tylko gdy panel jest na wierzchu
             w.Closed += (s, e) => { tm.Stop(); KomAdmEnded -= ended; };
             KomStyle(w); AdmLook(w, tabs); w.Show();
         }

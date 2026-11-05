@@ -489,6 +489,11 @@ namespace Velivo
                 };
                 sp.Children.Add(kb);
             }
+            else
+            {   // 🔑 brak kluczy na tym serwerze - widać dlaczego; klucze z innych moich serwerów przyjdą przy wymianie (od razu ją wołam)
+                sp.Children.Add(new TextBlock { Text = "🔑 " + L.T("Na tym serwerze nie ma jeszcze żadnego klucza sprzętowego. Klucze dodane na innych Twoich serwerach dojdą tu same przy wymianie (trwa teraz) – zamknij to okno i otwórz panel za chwilę. Albo zaloguj się hasłem i dodaj klucz w zakładce Klucze."), TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Opacity = 0.85, Margin = new Thickness(0, 0, 0, 12) });
+                if (_komRelayListener != null) { KomClSyncNow(); KomInfraSync(); }
+            }
             if (hasPass)
             {
                 sp.Children.Add(new TextBlock { Text = L.T("Hasło administratora:") });
@@ -500,6 +505,18 @@ namespace Velivo
                     if (KomAdmCheckPass(pb.Password)) Done(L.T("hasło")); else { pb.Clear(); Fail(L.T("Złe hasło.")); }
                 };
                 sp.Children.Add(lb); w.Loaded += (s, e) => pb.Focus();
+                // 🔁 zapomniane hasło: hasła nie da się odczytać (jest tylko skrót) - nowe po Windows Hello właściciela TEGO komputera (PIN / odcisk / twarz); rozchodzi się na wszystkie moje serwery
+                var fg = new Button { Content = L.T("Nie pamiętam hasła…"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Nowe hasło po potwierdzeniu Windows Hello (PIN albo odcisk palca tego komputera)") };
+                fg.Click += async (s, e) =>
+                {
+                    bool hello = false;
+                    try { hello = await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Nowe hasło administratora Velivo")) == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified; } catch (Exception) { }
+                    if (!hello) { info.Text = L.T("Windows Hello nie potwierdził – hasła nie zmieniono. Włącz PIN w Ustawieniach Windows → Konta → Opcje logowania."); KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "nieudana zmiana zapomnianego hasła (brak Windows Hello)"); return; }
+                    var np = KomPassword(w, true); if (string.IsNullOrEmpty(np)) return;
+                    KomAdmSetPass(np); KomAdmLog("LOGOWANIE", Guid.NewGuid().ToString("N"), "login", Environment.MachineName, Environment.MachineName, "nowe hasło administratora po Windows Hello (zapomniane)");
+                    Done(L.T("nowe hasło po Windows Hello"));
+                };
+                sp.Children.Add(fg);
             }
             else sp.Children.Add(new TextBlock { Text = L.T("Hasło administratora nie jest ustawione – po zalogowaniu kluczem ustaw je w zakładce Ustawienia (zapas, gdy klucza nie ma przy sobie)."), TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Opacity = 0.75 });
             sp.Children.Add(info);

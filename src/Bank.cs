@@ -1062,26 +1062,36 @@ namespace Velivo
             var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
             if (core == null || site == null) return;
             var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder, c = card.Cvv ?? "", site });
-            try { await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception) { }
-            ShowToast(string.IsNullOrEmpty(card.Cvv) ? L.T("💳 Wpisano dane karty – CVV wpisz sam") : L.T("💳 Wpisano dane karty"), null);
+            string r = "0";
+            try { r = await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception ex) { App.LogError(ex); }
+            int.TryParse((r ?? "0").Trim('"'), out var nf);
+            ShowToast(nf <= 0 ? L.T("💳 Nie wpisano – nie znalazłem pól karty na tej stronie (kliknij 🧪 i przyślij opis formularza)")
+                : (L.En ? "💳 Card fields filled in: " : "💳 Wpisane pola karty: ") + nf + (string.IsNullOrEmpty(card.Cvv) ? L.T(" – CVV wpisz sam") : ""), null);
         }
 
-        const string CardFillScript = @"(function(d){try{
-if(d.site&&location.hostname.toLowerCase()!==String(d.site).toLowerCase())return;
+        // pola rozpoznawane po atrybutach ORAZ po podpisie obok (label / komórka tabeli – np. Worldpay: „Numer karty”, pole cardNoInput);
+        // listy wyboru (miesiąc / rok) – po wartości albo tekście opcji; zwraca liczbę wpisanych pól
+        const string CardFillScript = @"(function(d){var n=0;try{
+if(d.site&&location.hostname.toLowerCase()!==String(d.site).toLowerCase())return -1;
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
-function set(el,v){if(!el||!v)return;var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
-el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
+function fire(el){el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
+function set(el,v){if(!el||!v)return;
+if(el.tagName==='SELECT'){var t=String(v).replace(/^0+/,'');for(var i=0;i<el.options.length;i++){var o=el.options[i];var ov=String(o.value).replace(/^0+/,''),ot=String(o.text).trim().replace(/^0+/,'');
+if(ov===t||ot===t||(t.length===2&&(ov==='20'+t||ot==='20'+t))){el.selectedIndex=i;fire(el);n++;return;}}return;}
+var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;fire(el);n++;}
 var mm=(d.e||'').split(/[\/\-. ]/)[0]||'',yy=(d.e||'').split(/[\/\-. ]/)[1]||'';
-function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}   // tylko widoczne pola - ukryte nie zbieraja danych karty
-docs.forEach(function(doc){Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).forEach(function(el){
-var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
-if(/cc-csc|cvv|cvc|csc|security.?code/.test(a)){set(el,d.c);return;}
-if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a))set(el,d.n);
+function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
+function lab(el,doc){var t='';try{if(el.id){var l=doc.querySelector('label[for=""'+el.id+'""]');if(l)t+=' '+l.textContent;}var c=el.closest('label');if(c)t+=' '+c.textContent;
+var tr=el.closest('tr');if(tr){var td=tr.querySelector('td,th');if(td&&!td.contains(el))t+=' '+td.textContent;}}catch(x){}return t;}
+docs.forEach(function(doc){var expSel=0;Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).forEach(function(el){
+var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')+' '+lab(el,doc)).toLowerCase();
+if(/cc-csc|cvv|cvc|csc|security.?code|zabezpiecz/.test(a)){set(el,d.c);return;}
+if(/cc-number|cardnumber|card-number|card_number|cardno|card.?num|numer.?karty|ccnum/.test(a))set(el,d.n);
 else if(/cc-exp-month|exp.?month|miesi/.test(a))set(el,mm);
 else if(/cc-exp-year|exp.?year|\brok\b/.test(a))set(el,el.maxLength==4?'20'+yy:yy);
-else if(/cc-exp|expir|wazn|ważn|mm.?\/.?yy|mm.?\/.?rr/.test(a))set(el,d.e);
+else if(/cc-exp|expir|wazn|ważn|mm.?\/.?yy|mm.?\/.?rr/.test(a)){if(el.tagName==='SELECT'){set(el,expSel++===0?mm:yy);}else set(el,d.e);}
 else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a))set(el,d.h);
-});});}catch(x){}})(__D__);";
+});});}catch(x){}return n;})(__D__);";
 
         // ---------- strony bankowe i sklepy ----------
         void FillBankSitesMenu(MenuItem parent, bool shop)
@@ -1257,8 +1267,15 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         {
             var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
             if (core == null || host == null) return;
-            _ = core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", JsonSerializer.Serialize(new { u = l.User, p = l.Pass, h = host })));
-            ShowToast(L.T("🔑 Wpisano dane logowania: ") + l.Label, null);
+            _ = BankFillRun(core, JsonSerializer.Serialize(new { u = l.User, p = l.Pass, h = host }), L.T("🔑 Wpisano dane logowania: ") + l.Label);
+        }
+        // wynik słowami - nigdy „wpisano”, gdy nic nie wpisało
+        async Task BankFillRun(Microsoft.Web.WebView2.Core.CoreWebView2 core, string data, string okText)
+        {
+            string r = "0";
+            try { r = await core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", data)); } catch (Exception ex) { App.LogError(ex); }
+            int.TryParse((r ?? "0").Trim('"'), out var n);
+            ShowToast(n > 0 ? okText : n < 0 ? L.T("🔑 Nie wpisano – strona zmieniła adres, dane są zapisane dla innej strony") : L.T("🔑 Nie wpisano – nie znalazłem pól loginu ani hasła na tej stronie (kliknij 🧪 i przyślij opis formularza)"), null);
         }
 
         // Opis pol formularza (podpisy, numery, rodzaj) - BEZ wartosci; do wklejenia przy zglaszaniu problemu
@@ -2871,7 +2888,8 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         // ---------- wpisanie loginu z notatki ----------
         void BankFillLoginMenu()
         {
-            if (_current == null || !_current.Bank || _bankKey == null) return;
+            if (_current == null || !_current.Bank) return;
+            if (_bankKey == null) { ShowToast(L.T("🔒 Sejf trybu bankowego jest zamknięty – odblokuj go i kliknij jeszcze raz"), null); return; }
             var c = LoadBank(); if (c == null) return;
             // najpierw konta zapisane w trybie bankowym dla tej strony: jedno - od razu, kilka - wybor
             var host = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
@@ -2903,8 +2921,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                     var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
                     if (core == null) return;
                     var data = JsonSerializer.Serialize(new { u = user ?? "", p = pass ?? "", h = HostOf(core.Source) ?? "-" });
-                    try { await core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", data)); } catch (Exception) { }
-                    ShowToast(L.T("🔑 Wpisano dane logowania z notatki"), null);
+                    await BankFillRun(core, data, L.T("🔑 Wpisano dane logowania z notatki"));
                 };
                 menu.Items.Add(mi);
             }
@@ -3059,8 +3076,8 @@ return d.diag?diag.join('\n'):d.count?String(cnt()):String(n);})(__D__);";
             else if (user == null && pass == null && lines.Count == 1) user = lines[0];
         }
 
-        const string LoginFillScript = @"(function(d){try{
-if(d.h&&location.hostname.toLowerCase()!==String(d.h).toLowerCase())return;
+        const string LoginFillScript = @"(function(d){var n=0;try{
+if(d.h&&location.hostname.toLowerCase()!==String(d.h).toLowerCase())return -1;
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
 function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
 function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
@@ -3076,8 +3093,8 @@ return /user|login|email|mail|klient|customer|nik|ident|id/.test(a);})[0];
 if(!user&&pw){var idx=ins.indexOf(pw);for(var i=idx-1;i>=0;i--){if(cand.indexOf(ins[i])>=0){user=ins[i];break;}}}
 if(!user&&!pw&&cand.length===1)user=cand[0];
 if(pw&&pw.maxLength>0&&String(d.p||'').length>pw.maxLength)pw=null;if(user&&user.maxLength>0&&String(d.u||'').length>user.maxLength)user=null;
-if(user)set(user,d.u);if(pw)set(pw,d.p);
-});}catch(x){}})(__D__);";
+if(user){set(user,d.u);n++;}if(pw){set(pw,d.p);n++;}
+});}catch(x){}return n;})(__D__);";
 
         // ---------- falszywe strony podszywajace sie pod Twoj bank / sklep ----------
         readonly HashSet<string> _bankLookWarned = new HashSet<string>();

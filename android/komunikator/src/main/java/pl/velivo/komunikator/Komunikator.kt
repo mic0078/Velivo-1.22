@@ -3715,6 +3715,39 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // plik z rozmowy w Pobranych (raz) - stamtąd otwiera go inna aplikacja
     private val downloaded = HashMap<String, Uri>()
+    // 📦 instalacja aplikacji z pliku w rozmowie: sesja PackageInstaller (Android pyta „Zainstalować?”), wynik i powód błędu słowami
+    private fun installApk(path: String) {
+        val f = java.io.File(path)
+        Toast.makeText(a, t("Przygotowuję instalację…", "Preparing the installation…"), Toast.LENGTH_SHORT).show()
+        Thread {
+            val err = runCatching {
+                val pi = a.packageManager.packageInstaller
+                val id = pi.createSession(android.content.pm.PackageInstaller.SessionParams(android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL))
+                val act = "pl.velivo.komunikator.INSTALL.$id"
+                val rcv = object : android.content.BroadcastReceiver() {
+                    override fun onReceive(c0: Context, i: android.content.Intent) {
+                        when (i.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
+                            android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                                @Suppress("DEPRECATION") val ui = i.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)
+                                ui?.let { runCatching { a.startActivity(it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                            }
+                            android.content.pm.PackageInstaller.STATUS_SUCCESS -> { runCatching { a.unregisterReceiver(this) }; Toast.makeText(a, t("Zainstalowano", "Installed"), Toast.LENGTH_LONG).show() }
+                            else -> { runCatching { a.unregisterReceiver(this) }
+                                Toast.makeText(a, t("Nie zainstalowano: ", "Not installed: ") + (i.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "?"), Toast.LENGTH_LONG).show() }
+                        }
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= 33) a.registerReceiver(rcv, android.content.IntentFilter(act), Context.RECEIVER_NOT_EXPORTED) else a.registerReceiver(rcv, android.content.IntentFilter(act))
+                pi.openSession(id).use { ss ->
+                    ss.openWrite("app.apk", 0, f.length()).use { o -> f.inputStream().use { it.copyTo(o) }; ss.fsync(o) }
+                    val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) android.app.PendingIntent.FLAG_MUTABLE else 0)
+                    ss.commit(android.app.PendingIntent.getBroadcast(a, id, android.content.Intent(act).setPackage(a.packageName), flags).intentSender)
+                }
+            }.exceptionOrNull()
+            if (err != null) a.runOnUiThread { Toast.makeText(a, t("Nie zainstalowano: ", "Not installed: ") + (err.message ?: err.javaClass.simpleName), Toast.LENGTH_LONG).show() }
+        }.start()
+    }
+
     private fun toDownloads(path: String): Uri? = downloaded[path] ?: runCatching {
         val f = java.io.File(path)
         val v = android.content.ContentValues().apply {
@@ -3912,6 +3945,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 return
             }
         }
+        if (path.endsWith(".apk", true)) { installApk(path); return }   // 📦 instalacja wprost z pliku (PackageInstaller) - bez kopii w Pobranych, błąd słowami
         val uri = toDownloads(path) ?: run { Toast.makeText(a, t("Nie udało się otworzyć", "Could not open"), Toast.LENGTH_SHORT).show(); return }
         val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase()) ?: if (path.endsWith(".apk", true)) "application/vnd.android.package-archive" else "*/*"
         // 🎬 film - najpierw odtwarzacz Velivo (VLC, wszystkie kodeki: H.265, MKV, WebM…), gdy jest przeglądarka Velivo; inaczej odtwarzacz telefonu

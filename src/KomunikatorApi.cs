@@ -18,23 +18,21 @@ namespace Velivo
     {
         public const int KomApiPort = 41930;
         // ⏱ pomiar zacięć: każda czynność w wątku okna dłuższa niż 0,5 s - wpis w Błędach Velivo z nazwą funkcji (zamiast zgadywania, co zawiesza Velivo)
-        bool _komUiWatch;
+        bool _komUiWatch; long _komOpT; System.Windows.Threading.DispatcherOperation _komOpCur; readonly Dictionary<string, DateTime> _komUiLast = new Dictionary<string, DateTime>();
         void KomUiWatch()
-        {
+        {   // bez przydziałów pamięci na każdą czynność: tylko znacznik czasu; nazwa funkcji odczytywana dopiero przy zacięciu > 0,5 s
             if (_komUiWatch) return; _komUiWatch = true;
-            var started = new System.Runtime.CompilerServices.ConditionalWeakTable<System.Windows.Threading.DispatcherOperation, System.Diagnostics.Stopwatch>();
-            var last = new Dictionary<string, DateTime>();
-            Dispatcher.Hooks.OperationStarted += (s, e) => { try { started.AddOrUpdate(e.Operation, System.Diagnostics.Stopwatch.StartNew()); } catch (Exception) { } };
+            Dispatcher.Hooks.OperationStarted += (s, e) => { _komOpCur = e.Operation; _komOpT = System.Diagnostics.Stopwatch.GetTimestamp(); };
             Dispatcher.Hooks.OperationCompleted += (s, e) =>
             {
+                if (!ReferenceEquals(e.Operation, _komOpCur)) return; _komOpCur = null;
+                var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _komOpT) * 1000 / System.Diagnostics.Stopwatch.Frequency; if (ms < 500) return;
                 try
                 {
-                    if (!started.TryGetValue(e.Operation, out var sw)) return; started.Remove(e.Operation);
-                    if (sw.ElapsedMilliseconds < 500) return;
-                    string name = "?";
-                    try { var d = e.Operation.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(e.Operation) as Delegate; if (d != null) name = d.Method.DeclaringType?.Name + "." + d.Method.Name; } catch (Exception) { }
-                    if (last.TryGetValue(name, out var lt) && DateTime.UtcNow - lt < TimeSpan.FromMinutes(1)) return; last[name] = DateTime.UtcNow;
-                    App.LogInfo("ZACIĘCIE okna Velivo: " + sw.ElapsedMilliseconds + " ms – " + name + " (priorytet " + e.Operation.Priority + ")");
+                    string name = "?"; var d = e.Operation.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(e.Operation) as Delegate;
+                    if (d != null) name = d.Method.DeclaringType?.Name + "." + d.Method.Name;
+                    if (_komUiLast.TryGetValue(name, out var lt) && DateTime.UtcNow - lt < TimeSpan.FromMinutes(1)) return; _komUiLast[name] = DateTime.UtcNow;
+                    App.LogInfo("ZACIĘCIE okna Velivo: " + ms + " ms – " + name);
                 }
                 catch (Exception) { }
             };

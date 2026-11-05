@@ -595,6 +595,7 @@ namespace Velivo
         readonly ConcurrentDictionary<string, DateTime> _komSyncAt = new ConcurrentDictionary<string, DateTime>();
         DateTime _komAltAt;
         DateTime _komForeignLog;   // ostatni zapis połączenia spoza Velivo   // ostatnia próba zapasowych adresów serwerów
+        readonly Dictionary<string, DateTime> _komSekAt = new Dictionary<string, DateTime>();
         void KomRelaySync(string peerId)
         {
             var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || !peer.Dom) return;   // tylko moje urządzenie z domu (serwer, telefon, laptop) - nigdy znajomego
@@ -603,7 +604,9 @@ namespace Velivo
                 // starsze Velivo nie zna tego sygnału i pokazywało go jako wiadomość co 10 minut
                 bool agreed = _komSekPeer.TryGetValue(peerId, out var po0) && po0 == KomSekOrigin;
                 _komSekSent.TryGetValue(peerId, out var sent0);
-                if (!agreed && sent0 < 3) { _komSekSent[peerId] = sent0 + 1;
+                // członek mojej infrastruktury (certyfikat): ponawiam co 10 min, aż się uzgodni - 3 zgubione próby odcinały wymianę kontaktów i kluczy (mama z Ryzena) na zawsze
+                bool again = KomIsMember(peerId) && (!_komSekAt.TryGetValue(peerId, out var sa0) || DateTime.UtcNow - sa0 > TimeSpan.FromMinutes(10));
+                if (!agreed && (sent0 < 3 || again)) { _komSekSent[peerId] = sent0 + 1; _komSekAt[peerId] = DateTime.UtcNow;
                 KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
                 if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
                 // 📝 jedna baza na moich serwerach: konta (numer + PIN) i usunięci - drugiemu serwerowi tylko po zmianie (skrót), tą samą drogą co wiadomość (dom albo internet)

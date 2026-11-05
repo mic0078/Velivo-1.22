@@ -515,7 +515,7 @@ namespace Velivo
                         var mac = KomB64((string)p["mac"]); var exp = KomHmac(c.Key, "ack\n" + mid);
                         if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp))
                         {   // potwierdzenie wiadomości wysłanej w imieniu mojego innego serwera (alias) - ✓✓, ale bez „zna ten komputer”
-                            var (aId, aKey) = KomAliasFor(c); if (aId == _komId) return;
+                            var (aId, aKey) = KomAliasPick(c); if (aId == _komId) return;
                             var ea = KomHmac(aKey, "ack\n" + mid); if (mac.Length != ea.Length || !CryptographicOperations.FixedTimeEquals(mac, ea)) return;
                             if (_komAcks.TryGetValue(mid, out var ta)) ta.TrySetResult(true);
                             return;
@@ -1103,7 +1103,19 @@ namespace Velivo
         }
 
         // 🔁 nadawca dla odbiorcy, który nie zna tego serwera: mój inny serwer, który teraz działa i który ta osoba zna (klucz z `alias`); inaczej ja
+        readonly Dictionary<string, DateTime> _komAliasLog = new Dictionary<string, DateTime>();
         (string, byte[]) KomAliasFor(KomContact to)
+        {
+            var r = KomAliasPick(to);
+            if (_komRelayListener != null && to != null && !to.Dom && !to.IsGroup && (_komOpt["knows2"] as JsonObject)?[to.Id] == null && (!_komAliasLog.TryGetValue(to.Id, out var la) || DateTime.UtcNow - la > TimeSpan.FromHours(1)))
+            {   // 🔎 raz na godzinę: czy ten serwer ma klucz innego mojego serwera z tą osobą (bez niego wiadomość idzie pod tym serwerem, a stary telefon jej nie przyjmie)
+                _komAliasLog[to.Id] = DateTime.UtcNow;
+                App.LogInfo(r.Item1 != _komId ? "Wysyłka do " + to.Name + " w imieniu serwera " + (KomContactById(r.Item1)?.Name ?? r.Item1.Substring(0, 6)) + " (ta osoba nie zna tego komputera)"
+                    : "Wysyłka do " + to.Name + ": ta osoba nie potwierdziła jeszcze tego komputera, a od moich serwerów brak klucza z nią (alias) – czekam na wymianę kontaktów między serwerami");
+            }
+            return r;
+        }
+        (string, byte[]) KomAliasPick(KomContact to)
         {
             if (_komRelayListener != null && to != null && !to.Dom && !to.IsGroup && _komOpt["alias"] is JsonObject al && (_komOpt["knows2"] as JsonObject)?[to.Id] == null)
                 foreach (var kv in al.Where(x => x.Key.StartsWith(to.Id + "|")).OrderBy(x => KomOnline(x.Key.Substring(to.Id.Length + 1)) ? 0 : 1).ToList())   // najpierw serwer, który działa; wyłączony też (mama zna tylko NUCBOX - przy wyłączonym NUCBOX inny serwer pisze w jego imieniu)

@@ -46,7 +46,7 @@ namespace Velivo
             if (!Valid(e)) return false;
             var id = (string)e["id"]; var o = (string)e["o"]; var n = (long)e["n"];
             if (_ids.Contains(id) || _seqs.Contains((o, n))) return false;
-            _ids.Add(id); _seqs.Add((o, n)); _ev.Add(e);
+            _ids.Add(id); _seqs.Add((o, n)); _ev.Add(e); _dig = null;
             var m = _max.TryGetValue(o, out var cur) ? cur : 0;
             while (_seqs.Contains((o, m + 1))) m++;
             _max[o] = m;
@@ -111,7 +111,17 @@ namespace Velivo
         public IEnumerable<JsonObject> All(string kind) { lock (_lock) return _ev.Where(x => (string)x["k"] == kind).Select(x => (JsonObject)x.DeepClone()).ToList(); }
         public int Count { get { lock (_lock) return _ev.Count; } }
         // 🔬 odcisk całej historii: skróty kanoniczne wszystkich zdarzeń (KomCanon v1), w kolejności bajtów - ten sam zbiór zdarzeń = ten sam odcisk
-        public string Digest() { lock (_lock) return KomCanon.ShaList(_ev.Select(x => KomCanon.Sha(x))).Substring(0, 19); }
+        // skrót całej historii - liczony tylko po zmianie (przy 170 tys. zdarzeń liczenie co minutę i przy każdym stanie innego serwera zacinało całe Velivo)
+        string _dig; readonly Dictionary<JsonObject, string> _sha = new Dictionary<JsonObject, string>(ReferenceEqualityComparer.Instance);   // skrót każdego zdarzenia raz
+        public string Digest()
+        {
+            lock (_lock)
+            {
+                if (_dig != null) return _dig;
+                if (_sha.Count > _ev.Count * 2) _sha.Clear();
+                return _dig = KomCanon.ShaList(_ev.Select(x => _sha.TryGetValue(x, out var h) ? h : _sha[x] = KomCanon.Sha(x))).Substring(0, 19);
+            }
+        }
 
         // porządki: zdarzenia starsze niż granica usuwane; „mam do N” zostaje (nagłówek pliku), więc nic nie wraca od innych serwerów
         public int Prune(long beforeTs)
@@ -121,7 +131,7 @@ namespace Velivo
                 int before = _ev.Count;
                 var keep = _ev.Where(x => ((long?)x["ts"] ?? 0) >= beforeTs).ToList();
                 if (keep.Count == before) return 0;
-                _ev.Clear(); _ids.Clear(); _seqs.Clear(); var max = new Dictionary<string, long>(_max);
+                _ev.Clear(); _dig = null; _ids.Clear(); _seqs.Clear(); var max = new Dictionary<string, long>(_max);
                 foreach (var e in keep) { _ev.Add(e); _ids.Add((string)e["id"]); _seqs.Add(((string)e["o"], (long)e["n"])); }
                 _max.Clear(); foreach (var kv in max) _max[kv.Key] = kv.Value;
                 foreach (var kv in max) for (long i = 1; i <= kv.Value; i++) _seqs.Add((kv.Key, i));   // numery do N uznane za znane (stare zdarzenia nie wrócą)

@@ -1875,7 +1875,7 @@ namespace Velivo
             var b = new Button { Content = "🛠 " + L.T("Panel administratora…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
                 ToolTip = L.T("Wszystko o moich serwerach: stan, sterowanie, skrzynka, osoby, dzienniki, błędy") };
             // okno „Rozmowy poza domem” (modalne) zamykane przed otwarciem panelu - zostawało pod panelem i blokowało całe Velivo; panel należy do głównego okna
-            b.Click += (s, e) => { var main = owner.Owner ?? this; if (owner != this) owner.Close(); Dispatcher.BeginInvoke(new Action(() => KomServerCenter(main))); };
+            b.Click += (s, e) => { var dlg = Window.GetWindow(b); if (dlg != null && dlg != this) dlg.Close(); Dispatcher.BeginInvoke(new Action(() => KomServerCenter(this))); };   // okno, w którym jest przycisk, znika
             return b;
         }
         // tabela: kolumny, wiersze (tekst), szukanie i sortowanie; zwraca element i odświeżanie
@@ -2677,8 +2677,10 @@ namespace Velivo
             ts.Triggers.Add(ov); ts.Triggers.Add(sel);
             foreach (TabItem ti in tabs.Items) ti.Style = ts;
         }
+        Window _komRelayWin;   // jedno okno „Rozmowy poza domem” naraz (nie jest już modalne)
         void KomRelayDialog(Window owner)
         {
+            if (_komRelayWin != null) { _komRelayWin.Activate(); return; }
             var on = new CheckBox { Content = L.T("Ten komputer jest pośrednikiem dla rozmów poza domem (musi być zawsze włączony)"), IsChecked = _komRelayOn, Margin = new Thickness(0, 0, 0, 10) };
             var host = new TextBox { Text = _komRelayAuto ? "" : _komRelayHost, MinWidth = 300, ToolTip = L.T("Puste – Velivo ustali adres domu samo. Możesz wpisać własny, np. z No-IP: mojdom.ddns.net") };
             var port = new TextBox { Text = _komRelayPort.ToString(), Width = 90, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Port TCP przekierowany w routerze na ten komputer") };
@@ -2700,9 +2702,12 @@ namespace Velivo
             KomStyle(d);
             KomRelayStatus();
             if (_komRelayOn && _komRelayListener != null && _komUp == null) { _komRelayRouter = L.T("Sprawdzam porty…"); KomRelayStatus(); _ = KomRelayAutoAsync(); }   // stan zawsze z bieżącego sprawdzenia, nie sprzed godziny
-            ok.Click += (s, e) => d.DialogResult = true;
-            d.Closed += (s, e) => { _komRelayStatusText = null; _komRelaySummary = null; };
-            d.ShowDialog();   // zamknięcie okna (✕ albo OK) zapisuje zmiany - wcześniej bez OK zostawał stary adres i port
+            ok.Click += (s, e) => d.Close();
+            // okno NIE blokuje reszty Velivo (było modalne – dopóki otwarte, nic innego nie działało); zamknięcie (✕ albo OK) zapisuje zmiany
+            d.Closed += (s, e) => { _komRelayWin = null; _komRelayStatusText = null; _komRelaySummary = null; Apply(); };
+            _komRelayWin = d; d.Show();
+            void Apply()
+            {
             if (_komRelayOn && on.IsChecked != true) _komRelayAsked = true;   // wylaczone recznie - zostaje wylaczone
             _komRelayOn = on.IsChecked == true;
             var typed = host.Text.Trim();
@@ -2717,6 +2722,7 @@ namespace Velivo
             KomSave();
             KomRelayStart();
             if (_komRelayOn) { KomAnnounce(); KomInfo(L.T("🌍 Pośrednik włączony – ustalam adres domu i port w routerze…")); }   // urzadzenia w domu od razu dostaja adres pośrednika
+            }
         }
     }
 }

@@ -17,6 +17,28 @@ namespace Velivo
     public partial class MainWindow
     {
         public const int KomApiPort = 41930;
+        // ⏱ pomiar zacięć: każda czynność w wątku okna dłuższa niż 0,5 s - wpis w Błędach Velivo z nazwą funkcji (zamiast zgadywania, co zawiesza Velivo)
+        bool _komUiWatch;
+        void KomUiWatch()
+        {
+            if (_komUiWatch) return; _komUiWatch = true;
+            var started = new System.Runtime.CompilerServices.ConditionalWeakTable<System.Windows.Threading.DispatcherOperation, System.Diagnostics.Stopwatch>();
+            var last = new Dictionary<string, DateTime>();
+            Dispatcher.Hooks.OperationStarted += (s, e) => { try { started.AddOrUpdate(e.Operation, System.Diagnostics.Stopwatch.StartNew()); } catch (Exception) { } };
+            Dispatcher.Hooks.OperationCompleted += (s, e) =>
+            {
+                try
+                {
+                    if (!started.TryGetValue(e.Operation, out var sw)) return; started.Remove(e.Operation);
+                    if (sw.ElapsedMilliseconds < 500) return;
+                    string name = "?";
+                    try { var d = e.Operation.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(e.Operation) as Delegate; if (d != null) name = d.Method.DeclaringType?.Name + "." + d.Method.Name; } catch (Exception) { }
+                    if (last.TryGetValue(name, out var lt) && DateTime.UtcNow - lt < TimeSpan.FromMinutes(1)) return; last[name] = DateTime.UtcNow;
+                    App.LogInfo("ZACIĘCIE okna Velivo: " + sw.ElapsedMilliseconds + " ms – " + name + " (priorytet " + e.Operation.Priority + ")");
+                }
+                catch (Exception) { }
+            };
+        }
         TcpListener _komApi;
         string KomApiKey()
         {

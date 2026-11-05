@@ -256,6 +256,7 @@ namespace Velivo
         // porównanie z innym serwerem (z jego stanu co minutę): wpis przy zmianie wyniku; różnica liczy się dopiero 3 razy z rzędu (wiadomości w drodze)
         void KomFpCompare(string peer, JsonObject si, IPAddress addr)
         {
+            _komSyncTry[peer] = DateTime.Now;   // wieść od serwera jest - także gdy ma inną wersję (wtedy pasek mówi „inna wersja”, nie „brak wieści”)
             if ((int?)si["fpV"] != KomCanon.Version)
             {   // inna wersja formatu skrótu (starsza / nowsza wersja Velivo) - nie porównuję, żeby nie dać fałszywej niezgodności
                 if (!_komFpCmp.TryGetValue(peer + "|v", out var vv) || vv.fp != "V") { _komFpCmp[peer + "|v"] = ("V", 0); KomDiag("PORÓWNANIE", "skrzynka", "-", KomSrvTag(_komId), KomSrvTag(peer), "nie porównuję – inna wersja formatu skrótu (tu v" + KomCanon.Version + ", tam " + ((int?)si["fpV"] is int tv ? "v" + tv : "brak – starsza wersja Velivo") + ")"); }
@@ -811,6 +812,8 @@ namespace Velivo
                 // 🔁 zastępstwo: telefon zna tylko inny mój serwer (np. mama - tylko NUCBOX), a trafił tutaj (443, adres domu) - mój serwer przekazał mi jego klucz z tym telefonem, więc obsługuję go w jego imieniu
                 var rk = c?.Key; var rel = (string)h["Relay"] ?? "";
                 if (c != null && rel != _komId && _komOpt["alias"] is JsonObject al && (string)al[c.Id + "|" + rel] is { } ak) { try { rk = Convert.FromBase64String(ak); } catch (Exception) { } if (rk?.Length == 32) { rel = _komId; who += " (zamiast " + (KomContactById((string)h["Relay"])?.Name ?? "innego serwera") + ")"; } }
+                // 🔀 połączenie do innego mojego serwera z domu, a ja nie mam jego klucza (router skierował telefon tutaj) - przekazuję je w całości temu serwerowi przez sieć domową
+                if (rel != _komId && (string)h["Type"] == "relay-hello" && KomDomSrv(rel) && await KomRelayProxy(rel, hello, mac, s, who)) { cl.Dispose(); return; }
                 string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : rel != _komId ? "połączenie do innego serwera: " + (KomContactById(rel)?.Name ?? (rel.Length >= 6 ? rel.Substring(0, 6) : "?")) + " (adres wskazuje ten komputer; brak klucza zastępczego od tamtego serwera)"
                     : Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000 ? "zły czas zegara (różnica ponad 5 min)" : null;
                 if (why != null) { var rejKey = who + why; if (!_komRejLog.TryGetValue(rejKey, out var rejAt) || DateTime.UtcNow - rejAt > TimeSpan.FromMinutes(30)) { _komRejLog[rejKey] = DateTime.UtcNow; App.LogInfo("Pośrednik: odrzucono " + who + " – " + why + " (powtórki przez 30 min nie są zapisywane)"); } _komLastReject = (c?.Name ?? L.T("nieznane urządzenie")) + " – " + why; _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
@@ -1871,7 +1874,8 @@ namespace Velivo
         {
             var b = new Button { Content = "🛠 " + L.T("Panel administratora…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
                 ToolTip = L.T("Wszystko o moich serwerach: stan, sterowanie, skrzynka, osoby, dzienniki, błędy") };
-            b.Click += (s, e) => KomServerCenter(owner);
+            // okno „Rozmowy poza domem” (modalne) zamykane przed otwarciem panelu - zostawało pod panelem i blokowało całe Velivo; panel należy do głównego okna
+            b.Click += (s, e) => { var main = owner.Owner ?? this; if (owner != this) owner.Close(); Dispatcher.BeginInvoke(new Action(() => KomServerCenter(main))); };
             return b;
         }
         // tabela: kolumny, wiersze (tekst), szukanie i sortowanie; zwraca element i odświeżanie
@@ -2051,6 +2055,28 @@ namespace Velivo
             int n = KomMyServers().Count(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id));
             var notYet = _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && x.Id != _komId && !KomIsMember(x.Id)).Select(x => x.Name).ToList();
             return (notYet.Count > 0 ? "zatwierdzone do infrastruktury: " + string.Join(", ", notYet) + " – wykonaj to samo polecenie także NA TAMTYM serwerze; " : "") + "kontakty i klucze wysłane od nowa do moich serwerów w sieci: " + n + "; alias (klucze innych serwerów z osobami) tutaj: " + ((_komOpt["alias"] as JsonObject)?.Count ?? 0);
+        }
+        // 🔀 przekaźnik: całe połączenie (hello + mac, potem bajty w obie strony) do mojego serwera w domu pod jego adresem w sieci domowej
+        async Task<bool> KomRelayProxy(string srvId, byte[] hello, byte[] mac, Stream s, string who)
+        {
+            string ip = null; int port = 0;
+            if (_komPeerPorts.TryGetValue(srvId, out var pp) && pp.Lan?.Length > 0) { ip = pp.Lan; port = pp.Port; }
+            if (ip == null && KomContactById(srvId) is { } sc && IPAddress.TryParse(sc.Addr ?? "", out var sa) && !IPAddress.IsLoopback(sa)) { ip = sa.ToString(); port = int.TryParse((sc.Relay ?? "").Split(':').LastOrDefault(), out var rp) ? rp : 0; }
+            if (ip == null || port <= 0) return false;
+            var tc = new TcpClient { NoDelay = true };
+            try
+            {
+                using var cts0 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await tc.ConnectAsync(IPAddress.Parse(ip), port, cts0.Token);
+                var ts2 = tc.GetStream();
+                await KomWriteBlock(ts2, hello, CancellationToken.None); await KomWriteBlock(ts2, mac, CancellationToken.None);
+                App.LogInfo("Pośrednik: przekazuję " + who + " do serwera " + (KomContactById(srvId)?.Name ?? srvId.Substring(0, 6)) + " (" + ip + ":" + port + ") – telefon łączył się z tamtym serwerem");
+                var a1 = s.CopyToAsync(ts2); var a2 = ts2.CopyToAsync(s);
+                await Task.WhenAny(a1, a2);
+                return true;
+            }
+            catch (Exception ex) { App.LogInfo("Pośrednik: nie udało się przekazać " + who + " do " + ip + ":" + port + " – " + ex.Message); return false; }
+            finally { tc.Dispose(); }
         }
         void KomPeerLinks()
         {
@@ -2603,7 +2629,7 @@ namespace Velivo
                 {
                     _komSyncTry.TryGetValue(c.Id, out var tr); _komSyncOk.TryGetValue(c.Id, out var ok);
                     var box = _komFpCmp.TryGetValue(c.Id, out var b1) ? b1.fp : null; var ev = _komFpCmp.TryGetValue(c.Id + "|ev", out var b2) ? b2.fp : null;
-                    string res = tr == default ? L.T("brak wieści (wyłączony albo starsza wersja)") : DateTime.Now - tr > TimeSpan.FromMinutes(3) ? L.T("brak wieści od ") + tr.ToString("dd.MM HH:mm") : box == "Z" && ev == "Z" ? L.T("zgodne") : box == "R" || ev == "R" ? L.T("RÓŻNE – ") + (box == "R" ? L.T("skrzynka ") : "") + (ev == "R" ? L.T("historia") : "") : L.T("wyrównuję…");
+                    string res = _komFpCmp.TryGetValue(c.Id + "|v", out var vv) && vv.fp == "V" && tr != default && DateTime.Now - tr < TimeSpan.FromMinutes(3) ? L.T("inna wersja Velivo – zainstaluj tę samą na obu") : tr == default ? L.T("brak wieści (wyłączony albo starsza wersja)") : DateTime.Now - tr > TimeSpan.FromMinutes(3) ? L.T("brak wieści od ") + tr.ToString("dd.MM HH:mm") : box == "Z" && ev == "Z" ? L.T("zgodne") : box == "R" || ev == "R" ? L.T("RÓŻNE – ") + (box == "R" ? L.T("skrzynka ") : "") + (ev == "R" ? L.T("historia") : "") : L.T("wyrównuję…");
                     ls.Add("🔄 " + c.Name + ":  " + L.T("ostatnia pełna zgodność: ") + (ok == default ? "–" : ok.ToString("dd.MM.yyyy HH:mm:ss")) + "   ·   " + L.T("ostatnie sprawdzenie: ") + (tr == default ? "–" : tr.ToString("HH:mm:ss")) + "   ·   " + L.T("wynik: ") + res);
                 }
                 syncTxt.Text = ls.Count == 0 ? L.T("🔄 Brak innych moich serwerów – nie ma z kim synchronizować.") : string.Join("\n", ls);

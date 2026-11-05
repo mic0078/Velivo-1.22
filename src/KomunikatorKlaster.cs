@@ -258,7 +258,11 @@ namespace Velivo
             if (_komCl == null) return;
             foreach (var c in _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && !KomClMine(x.Id) && !KomIsMember(x.Id) && _komSekPeer.TryGetValue(x.Id, out var po) && po == KomSekOrigin).ToList())
                 KomClApprove(c);
+            // „Tak” już dane, a drugi serwer dalej nie członek (zgubione „tak”, był wyłączony) - powtórka co 10 min, aż się połączą
+            foreach (var c in _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && KomClMine(x.Id) && !KomIsMember(x.Id)).ToList())
+                if (!_komClYesAt.TryGetValue(c.Id, out var at) || DateTime.UtcNow - at > TimeSpan.FromMinutes(10)) { _komClYesAt[c.Id] = DateTime.UtcNow; KomClApprove(c); }
         }
+        readonly Dictionary<string, DateTime> _komClYesAt = new Dictionary<string, DateTime>();
 
         // 🔐 przy każdym połączeniu serwer–serwer: certyfikat + podpis kluczem serwera (od, do, infrastruktura)
         JsonObject KomSrvIdFrame(string peerId)

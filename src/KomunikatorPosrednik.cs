@@ -605,7 +605,7 @@ namespace Velivo
                 bool agreed = _komSekPeer.TryGetValue(peerId, out var po0) && po0 == KomSekOrigin;
                 _komSekSent.TryGetValue(peerId, out var sent0);
                 // członek mojej infrastruktury (certyfikat): ponawiam co 10 min, aż się uzgodni - 3 zgubione próby odcinały wymianę kontaktów i kluczy (mama z Ryzena) na zawsze
-                bool again = KomIsMember(peerId) && (!_komSekAt.TryGetValue(peerId, out var sa0) || DateTime.UtcNow - sa0 > TimeSpan.FromMinutes(10));
+                bool again = (!_komSekAt.TryGetValue(peerId, out var sa0) || DateTime.UtcNow - sa0 > TimeSpan.FromMinutes(10));
                 if (!agreed && (sent0 < 3 || again)) { _komSekSent[peerId] = sent0 + 1; _komSekAt[peerId] = DateTime.UtcNow;
                 KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
                 if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
@@ -2037,10 +2037,13 @@ namespace Velivo
         {
             if (_komRelayListener == null) return "ten komputer nie jest serwerem";
             _komSekSent.Clear(); _komSekAt.Clear(); _komAccSent.Clear();
+            // administrator kazał (Tak) - moje serwery (Dom z adresem) zatwierdzone do infrastruktury; gdy drugi serwer też zatwierdzi, łączą się w jedną
+            foreach (var c in _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && x.Id != _komId && !KomIsMember(x.Id)).ToList()) KomClApprove(c);
             if (_komOpt["intro"] is JsonArray done) foreach (var x in done.Where(n => ((string)n ?? "").Contains("|s|")).ToList()) done.Remove(x);
             KomClSyncNow(); KomPeerLinks(); KomInfraSync();
             int n = KomMyServers().Count(x => KomLanPeer(x.Id) || _komLinkOk.ContainsKey(x.Id) || _komRemote.ContainsKey(x.Id));
-            return "kontakty i klucze wysłane od nowa do moich serwerów w sieci: " + n + "; alias (klucze innych serwerów z osobami) tutaj: " + ((_komOpt["alias"] as JsonObject)?.Count ?? 0);
+            var notYet = _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && x.Id != _komId && !KomIsMember(x.Id)).Select(x => x.Name).ToList();
+            return (notYet.Count > 0 ? "zatwierdzone do infrastruktury: " + string.Join(", ", notYet) + " – wykonaj to samo polecenie także NA TAMTYM serwerze; " : "") + "kontakty i klucze wysłane od nowa do moich serwerów w sieci: " + n + "; alias (klucze innych serwerów z osobami) tutaj: " + ((_komOpt["alias"] as JsonObject)?.Count ?? 0);
         }
         void KomPeerLinks()
         {

@@ -299,7 +299,10 @@ object Jelly {
     fun decide(c: Conf, allowNet: Boolean) { away = !homeReachable(c) && allowNet && c.net.isNotEmpty() }
     // czy serwer odpowiada pod adresem domowym (krótko - w domu od razu)
     fun homeReachable(c: Conf): Boolean = runCatching {
-        val h = URL(c.url + "/System/Info/Public").openConnection() as HttpURLConnection   // zawsze adres domowy - po wyjściu z domu base() wskazywał internet
+        // zawsze adres domowy (po wyjściu z domu base() wskazywał internet); z kluczem - pod starym adresem domowym może odpowiadać INNY Jellyfin
+        // (np. stary na NUCBOX, a klucz jest z nowego): wtedy 401, więc adres internetowy, który działa
+        val h = URL(c.url + "/System/Info").openConnection() as HttpURLConnection
+        h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Authorization", "MediaBrowser Token=\"" + c.key + "\"")
         h.connectTimeout = 1500; h.readTimeout = 2500; h.responseCode in 200..299
     }.getOrDefault(false)
     class Item(val id: String, val name: String, val type: String, val year: Int, val overview: String, val series: String, val ticks: Long, val posTicks: Long, val added: String, val last: String = "")

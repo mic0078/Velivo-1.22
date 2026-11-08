@@ -274,6 +274,7 @@ namespace Velivo
                 lc.Voice = voice; lc.VoiceDone = done;
                 using (var media = new LibVLCSharp.Shared.Media(lc.VLib, wav, LibVLCSharp.Shared.FromType.FromPath)) voice.Play(media);
                 voice.Volume = LectorVlcVol();
+                if (queue) { long late = tn - cue.Start; try { voice.SetRate(late > 1000 ? (float)Math.Min(1.4, 1 + (late - 1000) / 10000.0) : 1f); } catch (Exception) { } }   // nadrabianie jak lektor: spoznienie ponad 1 s = szybciej (do 1,4x, bez zmiany wysokosci glosu), po dogonieniu zwykle tempo
                 await Task.WhenAny(done.Task, Task.Delay(30000));
                 if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
                 try { System.IO.File.Delete(wav); } catch (Exception) { }

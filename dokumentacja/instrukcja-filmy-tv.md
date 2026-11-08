@@ -222,6 +222,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 - **G / H** – przesuwasz napisy, gdy się spóźniają lub wyprzedzają; Velivo zapamięta to dla filmu.
 - **Rozjechany dźwięk:** po przycięciu (sieć, Jellyfin) film wyrównuje się sam; ręcznie – **R** albo prawy przycisk na 🔊−/🔊+. Stałe opóźnienie głośnika (Bluetooth, soundbar) – **J / K**.
 - **Lektor** czyta napisy na głos; ustawienia lektora są zapamiętywane dla każdego filmu.
+- **Czytaj wszystko po kolei** – lektor czyta każdą kwestię do końca; gdy zostaje w tyle (ponad 1 s), mówi szybciej (do 1,4×), a po dogonieniu obrazu wraca do zwykłego tempa – jak lektor w TV.
 
 ---
 

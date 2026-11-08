@@ -265,6 +265,7 @@ namespace Velivo
                 if (lc.VPlayer == null)
                 {
                     lc.VPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVlc); lc.VLib = _libVlc;
+                    try { lc.VPlayer.SetAudioOutput("directsound"); } catch (Exception) { } // osobne wyjście: WASAPI = wspólna głośność sesji programu (lektor szedł za filmem)
                     var lcx = lc;
                     lc.VPlayer.EndReached += (s, e) => lcx.VoiceDone?.TrySetResult(true);   // wątek VLC - tylko sygnał, bez Stop/Play tutaj
                     lc.VPlayer.EncounteredError += (s, e) => lcx.VoiceDone?.TrySetResult(false);

@@ -274,7 +274,7 @@ namespace Velivo
                 voice.Open(new Uri(wav)); voice.Play();
                 var played = System.Diagnostics.Stopwatch.StartNew(); long durMs = LectorWavMs(wav);
                 bool natural = await Task.WhenAny(done.Task, Task.Delay(30000)) == done.Task && done.Task.Result;
-                if (natural && lc.Voice == voice) { long left = durMs - played.ElapsedMilliseconds + 250; if (left > 0) await Task.Delay((int)Math.Min(left, 3000)); }   // koniec pliku != koniec dzwieku - w buforze glosnika zostaje koncowka, Stop od razu ucinal ostatnie slowo
+                if (natural && lc.Voice == voice) { long left = durMs - played.ElapsedMilliseconds; if (left > 0) await Task.Delay((int)Math.Min(left, 3000)); }   // koniec pliku != koniec dzwieku - w buforze glosnika zostaje koncowka, Stop od razu ucinal ostatnie slowo
                 if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
                 try { System.IO.File.Delete(wav); } catch (Exception) { }
             }

@@ -147,6 +147,8 @@ namespace Velivo
             public System.Windows.Media.MediaPlayer Voice;
             public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
             public int Ducked = -1;   // glosnosc filmu przed sciszeniem
+            public Dictionary<int, string> Ready = new Dictionary<int, string>();   // gotowe nagrania kwestii (caly film liczony w tle, zapis przy filmie)
+            public int RenderGen; public bool Rendering; public string RenderKey;   // RenderGen++ = zatrzymaj liczenie (nowe napisy, inny glos, zamkniecie)
         }
 
         // syntezuje kwestie: Piper (jezyk zgodny z napisami, jesli jest taki glos), inaczej glos Windows
@@ -185,6 +187,49 @@ namespace Velivo
             double need = cue.Text.Length / 15.0 / secs;
             double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 10) / 10;   // stopnie co 0,1 - kazde inne tempo to ponowne uruchomienie Pipera
             return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
+        }
+
+        string LectorKeyParams(Lector lc) => (_settings.VlcLectorVoice ?? "") + "|" + _settings.VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + _settings.VlcLectorSteps + "|" + lc.Lang;
+
+        static void LectorStopRender(Lector lc) { lc.RenderGen++; lc.Rendering = false; lc.Ready = new Dictionary<int, string>(); lc.RenderKey = null; }
+
+        // lektor dla calego filmu: od biezacego miejsca do przodu, potem reszta; nagrania w Dane\lektor\<skrot> - przy drugim ogladaniu gotowe od razu
+        async void LectorRender(Lector lc)
+        {
+            int gen = lc.RenderGen; lc.Rendering = true;
+            try
+            {
+                string key = LectorKeyParams(lc);
+                var sb = new System.Text.StringBuilder(key);
+                foreach (var c in lc.Cues) sb.Append('\n').Append(c.Start).Append('|').Append(c.End).Append('|').Append(c.Text);
+                string hash;
+                using (var sha = System.Security.Cryptography.SHA1.Create()) hash = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))).Replace("-", "").Substring(0, 20);
+                var root = Path.Combine(DataDir, "lektor"); var dir = Path.Combine(root, hash);
+                var found = await Task.Run(() =>
+                {
+                    Directory.CreateDirectory(dir); Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow);
+                    try { foreach (var old in new DirectoryInfo(root).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).Skip(3)) old.Delete(true); } catch (Exception) { }   // najwyzej 3 filmy na dysku (film ~ kilkaset MB nagran)
+                    var m = new Dictionary<int, string>();
+                    foreach (var p in Directory.EnumerateFiles(dir, "*.wav")) { int n; if (int.TryParse(Path.GetFileNameWithoutExtension(p), out n) && new FileInfo(p).Length > 44) m[n] = p; }
+                    return m;
+                });
+                if (gen != lc.RenderGen) return;
+                lc.Ready = found; lc.RenderKey = key;
+                while (gen == lc.RenderGen)
+                {
+                    int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
+                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
+                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
+                    if (idx < 0) break;   // caly film gotowy
+                    var tmp = await LectorSynth(lc, lc.Cues[idx]);
+                    if (gen != lc.RenderGen) { if (tmp != null) try { System.IO.File.Delete(tmp); } catch (Exception) { } return; }
+                    if (tmp == null) { await Task.Delay(2000); continue; }
+                    var dst = Path.Combine(dir, idx + ".wav");
+                    try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; } catch (Exception ex) { App.LogError(ex); await Task.Delay(2000); }
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            finally { if (gen == lc.RenderGen) lc.Rendering = false; }
         }
 
         static void LectorDropPre(Lector lc)
@@ -237,11 +282,13 @@ namespace Velivo
             }
             lc.PauseT = long.MinValue;
             lc.LastTime = t; lc.LastWall = now;
+            if (lc.RenderKey != null && lc.RenderKey != LectorKeyParams(lc)) LectorStopRender(lc);   // inny glos / tempo / jakosc - liczymy od nowa
+            if (!lc.Rendering && lc.RenderKey == null) LectorRender(lc);
             int i = queue ? (lc.LastSpoken + 1 < lc.Cues.Count && lc.Cues[lc.LastSpoken + 1].Start <= t ? lc.LastSpoken + 1 : -1) : CueAt(lc.Cues, t);   // kolejka: następna niewypowiedziana, która już się pojawiła
             if (i < 0 && lc.PreWav == null && !lc.Busy)
             {   // przerwa miedzy napisami: najblizsza kwestia liczona juz teraz (po starcie i po przewinieciu)
                 int j = lc.Cues.FindIndex(c => c.Start > t);
-                if (j >= 0 && lc.Cues[j].Start - t < 15000) { lc.PreIdx = j; lc.PreWav = LectorSynth(lc, lc.Cues[j]); }
+                if (j >= 0 && lc.Cues[j].Start - t < 15000 && !lc.Ready.ContainsKey(j)) { lc.PreIdx = j; lc.PreWav = LectorSynth(lc, lc.Cues[j]); }
             }
             if (i < 0 || i <= lc.LastSpoken || lc.Busy) return;
             lc.LastSpoken = i;
@@ -251,13 +298,15 @@ namespace Velivo
             try
             {
                 // tempo: ustawione w panelu lektora; dluga kwestia w krotkim czasie - szybciej (do 2x)
-                var wavTask = lc.PreIdx == i ? lc.PreWav : null;
-                if (wavTask == null) { LectorDropPre(lc); wavTask = LectorSynth(lc, cue); } else { lc.PreIdx = -1; lc.PreWav = null; }
-                if (i + 1 < lc.Cues.Count) { lc.PreIdx = i + 1; lc.PreWav = LectorSynth(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
+                string readyWav; bool cached = lc.Ready.TryGetValue(i, out readyWav) && System.IO.File.Exists(readyWav);
+                var wavTask = cached ? Task.FromResult(readyWav) : lc.PreIdx == i ? lc.PreWav : null;
+                if (cached) { if (lc.PreIdx == i) LectorDropPre(lc); }
+                else if (wavTask == null) { LectorDropPre(lc); wavTask = LectorSynth(lc, cue); } else { lc.PreIdx = -1; lc.PreWav = null; }
+                if (i + 1 < lc.Cues.Count && !lc.Ready.ContainsKey(i + 1)) { lc.PreIdx = i + 1; lc.PreWav = LectorSynth(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
                 var wav = await wavTask;
-                if (wav == null || gen != lc.Gen || !mp.IsPlaying && !(queue && ended)) { if (wav != null) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
+                if (wav == null || gen != lc.Gen || !mp.IsPlaying && !(queue && ended)) { if (wav != null && !cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
                 long tn = mp.Time - mp.SpuDelay / 1000;
-                if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
+                if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0);   // film ciszej, jak lektor w TV
                 var done = new TaskCompletionSource<bool>();
@@ -268,7 +317,8 @@ namespace Velivo
                 voice.Open(new Uri(wav)); voice.Play();
                 await Task.WhenAny(done.Task, Task.Delay(30000));
                 if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
-                try { System.IO.File.Delete(wav); } catch (Exception) { }
+                voice.Close();   // zwalnia plik z nagraniem kwestii
+                if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { }
             }
             catch (Exception ex) { App.LogError(ex); }
             finally { lc.Busy = false; if (gen == lc.Gen) lc.CurIdx = -1; }

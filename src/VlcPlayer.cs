@@ -2095,7 +2095,7 @@ namespace Velivo
             bool muted = false;
             Action<string, string> loadSubsText = (text, name) =>
             {
-                lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1;
+                lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1; LectorStopRender(lc);
                 if (text == null) return;
                 try { lc.Cues = ParseSubtitles(text); lc.Lang = SubtitleLanguage(lc.Cues); lc.File = name; }
                 catch (Exception ex) { App.LogError(ex); }
@@ -4188,7 +4188,7 @@ namespace Velivo
             win.Closed += (s, e) => { _vlcPilotCmd = null; _vlcPilotState = null; };
             win.Closed += (s, e) =>
             {
-                saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
+                saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp); LectorStopRender(lc);
                 _vlcWin = null; _vlcLoad = null; _vlcQuiet = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 if (!_mainClosing) SaveTvResume(-1);

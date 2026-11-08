@@ -38,6 +38,14 @@ namespace Velivo
             // Supertonic 3 - trzeci silnik (obok Pipera i głosów Windows): jeden model, wiele języków i głosów
             new PiperVoice { Id = "st3-F1-pl", Label = "Supertonic F1 (polski, kobiecy, naturalny offline)",    Lang = "pl", St = "F1" },
             new PiperVoice { Id = "st3-M1-pl", Label = "Supertonic M1 (polski, męski, naturalny offline)",      Lang = "pl", St = "M1" },
+            new PiperVoice { Id = "st3-M2-pl", Label = "Supertonic M2 (polski, męski, naturalny offline)", Lang = "pl", St = "M2" },
+            new PiperVoice { Id = "st3-M3-pl", Label = "Supertonic M3 (polski, męski, naturalny offline)", Lang = "pl", St = "M3" },
+            new PiperVoice { Id = "st3-M4-pl", Label = "Supertonic M4 (polski, męski, naturalny offline)", Lang = "pl", St = "M4" },
+            new PiperVoice { Id = "st3-M5-pl", Label = "Supertonic M5 (polski, męski, naturalny offline)", Lang = "pl", St = "M5" },
+            new PiperVoice { Id = "st3-F2-pl", Label = "Supertonic F2 (polski, kobiecy, naturalny offline)", Lang = "pl", St = "F2" },
+            new PiperVoice { Id = "st3-F3-pl", Label = "Supertonic F3 (polski, kobiecy, naturalny offline)", Lang = "pl", St = "F3" },
+            new PiperVoice { Id = "st3-F4-pl", Label = "Supertonic F4 (polski, kobiecy, naturalny offline)", Lang = "pl", St = "F4" },
+            new PiperVoice { Id = "st3-F5-pl", Label = "Supertonic F5 (polski, kobiecy, naturalny offline)", Lang = "pl", St = "F5" },
             new PiperVoice { Id = "st3-F1-en", Label = "Supertonic F1 (angielski, kobiecy, naturalny offline)", Lang = "en", St = "F1" },
             new PiperVoice { Id = "st3-M1-en", Label = "Supertonic M1 (angielski, męski, naturalny offline)",   Lang = "en", St = "M1" },
         };

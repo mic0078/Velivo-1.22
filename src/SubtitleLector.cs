@@ -127,9 +127,12 @@ namespace Velivo
             public List<SubCue> Cues = new List<SubCue>();
             public string Lang = "pl", File;
             public int LastSpoken = -1;
-            public long LastTime;
+            public long LastTime = long.MinValue;
+            public long LastWall;   // Environment.TickCount64 przy LastTime
+            public int Gen;   // zmienia sie przy przewinieciu / pauzie - spozniona synteza jest wyrzucana
             public bool Busy;
             public System.Windows.Media.MediaPlayer Voice;
+            public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
             public int Ducked = -1;   // glosnosc filmu przed sciszeniem
         }
 
@@ -162,6 +165,7 @@ namespace Velivo
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
+            lc.VoiceDone?.TrySetResult(false);
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
         }
 
@@ -169,14 +173,27 @@ namespace Velivo
         async void LectorTick(Lector lc, LibVLCSharp.Shared.MediaPlayer mp, Func<int> volume)
         {
             if (lc.Cues.Count == 0) return;
-            if (!mp.IsPlaying) { if (lc.Voice != null) LectorStopVoice(lc, mp); return; }
-            long t = mp.Time - mp.SpuDelay / 1000;   // przesuniecie napisow (menu) dotyczy tez lektora
-            if (Math.Abs(t - lc.LastTime) > 3000) { LectorStopVoice(lc, mp); lc.LastSpoken = CueAt(lc.Cues, t) - 1; if (lc.LastSpoken < -1) lc.LastSpoken = -1; }   // przewiniecie
-            lc.LastTime = t;
+            long t = mp.Time - mp.SpuDelay / 1000;   // jeden zegar: czas filmu VLC z przesunieciem napisow (to samo co napisy)
+            long now = Environment.TickCount64;
+            if (!mp.IsPlaying)
+            {
+                if (lc.Voice != null || lc.Busy) { LectorStopVoice(lc, mp); lc.Gen++; }
+                if (lc.LastTime != long.MinValue) { lc.LastTime = long.MinValue; lc.LastSpoken = CueAt(lc.Cues, t) - 1; if (lc.LastSpoken < -1) lc.LastSpoken = -1; }   // pauza: po wznowieniu biezaca kwestia od nowa
+                return;
+            }
+            float speed = 1f; try { speed = mp.Rate; } catch (Exception) { }
+            long expected = lc.LastTime == long.MinValue ? t : lc.LastTime + (long)((now - lc.LastWall) * speed);
+            if (lc.LastTime == long.MinValue || Math.Abs(t - expected) > 700)   // przewiniecie w przod/tyl (takze male i suwakiem) albo wznowienie
+            {
+                if (lc.LastTime != long.MinValue) { LectorStopVoice(lc, mp); lc.Gen++; }
+                lc.LastSpoken = CueAt(lc.Cues, t) - 1; if (lc.LastSpoken < -1) lc.LastSpoken = -1;
+            }
+            lc.LastTime = t; lc.LastWall = now;
             int i = CueAt(lc.Cues, t);
             if (i < 0 || i <= lc.LastSpoken || lc.Busy) return;
             lc.LastSpoken = i;
             var cue = lc.Cues[i];
+            int gen = lc.Gen;
             lc.Busy = true;
             try
             {
@@ -185,17 +202,19 @@ namespace Velivo
                 double need = cue.Text.Length / 15.0 / secs;
                 double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 4) / 4;   // stopnie co 0,25 - kazde inne tempo to ponowne uruchomienie Pipera
                 var wav = await LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
-                if (wav == null || !mp.IsPlaying || mp.Time - mp.SpuDelay / 1000 > cue.End + 1500) return;   // za pozno - pomijamy
+                if (wav == null || gen != lc.Gen || !mp.IsPlaying) { if (wav != null) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
+                long tn = mp.Time - mp.SpuDelay / 1000;
+                if (tn < cue.Start - 300 || tn > cue.End + 1500) { try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0);   // film ciszej, jak lektor w TV
                 var done = new TaskCompletionSource<bool>();
                 var voice = new System.Windows.Media.MediaPlayer { Volume = Math.Max(0.1, Math.Min(1, _settings.VlcLectorVolume)) };
-                lc.Voice = voice;
+                lc.Voice = voice; lc.VoiceDone = done;
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);
                 voice.Open(new Uri(wav)); voice.Play();
                 await Task.WhenAny(done.Task, Task.Delay(30000));
-                if (lc.Voice == voice) LectorStopVoice(lc, mp);
+                if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
                 try { System.IO.File.Delete(wav); } catch (Exception) { }
             }
             catch (Exception ex) { App.LogError(ex); }

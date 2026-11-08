@@ -45,6 +45,34 @@ for line in sys.stdin:
 
         bool _xtDownloading;
 
+        // okno postępu instalacji XTTS - widoczne do samego końca, można je zminimalizować (instalacja trwa dalej)
+        Window _xtWin; System.Windows.Controls.TextBlock _xtStep, _xtInfo, _xtLine; System.Windows.Controls.Button _xtClose;
+        static readonly string[] XtSteps = { "Python", "pip", "PyTorch", "coqui-tts", "model" };
+
+        void XtShow()
+        {
+            if (_xtWin != null) { if (_xtWin.WindowState == WindowState.Minimized) _xtWin.WindowState = WindowState.Normal; _xtWin.Activate(); return; }
+            var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new System.Windows.Controls.TextBlock { Text = L.T("Instalacja głosu XTTS-v2 (kilka GB). Okno możesz zminimalizować – instalacja trwa dalej. Nie zamykaj Velivo. Do końca czytanie idzie głosem systemowym."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+            sp.Children.Add(_xtStep = new System.Windows.Controls.TextBlock { FontSize = 16, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            sp.Children.Add(_xtInfo = new System.Windows.Controls.TextBlock { Margin = new Thickness(0, 6, 0, 0) });
+            sp.Children.Add(_xtLine = new System.Windows.Controls.TextBlock { Margin = new Thickness(0, 6, 0, 0), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = L.T("Ostatni komunikat instalatora") });
+            sp.Children.Add(_xtClose = new System.Windows.Controls.Button { Content = L.T("Zamknij"), Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(14, 4, 14, 4), HorizontalAlignment = HorizontalAlignment.Right, Visibility = Visibility.Collapsed });
+            _xtWin = new Window { Title = "Velivo – XTTS-v2", Content = sp, Width = 520, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
+            _xtClose.Click += (a, b) => _xtWin?.Close();
+            _xtWin.Closed += (a, b) => _xtWin = null;
+            ApplyWindowTheme(_xtWin);
+            _xtWin.Show();
+        }
+
+        void XtStatus(int step, string text, bool end = false)
+        {
+            if (_xtWin == null && !end) XtShow();
+            if (_xtWin == null) return;
+            _xtStep.Text = step > 0 ? L.T("Krok ") + step + "/5: " + text : text;
+            if (end) { _xtInfo.Text = ""; _xtClose.Visibility = Visibility.Visible; if (_xtWin.WindowState == WindowState.Minimized) _xtWin.WindowState = WindowState.Normal; }
+        }
+
         async Task<bool> RunXttsStep(string exe, string args, string what)
         {
             var psi = new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = XttsRoot };
@@ -52,22 +80,23 @@ for line in sys.stdin:
             psi.Environment["PIP_CACHE_DIR"] = Path.Combine(XttsRoot, "pip-cache");   // pobierane pakiety w folderze XTTS - widać postęp, po instalacji kasowane
             psi.Environment["TMP"] = psi.Environment["TEMP"] = Path.Combine(XttsRoot, "tmp");
             Directory.CreateDirectory(Path.Combine(XttsRoot, "tmp"));
-            long start = DirSize(XttsRoot); var sw = Stopwatch.StartNew();
+            long start = DirSize(XttsRoot); var sw = Stopwatch.StartNew(); string last = null;
             using (var tick = new Timer(_ =>
             {
-                long mb = Math.Max(0, DirSize(XttsRoot) - start) / 1048576; var t = sw.Elapsed;
-                Dispatcher.BeginInvoke(new Action(() => ShowToast("⬇ XTTS – " + what + ": " + mb + " MB · " + (int)t.TotalMinutes + ":" + t.Seconds.ToString("00") + L.T(" (nie zamykaj Velivo)"), null)));
+                long mb = Math.Max(0, DirSize(XttsRoot) - start) / 1048576; var t = sw.Elapsed; var ln = last;
+                Dispatcher.BeginInvoke(new Action(() => { if (_xtInfo == null) return; _xtInfo.Text = mb + L.T(" MB w tym kroku · czas ") + (int)t.TotalMinutes + ":" + t.Seconds.ToString("00"); _xtLine.Text = ln ?? ""; }));
             }, null, 2000, 2000))
             using (var p = Process.Start(psi))
             {
                 var err = new StringBuilder();
-                p.OutputDataReceived += (s, e) => { };
-                p.ErrorDataReceived += (s, e) => { if (e.Data != null) { err.AppendLine(e.Data); if (err.Length > 4000) err.Remove(0, 2000); } };
+                p.OutputDataReceived += (s, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) last = e.Data.Trim(); };
+                p.ErrorDataReceived += (s, e) => { if (e.Data != null) { if (e.Data.Trim().Length > 0) last = e.Data.Trim(); err.AppendLine(e.Data); if (err.Length > 4000) err.Remove(0, 2000); } };
                 p.BeginOutputReadLine(); p.BeginErrorReadLine();
                 await Task.Run(() => p.WaitForExit());
                 if (p.ExitCode == 0) return true;
                 App.LogError(new Exception("XTTS " + what + ": " + err));
-                ShowToast(L.T("❌ XTTS – nie udało się: ") + what + "\n" + err.ToString().Trim().Split('\n').LastOrDefault(), null);
+                var msg = L.T("❌ XTTS – nie udało się: ") + what + "\n" + err.ToString().Trim().Split('\n').LastOrDefault();
+                ShowToast(msg, null); XtStatus(0, msg + "\n" + L.T("Pełny opis: Błędy Velivo. Wybierz głos ponownie – gotowe części się nie pobiorą drugi raz."), true);
                 return false;
             }
         }
@@ -79,6 +108,7 @@ for line in sys.stdin:
             bool nv = XttsHasNvidia();
             if (MessageBox.Show(L.T("Głos XTTS-v2 jest najbardziej naturalny, ale duży: pobierze się Python, PyTorch i model – razem ok. ") + (nv ? "6" : "3") + L.T(" GB (kilkanaście minut lub dłużej). Bez karty NVIDIA mówi wolno (lektor buduje się z wyprzedzeniem).\nLicencja modelu (CPML): tylko użytek niekomercyjny.\n\nPobrać teraz?"), "XTTS-v2", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
             _xtDownloading = true;
+            XtShow();
             try
             {
                 Directory.CreateDirectory(XttsRoot);
@@ -88,9 +118,9 @@ for line in sys.stdin:
                     http.DefaultRequestHeaders.UserAgent.ParseAdd("Velivo");
                     if (!File.Exists(XttsPy))
                     {
-                        ShowToast("⬇ " + L.T("XTTS: pobieram Pythona…"), null);
+                        XtStatus(1, L.T("XTTS: pobieram Pythona…"));
                         var zip = Path.Combine(XttsRoot, "python.zip");
-                        await DownloadFile(http, XttsPyZip, zip, (d, t) => Dispatcher.BeginInvoke(new Action(() => ShowToast("⬇ " + L.T("XTTS: pobieram Pythona…") + " " + d / 1048576 + " MB", null))));
+                        await DownloadFile(http, XttsPyZip, zip, (d, t) => Dispatcher.BeginInvoke(new Action(() => { if (_xtInfo != null) _xtInfo.Text = d / 1048576 + " MB"; })));
                         if (Directory.Exists(pyDir)) Directory.Delete(pyDir, true);
                         ZipFile.ExtractToDirectory(zip, pyDir); File.Delete(zip);
                         var pth = Directory.GetFiles(pyDir, "python3*._pth").FirstOrDefault();
@@ -99,27 +129,30 @@ for line in sys.stdin:
                     var gp = Path.Combine(XttsRoot, "get-pip.py");
                     if (!File.Exists(Path.Combine(pyDir, "Scripts", "pip.exe")))
                     {
+                        XtStatus(2, "pip");
                         await DownloadFile(http, XttsGetPip, gp, null);
                         if (!await RunXttsStep(XttsPy, "\"" + gp + "\" --no-warn-script-location", "pip")) return false;
                     }
                 }
-                ShowToast("⬇ " + L.T("XTTS: instaluję PyTorch (kilka GB, to potrwa)…"), null);
+                XtStatus(3, L.T("XTTS: instaluję PyTorch (kilka GB, to potrwa)…"));
                 string idx = nv ? " --index-url https://download.pytorch.org/whl/cu124" : " --index-url https://download.pytorch.org/whl/cpu";
                 if (!await RunXttsStep(XttsPy, "-m pip install --no-warn-script-location torch==2.5.1 torchaudio==2.5.1" + idx, "PyTorch")) return false;
-                ShowToast("⬇ " + L.T("XTTS: instaluję coqui-tts…"), null);
+                XtStatus(4, L.T("XTTS: instaluję coqui-tts…"));
                 if (!await RunXttsStep(XttsPy, "-m pip install --no-warn-script-location coqui-tts==0.25.3", "coqui-tts")) return false;
                 File.WriteAllText(Path.Combine(XttsRoot, "velivo_xtts.py"), XttsScript);
-                ShowToast("⬇ " + L.T("XTTS: pobieram model (ok. 2 GB)…"), null);
+                XtStatus(5, L.T("XTTS: pobieram model (ok. 2 GB)…"));
                 if (!await RunXttsStep(XttsPy, "-c \"import os;os.environ['COQUI_TOS_AGREED']='1';from TTS.utils.manage import ModelManager;ModelManager().download_model('tts_models/multilingual/multi-dataset/xtts_v2')\"", L.T("model"))) return false;
                 File.WriteAllText(XttsReady, DateTime.Now.ToString("s"));
                 foreach (var tmp in new[] { "pip-cache", "tmp" }) try { Directory.Delete(Path.Combine(XttsRoot, tmp), true); } catch (Exception) { }   // kilka GB pobranych paczek - już zainstalowane
                 ShowToast(L.T("✅ Głos ") + "XTTS-v2" + L.T(" gotowy – działa bez internetu."), null);
+                XtStatus(0, L.T("✅ Głos ") + "XTTS-v2" + L.T(" gotowy – działa bez internetu.") + "\n" + L.T("Wybierz czytanie jeszcze raz – teraz głosem XTTS."), true);
                 return true;
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
                 ShowToast(L.T("❌ Nie udało się pobrać XTTS: ") + ex.Message, null);
+                XtStatus(0, L.T("❌ Nie udało się pobrać XTTS: ") + ex.Message, true);
                 return false;
             }
             finally { _xtDownloading = false; }

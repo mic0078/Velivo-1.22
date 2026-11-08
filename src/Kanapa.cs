@@ -336,7 +336,7 @@ namespace Velivo
                 if (e.Key == Key.Escape || e.Key == Key.BrowserBack || e.Key == Key.Back) { e.Handled = true; if (wyborGrupy) { wyborGrupy = false; Pokaz(tab); } else if (tab != "start") Pokaz("start"); else Wyjdz(); return; }
                 if (e.Key == Key.Home) { e.Handled = true; Wyjdz(); }
             };
-            // 🎮 kontroler (Xbox i zgodne XInput): krzyżak / lewa gałka - strzałki, A - Enter, B - wstecz, Y - szukaj, LB / RB - poprzednia / następna zakładka
+            // 🎮 kontroler (Xbox i zgodne XInput): krzyżak / lewa gałka - strzałki, A - Enter, B - wstecz, Y - szukaj, LB / RB - poprzednia / następna zakładka, Menu - wyjście z Kanapy
             var pad = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             ushort padPrev = 0; Key padKey = Key.None; DateTime padNext = DateTime.MinValue; int padErr = 0;
             void PadKey(Key k)
@@ -365,7 +365,7 @@ namespace Velivo
                 if ((down & 0x1000) != 0) PadKey(Key.Enter);           // A
                 if ((down & 0x2000) != 0) PadKey(Key.Escape);          // B
                 if ((down & 0x8000) != 0 && odswiez != null) szukaj.Focus();   // Y - szukaj
-                if ((down & 0x0010) != 0) PadKey(Key.Enter);           // Start
+                if ((down & 0x0010) != 0) { Wyjdz(); return; }        // Menu ≡ - Kanapa wł./wył. (jak w odtwarzaczu)
                 if ((down & 0x0100) != 0) Zakladka(-1);                // LB
                 if ((down & 0x0200) != 0) Zakladka(1);                 // RB
             };

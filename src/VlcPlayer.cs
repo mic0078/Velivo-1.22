@@ -1599,8 +1599,27 @@ namespace Velivo
             withLabel(subs, L.T("Napisy")); withLabel(lector, L.T("Lektor")); withLabel(audio, L.T("Dźwięk")); withLabel(aspect, L.T("Proporcje")); withLabel(snap, L.T("Zrzut"));
             var toolsRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left,   // bez zawijania - WrapPanel + zmniejszanie paska (fitBar) przeliczały się w kółko
                 Margin = new Thickness(4, 2, 4, 0), Visibility = GetPref("pasek-narzedzia") == "1" ? Visibility.Visible : Visibility.Collapsed };
-            foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap }) toolsRow.Children.Add(b);
-            var tools = glyphBtn("tune", L.T("Obraz i dźwięk – napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki (pokaż / schowaj rząd)"));
+            // ⚙ cztery zwijane grupy: Obraz, Dźwięk, Napisy, Kontroler (stan zapamiętany)
+            var padBtn = textBtn("🎮 " + L.T("Przypisania"), L.T("Kontroler: co robi każdy przycisk, własne układy, przywróć domyślne")); padBtn.FontSize = 12;
+            padBtn.Click += (s, e) => ShowPadMapDialog(win);
+            var couchBtn = textBtn("🛋 " + L.T("Kanapa"), L.T("Tryb Kanapa – duże kafelki do obsługi kontrolerem (przycisk Menu ≡ na kontrolerze)")); couchBtn.FontSize = 12;
+            couchBtn.Click += (s, e) => ShowKanapa();
+            foreach (var cat in new (string Key, string Name, string Tip, UIElement[] Items)[] {
+                ("obraz", L.T("Obraz"), L.T("Obraz: proporcje i skalowanie, zrzut klatki"), new UIElement[] { aspect, snap }),
+                ("dzwiek", L.T("Dźwięk"), L.T("Dźwięk: ścieżka dźwięku i urządzenie"), new UIElement[] { audio }),
+                ("napisy", L.T("Napisy"), L.T("Napisy: wybór, przesunięcie, wygląd, położenie i lektor"), new UIElement[] { subs, lector }),
+                ("kontroler", L.T("Kontroler"), L.T("Kontroler: przypisania przycisków i tryb Kanapa"), new UIElement[] { padBtn, couchBtn }) })
+            {
+                var inner = new StackPanel { Orientation = Orientation.Horizontal, Visibility = GetPref("pasek-kat-" + cat.Key) == "0" ? Visibility.Collapsed : Visibility.Visible };
+                foreach (var it in cat.Items) inner.Children.Add(it);
+                var head = textBtn((inner.Visibility == Visibility.Visible ? "▾ " : "▸ ") + cat.Name, cat.Tip + "\n" + L.T("Kliknij, aby zwinąć / rozwinąć")); head.FontSize = 12; head.FontWeight = FontWeights.SemiBold;
+                var key = cat.Key; var name = cat.Name;
+                head.Click += (s, e) => { bool on = inner.Visibility != Visibility.Visible; inner.Visibility = on ? Visibility.Visible : Visibility.Collapsed; head.Content = (on ? "▾ " : "▸ ") + name; SetPref("pasek-kat-" + key, on ? "1" : "0"); };
+                var box = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 10, 0) };
+                box.Children.Add(head); box.Children.Add(inner);
+                toolsRow.Children.Add(new Border { Background = new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)), CornerRadius = new CornerRadius(8), Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 6, 0), Child = box });
+            }
+            var tools = glyphBtn("tune", L.T("Ustawienia odtwarzacza – Obraz, Dźwięk, Napisy, Kontroler (pokaż / schowaj rząd)"));
             tools.Click += (s, e) => { bool on = toolsRow.Visibility != Visibility.Visible; toolsRow.Visibility = on ? Visibility.Visible : Visibility.Collapsed; SetPref("pasek-narzedzia", on ? "1" : "0"); };
             // przełącznik TV ↔ Filmy: przy telewizji „🎬 Filmy” (biblioteka), przy filmie „📺 TV” (kanały) - zawsze w tym samym miejscu
             var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
@@ -4054,6 +4073,74 @@ namespace Velivo
                 if (h) e.Handled = true;
             };
             win.Closing += (s, e) => savePos();
+            // 🎮 kontroler (XInput) w odtwarzaczu: przypisania z PadMap (okno Kontroler w ⚙); w otwartym menu / liście kanałów krzyżak = strzałki, A = zatwierdź, B = zamknij
+            var padTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            int padPrev = 0, padHeld = 0, padErr = 0; DateTime padNext = DateTime.MinValue; var padMap = PadMap(); string padMapSrc = GetPref("pad-mapa");
+            Action<Key> padKey = k =>
+            {
+                var tgt = Keyboard.FocusedElement as UIElement ?? win;
+                var src = (tgt is Visual tv ? PresentationSource.FromVisual(tv) : null) ?? PresentationSource.FromVisual(win); if (src == null) return;
+                var ka = new KeyEventArgs(Keyboard.PrimaryDevice, src, 0, k) { RoutedEvent = Keyboard.PreviewKeyDownEvent }; tgt.RaiseEvent(ka);
+                if (!ka.Handled) tgt.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, src, 0, k) { RoutedEvent = Keyboard.KeyDownEvent });
+            };
+            Action<Button> padClick = b => { if (b != null && b.IsVisible && b.IsEnabled) b.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); };
+            Func<bool> padMenu = () => Keyboard.FocusedElement is MenuItem || chPanel.Visibility == Visibility.Visible && Keyboard.FocusedElement is DependencyObject fd && (fd == chPanel || chPanel.IsAncestorOf(fd));
+            Action<string> padDo = act =>
+            {
+                showBar();
+                switch (act)
+                {
+                    case "play": togglePlay(); break;
+                    case "back": padKey(Key.Escape); break;
+                    case "seek-10": jump(-10000); break;
+                    case "seek+10": jump(10000); break;
+                    case "seek-60": jump(-60000); break;
+                    case "seek+60": jump(60000); break;
+                    case "vol+": setVol(vol.Value + 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
+                    case "vol-": setVol(vol.Value - 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
+                    case "mute": toggleMute(); break;
+                    case "prev": step(-1); break;
+                    case "next": step(1); break;
+                    case "channels": showChannels(chPanel.Visibility != Visibility.Visible); break;
+                    case "info": showInfo(true); break;
+                    case "subs": padClick(subs); break;
+                    case "audio": padClick(audio); break;
+                    case "settings": padClick(tools); break;
+                    case "full": toggleFull(); break;
+                    case "kanapa": ShowKanapa(); break;
+                }
+            };
+            padTimer.Tick += (s, e) =>
+            {
+                if (!win.IsActive || padErr > 3) return;
+                XInputState st; int r;
+                try { r = KnPadGet(0, out st); } catch (Exception) { padErr = 99; return; }   // brak XInput - bez kontrolera
+                if (r != 0) { padPrev = 0; padHeld = 0; return; }
+                if (GetPref("pad-mapa") != padMapSrc) { padMapSrc = GetPref("pad-mapa"); padMap = PadMap(); }   // zmienione w oknie przypisań
+                const int dead = 16000;
+                int b = st.Buttons | (st.LT > 128 ? 0x10000 : 0) | (st.RT > 128 ? 0x20000 : 0)
+                    | (st.LY > dead ? 0x0001 : 0) | (st.LY < -dead ? 0x0002 : 0) | (st.LX < -dead ? 0x0004 : 0) | (st.LX > dead ? 0x0008 : 0);   // lewa gałka = krzyżak
+                int down = b & ~padPrev; padPrev = b;
+                const int rep = 0x0001 | 0x0002 | 0x0004 | 0x0008 | 0x10000 | 0x20000;   // przytrzymane: powtarzanie (przewijanie, głośność)
+                int held = b & rep;
+                if (held == 0 || (down & rep) != 0) { padHeld = held; padNext = DateTime.UtcNow.AddMilliseconds(400); }
+                else if (DateTime.UtcNow >= padNext) { padNext = DateTime.UtcNow.AddMilliseconds(150); down |= held; }
+                if (down == 0) return;
+                bool menu = padMenu();
+                foreach (var pb in PadButtons)
+                {
+                    if ((down & pb.Mask) == 0) continue;
+                    if (menu)
+                    {   // nawigacja w menu / liście: krzyżak, A, B stałe (jak na konsoli)
+                        Key k = pb.Id == "Up" ? Key.Up : pb.Id == "Down" ? Key.Down : pb.Id == "Left" ? Key.Left : pb.Id == "Right" ? Key.Right : pb.Id == "A" ? Key.Enter : pb.Id == "B" ? Key.Escape : Key.None;
+                        if (k == Key.Enter && Keyboard.FocusedElement is Button fb) { fb.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); continue; }
+                        if (k != Key.None) { padKey(k); continue; }
+                    }
+                    if (padMap.TryGetValue(pb.Id, out var act) && act != "none") padDo(act);
+                }
+            };
+            padTimer.Start();
+            win.Closed += (s, e) => padTimer.Stop();
             win.Closed += (s, e) =>
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);

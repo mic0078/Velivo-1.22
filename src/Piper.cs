@@ -54,6 +54,8 @@ namespace Velivo
             new PiperVoice { Id = "xtts-M-pl", Label = "XTTS-v2 Damien (polski, męski, najbardziej ludzki)", Lang = "pl", Xt = "Damien Black" },
             new PiperVoice { Id = "xtts-F-en", Label = "XTTS-v2 Ana (angielski, kobiecy, najbardziej ludzki)", Lang = "en", Xt = "Ana Florence" },
             new PiperVoice { Id = "xtts-M-en", Label = "XTTS-v2 Damien (angielski, męski, najbardziej ludzki)", Lang = "en", Xt = "Damien Black" },
+            new PiperVoice { Id = "xtts-own-pl", Label = "XTTS-v2 mój głos (polski, z nagrania – Ustawienia)", Lang = "pl", Xt = "@" },
+            new PiperVoice { Id = "xtts-own-en", Label = "XTTS-v2 mój głos (angielski, z nagrania – Ustawienia)", Lang = "en", Xt = "@" },
         };
 
         const string PiperZipUrl = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip";

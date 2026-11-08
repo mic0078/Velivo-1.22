@@ -509,6 +509,10 @@ namespace Velivo
             cleanBtn.HorizontalAlignment = HorizontalAlignment.Left; cleanBtn.Margin = new Thickness(0, 4, 0, 4);
             cleanBtn.ToolTip = L.T("Pokazuje pobrane głosy (Piper, Supertonic, XTTS) z rozmiarem i usuwa te, których nie używa czytanie stron ani lektor filmów.");
             root.Children.Add(cleanBtn);
+            var ownBtn = SmallButton(L.T("🎙 Mój głos dla XTTS…"), () => PickXttsOwnVoice(win));
+            ownBtn.HorizontalAlignment = HorizontalAlignment.Left; ownBtn.Margin = new Thickness(0, 0, 0, 4);
+            ownBtn.ToolTip = L.T("Wybierz nagranie WAV 6–30 s czystej mowy (bez muzyki i szumu) – XTTS będzie czytać tym głosem. Tylko własny głos albo za zgodą osoby.");
+            root.Children.Add(ownBtn);
             var restore = Check(L.T("Po uruchomieniu przywracaj karty z poprzedniej sesji"), L.T("Karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T."), s.RestoreTabs);
             root.Children.Add(restore);
             var sameTab = Check(L.T("Otwieraj linki w tej samej karcie"), L.T("Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach."), s.LinksInSameTab);

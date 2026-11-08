@@ -25,6 +25,7 @@ namespace Velivo
         static string XttsPy => Path.Combine(XttsRoot, "python", "python.exe");
         static string XttsReady => Path.Combine(XttsRoot, "gotowe.txt");
         static bool XttsInstalled() => File.Exists(XttsPy) && File.Exists(XttsReady);
+        static string XttsOwnWav => Path.Combine(XttsRoot, "moj-glos.wav");
         static bool XttsHasNvidia() => File.Exists(Path.Combine(Environment.SystemDirectory, "nvidia-smi.exe"));
 
         const string XttsScript = @"import sys, json, os
@@ -37,7 +38,9 @@ print('READY ' + dev, flush=True)
 for line in sys.stdin:
     try:
         r = json.loads(line)
-        tts.tts_to_file(text=r['text'], language=r['lang'], speaker=r['speaker'], speed=r['speed'], file_path=r['out'], split_sentences=len(r['text']) > 200)
+        sp = r['speaker']
+        kw = {'speaker_wav': sp[1:]} if sp.startswith('@') else {'speaker': sp}
+        tts.tts_to_file(text=r['text'], language=r['lang'], **kw, speed=r['speed'], file_path=r['out'], split_sentences=len(r['text']) > 200)
         print('OK ' + r['out'], flush=True)
     except Exception as e:
         print('ERR ' + str(e).replace('\n', ' '), flush=True)
@@ -206,7 +209,8 @@ for line in sys.stdin:
                 }
                 Directory.CreateDirectory(PiperOutDir);
                 var path = Path.Combine(PiperOutDir, "xt-" + Guid.NewGuid().ToString("N") + ".wav");
-                var req = JsonSerializer.Serialize(new { text = line, lang = v.Lang, speaker = v.Xt, speed = Math.Max(0.7, Math.Min(1.6, rate)), @out = path });
+                if (v.Xt == "@" && !File.Exists(XttsOwnWav)) { ShowToast(L.T("🎙 Brak nagrania Twojego głosu – Ustawienia → Czytanie na głos → „Mój głos dla XTTS…”."), null); return null; }
+                var req = JsonSerializer.Serialize(new { text = line, lang = v.Lang, speaker = v.Xt == "@" ? "@" + XttsOwnWav : v.Xt, speed = Math.Max(0.7, Math.Min(1.6, rate)), @out = path });
                 await _xtProc.StandardInput.WriteLineAsync(req);
                 await _xtProc.StandardInput.FlushAsync();
                 var res = await XttsReadLine("OK ", 180000);
@@ -221,6 +225,19 @@ for line in sys.stdin:
         static long FileSize(string f) => File.Exists(f) ? new FileInfo(f).Length : 0;
 
         // 🧹 pobrane głosy, których nie używa ani czytanie stron (readTag - wybór z okna Ustawień), ani lektor filmów
+        // 🎙 wlasny glos XTTS: probka WAV 6–30 s (czysta mowa, bez muzyki) - tylko glos wlasny albo za zgoda osoby
+        void PickXttsOwnVoice(Window owner)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Nagranie WAV") + " (*.wav)|*.wav", Title = L.T("Mój głos dla XTTS") };
+            if (dlg.ShowDialog(owner) != true) return;
+            long ms = LectorWavMs(dlg.FileName);
+            if (ms > 0 && (ms < 3000 || ms > 60000)) { MessageBox.Show(owner, L.T("Nagranie ma ") + (ms / 1000) + L.T(" s. Potrzeba 6–30 s czystej mowy."), "Velivo"); return; }
+            if (MessageBox.Show(owner, L.T("XTTS będzie mówić głosem z tego nagrania. Używaj tylko własnego głosu albo głosu osoby, która się na to zgodziła.\n\nUżyć tego nagrania?"), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            Directory.CreateDirectory(XttsRoot);
+            File.Copy(dlg.FileName, XttsOwnWav, true);
+            MessageBox.Show(owner, L.T("✅ Zapisano. Wybierz głos „XTTS-v2 mój głos” (czytanie stron albo lektor filmów)."), "Velivo");
+        }
+
         void CleanUnusedVoices(Window owner, string readTag)
         {
             if (_piperDownloading || _stDownloading || _xtDownloading) { MessageBox.Show(owner, L.T("🔊 Trwa pobieranie głosu – chwilę…"), "Velivo"); return; }

@@ -144,8 +144,7 @@ namespace Velivo
             public long PauseT = long.MinValue;   // czas filmu przy pauzie (kolejka: wznowienie w tym samym miejscu nie gubi zaległych)
             public int Gen;   // zmienia sie przy przewinieciu / pauzie - spozniona synteza jest wyrzucana
             public bool Busy;
-            public object Voice;   // głos teraz gra (= VPlayer)
-            public LibVLCSharp.Shared.MediaPlayer VPlayer; public LibVLCSharp.Shared.LibVLC VLib;   // 🔊 głos lektora przez VLC Velivo (jeden na cały film, nie odtwarzacz Windows) - głośność do 200%
+            public System.Windows.Media.MediaPlayer Voice;
             public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
             public int Ducked = -1;   // glosnosc filmu przed sciszeniem
         }
@@ -194,13 +193,12 @@ namespace Velivo
             p?.ContinueWith(t => { try { if (t.Status == TaskStatus.RanToCompletion && t.Result != null) System.IO.File.Delete(t.Result); } catch (Exception) { } });
         }
 
-        // odtwarzacz Windows (WPF MediaPlayer): przy 1,0 gra CISZEJ niż przy 0,99 (sprawdził właściciel - czytnik) - górna granica 0,99
+        // odtwarzacz Windows (WPF MediaPlayer): przy 1,0 gra CISZEJ niż przy 0,99 (sprawdził właściciel - lektor i czytnik) - górna granica 0,99
         internal static double WpfVol(double v) => Math.Max(0, Math.Min(0.99, v));
-        int LectorVlcVol() => (int)Math.Round(Math.Max(0.1, Math.Min(2.0, _settings.VlcLectorVolume)) * 100);   // VLC: 100 = bez zmian, do 200 = wzmocnienie
 
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
-            if (lc.Voice != null) { lc.Voice = null; try { lc.VPlayer?.Stop(); } catch (Exception) { } }   // krótki plik z dysku - zatrzymanie natychmiastowe
+            if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
             lc.VoiceDone?.TrySetResult(false);
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
         }
@@ -263,18 +261,11 @@ namespace Velivo
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0);   // film ciszej, jak lektor w TV
                 var done = new TaskCompletionSource<bool>();
-                if (lc.VPlayer != null && lc.VLib != _libVlc) { var old = lc.VPlayer; lc.VPlayer = null; _ = Task.Run(() => { try { old.Stop(); old.Dispose(); } catch (Exception) { } }); }   // VLC uruchomione od nowa (zmiana ustawień) - nowy odtwarzacz głosu
-                if (lc.VPlayer == null)
-                {
-                    lc.VPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVlc); lc.VLib = _libVlc;
-                    var lcx = lc;
-                    lc.VPlayer.EndReached += (s, e) => lcx.VoiceDone?.TrySetResult(true);   // wątek VLC - tylko sygnał, bez Stop/Play tutaj
-                    lc.VPlayer.EncounteredError += (s, e) => lcx.VoiceDone?.TrySetResult(false);
-                }
-                var voice = lc.VPlayer;
+                var voice = new System.Windows.Media.MediaPlayer { Volume = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)) };
                 lc.Voice = voice; lc.VoiceDone = done;
-                using (var media = new LibVLCSharp.Shared.Media(lc.VLib, wav, LibVLCSharp.Shared.FromType.FromPath)) voice.Play(media);
-                voice.Volume = LectorVlcVol();
+                voice.MediaEnded += (s, e) => done.TrySetResult(true);
+                voice.MediaFailed += (s, e) => done.TrySetResult(false);
+                voice.Open(new Uri(wav)); voice.Play();
                 await Task.WhenAny(done.Task, Task.Delay(30000));
                 if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
                 try { System.IO.File.Delete(wav); } catch (Exception) { }

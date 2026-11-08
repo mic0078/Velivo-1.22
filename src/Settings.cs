@@ -91,7 +91,7 @@ namespace Velivo
         public int SupertonicSteps = 8;   // jakosc glosu Supertonic przy czytaniu stron: kroki 2-16, 0 = sam (karta 8, procesor 5)
         public bool VlcLectorQueue = true;   // lektor czyta wszystkie kwestie po kolei (kolejka), nawet z opóźnieniem
         public int VlcLectorSteps = 8;    // jakosc glosu Supertonic lektora (osobno dla kazdego filmu)
-        public double VlcLectorVolume = 1.0;   // glosnosc lektora (0,1-2; lektor gra przez VLC - ponad 1 = wzmocnienie)
+        public double VlcLectorVolume = 1.0;   // glosnosc lektora (0,1-1)
         public double VlcLectorRate = 1.2;    // predkosc lektora
         public int VlcLectorDuck = 35;
         public string VlcSharedName = "";      // nazwa wspolnej biblioteki filmow (ta sama na sparowanych komputerach); "" = "Wspolna biblioteka"
@@ -242,7 +242,7 @@ namespace Velivo
                         case "vlcLectorQueue": s.VlcLectorQueue = v != "0"; break;
                         case "vlcLectorSteps": { int n; if (int.TryParse(v, out n)) s.VlcLectorSteps = n == 0 ? 0 : Math.Max(2, Math.Min(16, n)); } break;
                         case "stSteps": { int n; if (int.TryParse(v, out n)) s.SupertonicSteps = n == 0 ? 0 : Math.Max(2, Math.Min(16, n)); } break;
-                        case "vlcLectorVol": { double d; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) s.VlcLectorVolume = Math.Max(0.1, Math.Min(2, d)); } break;
+                        case "vlcLectorVol": { double d; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) s.VlcLectorVolume = Math.Max(0.1, Math.Min(1, d)); } break;
                         case "vlcLectorRate": { double d; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) s.VlcLectorRate = Math.Max(0.8, Math.Min(2, d)); } break;
                         case "vlcLectorDuck": { int d; if (int.TryParse(v, out d)) s.VlcLectorDuck = Math.Max(0, Math.Min(100, d)); } break;
                         case "vlcSpu": s.VlcSpu = v; break;

@@ -2636,7 +2636,7 @@ namespace Velivo
             var was = _komVoicePath; try { _komVoice?.Stop(); _komVoice?.Close(); } catch (Exception) { }
             _komVoice = null; _komVoicePath = null; _komVoiceTick?.Stop(); KomVoiceShow(was, null);
             if (was == path) return;
-            var p = new MediaPlayer { Volume = 1.0 };   // WPF MediaPlayer ma domyślnie połowę głośności (0,5) - głosówki z telefonu były „strasznie cicho”
+            var p = new MediaPlayer { Volume = 0.99 };   // WPF MediaPlayer ma domyślnie połowę głośności (0,5), a przy 1,0 gra ciszej niż przy 0,99 (sprawdził właściciel)
             p.MediaOpened += (s, e) => KomInfo("▶ " + L.T("Wiadomość głosowa") + (p.NaturalDuration.HasTimeSpan ? " " + p.NaturalDuration.TimeSpan.ToString(@"m\:ss") : "") + " · " + KomSpeedText(KomVoiceSpeed) + " – " + L.T("kliknij, by zatrzymać"));
             p.MediaEnded += (s, e) => { p.Close(); if (_komVoice == p) { _komVoice = null; _komVoicePath = null; _komVoiceTick?.Stop(); KomVoiceShow(path, null); } };
             p.MediaFailed += (s, e) => { if (_komVoice == p) { _komVoice = null; _komVoicePath = null; } try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }); } catch (Exception) { } };

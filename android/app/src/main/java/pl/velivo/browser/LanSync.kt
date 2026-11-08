@@ -743,6 +743,27 @@ class LanSync(
         return true
     }
 
+    // 🔌 Pilot przez TCP (komputer: port 41916) - jedno połączenie, cała lista naraz; duże pakiety UDP w Wi-Fi gubią się kawałkami.
+    // null = komputer nie odpowiada przez TCP (starsza wersja) - wtedy zwykłe sendPilot.
+    fun pilotTcp(to: String, addr: InetAddress, op: String, v: String? = null, n: Double = 0.0, q: String? = null, g: String? = null, sort: String? = null): List<JSONObject>? = runCatching {
+        val k = encKey ?: return null
+        val pkt = sealBlob("pilot", JSONObject().put("to", to).put("op", op).put("v", v ?: "").put("n", n).put("q", q ?: "").put("g", g ?: "").put("s", sort ?: "")) ?: return null
+        java.net.Socket().use { so ->
+            so.connect(java.net.InetSocketAddress(addr, 41916), 3000); so.soTimeout = 60000; so.tcpNoDelay = true
+            val body = pkt.toString().toByteArray(Charsets.UTF_8)
+            val out = java.io.DataOutputStream(so.getOutputStream()); out.writeInt(body.size); out.write(body); out.flush()
+            val inp = java.io.DataInputStream(so.getInputStream()); val len = inp.readInt()
+            if (len < 28 || len > 64 * 1024 * 1024) return null
+            val buf = ByteArray(len); inp.readFully(buf)
+            val c = Cipher.getInstance("AES/GCM/NoPadding")
+            c.init(Cipher.DECRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, buf.copyOfRange(0, 12)))
+            c.updateAAD("velivo-pilot-tcp".toByteArray(Charsets.US_ASCII))
+            val plain = c.doFinal(buf.copyOfRange(28, len) + buf.copyOfRange(12, 28))
+            val a = JSONObject(String(gunzip(plain), Charsets.UTF_8)).getJSONArray("r")
+            (0 until a.length()).map { a.getJSONObject(it) }
+        }
+    }.getOrNull()
+
     private fun pilotSt(p: JSONObject, sender: InetAddress?) {
         val o = openBlob(p) ?: return
         if (o.optString("to") != id) return

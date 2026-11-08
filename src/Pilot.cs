@@ -23,6 +23,7 @@ namespace Velivo
         {
             if (cmd == null || remote == null || (cmd.to != _lanId && cmd.to != "*")) return;
             _pilotClients[pkt.id] = (remote, DateTime.UtcNow);   // odpowiedź na ten sam adres i port, z którego telefon wysłał
+            EnsurePilotTcp();   // listy przez TCP (port 41916)
             if (cmd.to == _lanId && (cmd.op == "list" || cmd.op == "play-tv" || cmd.op == "play-film" || cmd.op == "fav-tv" || cmd.op == "fav-film" || cmd.op == "info"))   // 📺🎬 listy i włączanie z telefonu (odtwarzacz nie musi być otwarty)
             {
                 try { PilotLists(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
@@ -123,10 +124,7 @@ namespace Velivo
                     var ov = m?.Overview ?? ""; if (ov.Length > 1500) ov = ov.Substring(0, 1500) + "…";
                     text = string.Join(" · ", parts) + "\n\n" + (string.IsNullOrWhiteSpace(ov) ? L.T("Brak opisu – uzupełnij dane filmu w bibliotece (Jellyfin).") : ov);
                 }
-                if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var ce)) return;
-                var pi = new LanStatePacket { t = "pilot-list", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
-                EncryptLanBlob(pi, JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, object> { ["to"] = phoneId, ["kind"] = "info", ["title"] = head, ["text"] = text }));
-                var bi = JsonSerializer.SerializeToUtf8Bytes(pi); _lanTx.Send(bi, bi.Length, ce.Ep);
+                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "info", ["title"] = head, ["text"] = text });
                 return;
             }
             if (cmd.op == "fav-tv")   // ⭐ ulubione kanały - te same co w odtwarzaczu i Kanapie
@@ -209,12 +207,7 @@ namespace Velivo
                     items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPosterKey(m) is var pk && pk.Length > 0 ? pk : PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len) });   // [7] miejsce przerwania - telefon pyta: wznów / od początku   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
                 }
             }
-            if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;
-            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["libv"] = cmd.v == "tv" || cmd.v == "fav" ? PilotLibVer(true) : PilotLibVer(false), ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() };   // klucz Jellyfin do plakatów (tylko sparowany telefon, szyfrowane)
-            var pkt = new LanStatePacket { t = "pilot-list", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
-            EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(pkt);
-            _lanTx.Send(bytes, bytes.Length, c.Ep);
+            PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["libv"] = cmd.v == "tv" || cmd.v == "fav" ? PilotLibVer(true) : PilotLibVer(false), ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() });
         }
 
         static string PilotJfBase(JellyfinConf c) => (string.IsNullOrEmpty(c.Lan) ? c.Url : c.Lan).TrimEnd('/');   // w domu adres domowy (router nie zawraca ruchu)

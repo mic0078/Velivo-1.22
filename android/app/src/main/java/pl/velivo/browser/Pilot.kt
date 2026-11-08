@@ -93,7 +93,15 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         imgCache.get(url)?.let { done(it); return }
         if (url.startsWith("pc:")) {   // obrazek z dysku komputera (logo / plakat już tam pobrane)
             val l = pcWait.getOrPut(url) { mutableListOf() }; l.add(done)
-            if (l.size == 1) { val c = cur; val p = c?.let { pcs[it] }; if (c == null || !lan.sendPilot(c, "img", target = p?.addr, q = url.removePrefix("pc:"))) pcWait.remove(url)?.forEach { it(null) } }
+            if (l.size == 1) {
+                val c = cur; val addr = c?.let { pcs[it]?.addr }
+                if (c == null || addr == null) { pcWait.remove(url)?.forEach { it(null) }; return }
+                imgPool.execute {   // obrazki po 3 naraz, przez TCP (bez limitu wielkości); starszy komputer - UDP
+                    val r = if ((tcpFail[c] ?: 0L) < System.currentTimeMillis() - 300_000L) lan.pilotTcp(c, addr, "img", q = url.removePrefix("pc:")) else null
+                    if (r == null) { lan.sendPilot(c, "img", target = addr, q = url.removePrefix("pc:")) }
+                    else act.runOnUiThread { r.forEach { o -> lan.onPilotList?.invoke(c, o) } }
+                }
+            }
             return
         }
         val key = key0 ?: jfKeys.firstOrNull { url.startsWith(it.first) }?.second
@@ -359,8 +367,26 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val c = cur ?: run { choosePc(); return false }
         val p = pcs[c]
         if (!reachable(p)) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_LONG).show(); return false }
-        return lan.sendPilot(c, op, v, n, p?.addr, q, g, sort)
+        val addr = p?.addr
+        if (addr != null && (tcpFail[c] ?: 0L) < System.currentTimeMillis() - 300_000L && op in tcpOps) {
+            val key = listOf(op, v, q, g, sort).joinToString("|")
+            if ((op == "list" || op == "epg") && n > 0 && key == batchKey && System.currentTimeMillis() - batchAt < 60_000) return true   // ta strona przyszła już w całej liście przez TCP
+            Thread {
+                val r = lan.pilotTcp(c, addr, op, v, n, q, g, sort)
+                if (r == null) { tcpFail[c] = System.currentTimeMillis(); lan.sendPilot(c, op, v, n, addr, q, g, sort) }   // starszy Velivo / zablokowany port - jak dotąd (UDP)
+                else act.runOnUiThread {
+                    if (op == "list" || op == "epg") { batchKey = key; batchAt = System.currentTimeMillis() }
+                    r.forEach { o -> lan.onPilotList?.invoke(c, o) }
+                }
+            }.start()
+            return true
+        }
+        return lan.sendPilot(c, op, v, n, addr, q, g, sort)
     }
+    // listy, program TV, obrazki, opisy i plany - przez TCP (całość naraz); sterowanie (play, głośność…) dalej UDP - małe pakiety
+    private val tcpOps = setOf("list", "epg", "epg-act", "rand", "img", "info", "plans", "plan-del")
+    private val tcpFail = HashMap<String, Long>()
+    private var batchKey = ""; private var batchAt = 0L
 
     // 📺 Telewizja / 🎬 Filmy z komputera: zakładki, grupa / gatunek, szukanie, stuknięcie = włącz na komputerze
     private fun browse(kind: String) {
@@ -430,11 +456,11 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             }
             if (fresh0 || !fresh) { info.text = s(R.string.pilot_loading); askPage() } else busy = false
         }
-        fun watchdog() { h.postDelayed({ if (d.isShowing) { if (busy && System.currentTimeMillis() - asked > 4000) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
+        fun watchdog() { h.postDelayed({ if (d.isShowing) { if (busy && System.currentTimeMillis() - asked > 15000) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
         watchdog()
         onList = { o ->
             if (!replay && o.optString("kind") == mode && o.optInt("page") == page && fresh0 && page == 0) { fresh0 = false; list.removeAllViews() }   // świeże z komputera zastępuje zapisane
-            if (o.optString("kind") == mode && o.optInt("page") == page) {
+            if (o.optString("kind") == mode && o.optInt("page") == page && (replay || (0 until pages.length()).none { pages.getJSONObject(it).optInt("page") == page })) {   // ta sama strona drugi raz (ponowienie) - pomijana
                 if (!replay) { busy = false; pages.put(o); o.optInt("libv").let { if (o.has("libv")) pcLibv[kind] = it } }
                 val g = o.optJSONArray("groups"); if (g != null && g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() }
                 val items = o.optJSONArray("items"); val total = o.optInt("total")
@@ -699,13 +725,13 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             }
             if (fresh0 || page > 0 || info.visibility != View.GONE) { info.text = s(R.string.pilot_loading); info.visibility = View.VISIBLE; askPage() }
         }
-        fun watchdog() { h.postDelayed({ if (d.isShowing) { if (System.currentTimeMillis() - asked > 4000 && (fresh0 || pages.length() > 0) && info.visibility == View.VISIBLE) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
+        fun watchdog() { h.postDelayed({ if (d.isShowing) { if (System.currentTimeMillis() - asked > 15000 && (fresh0 || pages.length() > 0) && info.visibility == View.VISIBLE) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
         grid.onProg = { row, st -> ask("epg-act", "info", row.ci.toDouble(), st.toString(), row.name) }
         grid.onLogo = { row -> if (ask("epg-act", "play", row.ci.toDouble(), g = row.name)) android.widget.Toast.makeText(act, s(R.string.pilot_starting, row.name), android.widget.Toast.LENGTH_SHORT).show() }
         onList = { o ->
             when (o.optString("kind")) {
                 "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); asked = System.currentTimeMillis() }
-                    else if (o.optInt("page") == page) {
+                    else if (o.optInt("page") == page && (0 until pages.length()).none { pages.getJSONObject(it).optInt("page") == page }) {
                     if (fresh0) { fresh0 = false; grid.rows.clear() }   // świeże dane z komputera zastępują zapisane
                     render(o); pages.put(o)
                     val total = o.optInt("total")

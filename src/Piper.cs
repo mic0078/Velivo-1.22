@@ -216,7 +216,7 @@ namespace Velivo
 
         void SetPiperVolume(double v)
         {
-            if (_piperPlayer != null) _piperPlayer.Volume = Math.Max(0, Math.Min(1, v));   // od razu, w trakcie zdania
+            if (_piperPlayer != null) _piperPlayer.Volume = WpfVol(v);   // od razu, w trakcie zdania
         }
 
         // Wlacza tryb Piper na stronie (gdy wybrany glos Piper) i uruchamia petle odtwarzania. Zwraca false = czytaj systemowo.
@@ -269,7 +269,7 @@ namespace Velivo
                     if (wav == null) { await core.ExecuteScriptAsync("window.__velivoRead.done(" + p.seq + ")"); continue; }
 
                     var ended = new TaskCompletionSource<bool>();
-                    var player = new MediaPlayer { Volume = _settings.ReadVolume };
+                    var player = new MediaPlayer { Volume = WpfVol(_settings.ReadVolume) };
                     _piperPlayer = player;
                     player.MediaEnded += (s, e) => ended.TrySetResult(true);
                     player.MediaFailed += (s, e) => ended.TrySetResult(false);

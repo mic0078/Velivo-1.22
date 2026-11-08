@@ -193,6 +193,9 @@ namespace Velivo
             p?.ContinueWith(t => { try { if (t.Status == TaskStatus.RanToCompletion && t.Result != null) System.IO.File.Delete(t.Result); } catch (Exception) { } });
         }
 
+        // odtwarzacz Windows (WPF MediaPlayer): przy 1,0 gra CISZEJ niż przy 0,99 (sprawdził właściciel - lektor i czytnik) - górna granica 0,99
+        internal static double WpfVol(double v) => Math.Max(0, Math.Min(0.99, v));
+
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
@@ -256,7 +259,7 @@ namespace Velivo
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0);   // film ciszej, jak lektor w TV
                 var done = new TaskCompletionSource<bool>();
-                var voice = new System.Windows.Media.MediaPlayer { Volume = Math.Max(0.1, Math.Min(1, _settings.VlcLectorVolume)) };
+                var voice = new System.Windows.Media.MediaPlayer { Volume = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)) };
                 lc.Voice = voice; lc.VoiceDone = done;
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);

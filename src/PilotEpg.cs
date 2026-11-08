@@ -29,8 +29,10 @@ namespace Velivo
             return t.GetHashCode();
         }
 
+        List<Dictionary<string, object>> _pilotSink;   // odpowiedź przez TCP (cała lista naraz) zamiast pakietów UDP
         void PilotSend(string phoneId, Dictionary<string, object> o)
         {
+            if (_pilotSink != null) { o["to"] = phoneId; _pilotSink.Add(o); return; }
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;
             o["to"] = phoneId;
             var pkt = new LanStatePacket { t = "pilot-list", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
@@ -172,24 +174,98 @@ namespace Velivo
             }
             catch (Exception) { return null; }
         }
-        async void PilotImg(string phoneId, string key)
+        async void PilotImg(string phoneId, string key) { try { PilotSend(phoneId, await PilotImgBuild(key)); } catch (Exception ex) { App.LogError(ex); } }
+        async Task<Dictionary<string, object>> PilotImgBuild(string key)
         {
+            string file = null; int h = 96;
+            if (key.StartsWith("L:"))
+            {
+                var url = key.Substring(2);
+                if (!url.Contains("://")) file = url;
+                else { await GetLogo(url); file = LogoFile(url); }   // pobiera tylko, gdy komputer jeszcze nie ma
+            }
+            else if (key.StartsWith("P:")) { var n = System.IO.Path.GetFileName(key.Substring(2)); file = System.IO.Path.Combine(PosterDir, n); h = 300; }
+            byte[] jpg = null;
+            if (file != null && System.IO.File.Exists(file))
+            {
+                jpg = await Task.Run(() => PilotJpeg(file, h));
+                if (_pilotSink == null && jpg != null && jpg.Length > 45000) jpg = await Task.Run(() => PilotJpeg(file, h * 2 / 3));   // UDP: jeden pakiet
+            }
+            return new Dictionary<string, object> { ["kind"] = "img", ["key"] = "pc:" + key, ["b"] = jpg == null ? "" : Convert.ToBase64String(jpg) };
+        }
+
+        // 🔌 Pilot przez TCP (port 41916): telefon pyta jednym połączeniem, komputer oddaje całą listę naraz (wszystkie strony), skompresowaną i zaszyfrowaną kluczem grupy.
+        // Duże pakiety UDP (30–50 KB) w Wi-Fi rozpadają się na dziesiątki kawałków – zgubienie jednego = cała strona przepada (stąd zacinanie i przerwy).
+        const int PilotTcpPort = 41916;
+        System.Net.Sockets.TcpListener _pilotTcp;
+        void EnsurePilotTcp()
+        {
+            if (_pilotTcp != null) return;
             try
             {
-                string file = null; int h = 96;
-                if (key.StartsWith("L:"))
-                {
-                    var url = key.Substring(2);
-                    if (!url.Contains("://")) file = url;
-                    else { await GetLogo(url); file = LogoFile(url); }   // pobiera tylko, gdy komputer jeszcze nie ma
-                }
-                else if (key.StartsWith("P:")) { var n = System.IO.Path.GetFileName(key.Substring(2)); file = System.IO.Path.Combine(PosterDir, n); h = 300; }
-                if (file == null || !System.IO.File.Exists(file)) { PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "img", ["key"] = "pc:" + key, ["b"] = "" }); return; }
-                var jpg = await Task.Run(() => PilotJpeg(file, h));
-                if (jpg != null && jpg.Length > 45000) jpg = await Task.Run(() => PilotJpeg(file, h * 2 / 3));   // jeden pakiet UDP
-                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "img", ["key"] = "pc:" + key, ["b"] = jpg == null ? "" : Convert.ToBase64String(jpg) });
+                var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, PilotTcpPort); l.Start(); _pilotTcp = l;
+                _ = Task.Run(async () => { while (true) { System.Net.Sockets.TcpClient c; try { c = await l.AcceptTcpClientAsync(); } catch (Exception) { return; } _ = Task.Run(() => PilotTcpServe(c)); } });
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+        static async Task<byte[]> PilotReadExact(System.IO.Stream s, int n)
+        {
+            var b = new byte[n]; int o = 0;
+            while (o < n) { int r = await s.ReadAsync(b, o, n - o); if (r <= 0) return null; o += r; }
+            return b;
+        }
+        static readonly byte[] PilotTcpAd = System.Text.Encoding.ASCII.GetBytes("velivo-pilot-tcp");
+        async Task PilotTcpServe(System.Net.Sockets.TcpClient c)
+        {
+            using (c)
+            {
+                try
+                {
+                    c.NoDelay = true; c.ReceiveTimeout = 10000; c.SendTimeout = 30000;
+                    var ns = c.GetStream();
+                    var lb = await PilotReadExact(ns, 4); if (lb == null) return;
+                    int len = (lb[0] << 24) | (lb[1] << 16) | (lb[2] << 8) | lb[3];
+                    if (len <= 0 || len > 65536) return;
+                    var body = await PilotReadExact(ns, len); if (body == null) return;
+                    var pkt = JsonSerializer.Deserialize<LanStatePacket>(body);
+                    if (pkt == null || pkt.t != "pilot" || _lanEncryptionKey == null) return;
+                    var cmd = DecryptLanBlob<LanPilotCmd>(pkt);   // tylko sparowany telefon (klucz grupy)
+                    if (cmd == null || cmd.to != _lanId) return;
+                    var replies = new List<Dictionary<string, object>>();
+                    if (cmd.op == "img") replies.Add(await Dispatcher.Invoke(() => { _pilotSink = replies; try { return PilotImgBuild(cmd.q ?? ""); } finally { _pilotSink = null; } }));
+                    else await Dispatcher.InvokeAsync(() =>
+                    {
+                        _pilotSink = replies;
+                        try
+                        {
+                            var ep = c.Client.RemoteEndPoint as System.Net.IPEndPoint;
+                            if (!_pilotClients.ContainsKey(pkt.id) && ep != null) _pilotClients[pkt.id] = (new System.Net.IPEndPoint(ep.Address, LanPort), DateTime.UtcNow);
+                            bool paged = cmd.op == "list" || cmd.op == "epg"; int size = cmd.op == "list" ? 100 : 12;
+                            for (int guard = 0; guard < 2000; guard++)   // wszystkie strony od razu
+                            {
+                                int before = replies.Count;
+                                if (cmd.op == "list" || cmd.op == "play-tv" || cmd.op == "play-film" || cmd.op == "fav-tv" || cmd.op == "fav-film" || cmd.op == "info") PilotLists(pkt.id, cmd);
+                                else PilotGuide(pkt.id, cmd);
+                                if (!paged || replies.Count == before) break;
+                                var last = replies[replies.Count - 1];
+                                if (!last.TryGetValue("total", out var t) || !(t is int total) || ((int)cmd.n + 1) * size >= total) break;
+                                cmd.n = cmd.n + 1;
+                            }
+                        }
+                        finally { _pilotSink = null; }
+                    });
+                    var json = JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, object> { ["r"] = replies });
+                    byte[] zip;
+                    using (var ms = new System.IO.MemoryStream()) { using (var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionLevel.Fastest, true)) gz.Write(json, 0, json.Length); zip = ms.ToArray(); }
+                    var nonce = System.Security.Cryptography.RandomNumberGenerator.GetBytes(12); var tag = new byte[16]; var cipher = new byte[zip.Length];
+                    using (var g = new System.Security.Cryptography.AesGcm(_lanEncryptionKey, 16)) g.Encrypt(nonce, zip, cipher, tag, PilotTcpAd);
+                    int n = 28 + cipher.Length;
+                    var outb = new byte[4 + n]; outb[0] = (byte)(n >> 24); outb[1] = (byte)(n >> 16); outb[2] = (byte)(n >> 8); outb[3] = (byte)n;
+                    Buffer.BlockCopy(nonce, 0, outb, 4, 12); Buffer.BlockCopy(tag, 0, outb, 16, 16); Buffer.BlockCopy(cipher, 0, outb, 32, cipher.Length);
+                    await ns.WriteAsync(outb, 0, outb.Length);
+                }
+                catch (Exception) { }
+            }
         }
 
         // ⏰ plany: przełączenia i nagrania (te same co w oknie TV)

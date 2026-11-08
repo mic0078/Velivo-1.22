@@ -213,6 +213,8 @@ namespace Velivo
             bool ended = false; try { ended = mp.State == LibVLCSharp.Shared.VLCState.Ended; } catch (Exception) { }
             long t = ended ? long.MaxValue / 2 : mp.Time - mp.SpuDelay / 1000;   // jeden zegar: czas filmu VLC z przesunieciem napisow (to samo co napisy); koniec filmu = kolejka do konca
             long now = Environment.TickCount64;
+            LibVLCSharp.Shared.VLCState st = LibVLCSharp.Shared.VLCState.NothingSpecial; try { st = mp.State; } catch (Exception) { }
+            if (!mp.IsPlaying && (st == LibVLCSharp.Shared.VLCState.Buffering || st == LibVLCSharp.Shared.VLCState.Opening)) return;   // chwilowe buforowanie filmu to nie pauza - lektor czyta dalej
             if (!mp.IsPlaying && !(queue && ended))
             {
                 if (lc.Voice != null || lc.Busy)
@@ -230,7 +232,7 @@ namespace Velivo
             float speed = 1f; try { speed = mp.Rate; } catch (Exception) { }
             long expected = lc.LastTime == long.MinValue ? t : lc.LastTime + (long)((now - lc.LastWall) * speed);
             bool resumed = lc.LastTime == long.MinValue && queue && lc.PauseT != long.MinValue && Math.Abs(t - lc.PauseT) <= 700;   // wznowienie w tym samym miejscu - zalegla kolejka zostaje
-            if (!ended && !resumed && (lc.LastTime == long.MinValue || Math.Abs(t - expected) > 700))   // przewiniecie w przod/tyl (takze male i suwakiem) albo start - kolejka od biezacego miejsca
+            if (!ended && !resumed && (lc.LastTime == long.MinValue || Math.Abs(t - expected) > (queue ? 3000 : 700)))   // przewiniecie w przod/tyl (takze male i suwakiem) albo start - kolejka od biezacego miejsca
             {
                 if (lc.LastTime != long.MinValue) { LectorStopVoice(lc, mp); lc.Gen++; LectorDropPre(lc); }
                 lc.LastSpoken = LectorSyncIdx(lc.Cues, t);

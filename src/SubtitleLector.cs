@@ -193,34 +193,6 @@ namespace Velivo
             p?.ContinueWith(t => { try { if (t.Status == TaskStatus.RanToCompletion && t.Result != null) System.IO.File.Delete(t.Result); } catch (Exception) { } });
         }
 
-        // wzmocnienie WAV 16 bit (lektor 100-150%): miękkie obcinanie - głośniej bez trzasków przy szczytach
-        static void LectorGain(string wav, double gain)
-        {
-            try
-            {
-                var b = System.IO.File.ReadAllBytes(wav);
-                if (b.Length < 44 || b[0] != 'R' || b[8] != 'W') return;
-                int p = 12, data = -1, len = 0; bool pcm16 = false;
-                while (p + 8 <= b.Length)
-                {
-                    string id = System.Text.Encoding.ASCII.GetString(b, p, 4); int sz = BitConverter.ToInt32(b, p + 4);
-                    if (id == "fmt ") pcm16 = BitConverter.ToInt16(b, p + 8) == 1 && BitConverter.ToInt16(b, p + 22) == 16;
-                    if (id == "data") { data = p + 8; len = Math.Min(sz, b.Length - data); break; }
-                    p += 8 + sz + (sz & 1);
-                }
-                if (!pcm16 || data < 0) return;
-                for (int i = data; i + 1 < data + len; i += 2)
-                {
-                    double x = BitConverter.ToInt16(b, i) / 32768.0 * gain, ax = Math.Abs(x);
-                    if (ax > 0.7) x = Math.Sign(x) * (0.7 + 0.3 * Math.Tanh((ax - 0.7) / 0.3));   // do 70% bez zmian, wyżej łagodnie do pełnej skali
-                    short y = (short)Math.Round(x * 32767);
-                    b[i] = (byte)y; b[i + 1] = (byte)(y >> 8);
-                }
-                System.IO.File.WriteAllBytes(wav, b);
-            }
-            catch (Exception ex) { App.LogError(ex); }
-        }
-
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
@@ -284,9 +256,7 @@ namespace Velivo
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0);   // film ciszej, jak lektor w TV
                 var done = new TaskCompletionSource<bool>();
-                double lv = _settings.VlcLectorVolume;
-                if (lv > 1.01) await Task.Run(() => LectorGain(wav, lv));   // ponad 100%: odtwarzacz Windows ma najwyżej 1,0 - wzmacniamy samo nagranie
-                var voice = new System.Windows.Media.MediaPlayer { Volume = Math.Max(0.1, Math.Min(1, lv)) };
+                var voice = new System.Windows.Media.MediaPlayer { Volume = Math.Max(0.1, Math.Min(1, _settings.VlcLectorVolume)) };
                 lc.Voice = voice; lc.VoiceDone = done;
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);

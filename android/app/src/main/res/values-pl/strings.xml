@@ -446,6 +446,7 @@
     <string name="pilot_resume_q">Ten film był oglądany do %1$s.</string>
     <string name="pilot_resume">Wznów od %1$s</string>
     <string name="pilot_from_start">Od początku</string>
+    <string name="pilot_pc_idle">odtwarzacz zamknięty</string>
     <string name="pilot_nothing">Nic nie jest odtwarzane</string>
     <string name="pilot_prev">Poprzedni</string>
     <string name="pilot_play">Odtwórz / pauza</string>

@@ -265,14 +265,38 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val list = pcs.values.sortedBy { it.name.lowercase() }.toMutableList()
         if (cur != null && pcs[cur] == null) list.add(0, Pc(cur!!, curName, null, 0, null))   // zapamiętany, choć teraz wyłączony
         if (list.isEmpty()) { AlertDialog.Builder(act).setTitle(R.string.pilot_choose_pc).setMessage(R.string.pilot_no_pc).setPositiveButton(android.R.string.ok, null).show(); return }
-        val labels = list.map { (if (it.id == cur) "✔ " else "") + "💻 " + it.name + "\n" + stText(it) + (it.st?.optString("title")?.ifBlank { null }?.let { t -> "\n🎬 $t" } ?: "") }
-        AlertDialog.Builder(act).setTitle(R.string.pilot_choose_pc).setItems(labels.toTypedArray()) { _, i ->
-            val p = list[i]
-            cur = p.id; curName = p.name
-            prefs.edit().putString("pilot-pc", p.id).putString("pilot-pc-nazwa", p.name).apply()   // zapamiętany także po ponownym uruchomieniu telefonu
-            lan.sendPilot("*", "ping", target = p.addr)
-            refresh()
-        }.show()
+        // czytelna karta na komputer: nazwa (pogrubiona), stan krótko, co gra (kanał / film) i co teraz leci - osobne wiersze, duże odstępy
+        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); setBackgroundColor(bg) }
+        box.addView(TextView(act).apply { text = s(R.string.pilot_choose_pc); textSize = 22f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setPadding(dp(4), 0, 0, dp(12)) })
+        for (p in list) {
+            val st = if (online(p)) p.st else null
+            val card0 = LinearLayout(act).apply {
+                orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(14), dp(18), dp(14)); isClickable = true
+                background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat(); if (p.id == cur) setStroke(dp(3), accent) }
+                setOnClickListener {
+                    cur = p.id; curName = p.name
+                    prefs.edit().putString("pilot-pc", p.id).putString("pilot-pc-nazwa", p.name).apply()   // zapamiętany także po ponownym uruchomieniu telefonu
+                    lan.sendPilot("*", "ping", target = p.addr)
+                    d.dismiss(); refresh()
+                }
+            }
+            card0.addView(TextView(act).apply { text = (if (p.id == cur) "✔ " else "") + "💻 " + p.name; textSize = 21f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+            val playing = st?.optString("st") == "play" || st?.optString("st") == "pause"
+            card0.addView(TextView(act).apply {
+                text = if (!online(p)) s(R.string.pilot_offline) else if (st == null) s(R.string.pilot_online) + " · " + s(R.string.pilot_pc_idle) else stText(p)
+                textSize = 15f; setTextColor(if (playing) Color.parseColor("#7CE0A3") else dim); setPadding(0, dp(2), 0, 0)
+            })
+            val nm = st?.optString("name")?.ifBlank { null } ?: st?.optString("title")?.ifBlank { null }
+            if (nm != null) card0.addView(TextView(act).apply { text = (if (st?.optString("kind") == "tv") "📺 " else "🎬 ") + nm; textSize = 18f; setTextColor(Color.WHITE); setPadding(0, dp(8), 0, 0) })
+            st?.optString("now")?.ifBlank { null }?.let { n -> card0.addView(TextView(act).apply { text = "▶ $n"; textSize = 15f; setTextColor(dim); setPadding(0, dp(2), 0, 0) }) }
+            box.addView(card0, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(6), 0, dp(6)) })
+        }
+        box.addView(Button(act).apply { text = act.getString(android.R.string.cancel); isAllCaps = false; textSize = 17f; setTextColor(Color.WHITE)
+            background = GradientDrawable().apply { setColor(card); cornerRadius = dp(14).toFloat() }; setOnClickListener { d.dismiss() } },
+            LinearLayout.LayoutParams(-1, dp(56)).apply { topMargin = dp(10) })
+        d.setContentView(ScrollView(act).apply { setBackgroundColor(bg); isFillViewport = true; addView(box) })
+        d.show()
     }
 
     private var onList: ((JSONObject) -> Unit)? = null

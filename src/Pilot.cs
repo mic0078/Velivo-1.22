@@ -62,6 +62,20 @@ namespace Velivo
         {
             string q = (cmd.q ?? "").Trim();
             if (_jfConfCache == null) try { _jfConfCache = LoadJellyfinConf(); } catch (Exception) { }   // plakaty i klucz Jellyfin
+            // telefon mógł wybrać z listy zapisanej u siebie (bez pytania komputera) - numer na liście komputera może nie pasować: szukamy po nazwie
+            bool tvOp = cmd.op == "play-tv" || cmd.op == "fav-tv" || (cmd.op == "info" && cmd.v == "tv"), filmOp = cmd.op == "play-film" || cmd.op == "fav-film" || (cmd.op == "info" && cmd.v == "film");
+            string want = cmd.op == "info" ? null : cmd.v;
+            if (tvOp && want != null && ((int)cmd.n < 0 || (int)cmd.n >= _pilotTv.Count || _pilotTv[(int)cmd.n].Name != want))
+            {
+                var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+                var hit = all.FirstOrDefault(c => c.Name == want);
+                if (hit != null) { _pilotTv = all.Where(c => c.Group == hit.Group).ToList(); cmd.n = _pilotTv.IndexOf(hit); }
+            }
+            if (filmOp && want != null && ((int)cmd.n < 0 || (int)cmd.n >= _pilotFilms.Count || ShownTitle(_pilotFilms[(int)cmd.n], MetaFor(_pilotFilms[(int)cmd.n].Path)) != want))
+            {
+                var hit = LoadLibrary().FirstOrDefault(v => !string.IsNullOrEmpty(v.Path) && ShownTitle(v, MetaFor(v.Path)) == want);
+                if (hit != null) { _pilotFilms = new List<LibraryVideo> { hit }; cmd.n = 0; }
+            }
             if (cmd.op == "play-tv")
             {
                 int i = (int)cmd.n;
@@ -190,7 +204,7 @@ namespace Velivo
                 }
             }
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;
-            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() };   // klucz Jellyfin do plakatów (tylko sparowany telefon, szyfrowane)
+            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["libv"] = cmd.v == "tv" || cmd.v == "fav" ? PilotLibVer(true) : PilotLibVer(false), ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() };   // klucz Jellyfin do plakatów (tylko sparowany telefon, szyfrowane)
             var pkt = new LanStatePacket { t = "pilot-list", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
             EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
             var bytes = JsonSerializer.SerializeToUtf8Bytes(pkt);

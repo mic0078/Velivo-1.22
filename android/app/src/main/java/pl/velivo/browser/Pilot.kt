@@ -49,6 +49,9 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private lateinit var muteBtn: Button
     private lateinit var plansTxt: TextView
     private var plansAt = 0L
+    private var pcEpgv: Int? = null   // wersja programu TV na komputerze (z „plans” co 15 s)
+    private var onEpgv: ((Int) -> Unit)? = null
+    private val pcLibv = HashMap<String, Int>()   // wersja listy na komputerze: "tv" (program TV) i "film" (biblioteka)
 
     private val bg = Color.parseColor("#15161A")
     private val card = Color.parseColor("#24262D")
@@ -225,6 +228,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         lan.onPilot = { id, dev, st, from -> act.runOnUiThread { got(id, dev, st, from) } }
         lan.onPilotList = { id, o -> act.runOnUiThread {
             if (id != cur) return@runOnUiThread
+            if (o.has("epgv")) { val v = o.optInt("epgv"); if (pcEpgv != v) { pcEpgv = v; onEpgv?.invoke(v) } }   // komputer ma nowy program / plany
+            if (o.optString("kind") == "plans") { if (o.has("libtv")) pcLibv["tv"] = o.optInt("libtv"); if (o.has("libfilm")) pcLibv["film"] = o.optInt("libfilm") }
             if (o.optString("kind") == "plans") o.optJSONArray("items")?.let { a ->   // ⏰ stan planów pod kafelkami
                 val rec = (0 until a.length()).count { a.getJSONArray(it).optString(1) == "rec" }; val sw = a.length() - rec
                 plansTxt.text = s(R.string.pilot_plans_count, sw, rec); plansTxt.visibility = if (a.length() > 0) View.VISIBLE else View.GONE
@@ -408,13 +413,27 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 grid = !grid; prefs.edit().putBoolean("pilot-kanapa", grid).apply(); drawTabs(); load(true)
             }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), 0, 0) })
         }
+        // 📦 lista trzymana w telefonie (bez szukania): po otwarciu od razu, z komputera tylko gdy zmieniła się tam biblioteka / program TV (wersja z „plans”)
+        fun cacheFile() = java.io.File(act.filesDir, "pilot-lista-" + (kind + "|" + mode + "|" + group + "|" + sort + "|" + cur).hashCode() + ".json")
+        var pages = org.json.JSONArray(); var replay = false; var fresh0 = false; var asked = 0L; var busy = false
+        fun askPage() { asked = System.currentTimeMillis(); busy = true; if (!ask("list", mode, page.toDouble(), query, group, sort)) { busy = false; info.text = s(R.string.pilot_unavailable, curName) } }
         load = { fresh ->
-            if (fresh) { page = 0; list.removeAllViews(); imgGen++ }
-            info.text = s(R.string.pilot_loading)
-            if (!ask("list", mode, page.toDouble(), query, group, sort)) info.text = s(R.string.pilot_unavailable, curName)
+            if (fresh) {
+                page = 0; list.removeAllViews(); imgGen++; pages = org.json.JSONArray(); fresh0 = true
+                if (query.isEmpty()) runCatching {
+                    val c0 = JSONObject(cacheFile().readText()); val a0 = c0.getJSONArray("pages")
+                    replay = true; for (i in 0 until a0.length()) { val p = a0.getJSONObject(i); page = p.optInt("page"); onList?.invoke(p) }; replay = false; page = 0
+                    if (a0.length() > 0 && pcLibv[kind] == c0.optInt("v")) fresh0 = false   // ta sama wersja co na komputerze - bez pytania
+                }
+            }
+            if (fresh0 || !fresh) { info.text = s(R.string.pilot_loading); askPage() } else busy = false
         }
+        fun watchdog() { h.postDelayed({ if (d.isShowing) { if (busy && System.currentTimeMillis() - asked > 4000) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
+        watchdog()
         onList = { o ->
+            if (!replay && o.optString("kind") == mode && o.optInt("page") == page && fresh0 && page == 0) { fresh0 = false; list.removeAllViews() }   // świeże z komputera zastępuje zapisane
             if (o.optString("kind") == mode && o.optInt("page") == page) {
+                if (!replay) { busy = false; pages.put(o); o.optInt("libv").let { if (o.has("libv")) pcLibv[kind] = it } }
                 val g = o.optJSONArray("groups"); if (g != null && g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() }
                 val items = o.optJSONArray("items"); val total = o.optInt("total")
                 o.optJSONArray("keys")?.let { ka -> jfKeys = (0 until ka.length()).mapNotNull { ka.optJSONArray(it)?.let { p -> p.optString(0) to p.optString(1) } }.filter { it.first.isNotEmpty() } }
@@ -499,11 +518,10 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 }
                 val shown = (page + 1) * 100
                 info.text = if (total == 0) s(if (kind == "tv") R.string.pilot_empty_tv else R.string.pilot_empty_films) else s(R.string.pilot_count, total)
-                if (shown < total) list.addView(Button(act).apply {
-                    tag = "more"; text = s(R.string.pilot_more); isAllCaps = false; textSize = 16f; setTextColor(Color.WHITE)
-                    background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(12).toFloat() }
-                    setOnClickListener { page++; load(false) }
-                }, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(6) })
+                if (!replay) {
+                    if (shown < total) { page++; info.text = s(R.string.pilot_loading) + " " + shown + " / " + total; askPage() }   // następna strona sama
+                    else if (query.isEmpty()) { val save = JSONObject().put("v", o.optInt("libv")).put("pages", pages); val cf = cacheFile(); Thread { runCatching { cf.writeText(save.toString()) } }.start() }
+                }
             }
         }
         search.setOnEditorActionListener { _, _, _ ->
@@ -546,7 +564,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private inner class EpgView : View(act) {
         val rows = ArrayList<EpgRow>(); var from = 0L; var to = 0L
         val perMin = dp(2).toFloat(); val logoW = dp(70).toFloat(); val rowH = dp(60).toFloat(); val axisH = dp(24).toFloat(); val gap = dp(3).toFloat()
-        var scrollXf = 0f; var onProg: ((Int, Long) -> Unit)? = null; var onLogo: ((EpgRow) -> Unit)? = null
+        var scrollXf = 0f; var onProg: ((EpgRow, Long) -> Unit)? = null; var onLogo: ((EpgRow) -> Unit)? = null
         private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         private val tp = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = dp(14).toFloat(); typeface = Typeface.DEFAULT_BOLD }
         private val sp = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = dim; textSize = dp(12).toFloat() }
@@ -602,7 +620,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                     val i = ((e.y - axisH) / rowH).toInt(); val row = rows.getOrNull(i)
                     if (row != null && e.y >= axisH) {
                         if (e.x < logoW) onLogo?.invoke(row)
-                        else { val t = from + ((e.x - logoW + scrollXf) / perMin * 60000).toLong(); row.progs.firstOrNull { t >= it[0] && t < it[1] }?.let { onProg?.invoke(row.ci, it[0]) } }
+                        else { val t = from + ((e.x - logoW + scrollXf) / perMin * 60000).toLong(); row.progs.firstOrNull { t >= it[0] && t < it[1] }?.let { onProg?.invoke(row, it[0]) } }
                     }
                 }
             }
@@ -666,17 +684,18 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         load = { fresh ->
             if (fresh) {
                 page = 0; grid.rows.clear(); grid.scrollXf = 0f; keepScroll = false; imgGen++; fresh0 = true; pages = org.json.JSONArray()
-                runCatching { val a0 = org.json.JSONArray(cacheFile().readText()); for (i in 0 until a0.length()) render(a0.getJSONObject(i)) }   // zapisany program - od razu
+                var cv: Int? = null
+                runCatching { val c0 = JSONObject(cacheFile().readText()); cv = c0.optInt("v"); val a0 = c0.getJSONArray("pages"); for (i in 0 until a0.length()) render(a0.getJSONObject(i)) }   // zapisany program - od razu
                 grid.requestLayout(); grid.invalidate()
-                val f0 = cacheFile()
-                if (!force && grid.rows.isNotEmpty() && System.currentTimeMillis() - f0.lastModified() < 3 * 3600_000L) { fresh0 = false; info.visibility = View.GONE }   // świeży (do 3 h) - bez pytania komputera
+                val same = pcEpgv?.let { it == cv } ?: (System.currentTimeMillis() - cacheFile().lastModified() < 3 * 3600_000L)   // ta sama wersja co na komputerze (nie wiadomo - do 3 h)
+                if (!force && grid.rows.isNotEmpty() && same) { fresh0 = false; info.visibility = View.GONE }   // aktualny - bez pytania komputera
                 force = false
             }
             if (fresh0 || page > 0 || info.visibility != View.GONE) { info.text = s(R.string.pilot_loading); info.visibility = View.VISIBLE; askPage() }
         }
         fun watchdog() { h.postDelayed({ if (d.isShowing) { if (System.currentTimeMillis() - asked > 4000 && (fresh0 || pages.length() > 0) && info.visibility == View.VISIBLE) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
-        grid.onProg = { ch, st -> ask("epg-act", "info", ch.toDouble(), st.toString()) }
-        grid.onLogo = { row -> if (ask("epg-act", "play", row.ci.toDouble())) android.widget.Toast.makeText(act, s(R.string.pilot_starting, row.name), android.widget.Toast.LENGTH_SHORT).show() }
+        grid.onProg = { row, st -> ask("epg-act", "info", row.ci.toDouble(), st.toString(), row.name) }
+        grid.onLogo = { row -> if (ask("epg-act", "play", row.ci.toDouble(), g = row.name)) android.widget.Toast.makeText(act, s(R.string.pilot_starting, row.name), android.widget.Toast.LENGTH_SHORT).show() }
         onList = { o ->
             when (o.optString("kind")) {
                 "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); asked = System.currentTimeMillis() }
@@ -687,13 +706,15 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                     if ((page + 1) * 12 < total) { page++; info.text = s(R.string.pilot_loading) + " " + minOf(total, page * 12) + " / " + total; askPage() }   // następna strona sama
                     else {
                         info.text = if (total == 0) s(R.string.pilot_epg_empty) else ""; info.visibility = if (total == 0) View.VISIBLE else View.GONE
-                        val save = pages; Thread { runCatching { cacheFile().writeText(save.toString()) } }.start()
+                        val save = JSONObject().put("v", o.optInt("epgv")).put("pages", pages); val cf = cacheFile(); Thread { runCatching { cf.writeText(save.toString()) } }.start()
                     }
                 }
                 "epg-info" -> progSheet(o) { force = true; load(true) }   // po planie / nagraniu - od nowa z komputera (znaczniki ⏰ ⏺)
             }
         }
         watchdog()
+        onEpgv = { _ -> if (d.isShowing && info.visibility == View.GONE) { force = true; load(true) } }   // komputer wczytał nowy program wg swojego harmonogramu - telefon dociąga sam
+        d.setOnDismissListener { onList = null; onEpgv = null }
         drawTabs(); d.show()
         phoneData { load(true) }
     }
@@ -714,8 +735,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             background = GradientDrawable().apply { setColor(if (prim) accent else card); cornerRadius = dp(14).toFloat() }
             setOnClickListener { f(); d.dismiss() }
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        fun done(op: String) { if (ask("epg-act", op, ch.toDouble(), st.toString())) { android.widget.Toast.makeText(act, s(R.string.pilot_sent), android.widget.Toast.LENGTH_SHORT).show(); h.postDelayed({ reload() }, 700) } }
-        act0("▶  " + s(R.string.pilot_play_now), true) { if (ask("epg-act", "play", ch.toDouble())) android.widget.Toast.makeText(act, s(R.string.pilot_starting, o.optString("chName")), android.widget.Toast.LENGTH_SHORT).show() }
+        fun done(op: String) { if (ask("epg-act", op, ch.toDouble(), st.toString(), o.optString("chName"))) { android.widget.Toast.makeText(act, s(R.string.pilot_sent), android.widget.Toast.LENGTH_SHORT).show(); h.postDelayed({ reload() }, 700) } }
+        act0("▶  " + s(R.string.pilot_play_now), true) { if (ask("epg-act", "play", ch.toDouble(), g = o.optString("chName"))) android.widget.Toast.makeText(act, s(R.string.pilot_starting, o.optString("chName")), android.widget.Toast.LENGTH_SHORT).show() }
         val job = o.optString("job"); val jobId = o.optString("jobId")
         if (job == "switch") act0("✕  " + s(R.string.pilot_cancel_plan), false) { ask("plan-del", q = jobId); h.postDelayed({ reload() }, 700) }
         else if (st > now) act0("⏰  " + s(R.string.pilot_switch_at, hm(st)), false) { done("switch") }

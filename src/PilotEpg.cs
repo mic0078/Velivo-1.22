@@ -13,6 +13,22 @@ namespace Velivo
     {
         List<IptvChannel> _pilotEpgCh = new List<IptvChannel>();
 
+        // wersja programu TV na komputerze: zmienia się, gdy komputer wczyta nowy program (wg własnego harmonogramu) albo zmienią się plany/nagrania - telefon odświeża swoją kopię tylko wtedy
+        int PilotEpgVer()
+        {
+            int h = _iptvEpg == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_iptvEpg);
+            foreach (var j in IptvSt.Jobs) h = h * 31 + (j.Id ?? "").GetHashCode();
+            return h;
+        }
+
+        // wersja listy dla telefonu: TV = program TV + ulubione kanały, filmy = biblioteka + ulubione (zapis pliku na komputerze)
+        int PilotLibVer(bool tv)
+        {
+            if (tv) return PilotEpgVer() * 31 + string.Join("|", IptvSt.Fav).GetHashCode();
+            long t = 0; try { t = System.IO.File.GetLastWriteTimeUtc(LibraryFile).Ticks ^ (System.IO.File.Exists(PlaylistsFile) ? System.IO.File.GetLastWriteTimeUtc(PlaylistsFile).Ticks : 0); } catch (Exception) { }
+            return t.GetHashCode();
+        }
+
         void PilotSend(string phoneId, Dictionary<string, object> o)
         {
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;
@@ -59,13 +75,19 @@ namespace Velivo
                     }).ToList();
                     chans.Add(new object[] { i, ch.Name ?? "", PilotLogoKey(ch), progs });
                 }
-                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "epg", ["page"] = page, ["total"] = total, ["groups"] = groups, ["t0"] = UnixMs(from), ["t1"] = UnixMs(d1), ["now"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["chans"] = chans });
+                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "epg", ["page"] = page, ["total"] = total, ["groups"] = groups, ["t0"] = UnixMs(from), ["t1"] = UnixMs(d1), ["now"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["chans"] = chans, ["epgv"] = PilotEpgVer() });
                 return;
             }
             if (cmd.op == "epg-act")   // v = info / play / switch / rec / arch, n = kanał (z siatki), q = początek programu (ms)
             {
                 int i = (int)cmd.n; long.TryParse(cmd.q ?? "", out long st);
-                if (i < 0 || i >= _pilotEpgCh.Count || _iptvEpg == null) return;
+                if (_iptvEpg == null) return;
+                if (!string.IsNullOrEmpty(cmd.g) && (i < 0 || i >= _pilotEpgCh.Count || _pilotEpgCh[i].Name != cmd.g))   // telefon z zapisanej siatki - kanał po nazwie
+                {
+                    var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>(); var hit = all.FirstOrDefault(c => c.Name == cmd.g);
+                    if (hit != null) { _pilotEpgCh = all.Where(c => c.Group == hit.Group).ToList(); i = _pilotEpgCh.IndexOf(hit); }
+                }
+                if (i < 0 || i >= _pilotEpgCh.Count) return;
                 var ch = _pilotEpgCh[i];
                 var p = (EpgFor(_iptvEpg, ch) ?? new List<EpgItem>()).FirstOrDefault(x => UnixMs(x.Start) == st);
                 if (cmd.v == "play")
@@ -171,7 +193,7 @@ namespace Velivo
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var items = IptvSt.Jobs.Where(j => j.Kind == "rec" || j.Kind == "switch").OrderBy(j => j.Start)
                 .Select(j => new object[] { j.Id, j.Kind, j.Channel ?? "", j.Title ?? "", j.Start, j.Stop, j.Kind == "rec" && _recording.ContainsKey(j.Id) }).ToList();
-            PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "plans", ["items"] = items, ["now"] = now });
+            PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "plans", ["items"] = items, ["now"] = now, ["epgv"] = PilotEpgVer(), ["libtv"] = PilotLibVer(true), ["libfilm"] = PilotLibVer(false) });
         }
     }
 }

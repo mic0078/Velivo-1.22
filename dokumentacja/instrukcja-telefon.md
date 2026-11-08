@@ -252,6 +252,7 @@ Menu ☰ → Filmy i TV → **🎮 Pilot**. Telefon musi być połączony z komp
 * **⚙ Sterowanie**: Obraz (pełny ekran, dopasowanie obrazu, powiększenie), Dźwięk (ścieżka dźwięku), Napisy (wybór albo wyłączone), Odtwarzanie.
 * Zmiany zrobione na komputerze (pauza, głośność, napisy) widać na telefonie po chwili. Polecenia idą zawsze tylko do jednego, wybranego komputera, zaszyfrowane kluczem z parowania.
 * **📅 Program TV** (kafelek pod Sterowaniem): siatka programu – logo kanałów z lewej, godziny u góry, zielona linia „teraz”; przesuń w bok – inne godziny. Ulubione albo grupa, dzień, ⏰ Plany. Stuknięcie w program: ▶ Włącz kanał teraz, ⏰ Przełącz o godzinie, ⏺ Nagraj, ⏪ Archiwum (gdy kanał ma). Robi to komputer – te same plany i nagrania co w Velivo na Windows. Pod kafelkami: ile zaplanowanych przełączeń i nagrań (stuknij – lista z ✕ usuń).
+* **Pamięć w telefonie:** Program TV, lista kanałów i lista filmów zapisują się w telefonie i otwierają od razu. Telefon pobiera je od komputera tylko wtedy, gdy komputer ma nowsze (nowy program TV wg harmonogramu komputera, zmiany w bibliotece Jellyfin, ulubione, plany).
 * **🎲 Co dziś obejrzeć**: od razu 3 propozycje z biblioteki komputera (gatunek, długość, tylko nieobejrzane) – plakat, opis, ▶ Oglądaj na komputerze i ☆ przy każdej; 🎲 Losuj dalej – 3 nowe.
 
 ## 8b. Klawiatura Velivo

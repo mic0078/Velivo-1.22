@@ -15,7 +15,7 @@ namespace Velivo
     public partial class MainWindow
     {
         // archiwum modelu (Supertone zakończyło działalność - wersja przypięta do zatwierdzenia, nie zmieni się)
-        const string SupertonicBase = "https://huggingface.co/supertone-oss-archive/supertonic-3/resolve/aafc6e32416a594460b32413efc49d7fe4ce6d46/";
+        static string SupertonicBase => "https://huggingface.co/supertone-oss-archive/supertonic-3/resolve/" + VoiceRev("supertonic", "aafc6e32416a594460b32413efc49d7fe4ce6d46") + "/";
         static readonly string[] SupertonicModelFiles = { "onnx/duration_predictor.onnx", "onnx/text_encoder.onnx", "onnx/vector_estimator.onnx", "onnx/vocoder.onnx", "onnx/tts.json", "onnx/unicode_indexer.json" };
 
         static string SupertonicRoot => Path.Combine(VelivoData.Root, "Supertonic");

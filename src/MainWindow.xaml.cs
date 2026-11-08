@@ -191,7 +191,8 @@ namespace Velivo
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
-                    StartJellyfinAutoSync();   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
+                    StartJellyfinAutoSync();
+                    _ = VoiceUpdateCheckAsync(null);   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
                     LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
                     var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
                     foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }

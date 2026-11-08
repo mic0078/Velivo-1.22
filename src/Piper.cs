@@ -59,7 +59,7 @@ namespace Velivo
         };
 
         const string PiperZipUrl = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip";
-        const string PiperVoicesBase = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/";
+        static string PiperVoicesBase => "https://huggingface.co/rhasspy/piper-voices/resolve/" + VoiceRev("piper", "v1.0.0") + "/";   // wersja z aktualizacji glosow (GlosyAktualizacje.cs)
 
         static string PiperRoot { get { return Path.Combine(VelivoData.Root, "Piper"); } }
         static string PiperExe { get { return Path.Combine(PiperRoot, "piper", "piper.exe"); } }

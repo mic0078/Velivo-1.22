@@ -37,7 +37,7 @@ print('READY ' + dev, flush=True)
 for line in sys.stdin:
     try:
         r = json.loads(line)
-        tts.tts_to_file(text=r['text'], language=r['lang'], speaker=r['speaker'], speed=r['speed'], file_path=r['out'], split_sentences=False)
+        tts.tts_to_file(text=r['text'], language=r['lang'], speaker=r['speaker'], speed=r['speed'], file_path=r['out'], split_sentences=len(r['text']) > 200)
         print('OK ' + r['out'], flush=True)
     except Exception as e:
         print('ERR ' + str(e).replace('\n', ' '), flush=True)
@@ -176,6 +176,7 @@ for line in sys.stdin:
             {
                 if (_xtProc == null || _xtProc.HasExited)
                 {
+                    File.WriteAllText(Path.Combine(XttsRoot, "velivo_xtts.py"), XttsScript);   // zawsze aktualny skrypt (poprawki bez ponownej instalacji)
                     var psi = new ProcessStartInfo(XttsPy) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
                         StandardInputEncoding = new UTF8Encoding(false), StandardOutputEncoding = Encoding.UTF8, WorkingDirectory = XttsRoot };
                     psi.ArgumentList.Add("-u"); psi.ArgumentList.Add(Path.Combine(XttsRoot, "velivo_xtts.py"));
@@ -193,7 +194,7 @@ for line in sys.stdin:
                 await _xtProc.StandardInput.WriteLineAsync(req);
                 await _xtProc.StandardInput.FlushAsync();
                 var r = _xtProc.StandardOutput.ReadLineAsync();
-                if (await Task.WhenAny(r, Task.Delay(60000)) != r) { StopXttsProcess(); return null; }
+                if (await Task.WhenAny(r, Task.Delay(180000)) != r) { StopXttsProcess(); return null; }
                 if (!(r.Result ?? "").StartsWith("OK")) { App.LogError(new Exception("XTTS: " + r.Result)); return null; }
                 return File.Exists(path) ? path : null;
             }

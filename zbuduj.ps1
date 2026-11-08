@@ -7,9 +7,10 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 Write-Host "1/4 Najnowsze zmiany (git pull)..." -ForegroundColor Cyan
-git checkout rozwoj   # instalator testowy zawsze z galezi roboczej (main = wersja publiczna)
-git pull origin rozwoj
-if ($LASTEXITCODE -ne 0) { Write-Host "Nie udalo sie pobrac zmian z galezi rozwoj." -ForegroundColor Red; exit 1 }
+$galaz = (git rev-parse --abbrev-ref HEAD).Trim()
+if ($galaz -eq "main" -or $galaz -eq "HEAD") { git checkout rozwoj; $galaz = "rozwoj" }   # nigdy z main (wersja publiczna); galaz probna (np. lektor-cache) zostaje
+git pull origin $galaz
+if ($LASTEXITCODE -ne 0) { Write-Host "Nie udalo sie pobrac zmian z galezi $galaz." -ForegroundColor Red; exit 1 }
 Write-Host ("Budowana wersja: " + (git log --oneline -1)) -ForegroundColor Cyan
 
 if (-not $BezTestow) {

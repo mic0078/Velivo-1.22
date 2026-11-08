@@ -25,6 +25,7 @@ namespace Velivo
         static string XttsPy => Path.Combine(XttsRoot, "python", "python.exe");
         static string XttsReady => Path.Combine(XttsRoot, "gotowe.txt");
         static bool XttsInstalled() => File.Exists(XttsPy) && File.Exists(XttsReady);
+        // predkosc: XTTS (coqui-tts 0.25) pomija parametr speed (sprawdzone u wlasciciela: 1.0 -> 5,2 s, 1.6 -> 5,8 s) - przyspieszamy nagranie bez zmiany wysokosci glosu (librosa)
         static string XttsOwnWav => Path.Combine(XttsRoot, "moj-glos.wav");
         static bool XttsHasNvidia() => File.Exists(Path.Combine(Environment.SystemDirectory, "nvidia-smi.exe"));
 
@@ -34,13 +35,17 @@ import torch
 from TTS.api import TTS
 dev = 'cuda' if torch.cuda.is_available() else 'cpu'
 tts = TTS('tts_models/multilingual/multi-dataset/xtts_v2').to(dev)
+import numpy as np, librosa, soundfile as sf
+sr = tts.synthesizer.output_sample_rate
 print('READY ' + dev, flush=True)
 for line in sys.stdin:
     try:
         r = json.loads(line)
         sp = r['speaker']
         kw = {'speaker_wav': sp[1:]} if sp.startswith('@') else {'speaker': sp}
-        tts.tts_to_file(text=r['text'], language=r['lang'], **kw, speed=r['speed'], file_path=r['out'], split_sentences=len(r['text']) > 200)
+        wav = np.asarray(tts.tts(text=r['text'], language=r['lang'], split_sentences=len(r['text']) > 200, **kw), dtype=np.float32)
+        if abs(r['speed'] - 1) > 0.02: wav = librosa.effects.time_stretch(wav, rate=r['speed'])
+        sf.write(r['out'], wav, sr, subtype='PCM_16')
         print('OK ' + r['out'], flush=True)
     except Exception as e:
         print('ERR ' + str(e).replace('\n', ' '), flush=True)

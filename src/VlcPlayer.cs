@@ -2092,6 +2092,7 @@ namespace Velivo
 
             // lektor: napisy z pliku obok filmu albo wczytane z menu Napisy
             var lc = new Lector();
+            lc.Osd = t => win.Dispatcher.BeginInvoke(new Action(() => showOsd(t)));
             bool muted = false;
             Action<string, string> loadSubsText = (text, name) =>
             {

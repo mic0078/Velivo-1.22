@@ -148,7 +148,7 @@ namespace Velivo
             public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
             public int Ducked = -1;   // glosnosc filmu przed sciszeniem
             public Dictionary<int, string> Ready = new Dictionary<int, string>();   // gotowe nagrania kwestii (caly film liczony w tle, zapis przy filmie)
-            public int RenderGen; public bool Rendering; public string RenderKey;   // RenderGen++ = zatrzymaj liczenie (nowe napisy, inny glos, zamkniecie)
+            public int RenderGen; public bool Rendering; public string RenderKey; public Action<string> Osd;   // RenderGen++ = zatrzymaj liczenie (nowe napisy, inny glos, zamkniecie)
         }
 
         // syntezuje kwestie: Piper (jezyk zgodny z napisami, jesli jest taki glos), inaczej glos Windows
@@ -215,12 +215,13 @@ namespace Velivo
                 });
                 if (gen != lc.RenderGen) return;
                 lc.Ready = found; lc.RenderKey = key;
+                lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
                 while (gen == lc.RenderGen)
                 {
                     int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
                     for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
                     if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
-                    if (idx < 0) break;   // caly film gotowy
+                    if (idx < 0) { lc.Osd?.Invoke(L.T("🗣 Lektor gotowy dla całego filmu")); break; }   // caly film gotowy
                     var tmp = await LectorSynth(lc, lc.Cues[idx]);
                     if (gen != lc.RenderGen) { if (tmp != null) try { System.IO.File.Delete(tmp); } catch (Exception) { } return; }
                     if (tmp == null) { await Task.Delay(2000); continue; }
@@ -228,7 +229,7 @@ namespace Velivo
                     try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; } catch (Exception ex) { App.LogError(ex); await Task.Delay(2000); }
                 }
             }
-            catch (Exception ex) { App.LogError(ex); }
+            catch (Exception ex) { App.LogError(ex); lc.RenderKey = LectorKeyParams(lc); lc.Osd?.Invoke(L.T("🗣 Lektor: nie udało się przygotować filmu – ") + ex.Message); }   // bez ponawiania co 120 ms
             finally { if (gen == lc.RenderGen) lc.Rendering = false; }
         }
 

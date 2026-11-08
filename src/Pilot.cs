@@ -68,9 +68,17 @@ namespace Velivo
             if (cmd.op == "info")   // ℹ opis: film (Jellyfin) albo co teraz i co dalej na kanale (program TV)
             {
                 int i = (int)cmd.n; string head = "", text = "";
-                if (cmd.v == "tv" && i >= 0 && i < _pilotTv.Count)
+                IptvChannel ich = cmd.v == "tv" && i >= 0 && i < _pilotTv.Count ? _pilotTv[i] : null;
+                LibraryVideo ivid = cmd.v == "film" && i >= 0 && i < _pilotFilms.Count ? _pilotFilms[i] : null;
+                if (cmd.v == "now" && _playIndex >= 0 && _playIndex < _playlist.Count)   // przytrzymanie tytułu na ekranie pilota: to, co teraz gra
                 {
-                    var ch = _pilotTv[i]; head = ch.Name;
+                    var cur = _playlist[_playIndex];
+                    if (_iptvPlaying.TryGetValue(cur, out var c0)) ich = c0;
+                    else ivid = FindEntry(LoadLibrary(), cur, null) ?? new LibraryVideo { Path = cur, Title = System.IO.Path.GetFileNameWithoutExtension(cur) };
+                }
+                if (ich != null)
+                {
+                    var ch = ich; head = ch.Name;
                     try
                     {
                         var epg = _iptvEpg == null ? null : EpgFor(_iptvEpg, ch);
@@ -82,9 +90,9 @@ namespace Velivo
                     }
                     catch (Exception) { }
                 }
-                else if (cmd.v == "film" && i >= 0 && i < _pilotFilms.Count)
+                else if (ivid != null)
                 {
-                    var v = _pilotFilms[i]; var m = MetaFor(v.Path); head = ShownTitle(v, m);
+                    var v = ivid; var m = MetaFor(v.Path); head = ShownTitle(v, m);
                     var parts = new List<string>();
                     if (m?.Year > 0) parts.Add(m.Year.ToString());
                     if (m?.Rating > 0) parts.Add("★ " + m.Rating.ToString("0.0"));

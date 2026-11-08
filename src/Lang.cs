@@ -2297,7 +2297,6 @@ namespace Velivo
             { "Folder nagrań: ", "Recordings folder: " },
             { "domyślny (Dane\\lektor)", "default (Dane\\lektor)" },
             { "Gdzie zapisywać nagrania lektora i pliki robocze głosu – np. ramdysk, żeby nie obciążać dysku. Nagrania liczą się od nowa w nowym miejscu.", "Where to keep narrator recordings and voice working files – e.g. a RAM disk, to spare the drive. Recordings are prepared again in the new place." },
-            { "Domyślny", "Default" },
             { "Wraca do folderu Dane\\lektor", "Back to the Dane\\lektor folder" },
             { "🗣 Lektor: używam gotowych nagrań tego filmu – ", "🗣 Narrator: using recordings already prepared for this film – " },
             { "Przygotowuje głos dla całego filmu z obecnymi ustawieniami (głos, prędkość, jakość). Wcześniej przygotowane nagrania w innych ustawieniach są pomijane.", "Prepares the voice for the whole film with the current settings (voice, speed, quality). Recordings prepared earlier with other settings are skipped." },

@@ -2192,7 +2192,7 @@ namespace Velivo
             // 🗣 lektor dla calego filmu: sam w tle albo dopiero po ustawieniu glosu, tempa i jakosci - przyciskiem
             var autoBuild = new CheckBox { Content = L.T("Buduj lektora sam (cały film w tle)"), Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 6), IsChecked = _settings.VlcLectorAutoBuild,
                 ToolTip = L.T("Włączone: po włączeniu filmu Velivo samo przygotowuje głos dla całego filmu. Wyłączone: najpierw ustaw głos, prędkość i jakość, potem kliknij „Zbuduj lektora teraz”.") };
-            autoBuild.Click += (s, e) => { _settings.VlcLectorAutoBuild = autoBuild.IsChecked == true; _settings.Save(DataDir); };
+            autoBuild.Click += (s, e) => { _settings.VlcLectorAutoBuild = autoBuild.IsChecked == true; _settings.Save(DataDir); LectorStopRender(lc); };   // od razu wg nowego wyboru (gotowe nagrania zostają na dysku)
             lectorPanel.Children.Add(autoBuild);
             var buildNow = new Button { Content = L.T("🗣 Zbuduj lektora teraz"), Padding = new Thickness(8, 4, 8, 4), HorizontalAlignment = HorizontalAlignment.Left,
                 ToolTip = L.T("Przygotowuje głos dla całego filmu z obecnymi ustawieniami (głos, prędkość, jakość). Wcześniej przygotowane nagrania w innych ustawieniach są pomijane.") };

@@ -194,7 +194,7 @@ namespace Velivo
         static void LectorStopRender(Lector lc) { lc.RenderGen++; lc.Rendering = false; lc.Ready = new Dictionary<int, string>(); lc.RenderKey = null; lc.BuildNow = false; }
 
         // lektor dla calego filmu: od biezacego miejsca do przodu, potem reszta; nagrania w Dane\lektor\<skrot> - przy drugim ogladaniu gotowe od razu
-        async void LectorRender(Lector lc)
+        async void LectorRender(Lector lc, bool loadOnly = false)   // loadOnly: tylko gotowe nagrania tego filmu (bez liczenia nowych)
         {
             int gen = lc.RenderGen; lc.Rendering = true;
             try
@@ -211,6 +211,7 @@ namespace Velivo
                 var root = Path.Combine(DataDir, "lektor"); var dir = Path.Combine(root, film + "-" + set);   // jeden folder na film: inny glos / tempo / jakosc kasuje poprzedni folder tego filmu
                 var found = await Task.Run(() =>
                 {
+                    if (loadOnly && !Directory.Exists(dir)) return new Dictionary<int, string>();
                     Directory.CreateDirectory(dir); Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow);
                     try
                     {
@@ -225,6 +226,7 @@ namespace Velivo
                 });
                 if (gen != lc.RenderGen) return;
                 lc.Ready = found; lc.RenderKey = key;
+                if (loadOnly) { if (found.Count > 0) lc.Osd?.Invoke(L.T("🗣 Lektor: używam gotowych nagrań tego filmu – ") + found.Count + " / " + lc.Cues.Count); return; }
                 lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
                 while (gen == lc.RenderGen)
                 {
@@ -300,7 +302,7 @@ namespace Velivo
             lc.PauseT = long.MinValue;
             lc.LastTime = t; lc.LastWall = now;
             if (lc.RenderKey != null && lc.RenderKey != LectorKeyParams(lc)) LectorStopRender(lc);   // inny glos / tempo / jakosc - liczymy od nowa
-            if (!lc.Rendering && lc.RenderKey == null && (_settings.VlcLectorAutoBuild || lc.BuildNow)) LectorRender(lc);   // samo albo po przycisku „Zbuduj lektora teraz”
+            if (!lc.Rendering && lc.RenderKey == null) LectorRender(lc, !(_settings.VlcLectorAutoBuild || lc.BuildNow));   // samo albo po przycisku „Zbuduj lektora teraz”
             int i = queue ? (lc.LastSpoken + 1 < lc.Cues.Count && lc.Cues[lc.LastSpoken + 1].Start <= t ? lc.LastSpoken + 1 : -1) : CueAt(lc.Cues, t);   // kolejka: następna niewypowiedziana, która już się pojawiła
             if (i < 0 && lc.PreWav == null && !lc.Busy)
             {   // przerwa miedzy napisami: najblizsza kwestia liczona juz teraz (po starcie i po przewinieciu)

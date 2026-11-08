@@ -56,16 +56,17 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private val dim = Color.parseColor("#A0A4AE")
 
     // logo kanałów i plakaty z Jellyfin: w tle, w pamięci (jak listy Filmy i TV w aplikacji)
-    private val imgCache = android.util.LruCache<String, android.graphics.Bitmap>(150)
+    private val imgCache = (act as? MainActivity)?.imgCache ?: android.util.LruCache<String, android.graphics.Bitmap>(150)   // ta sama pamięć co Telewizja i Biblioteka w Velivo
     private val imgPool by lazy { java.util.concurrent.Executors.newFixedThreadPool(3) }
     private var jfKeys = listOf<Pair<String, String>>()
     // dane, które telefon już ma: logo z listy TV telefonu, plakaty i opisy z biblioteki Jellyfin telefonu
     private var tvLogo = mapOf<String, String>()
     private var jfConf: Jelly.Conf? = null
     private var jfById = mapOf<String, Jelly.Item>(); private var jfByName = mapOf<String, Jelly.Item>()
+    private fun chKey(t: String) = t.lowercase().filter { it.isLetterOrDigit() }   // „TVP 1 HD” = „tvp1hd” - nazwy z listy telefonu i komputera porównywane bez spacji i znaków
     private fun norm(t: String) = t.lowercase().replace(Regex("\\s*\\(\\d{4}\\)\\s*$"), "").trim()
     private fun phoneData(done: () -> Unit) = Thread {
-        runCatching { tvLogo = Tv.sources(pw).flatMap { src -> runCatching { Tv.channels(act, pw, src, false) }.getOrDefault(emptyList()) }.filter { it.logo.isNotEmpty() }.associate { it.name.trim().lowercase() to it.logo } }
+        runCatching { tvLogo = Tv.sources(pw).flatMap { src -> runCatching { Tv.channels(act, pw, src, false) }.getOrDefault(emptyList()) }.filter { it.logo.isNotEmpty() }.associate { chKey(it.name) to it.logo } }
         runCatching {
             jfConf = Jelly.conf(pw)
             val lib = Jelly.cached(act, pw)?.first ?: emptyList()
@@ -75,9 +76,23 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     }.start()
     // pobieranie obrazków: kolejka tylko dla OTWARTEGO ekranu - po zmianie ekranu stare (np. 350 logo listy TV) są pomijane, nie blokują nowych
     @Volatile private var imgGen = 0
+    private val pcWait = HashMap<String, MutableList<(android.graphics.Bitmap?) -> Unit>>()
+    // pierwszy wybór: co już jest w pamięci Velivo w telefonie; potem z dysku komputera (pc:…); dopiero na końcu internet
+    private fun pick(phone: String?, pc: String) = when { !phone.isNullOrEmpty() && imgCache.get(phone) != null -> phone; pc.startsWith("pc:") -> pc; else -> phone ?: pc }
+    fun gotPcImg(o: JSONObject) {
+        val k = o.optString("key"); val b64 = o.optString("b")
+        val bmp = if (b64.isEmpty()) null else runCatching { val by = android.util.Base64.decode(b64, 0); android.graphics.BitmapFactory.decodeByteArray(by, 0, by.size) }.getOrNull()
+        if (bmp != null) imgCache.put(k, bmp)
+        pcWait.remove(k)?.forEach { it(bmp) }
+    }
     private fun loadBmp(url: String, key0: String?, done: (android.graphics.Bitmap?) -> Unit) {
         if (url.isEmpty()) { done(null); return }
         imgCache.get(url)?.let { done(it); return }
+        if (url.startsWith("pc:")) {   // obrazek z dysku komputera (logo / plakat już tam pobrane)
+            val l = pcWait.getOrPut(url) { mutableListOf() }; l.add(done)
+            if (l.size == 1) { val c = cur; val p = c?.let { pcs[it] }; if (c == null || !lan.sendPilot(c, "img", target = p?.addr, q = url.removePrefix("pc:"))) pcWait.remove(url)?.forEach { it(null) } }
+            return
+        }
         val key = key0 ?: jfKeys.firstOrNull { url.startsWith(it.first) }?.second
         val gen = imgGen
         imgPool.execute {
@@ -214,6 +229,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 val rec = (0 until a.length()).count { a.getJSONArray(it).optString(1) == "rec" }; val sw = a.length() - rec
                 plansTxt.text = s(R.string.pilot_plans_count, sw, rec); plansTxt.visibility = if (a.length() > 0) View.VISIBLE else View.GONE
             }
+            if (o.optString("kind") == "img") { gotPcImg(o); return@runOnUiThread }
             if (o.optString("kind") == "info")   // ℹ opis filmu / program kanału (z listy albo z ekranu pilota)
                 AlertDialog.Builder(act).setTitle(o.optString("title")).setMessage(o.optString("text")).setPositiveButton(android.R.string.ok, null).show()
             else onList?.invoke(o)
@@ -406,10 +422,10 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 for (k in 0 until (items?.length() ?: 0)) {
                     val it2 = items!!.getJSONArray(k); val idx = it2.optInt(0); val name = it2.optString(1); val sub = it2.optString(2)
                     var fav = it2.optBoolean(3); var img = it2.optString(4); val pcImg = img; var key: String? = null; var overview = ""
-                    if (kind == "tv") tvLogo[name.trim().lowercase()]?.let { img = it }   // logo z listy TV telefonu
+                    if (kind == "tv") img = pick(tvLogo[chKey(name)], pcImg)   // logo: pamięć telefonu, inaczej dysk komputera
                     else { val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
                         if (ji != null) overview = ji.overview
-                        if (jc != null && ji != null) { img = Jelly.image(jc, ji.id); key = jc.key } }   // plakat z biblioteki telefonu (ten sam adres i klucz co Biblioteka)
+                        if (jc != null && ji != null) { val ph = Jelly.image(jc, ji.id); img = pick(ph, pcImg); if (img == ph) key = jc.key } }   // plakat z biblioteki telefonu (ten sam adres i klucz co Biblioteka)
                     val resumeAt = it2.optLong(7)
                     fun go(how: String) { if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble(), sort = how)) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
                     val play = {   // film przerwany: pytanie na telefonie (komputer nie czeka na kliknięcie)
@@ -599,6 +615,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val (d, box, tabs) = screen("📅 " + s(R.string.pilot_guide) + " · " + curName)
         var mode = prefs.getString("pilot-epg-tryb", "fav") ?: "fav"; var group = prefs.getString("pilot-epg-grupa", "") ?: ""; var day = 0; var page = 0
         var groups = listOf<String>()
+        var sort = prefs.getString("pilot-epg-sort", "") ?: ""   // zapamiętane sortowanie kanałów
+        val sorts = listOf("" to s(R.string.pilot_sort_list), "name" to s(R.string.pilot_sort_az), "name-desc" to s(R.string.pilot_sort_za))
         val info = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), 0, dp(4), dp(6)) }
         box.addView(info)
         val grid = EpgView()
@@ -620,13 +638,16 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             }, tabLp())
             val days = (0..6).map { i -> when (i) { 0 -> s(R.string.pilot_today); 1 -> s(R.string.pilot_tomorrow); else -> java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault()).format(java.util.Date(System.currentTimeMillis() + i * 86_400_000L)) } }
             tabs.addView(pillV(days[day] + " ▾", false) { AlertDialog.Builder(act).setItems(days.toTypedArray()) { _, i -> day = i; drawTabs(); load(true) }.show() }, tabLp())
+            tabs.addView(pillV("⇅ " + (sorts.firstOrNull { it.first == sort }?.second ?: sorts[0].second), false) {
+                AlertDialog.Builder(act).setTitle(R.string.pilot_sort).setItems(sorts.map { it.second }.toTypedArray()) { _, i -> sort = sorts[i].first; prefs.edit().putString("pilot-epg-sort", sort).apply(); drawTabs(); load(true) }.show()
+            }, tabLp())
             tabs.addView(pillV("⏰ " + s(R.string.pilot_plans), false) { plans() }, tabLp())
         }
         var keepScroll = false
         load = { fresh ->
             if (fresh) { page = 0; grid.rows.clear(); grid.scrollXf = 0f; keepScroll = false; imgGen++; grid.requestLayout(); grid.invalidate() }
             info.text = s(R.string.pilot_loading); info.visibility = View.VISIBLE
-            if (!ask("epg", mode, page.toDouble(), day.toString(), if (mode == "tv") group else "")) info.text = s(R.string.pilot_unavailable, curName)
+            if (!ask("epg", mode, page.toDouble(), day.toString(), if (mode == "tv") group else "", sort)) info.text = s(R.string.pilot_unavailable, curName)
         }
         grid.onProg = { ch, st -> ask("epg-act", "info", ch.toDouble(), st.toString()) }
         grid.onLogo = { row -> if (ask("epg-act", "play", row.ci.toDouble())) android.widget.Toast.makeText(act, s(R.string.pilot_starting, row.name), android.widget.Toast.LENGTH_SHORT).show() }
@@ -635,14 +656,14 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); h.postDelayed({ if (d.isShowing) load(false) }, 3000) }
                     else if (o.optInt("page") == page) {
                     o.optJSONArray("groups")?.let { g -> if (g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() } }
-                    grid.from = o.optLong("from"); grid.to = o.optLong("to"); val total = o.optInt("total")
+                    grid.from = o.optLong("t0"); grid.to = o.optLong("t1"); val total = o.optInt("total")
                     val chans = o.optJSONArray("chans")
                     for (k in 0 until (chans?.length() ?: 0)) {
                         val c = chans!!.getJSONArray(k); val ps = c.optJSONArray(3)
                         val pr = ArrayList<LongArray>(); val ti = ArrayList<String>(); val fl = ArrayList<String>()
                         for (j in 0 until (ps?.length() ?: 0)) { val p = ps!!.getJSONArray(j); pr.add(longArrayOf(p.optLong(0), p.optLong(1))); ti.add(p.optString(2)); fl.add(p.optString(3)) }
                         val name = c.optString(1)
-                        val row = EpgRow(c.optInt(0), name, tvLogo[name.trim().lowercase()] ?: c.optString(2), pr, ti, fl)
+                        val row = EpgRow(c.optInt(0), name, pick(tvLogo[chKey(name)], c.optString(2)), pr, ti, fl)
                         grid.rows.add(row)
                         loadBmp(row.logo, null) { b -> if (b != null) { row.bmp = b; grid.invalidate() } }
                     }
@@ -741,7 +762,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
             val v = LinearLayout(act).apply { setPadding(dp(10), dp(10), dp(10), dp(10)); background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat() } }
             val poster = ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")) }
-            if (jc != null && ji != null) loadImage(poster, Jelly.image(jc, ji.id), jc.key, it2.optString(4)) else loadImage(poster, it2.optString(4))
+            val ph = if (jc != null && ji != null) Jelly.image(jc, ji.id) else null; val first = pick(ph, it2.optString(4))
+            loadImage(poster, first, if (first == ph) jc?.key else null, if (first == ph) it2.optString(4) else ph ?: "")
             v.addView(poster, LinearLayout.LayoutParams(dp(110), dp(165)))
             val col = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0) }
             col.addView(TextView(act).apply { text = name; textSize = 18f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); maxLines = 2; ellipsize = TextUtils.TruncateAt.END })

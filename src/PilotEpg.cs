@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
 
 namespace Velivo
 {
@@ -29,6 +31,7 @@ namespace Velivo
 
         void PilotGuide(string phoneId, LanPilotCmd cmd)
         {
+            if (cmd.op == "img") { PilotImg(phoneId, cmd.q ?? ""); return; }
             if (cmd.op == "epg")   // siatka: v = fav / tv, g = grupa, q = dzień (0 dziś, 1 jutro…), n = strona (po 12 kanałów - jeden pakiet UDP)
             {
                 var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
@@ -38,6 +41,8 @@ namespace Velivo
                     ? IptvSt.Fav.Select(u => all.FirstOrDefault(c => c.Url == u) ?? (_iptvPlaying.TryGetValue(u, out var c1) ? c1 : null)).Where(c => c != null).ToList()
                     : all.Where(c => string.IsNullOrEmpty(cmd.g) || c.Group == cmd.g).ToList();
                 _pilotEpgCh = _pilotEpgCh.Where(c => EpgFor(_iptvEpg, c)?.Count > 0).ToList();   // tylko kanały z programem
+                if (cmd.s == "name") _pilotEpgCh = _pilotEpgCh.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                else if (cmd.s == "name-desc") _pilotEpgCh = _pilotEpgCh.OrderByDescending(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
                 int.TryParse(cmd.q ?? "0", out int day);
                 var d0 = DateTime.Today.AddDays(day); var d1 = d0.AddDays(1);
                 var from = day == 0 ? DateTime.Now.AddHours(-2) : d0;
@@ -52,9 +57,9 @@ namespace Velivo
                         string flag = j == null ? "" : j.Kind == "rec" ? "rec" : "plan";
                         return new object[] { UnixMs(p.Start), UnixMs(p.Stop), p.Title ?? "", flag };
                     }).ToList();
-                    chans.Add(new object[] { i, ch.Name ?? "", (ch.Logo ?? "").StartsWith("http", StringComparison.OrdinalIgnoreCase) ? ch.Logo : "", progs });
+                    chans.Add(new object[] { i, ch.Name ?? "", PilotLogoKey(ch), progs });
                 }
-                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "epg", ["page"] = page, ["total"] = total, ["groups"] = groups, ["from"] = UnixMs(from), ["to"] = UnixMs(d1), ["now"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["chans"] = chans });
+                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "epg", ["page"] = page, ["total"] = total, ["groups"] = groups, ["t0"] = UnixMs(from), ["t1"] = UnixMs(d1), ["now"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["chans"] = chans });
                 return;
             }
             if (cmd.op == "epg-act")   // v = info / play / switch / rec / arch, n = kanał (z siatki), q = początek programu (ms)
@@ -117,12 +122,47 @@ namespace Velivo
                     var sub = string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null,
                         v.Len > 0 ? (v.Len / 3600000 > 0 ? v.Len / 3600000 + " h " : "") + (v.Len / 60000 % 60) + " min" : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres.Take(2)) : null }.Where(x => x != null));
                     var ov = m?.Overview ?? ""; if (ov.Length > 400) ov = ov.Substring(0, 400) + "…";
-                    return new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len), ov };
+                    return new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPosterKey(m) is var pk && pk.Length > 0 ? pk : PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len), ov };
                 }).ToList();
                 if (_jfConfCache == null) try { _jfConfCache = LoadJellyfinConf(); } catch (Exception) { }
                 PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "rand", ["genres"] = genres, ["items"] = items, ["pool"] = pool.Count,
                     ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() });
             }
+        }
+
+        // 🖼 obrazki dla Pilota z dysku komputera (logo kanałów i plakaty są już pobrane) - telefon niczego nie pobiera z internetu
+        internal static string PilotLogoKey(IptvChannel ch) => string.IsNullOrWhiteSpace(ch?.Logo) ? "" : "pc:L:" + ch.Logo;
+        internal static string PilotPosterKey(MovieInfo m) => m?.Poster != null && System.IO.File.Exists(System.IO.Path.Combine(PosterDir, m.Poster)) ? "pc:P:" + m.Poster : "";
+        static byte[] PilotJpeg(string file, int h)
+        {
+            try
+            {
+                var b = new BitmapImage();
+                using (var fs = System.IO.File.OpenRead(file)) { b.BeginInit(); b.CacheOption = BitmapCacheOption.OnLoad; b.DecodePixelHeight = h; b.StreamSource = fs; b.EndInit(); }
+                b.Freeze();
+                var enc = new JpegBitmapEncoder { QualityLevel = 80 }; enc.Frames.Add(BitmapFrame.Create(b));
+                using (var ms = new System.IO.MemoryStream()) { enc.Save(ms); return ms.ToArray(); }
+            }
+            catch (Exception) { return null; }
+        }
+        async void PilotImg(string phoneId, string key)
+        {
+            try
+            {
+                string file = null; int h = 96;
+                if (key.StartsWith("L:"))
+                {
+                    var url = key.Substring(2);
+                    if (!url.Contains("://")) file = url;
+                    else { await GetLogo(url); file = LogoFile(url); }   // pobiera tylko, gdy komputer jeszcze nie ma
+                }
+                else if (key.StartsWith("P:")) { var n = System.IO.Path.GetFileName(key.Substring(2)); file = System.IO.Path.Combine(PosterDir, n); h = 300; }
+                if (file == null || !System.IO.File.Exists(file)) { PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "img", ["key"] = "pc:" + key, ["b"] = "" }); return; }
+                var jpg = await Task.Run(() => PilotJpeg(file, h));
+                if (jpg != null && jpg.Length > 45000) jpg = await Task.Run(() => PilotJpeg(file, h * 2 / 3));   // jeden pakiet UDP
+                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "img", ["key"] = "pc:" + key, ["b"] = jpg == null ? "" : Convert.ToBase64String(jpg) });
+            }
+            catch (Exception ex) { App.LogError(ex); }
         }
 
         // ⏰ plany: przełączenia i nagrania (te same co w oknie TV)

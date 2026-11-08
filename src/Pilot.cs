@@ -27,7 +27,7 @@ namespace Velivo
             {
                 try { PilotLists(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
             }
-            else if (cmd.to == _lanId && (cmd.op == "epg" || cmd.op == "epg-act" || cmd.op == "plans" || cmd.op == "plan-del" || cmd.op == "rand"))   // 📅 program TV, plany, nagrywanie, 🎲 losowanie
+            else if (cmd.to == _lanId && (cmd.op == "epg" || cmd.op == "epg-act" || cmd.op == "plans" || cmd.op == "plan-del" || cmd.op == "rand" || cmd.op == "img"))   // 📅 program TV, plany, nagrywanie, 🎲 losowanie
             {
                 try { PilotGuide(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
             }
@@ -158,7 +158,7 @@ namespace Velivo
                 {
                     var ch = _pilotTv[i]; string now = null;
                     try { now = _iptvEpg == null ? null : EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now)?.Title; } catch (Exception) { }
-                    items.Add(new object[] { i, ch.Name ?? "", now ?? ch.Group ?? "", IptvSt.Fav.Contains(ch.Url), (ch.Logo ?? "").StartsWith("http", StringComparison.OrdinalIgnoreCase) ? ch.Logo : "" });   // logo kanału (adres z listy TV)
+                    items.Add(new object[] { i, ch.Name ?? "", now ?? ch.Group ?? "", IptvSt.Fav.Contains(ch.Url), PilotLogoKey(ch) });   // logo kanału (adres z listy TV)
                 }
             }
             else
@@ -186,7 +186,7 @@ namespace Velivo
                     var v = _pilotFilms[i]; var m = MetaFor(v.Path);
                     var sub = string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null,
                         v.Done ? "✓" : v.Len > v.Pos && v.Pos > 0 ? "▶ " + (int)((v.Len - v.Pos) / 60000) + " min" : null }.Where(x => x != null));
-                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len) });   // [7] miejsce przerwania - telefon pyta: wznów / od początku   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
+                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPosterKey(m) is var pk && pk.Length > 0 ? pk : PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len) });   // [7] miejsce przerwania - telefon pyta: wznów / od początku   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
                 }
             }
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;

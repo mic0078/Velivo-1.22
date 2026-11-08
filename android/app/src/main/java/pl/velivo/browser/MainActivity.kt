@@ -2029,7 +2029,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private class MRow(val title: String, val sub: String, val image: String?, val headers: Map<String, String> = emptyMap(), var star: Boolean? = null, val tag: Any? = null)
 
     // małe obrazki (logo kanałów, plakaty): w tle, w pamięci podręcznej
-    private val imgCache = android.util.LruCache<String, Bitmap>(120)
+    internal val imgCache = android.util.LruCache<String, Bitmap>(300)   // wspólna z Pilotem - te same logo i plakaty nie są pobierane drugi raz
     private val imgPool by lazy { java.util.concurrent.Executors.newFixedThreadPool(3) }
     private fun loadImage(iv: ImageView, url: String?, headers: Map<String, String>) {
         iv.tag = url; iv.setImageDrawable(null)

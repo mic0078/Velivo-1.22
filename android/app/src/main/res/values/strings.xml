@@ -440,6 +440,7 @@
     <string name="pilot_paused">paused</string>
     <string name="pilot_stopped">stopped</string>
     <string name="pilot_closed">player closed – choose TV or a film below</string>
+    <string name="pilot_live">LIVE</string>
     <string name="pilot_nothing">Nothing is playing</string>
     <string name="pilot_prev">Previous</string>
     <string name="pilot_play">Play / pause</string>

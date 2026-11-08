@@ -4183,6 +4183,7 @@ namespace Velivo
                 ["aud"] = mp.AudioTrack, ["auds"] = mp.AudioTrackDescription.Where(t => t.Id >= 0).Select(t => new object[] { t.Id, t.Name }).ToList(),
                 ["asp"] = mp.AspectRatio ?? "", ["zoom"] = mp.Scale,
                 ["now"] = PilotNowOnTv(),   // 📺 co teraz leci na włączonym kanale
+                ["kind"] = PilotNowName().Kind, ["name"] = PilotNowName().Name,   // tv / film i czysty tytuł
             };
             win.Closed += (s, e) => { _vlcPilotCmd = null; _vlcPilotState = null; };
             win.Closed += (s, e) =>

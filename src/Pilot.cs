@@ -56,6 +56,7 @@ namespace Velivo
         void PilotLists(string phoneId, LanPilotCmd cmd)
         {
             string q = (cmd.q ?? "").Trim();
+            if (_jfConfCache == null) try { _jfConfCache = LoadJellyfinConf(); } catch (Exception) { }   // plakaty i klucz Jellyfin
             if (cmd.op == "play-tv")
             {
                 int i = (int)cmd.n;
@@ -151,7 +152,7 @@ namespace Velivo
                 {
                     var ch = _pilotTv[i]; string now = null;
                     try { now = _iptvEpg == null ? null : EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now)?.Title; } catch (Exception) { }
-                    items.Add(new object[] { i, ch.Name ?? "", now ?? ch.Group ?? "", IptvSt.Fav.Contains(ch.Url) });
+                    items.Add(new object[] { i, ch.Name ?? "", now ?? ch.Group ?? "", IptvSt.Fav.Contains(ch.Url), (ch.Logo ?? "").StartsWith("http", StringComparison.OrdinalIgnoreCase) ? ch.Logo : "" });   // logo kanału (adres z listy TV)
                 }
             }
             else
@@ -179,15 +180,42 @@ namespace Velivo
                     var v = _pilotFilms[i]; var m = MetaFor(v.Path);
                     var sub = string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null,
                         v.Done ? "✓" : v.Len > v.Pos && v.Pos > 0 ? "▶ " + (int)((v.Len - v.Pos) / 60000) + " min" : null }.Where(x => x != null));
-                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path) });
+                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m) });   // plakat z Jellyfin
                 }
             }
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;
-            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items };
+            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() };   // klucz Jellyfin do plakatów (tylko sparowany telefon, szyfrowane)
             var pkt = new LanStatePacket { t = "pilot-list", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
             EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
             var bytes = JsonSerializer.SerializeToUtf8Bytes(pkt);
             _lanTx.Send(bytes, bytes.Length, c.Ep);
+        }
+
+        static string PilotJfBase(JellyfinConf c) => (string.IsNullOrEmpty(c.Lan) ? c.Url : c.Lan).TrimEnd('/');   // w domu adres domowy (router nie zawraca ruchu)
+        string PilotPoster(MovieInfo m)
+        {
+            if (string.IsNullOrEmpty(m?.Id)) return "";
+            var c = JfServers(_jfConfCache).FirstOrDefault(x => JfSame(x.Url, m.Srv)) ?? JfServers(_jfConfCache).FirstOrDefault();
+            return c == null ? "" : PilotJfBase(c) + "/Items/" + m.Id + "/Images/Primary?maxHeight=300&quality=80";
+        }
+
+        // czysty tytuł dla pilota: kanał albo film (bez napisów okna), pamiętany dla bieżącego pliku
+        string _pilotNameFor; (string Kind, string Name) _pilotName;
+        (string Kind, string Name) PilotNowName()
+        {
+            try
+            {
+                if (_playIndex < 0 || _playIndex >= _playlist.Count) return ("", "");
+                var cur = _playlist[_playIndex];
+                if (_iptvPlaying.TryGetValue(cur, out var ch)) return ("tv", ch.Name ?? "");
+                if (_pilotNameFor != cur)
+                {
+                    var v = FindEntry(LoadLibrary(), cur, null) ?? new LibraryVideo { Path = cur, Title = System.IO.Path.GetFileNameWithoutExtension(cur) };
+                    _pilotName = ("film", ShownTitle(v, MetaFor(v.Path))); _pilotNameFor = cur;
+                }
+                return _pilotName;
+            }
+            catch (Exception) { return ("", ""); }
         }
 
         string PilotNowOnTv()

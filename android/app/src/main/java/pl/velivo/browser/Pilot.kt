@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -52,6 +53,28 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private val accent = Color.parseColor("#6D3FDB")
     private val dim = Color.parseColor("#A0A4AE")
 
+    // logo kanałów i plakaty z Jellyfin: w tle, w pamięci (jak listy Filmy i TV w aplikacji)
+    private val imgCache = android.util.LruCache<String, android.graphics.Bitmap>(150)
+    private val imgPool by lazy { java.util.concurrent.Executors.newFixedThreadPool(3) }
+    private var jfKeys = listOf<Pair<String, String>>()
+    private fun loadImage(iv: ImageView, url: String) {
+        iv.tag = url
+        if (url.isEmpty()) return
+        imgCache.get(url)?.let { iv.setImageBitmap(it); return }
+        val key = jfKeys.firstOrNull { url.startsWith(it.first) }?.second
+        imgPool.execute {
+            val bmp = runCatching {
+                val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 6000; c.readTimeout = 10000
+                if (key != null) { c.setRequestProperty("X-Emby-Token", key); c.setRequestProperty("Authorization", "MediaBrowser Token=\"$key\"") }
+                c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+            }.getOrNull() ?: return@execute
+            val small = if (bmp.height > 300) android.graphics.Bitmap.createScaledBitmap(bmp, bmp.width * 300 / bmp.height, 300, true) else bmp
+            imgCache.put(url, small)
+            act.runOnUiThread { if (iv.tag == url) iv.setImageBitmap(small) }
+        }
+    }
+
     private fun dp(v: Int) = (v * act.resources.displayMetrics.density).toInt()
     private fun s(id: Int, vararg a: Any) = act.getString(id, *a)
 
@@ -84,6 +107,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         status = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), dp(8), dp(4), 0) }
         root.addView(status)
         title = TextView(act).apply { textSize = 17f; setTextColor(Color.WHITE); maxLines = 4; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(4), dp(6), dp(4), dp(10)) }
+        title.setOnClickListener { val k = pcs[cur]?.st?.optString("kind"); browse(if (k == "film") "film" else "tv") }   // stuknięcie = lista: kanały przy TV, filmy przy filmie
         title.setOnLongClickListener { if (pcs[cur]?.st != null) ask("info", "now"); true }   // przytrzymanie tytułu = opis filmu / program kanału
         root.addView(title)
         // 📺🎬 wybór z listy komputera i włączenie wprost z telefonu
@@ -185,10 +209,11 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             else -> stText(p)
         }
         val st = if (online(p)) p?.st else null
-        title.text = (st?.optString("title")?.ifBlank { null } ?: s(R.string.pilot_nothing)) + (st?.optString("now")?.ifBlank { null }?.let { "\n📺 $it" } ?: "")   // na kanale: co teraz leci
+        val nm = st?.optString("name")?.ifBlank { null } ?: st?.optString("title")?.ifBlank { null }   // czysty tytuł (starsze Velivo: tytuł okna)
+        title.text = if (nm == null) s(R.string.pilot_nothing) else (if (st?.optString("kind") == "tv") "📺 " else "🎬 ") + nm + (st?.optString("now")?.ifBlank { null }?.let { "\n▶ $it" } ?: "")   // na kanale: co teraz leci
         playBtn.text = (if (st?.optString("st") == "play") "⏸" else "▶") + "\n" + s(R.string.pilot_play)
         val l = st?.optLong("len") ?: 0L; val pos = st?.optLong("pos") ?: 0L
-        if (!dragging) { seek.progress = if (l > 0) (pos * 1000 / l).toInt() else 0; time.text = fmt(pos) + " / " + fmt(l) }
+        if (!dragging) { seek.progress = if (l > 0) (pos * 1000 / l).toInt() else 0; time.text = if (st != null && l <= 0) "🔴 " + s(R.string.pilot_live) + " · " + fmt(pos) else fmt(pos) + " / " + fmt(l) }   // TV na żywo bez długości
         seek.isEnabled = st != null && l > 0
         if (!volDragging) { val v = st?.optInt("vol") ?: 0; vol.progress = v; volTxt.text = "🔊 " + s(R.string.pilot_volume) + " $v%" }
         val muted = st?.optBoolean("mute") == true
@@ -290,21 +315,46 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             if (o.optString("kind") == mode && o.optInt("page") == page) {
                 val g = o.optJSONArray("groups"); if (g != null && g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() }
                 val items = o.optJSONArray("items"); val total = o.optInt("total")
+                o.optJSONArray("keys")?.let { ka -> jfKeys = (0 until ka.length()).mapNotNull { ka.optJSONArray(it)?.let { p -> p.optString(0) to p.optString(1) } }.filter { it.first.isNotEmpty() } }
                 list.findViewWithTag<View>("more")?.let { list.removeView(it) }
                 for (k in 0 until (items?.length() ?: 0)) {
                     val it2 = items!!.getJSONArray(k); val idx = it2.optInt(0); val name = it2.optString(1); val sub = it2.optString(2)
-                    var fav = it2.optBoolean(3)
-                    val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
+                    var fav = it2.optBoolean(3); val img = it2.optString(4)
+                    val play = { if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble())) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
+                    if (kind == "film") {   // 🎬 siatka plakatów jak w Kanapie: plakat, tytuł, rok/ocena, ☆; przytrzymanie = opis
+                        var gridRow = list.getChildAt(list.childCount - 1) as? LinearLayout
+                        if (gridRow?.tag != "grid" || gridRow.childCount >= 3) { gridRow = LinearLayout(act).apply { tag = "grid"; orientation = LinearLayout.HORIZONTAL }; list.addView(gridRow, LinearLayout.LayoutParams(-1, -2)) }
+                        val cell = LinearLayout(act).apply {
+                            orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(8)); isClickable = true
+                            background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
+                            setOnClickListener { play() }
+                            setOnLongClickListener { ask("info", "film", idx.toDouble()); true }
+                        }
+                        val ph = android.widget.FrameLayout(act)
+                        ph.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img) }, android.widget.FrameLayout.LayoutParams(-1, -1))
+                        if (img.isEmpty()) ph.addView(TextView(act).apply { text = "🎬"; textSize = 32f; gravity = Gravity.CENTER }, android.widget.FrameLayout.LayoutParams(-1, -1))
+                        ph.addView(TextView(act).apply {
+                            text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); setPadding(dp(8), 0, dp(8), dp(2))
+                            background = GradientDrawable().apply { setColor(Color.parseColor("#99000000")); cornerRadius = dp(10).toFloat() }
+                            contentDescription = s(R.string.pilot_fav); isClickable = true
+                            setOnClickListener { if (ask("fav-film", name, idx.toDouble())) { fav = !fav; text = if (fav) "★" else "☆"
+                                android.widget.Toast.makeText(act, s(if (fav) R.string.pilot_fav_added else R.string.pilot_fav_removed, name), android.widget.Toast.LENGTH_SHORT).show() } }
+                        }, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END))
+                        val w = (act.resources.displayMetrics.widthPixels - dp(24)) / 3 - dp(8)
+                        cell.addView(ph, LinearLayout.LayoutParams(-1, w * 3 / 2))
+                        cell.addView(TextView(act).apply { text = name; textSize = 14f; setTextColor(Color.WHITE); maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(2), dp(4), dp(2), 0) })
+                        if (sub.isNotBlank()) cell.addView(TextView(act).apply { text = sub; textSize = 12f; setTextColor(dim); maxLines = 1; setPadding(dp(2), 0, dp(2), 0) })
+                        gridRow.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+                        continue
+                    }
+                    val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                    line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, img) }, LinearLayout.LayoutParams(dp(64), dp(48)).apply { marginEnd = dp(6) })   // 📺 logo kanału
                     line.addView(TextView(act).apply {   // TextView - cały tytuł i podpis bez ucinania
                         text = if (sub.isBlank()) name else "$name\n$sub"; textSize = 16f; setTextColor(Color.WHITE); isClickable = true
                         gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); minHeight = dp(56)
                         background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
                         setOnLongClickListener { ask("info", if (kind == "tv") "tv" else "film", idx.toDouble()); true }   // przytrzymanie = opis
-                        setOnClickListener {
-                            if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble())) {
-                                android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss()
-                            }
-                        }
+                        setOnClickListener { play() }
                     }, LinearLayout.LayoutParams(0, -2, 1f))
                     line.addView(Button(act).apply {   // ⭐ dodaj / usuń z ulubionych (te same ulubione co na komputerze)
                         text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); background = null

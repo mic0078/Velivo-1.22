@@ -2148,6 +2148,11 @@ namespace Velivo
             };
             var lectorPanel = new StackPanel { Margin = new Thickness(12) };
             lectorPanel.Children.Add(lectorOn);
+            // 📜 kolejka: lektor czyta wszystkie kwestie po kolei, nie pomija ani nie urywa (może być w tyle za filmem)
+            var lectorQueue = new CheckBox { Content = L.T("Czytaj wszystko po kolei (bez pomijania)"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcLectorQueue,
+                ToolTip = L.T("Włączone: lektor czyta każdą kwestię do końca i w kolejności – gdy napisy są szybsze, czyta z opóźnieniem. Wyłączone: czyta tylko kwestię widoczną teraz na ekranie (zaległe pomija).") };
+            lectorQueue.Click += (s, e) => { _settings.VlcLectorQueue = lectorQueue.IsChecked == true; _settings.Save(DataDir); };
+            lectorPanel.Children.Add(lectorQueue);
             // napisy na obrazie mozna ukryc - lektor czyta je dalej (z pliku napisow)
             var showSubs = new CheckBox { Content = L.T("Pokazuj napisy na ekranie"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcShowSubs };
             lectorPanel.Children.Add(showSubs);

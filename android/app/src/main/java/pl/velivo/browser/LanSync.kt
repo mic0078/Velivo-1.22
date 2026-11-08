@@ -201,6 +201,7 @@ class LanSync(
             "kb" -> kb(p)
             "media-conf" -> mediaConf(p)
             "media-give" -> mediaGive(p)
+            "pilot-st" -> pilotSt(p, sender)
         }
     }
 
@@ -722,6 +723,28 @@ class LanSync(
                 if (MessageDigest.isEqual(ack, hmac(a, "ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"
             }
         }.getOrElse { it.message ?: it.javaClass.simpleName }
+    }
+
+    // 🎮 Velivo Pilot (Pilot.kt ↔ Pilot.cs na Windows): polecenie albo „ping” zaszyfrowane kluczem z parowania,
+    // komputer odpowiada stanem odtwarzacza („pilot-st”) na adres telefonu
+    @Volatile var onPilot: ((pc: String, device: String, st: JSONObject?, from: InetAddress?) -> Unit)? = null
+    val hasKey get() = encKey != null
+
+    fun sendPilot(to: String, op: String, v: String? = null, n: Double = 0.0, target: InetAddress? = null): Boolean {
+        if (encKey == null) return false
+        Thread {
+            runCatching {
+                val pkt = sealBlob("pilot", JSONObject().put("to", to).put("op", op).put("v", v ?: "").put("n", n)) ?: return@runCatching
+                if (target != null) sendTo(pkt, target) else { send(pkt); pcAddress?.let { sendTo(pkt, it) } }
+            }
+        }.start()
+        return true
+    }
+
+    private fun pilotSt(p: JSONObject, sender: InetAddress?) {
+        val o = openBlob(p) ?: return
+        if (o.optString("to") != id) return
+        onPilot?.invoke(p.optString("id"), p.optString("device").filter { !it.isISOControl() }.take(64), o.optJSONObject("st"), sender)
     }
 
     val computer get() = pcAddress

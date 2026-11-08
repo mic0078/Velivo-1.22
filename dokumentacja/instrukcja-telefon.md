@@ -241,6 +241,16 @@ Menu → **⭐ Dodaj ten utwór** na otwartym filmie YouTube (kategoria, playlis
 
 **Wiadomość głosowa:** 🎤 – nagrywasz; ⏹ – koniec, pod rozmową pasek 🗑 Usuń / ▶ Odsłuchaj / ➤ Wyślij; ➤ w trakcie nagrywania – wysyła od razu. Jak w WhatsApp: przy pustym polu po prawej jest 🎤, a gdy zaczniesz pisać – zmienia się w ➤ Wyślij (więcej miejsca na tekst).
 
+## 8a1. 🎮 Pilot – sterowanie filmem i TV na komputerze
+
+Menu ☰ → Filmy i TV → **🎮 Pilot**. Telefon musi być połączony z komputerem (Synchronizacja z komputerem → Sparuj) i być w domowym Wi-Fi.
+
+* Komputery z Velivo znajdują się same. Przy każdym: dostępny / niedostępny, co robi odtwarzacz i co gra.
+* Pierwszy raz wybierasz komputer z listy. Następnym razem Pilot od razu steruje tym samym (także po ponownym uruchomieniu telefonu). Inny komputer: dotknij jego nazwy u góry.
+* Duże przyciski: Poprzedni, Odtwórz / pauza, Następny, Stop, Cofnij 10 s, Do przodu 10 s; pasek postępu z czasem (przesuń, aby przewinąć), głośność i Wycisz.
+* **⚙ Sterowanie**: Obraz (pełny ekran, dopasowanie obrazu, powiększenie), Dźwięk (ścieżka dźwięku), Napisy (wybór albo wyłączone), Odtwarzanie.
+* Zmiany zrobione na komputerze (pauza, głośność, napisy) widać na telefonie po chwili. Polecenia idą zawsze tylko do jednego, wybranego komputera, zaszyfrowane kluczem z parowania.
+
 ## 8b. Klawiatura Velivo
 
 Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub czarno-biały – wybór w aplikacji klawiatury). Działa we wszystkich aplikacjach.

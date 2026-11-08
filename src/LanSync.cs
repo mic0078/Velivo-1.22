@@ -644,6 +644,7 @@ namespace Velivo
             LanPhoneAdd phoneAdd = null;
             LanKbSync kbSync = null;
             LanFilmMsg film = null;
+            LanPilotCmd pilot = null;
             if (pkt.t == "rekey")   // nowy klucz grupy - tylko zaszyfrowany obecnym kluczem
             {
                 if (_lanLegacyNoKeyMode) return;
@@ -663,6 +664,13 @@ namespace Velivo
                 catch (JsonException) { return; }
                 catch (InvalidDataException) { return; }
                 if (film == null) return;
+            }
+            else if (pkt.t == "pilot")   // 🎮 Velivo Pilot z telefonu (Pilot.cs) - tylko sparowane, zaszyfrowane
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { pilot = DecryptLanBlob<LanPilotCmd>(pkt); }
+                catch (Exception) { return; }
+                if (pilot == null) return;
             }
             else if (pkt.t == "tab")
             {
@@ -738,6 +746,12 @@ namespace Velivo
             {
                 var fm = film; var fp = pkt;
                 await Dispatcher.InvokeAsync(() => ReceiveLanFilm(fp, fm));
+                return;
+            }
+            if (pkt.t == "pilot")
+            {
+                var pc = pilot; var pp = pkt; var ep = remote;
+                await Dispatcher.InvokeAsync(() => ReceivePilot(pp, pc, ep));
                 return;
             }
             if (pkt.t == "kb")

@@ -4154,6 +4154,36 @@ namespace Velivo
             };
             padTimer.Start();
             win.Closed += (s, e) => padTimer.Stop();
+            // 🎮 Velivo Pilot (telefon): te same czynności co przyciski i klawisze odtwarzacza (Pilot.cs)
+            _vlcPilotCmd = (op, v, n) =>
+            {
+                switch (op)
+                {
+                    case "play": togglePlay(); break;
+                    case "stop": userStopped = true; savePos(); vlcRun(() => mp.Stop()); LeaveTogether(); afterStop(); break;
+                    case "next": step(1); break;
+                    case "prev": step(-1); break;
+                    case "jump": jump((long)n); break;
+                    case "seek": if (mp.Length > 0) { mp.Time = Math.Max(0, Math.Min(mp.Length - 500, (long)n)); TogetherSend("seek", mp.Time); } break;
+                    case "vol": setVol(n); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
+                    case "mute": toggleMute(); break;
+                    case "full": toggleFull(); break;
+                    case "aspect": mp.AspectRatio = string.IsNullOrEmpty(v) ? null : v; showOsd(L.T("Proporcje: ") + (string.IsNullOrEmpty(v) ? L.T("auto") : v)); break;
+                    case "zoom": mp.Scale = (float)Math.Max(0, Math.Min(4, n)); break;
+                    case "sub": { int id = (int)n; mp.SetSpu(id); var t = mp.SpuDescription.FirstOrDefault(x => x.Id == id); rememberTrack(true, id < 0 ? "-" : t.Name ?? ""); } break;
+                    case "audio": { int id = (int)n; mp.SetAudioTrack(id); var t = mp.AudioTrackDescription.FirstOrDefault(x => x.Id == id); if (id >= 0) rememberTrack(false, t.Name ?? ""); } break;
+                    case "kanapa": ShowKanapa(); break;
+                }
+            };
+            _vlcPilotState = () => new Dictionary<string, object>
+            {
+                ["st"] = mp.IsPlaying ? "play" : mp.State == LibVLCSharp.Shared.VLCState.Paused ? "pause" : "stop",
+                ["title"] = win.Title ?? "", ["pos"] = mp.Time, ["len"] = mp.Length, ["vol"] = (int)vol.Value, ["mute"] = muted, ["full"] = full0,
+                ["sub"] = mp.Spu, ["subs"] = mp.SpuDescription.Select(t => new object[] { t.Id, t.Id < 0 ? "" : t.Name }).ToList(),
+                ["aud"] = mp.AudioTrack, ["auds"] = mp.AudioTrackDescription.Where(t => t.Id >= 0).Select(t => new object[] { t.Id, t.Name }).ToList(),
+                ["asp"] = mp.AspectRatio ?? "", ["zoom"] = mp.Scale,
+            };
+            win.Closed += (s, e) => { _vlcPilotCmd = null; _vlcPilotState = null; };
             win.Closed += (s, e) =>
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);

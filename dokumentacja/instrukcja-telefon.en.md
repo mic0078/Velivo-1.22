@@ -241,6 +241,16 @@ Menu → **⭐ Add this song** on an open YouTube video (category, playlists) �
 
 **Voice message:** 🎤 – record; ⏹ – stop, then a bar 🗑 Delete / ▶ Listen / ➤ Send; ➤ while recording – sends at once. Like WhatsApp: with an empty field the right button is 🎤; once you type it turns into ➤ Send (more room for text).
 
+## 8a1. 🎮 Pilot – control movies and TV on the computer
+
+Menu ☰ → Films and TV → **🎮 Pilot**. The phone must be paired with the computer (Sync with computer → Pair) and on the home Wi-Fi.
+
+* Computers with Velivo are found automatically, each with: available / not available, what the player is doing and what is playing.
+* The first time you pick a computer from the list. Next time Pilot controls the same one straight away (also after the phone restarts). Another computer: tap its name at the top.
+* Big buttons: Previous, Play / pause, Next, Stop, Back 10 s, Forward 10 s; progress bar with time (drag to seek), volume and Mute.
+* **⚙ Controls**: Picture (full screen, aspect ratio, zoom), Sound (audio track), Subtitles (choose or off), Playback.
+* Changes made on the computer (pause, volume, subtitles) appear on the phone within a moment. Commands always go to one chosen computer only, encrypted with the pairing key.
+
 ## 8b. Velivo keyboard
 
 The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – chosen in the keyboard app). Works in every app.

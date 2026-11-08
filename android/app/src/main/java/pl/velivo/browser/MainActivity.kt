@@ -1492,6 +1492,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             33 -> showYtSongs()
             34 -> ytAddCurrent()
             35 -> askSleep()
+            44 -> { startLan(true); Pilot(this, lan, prefs).show() }   // 🎮 Velivo Pilot - sterowanie odtwarzaczem na komputerze
             36 -> askDefaultBrowser()
             37 -> AlertDialog.Builder(this).setTitle(R.string.default_player).setMessage(R.string.default_player_help)
                 .setPositiveButton(R.string.phone_videos) { _, _ -> showPhoneVideos() }.setNegativeButton(android.R.string.ok, null).show()
@@ -1615,7 +1616,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
         section(R.string.menu_media, listOf(
             Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🎞", R.string.my_films, 32),
-            Triple("🎵", R.string.yt_my_songs, 33), Triple("⭐", R.string.yt_add, 34), Triple("🌙", R.string.sleep_title, 35)))
+            Triple("🎵", R.string.yt_my_songs, 33), Triple("⭐", R.string.yt_add, 34), Triple("🌙", R.string.sleep_title, 35), Triple("🎮", R.string.pilot, 44)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
             Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25),
@@ -3158,6 +3159,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // force: na chwilę także bez włączonej synchronizacji (prośba o Filmy i TV z telefonu bez parowania)
+    fun openLanSync() = unlock { showLanSync() }
+
     private fun startLan(force: Boolean = false) {
         // bez kontaktów i bez synchronizacji: sam komunikator nasłuchuje, póki Velivo otwarte - telefon widoczny w domowym Wi-Fi do dodania
         if (komApp) { if (force || prefs.getBoolean("lan", false)) { multicastLock(); lan.start() }; return }   // 💬 komunikator w swojej aplikacji - tu tylko dom

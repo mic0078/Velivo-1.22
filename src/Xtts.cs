@@ -47,7 +47,6 @@ for line in sys.stdin:
 
         // okno postępu instalacji XTTS - widoczne do samego końca, można je zminimalizować (instalacja trwa dalej)
         Window _xtWin; System.Windows.Controls.TextBlock _xtStep, _xtInfo, _xtLine; System.Windows.Controls.Button _xtClose;
-        static readonly string[] XtSteps = { "Python", "pip", "PyTorch", "coqui-tts", "model" };
 
         void XtShow()
         {
@@ -161,6 +160,23 @@ for line in sys.stdin:
         Process _xtProc;
         readonly SemaphoreSlim _xtLock = new SemaphoreSlim(1, 1);
 
+        bool _xtExitHook;
+
+        // odpowiedz skryptu (OK/ERR/READY); inne linie wypisane przez biblioteki sa pomijane, zeby odpowiedzi sie nie przesunely
+        async Task<string> XttsReadLine(string ok, int ms)
+        {
+            var until = DateTime.UtcNow.AddMilliseconds(ms);
+            while (true)
+            {
+                var rd = _xtProc.StandardOutput.ReadLineAsync();
+                var left = until - DateTime.UtcNow;
+                if (left <= TimeSpan.Zero || await Task.WhenAny(rd, Task.Delay(left)) != rd) return null;
+                var l = rd.Result;
+                if (l == null) return null;   // proces sie zakonczyl
+                if (l.StartsWith(ok) || l.StartsWith("ERR ")) return l;
+            }
+        }
+
         void StopXttsProcess()
         {
             try { if (_xtProc != null && !_xtProc.HasExited) _xtProc.Kill(); } catch (Exception) { }
@@ -185,17 +201,17 @@ for line in sys.stdin:
                     _xtProc = Process.Start(psi);
                     _xtProc.ErrorDataReceived += (s, e) => { };
                     _xtProc.BeginErrorReadLine();
-                    var rd = _xtProc.StandardOutput.ReadLineAsync();
-                    if (await Task.WhenAny(rd, Task.Delay(180000)) != rd || !(rd.Result ?? "").StartsWith("READY")) { StopXttsProcess(); ShowToast(L.T("❌ XTTS nie wystartował – czytam innym głosem."), null); return null; }
+                    if (!_xtExitHook) { _xtExitHook = true; AppDomain.CurrentDomain.ProcessExit += (s, e) => StopXttsProcess(); }   // model zajmuje GB pamieci karty - nie zostawiamy procesu
+                    if (!(await XttsReadLine("READY", 180000) ?? "").StartsWith("READY")) { StopXttsProcess(); ShowToast(L.T("❌ XTTS nie wystartował – czytam innym głosem."), null); return null; }
                 }
                 Directory.CreateDirectory(PiperOutDir);
                 var path = Path.Combine(PiperOutDir, "xt-" + Guid.NewGuid().ToString("N") + ".wav");
                 var req = JsonSerializer.Serialize(new { text = line, lang = v.Lang, speaker = v.Xt, speed = Math.Max(0.7, Math.Min(1.6, rate)), @out = path });
                 await _xtProc.StandardInput.WriteLineAsync(req);
                 await _xtProc.StandardInput.FlushAsync();
-                var r = _xtProc.StandardOutput.ReadLineAsync();
-                if (await Task.WhenAny(r, Task.Delay(180000)) != r) { StopXttsProcess(); return null; }
-                if (!(r.Result ?? "").StartsWith("OK")) { App.LogError(new Exception("XTTS: " + r.Result)); return null; }
+                var res = await XttsReadLine("OK ", 180000);
+                if (res == null) { StopXttsProcess(); return null; }
+                if (!res.StartsWith("OK ")) { App.LogError(new Exception("XTTS: " + res)); return null; }
                 return File.Exists(path) ? path : null;
             }
             catch (Exception ex) { App.LogError(ex); StopXttsProcess(); return null; }
@@ -207,6 +223,7 @@ for line in sys.stdin:
         // 🧹 pobrane głosy, których nie używa ani czytanie stron (readTag - wybór z okna Ustawień), ani lektor filmów
         void CleanUnusedVoices(Window owner, string readTag)
         {
+            if (_piperDownloading || _stDownloading || _xtDownloading) { MessageBox.Show(owner, L.T("🔊 Trwa pobieranie głosu – chwilę…"), "Velivo"); return; }
             var used = new[] { string.IsNullOrEmpty(readTag) ? ReadVoiceTag() : readTag,
                                string.IsNullOrEmpty(_settings.VlcLectorVoice) ? "piper:st3-M1-pl" : _settings.VlcLectorVoice }
                 .Select(SelectedPiperVoice).Where(v => v != null).ToList();

@@ -204,6 +204,12 @@ A second channel or video in a small window – with TV and with a video.
 - **💬 Download subtitles…** – from the right-click menu (on the video or in the library). Subtitles come from OpenSubtitles.com: you sign in once with your own account (the password is stored encrypted on this computer), Velivo searches by file hash and by name, and saves the chosen subtitles next to the video as `film.pl.srt` – they load automatically.
 - **G / H** – shift subtitles when they are late or early; Velivo remembers it for the video.
 - **Narrator** reads subtitles aloud; the narrator settings are remembered for each video.
+- **Narrator voices – which to choose:**
+  - **Supertonic** (about 400 MB) – good and fast on any computer, also without a graphics card (e.g. NUCBOX). Recommended for watching live.
+  - **XTTS-v2** (most human, trial) – downloads only after you pick the voice and agree: about 3 GB, with an NVIDIA card about 6 GB. Model license: non-commercial use only.
+  - **XTTS without an NVIDIA card** (e.g. NUCBOX M5 Plus with Ryzen 7 5825U): works, but slowly – a sentence takes 1–3 times longer to compute than to speak (estimate), a whole film several hours. It cannot keep up live with dense dialogue. Turn on **Build narrator now** and watch an hour or two later, or leave the film overnight; finished recordings stay in the film's folder. While building, the processor runs at 100 % and uses about 2–3 GB of memory – TV and the server on that computer may stutter. XTTS does not use AMD graphics.
+  - **XTTS with an NVIDIA card** – fast, keeps up live.
+- **🧹 Remove unused voices from disk…** (Settings → Read aloud) – a list of downloaded voices with sizes; removes those not used by page reading or the narrator. They download again if needed.
 
 ---
 

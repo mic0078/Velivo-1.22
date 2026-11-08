@@ -222,6 +222,12 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 - **G / H** – przesuwasz napisy, gdy się spóźniają lub wyprzedzają; Velivo zapamięta to dla filmu.
 - **Rozjechany dźwięk:** po przycięciu (sieć, Jellyfin) film wyrównuje się sam; ręcznie – **R** albo prawy przycisk na 🔊−/🔊+. Stałe opóźnienie głośnika (Bluetooth, soundbar) – **J / K**.
 - **Lektor** czyta napisy na głos; ustawienia lektora są zapamiętywane dla każdego filmu.
+- **Głosy lektora – który wybrać:**
+  - **Supertonic** (ok. 400 MB) – dobry i szybki na każdym komputerze, także bez karty graficznej (np. NUCBOX). Polecany do oglądania na bieżąco.
+  - **XTTS-v2** (najbardziej ludzki, próba) – pobiera się dopiero po wybraniu głosu i zgodzie: ok. 3 GB, z kartą NVIDIA ok. 6 GB. Licencja modelu: tylko użytek niekomercyjny.
+  - **XTTS bez karty NVIDIA** (np. NUCBOX M5 Plus z Ryzen 7 5825U): działa, ale wolno – zdanie liczy się 1–3 razy dłużej, niż trwa (szacunek), cały film kilka godzin. Na bieżąco nie nadąży przy gęstych dialogach. Włącz **Zbuduj lektora teraz** i oglądaj po godzinie–dwóch albo zostaw film na noc; gotowe nagrania zostają w folderze filmu. W czasie budowy procesor pracuje na 100 % i zajmuje ok. 2–3 GB pamięci – może przycinać TV i serwer na tym komputerze. Grafiki AMD XTTS nie używa.
+  - **XTTS z kartą NVIDIA** – szybko, nadąża na bieżąco.
+- **🧹 Usuń nieużywane głosy z dysku…** (Ustawienia → Czytanie na głos) – lista pobranych głosów z rozmiarem; usuwa te, których nie używa czytanie stron ani lektor. W razie potrzeby pobiorą się ponownie.
 
 ---
 

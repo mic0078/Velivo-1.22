@@ -565,7 +565,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private class EpgRow(val ci: Int, val name: String, val logo: String, val progs: List<LongArray>, val titles: List<String>, val flags: List<String>) { var bmp: android.graphics.Bitmap? = null }
     private inner class EpgView : View(act) {
         val rows = ArrayList<EpgRow>(); var from = 0L; var to = 0L
-        val perMin = dp(2).toFloat(); val logoW = dp(70).toFloat(); val rowH = dp(60).toFloat(); val axisH = dp(24).toFloat(); val gap = dp(3).toFloat()
+        val perMin = dp(2).toFloat(); val logoW = dp(80).toFloat(); val rowH = dp(60).toFloat(); val axisH = dp(24).toFloat(); val gap = dp(3).toFloat()
         var scrollXf = 0f; var onProg: ((EpgRow, Long) -> Unit)? = null; var onLogo: ((EpgRow) -> Unit)? = null
         private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         private val tp = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = dp(14).toFloat(); typeface = Typeface.DEFAULT_BOLD }
@@ -602,8 +602,12 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 r.set(0f, y + gap, logoW - dp(6), y + rowH - gap); p.style = android.graphics.Paint.Style.FILL; p.color = Color.WHITE
                 c.drawRoundRect(r, dp(8).toFloat(), dp(8).toFloat(), p)
                 val b = row.bmp
-                if (b != null) { val s0 = minOf((r.width() - dp(8)) / b.width, (r.height() - dp(8)) / b.height); val w = b.width * s0; val h = b.height * s0
-                    c.drawBitmap(b, null, android.graphics.RectF(r.centerX() - w / 2, r.centerY() - h / 2, r.centerX() + w / 2, r.centerY() + h / 2), p) }
+                if (b != null) {   // logo u góry, pod nim mała nazwa kanału (FHD / HD / SD się różnią)
+                    val np = android.text.TextPaint(tp).apply { color = Color.BLACK; textSize = dp(10).toFloat(); textAlign = android.graphics.Paint.Align.CENTER }
+                    val nameH = dp(13).toFloat(); val box = android.graphics.RectF(r.left + dp(4), r.top + dp(3), r.right - dp(4), r.bottom - nameH - dp(2))
+                    val s0 = minOf(box.width() / b.width, box.height() / b.height); val w = b.width * s0; val h = b.height * s0
+                    c.drawBitmap(b, null, android.graphics.RectF(box.centerX() - w / 2, box.centerY() - h / 2, box.centerX() + w / 2, box.centerY() + h / 2), p)
+                    c.drawText(android.text.TextUtils.ellipsize(row.name, np, r.width() - dp(4), TextUtils.TruncateAt.END).toString(), r.centerX(), r.bottom - dp(5), np) }
                 else { val bp = android.text.TextPaint(tp).apply { color = Color.BLACK; textSize = dp(11).toFloat() }
                     val lay = android.text.StaticLayout.Builder.obtain(row.name, 0, row.name.length, bp, (r.width() - dp(6)).toInt()).setMaxLines(3).setEllipsize(TextUtils.TruncateAt.END).setAlignment(android.text.Layout.Alignment.ALIGN_CENTER).build()
                     c.save(); c.translate(r.left + dp(3), r.centerY() - lay.height / 2f); lay.draw(c); c.restore() }

@@ -252,7 +252,7 @@ Menu ☰ → Films and TV → **🎮 Pilot**. The phone must be paired with the 
 * **⚙ Controls**: Picture (full screen, aspect ratio, zoom), Sound (audio track), Subtitles (choose or off), Playback.
 * Changes made on the computer (pause, volume, subtitles) appear on the phone within a moment. Commands always go to one chosen computer only, encrypted with the pairing key.
 * **📅 TV guide** (tile under Controls): programme grid – channel logos on the left, hours on top, green “now” line; swipe sideways for other hours. Favourites or group, day, ⏰ Plans. Tap a programme: ▶ Watch now, ⏰ Switch at the time, ⏺ Record, ⏪ Catch-up (when available). The computer does it – the same plans and recordings as Velivo on Windows. Under the tiles: how many switches and recordings are scheduled (tap – list with ✕ remove).
-* **🎲 What to watch**: 3 suggestions from the computer's library (genre, length, unwatched only), large poster and description; swipe the poster for the next one, 🎲 Roll again, ▶ Watch on the computer.
+* **🎲 What to watch**: 3 suggestions at once from the computer's library (genre, length, unwatched only) – poster, description, ▶ Watch on the computer and ☆ on each; 🎲 Roll again – 3 new ones.
 
 ## 8b. Velivo keyboard
 

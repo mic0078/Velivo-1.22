@@ -479,7 +479,6 @@
     <string name="pilot_len_long">ponad 2 h</string>
     <string name="pilot_unseen">Nieobejrzane</string>
     <string name="pilot_genre_any">każdy</string>
-    <string name="pilot_rand_hint">Propozycja %1$d z %2$d – przesuń w bok, by zobaczyć następną</string>
     <string name="pilot_rand_empty">Brak filmów spełniających warunki – zmień gatunek albo długość.</string>
     <string name="pilot_more_ch">Pokaż więcej kanałów</string>
     <string name="pilot_nothing">Nic nie jest odtwarzane</string>

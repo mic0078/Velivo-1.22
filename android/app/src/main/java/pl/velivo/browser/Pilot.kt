@@ -73,22 +73,31 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         }
         act.runOnUiThread(done)
     }.start()
-    private fun loadImage(iv: ImageView, url: String, key0: String? = null) {
-        iv.tag = url
-        if (url.isEmpty()) return
-        imgCache.get(url)?.let { iv.setImageBitmap(it); return }
+    // pobieranie obrazków: kolejka tylko dla OTWARTEGO ekranu - po zmianie ekranu stare (np. 350 logo listy TV) są pomijane, nie blokują nowych
+    @Volatile private var imgGen = 0
+    private fun loadBmp(url: String, key0: String?, done: (android.graphics.Bitmap?) -> Unit) {
+        if (url.isEmpty()) { done(null); return }
+        imgCache.get(url)?.let { done(it); return }
         val key = key0 ?: jfKeys.firstOrNull { url.startsWith(it.first) }?.second
+        val gen = imgGen
         imgPool.execute {
+            if (gen != imgGen) return@execute   // ekran już zamknięty
             val bmp = runCatching {
                 val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                c.connectTimeout = 6000; c.readTimeout = 10000
+                c.connectTimeout = 5000; c.readTimeout = 8000
                 if (key != null) { c.setRequestProperty("X-Emby-Token", key); c.setRequestProperty("Authorization", "MediaBrowser Token=\"$key\"") }
                 c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
-            }.getOrNull() ?: return@execute
-            val small = if (bmp.height > 300) android.graphics.Bitmap.createScaledBitmap(bmp, bmp.width * 300 / bmp.height, 300, true) else bmp
-            imgCache.put(url, small)
-            act.runOnUiThread { if (iv.tag == url) iv.setImageBitmap(small) }
+            }.getOrNull()
+            val small = bmp?.let { if (it.height > 300) android.graphics.Bitmap.createScaledBitmap(it, it.width * 300 / it.height, 300, true) else it }
+            if (small != null) imgCache.put(url, small)
+            act.runOnUiThread { done(small) }
         }
+    }
+    // obrazek do ImageView; gdy pierwszy adres nie zadziała - zapasowy (np. plakat z komputera)
+    private fun loadImage(iv: ImageView, url: String, key0: String? = null, alt: String = "") {
+        iv.tag = url
+        if (url.isEmpty()) { if (alt.isNotEmpty()) loadImage(iv, alt); return }
+        loadBmp(url, key0) { b -> if (iv.tag == url) { if (b != null) iv.setImageBitmap(b) else if (alt.isNotEmpty() && alt != url) loadImage(iv, alt) } }
     }
 
     // 🔊 przyciski głośności telefonu sterują głośnością odtwarzacza na komputerze (krok 5%, przytrzymanie powtarza)
@@ -333,6 +342,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     // 📺 Telewizja / 🎬 Filmy z komputera: zakładki, grupa / gatunek, szukanie, stuknięcie = włącz na komputerze
     private fun browse(kind: String) {
         if (cur == null) { choosePc(); return }
+        imgGen++
         var mode = prefs.getString("pilot-tryb-$kind", null) ?: if (kind == "tv") "fav" else "cont"   // zapamiętana zakładka (pierwszy raz: ulubione / oglądaj dalej)
         var group = prefs.getString("pilot-grupa-$kind", "") ?: ""; var query = ""; var page = 0   // zapamiętana grupa TV / gatunek
         val sorts = if (kind == "tv") listOf("" to s(R.string.pilot_sort_list), "name" to s(R.string.pilot_sort_az), "name-desc" to s(R.string.pilot_sort_za))
@@ -383,7 +393,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), 0, 0) })
         }
         load = { fresh ->
-            if (fresh) { page = 0; list.removeAllViews() }
+            if (fresh) { page = 0; list.removeAllViews(); imgGen++ }
             info.text = s(R.string.pilot_loading)
             if (!ask("list", mode, page.toDouble(), query, group, sort)) info.text = s(R.string.pilot_unavailable, curName)
         }
@@ -395,7 +405,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 list.findViewWithTag<View>("more")?.let { list.removeView(it) }
                 for (k in 0 until (items?.length() ?: 0)) {
                     val it2 = items!!.getJSONArray(k); val idx = it2.optInt(0); val name = it2.optString(1); val sub = it2.optString(2)
-                    var fav = it2.optBoolean(3); var img = it2.optString(4); var key: String? = null; var overview = ""
+                    var fav = it2.optBoolean(3); var img = it2.optString(4); val pcImg = img; var key: String? = null; var overview = ""
                     if (kind == "tv") tvLogo[name.trim().lowercase()]?.let { img = it }   // logo z listy TV telefonu
                     else { val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
                         if (ji != null) overview = ji.overview
@@ -412,7 +422,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                         val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; isClickable = true
                             setPadding(dp(6), dp(6), 0, dp(6)); background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
                             setOnClickListener { play() }; setOnLongClickListener { ask("info", "film", idx.toDouble()); true } }
-                        line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img, key) }, LinearLayout.LayoutParams(dp(64), dp(96)))
+                        line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img, key, pcImg) }, LinearLayout.LayoutParams(dp(64), dp(96)))
                         line.addView(TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE); maxLines = 5; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(12), 0, dp(4), 0)
                             text = android.text.SpannableStringBuilder(name).apply { setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0)
                                 if (sub.isNotBlank()) append("\n" + sub); if (overview.isNotBlank()) { val st0 = length; append("\n" + overview); setSpan(android.text.style.ForegroundColorSpan(dim), st0, length, 0) } } }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -433,7 +443,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                             setOnLongClickListener { ask("info", "film", idx.toDouble()); true }
                         }
                         val ph = android.widget.FrameLayout(act)
-                        ph.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img, key) }, android.widget.FrameLayout.LayoutParams(-1, -1))
+                        ph.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img, key, pcImg) }, android.widget.FrameLayout.LayoutParams(-1, -1))
                         if (img.isEmpty()) ph.addView(TextView(act).apply { text = "🎬"; textSize = 32f; gravity = Gravity.CENTER }, android.widget.FrameLayout.LayoutParams(-1, -1))
                         ph.addView(TextView(act).apply {
                             text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); setPadding(dp(8), 0, dp(8), dp(2))
@@ -450,7 +460,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                         continue
                     }
                     val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-                    line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, img, key) }, LinearLayout.LayoutParams(dp(64), dp(48)).apply { marginEnd = dp(6) })   // 📺 logo kanału
+                    line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, img, key, pcImg) }, LinearLayout.LayoutParams(dp(64), dp(48)).apply { marginEnd = dp(6) })   // 📺 logo kanału
                     line.addView(TextView(act).apply {   // TextView - cały tytuł i podpis bez ucinania
                         text = if (sub.isBlank()) name else "$name\n$sub"; textSize = 16f; setTextColor(Color.WHITE); isClickable = true
                         gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); minHeight = dp(56)
@@ -500,6 +510,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         setOnClickListener { f() }
     }
     private fun screen(title: String): Triple<Dialog, LinearLayout, LinearLayout> {
+        imgGen++   // nowy ekran - stara kolejka obrazków pomijana
         val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(bg) }
         val head = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -514,7 +525,75 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     }
     private fun tabLp() = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) }
 
-    // 📅 Program TV: siatka - logo z lewej, godziny u góry, zielona linia „teraz”, kolory: teraz / zaplanowane / nagrywanie
+    // 📅 Program TV: siatka rysowana wprost (jeden widok) - logo z lewej (stałe), godziny u góry, przesuwanie palcem w bok, zielona linia „teraz”
+    private class EpgRow(val ci: Int, val name: String, val logo: String, val progs: List<LongArray>, val titles: List<String>, val flags: List<String>) { var bmp: android.graphics.Bitmap? = null }
+    private inner class EpgView : View(act) {
+        val rows = ArrayList<EpgRow>(); var from = 0L; var to = 0L
+        val perMin = dp(2).toFloat(); val logoW = dp(70).toFloat(); val rowH = dp(60).toFloat(); val axisH = dp(24).toFloat(); val gap = dp(3).toFloat()
+        var scrollXf = 0f; var onProg: ((Int, Long) -> Unit)? = null; var onLogo: ((EpgRow) -> Unit)? = null
+        private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private val tp = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = dp(14).toFloat(); typeface = Typeface.DEFAULT_BOLD }
+        private val sp = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = dim; textSize = dp(12).toFloat() }
+        private val r = android.graphics.RectF()
+        fun maxScroll() = maxOf(0f, (to - from) / 60000f * perMin - (width - logoW))
+        override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), (axisH + rows.size * rowH).toInt())
+        override fun onDraw(c: android.graphics.Canvas) {
+            val now = System.currentTimeMillis()
+            c.save(); c.clipRect(logoW, 0f, width.toFloat(), height.toFloat()); c.translate(logoW - scrollXf, 0f)
+            var t = (from / 3_600_000L + 1) * 3_600_000L; t -= java.util.TimeZone.getDefault().getOffset(t) % 3_600_000L; if (t - 3_600_000L >= from) t -= 3_600_000L
+            while (t < to) { c.drawText(hm(t), (t - from) / 60000f * perMin + dp(2), axisH - dp(8), sp); t += 3_600_000L }
+            rows.forEachIndexed { i, row ->
+                val y = axisH + i * rowH
+                row.progs.forEachIndexed { j, pr ->
+                    val x0 = (maxOf(pr[0], from) - from) / 60000f * perMin; val x1 = (minOf(pr[1], to) - from) / 60000f * perMin
+                    if (x1 - x0 < dp(4) || x1 < scrollXf - 10 || x0 > scrollXf + width) return@forEachIndexed
+                    r.set(x0, y + gap, x1 - gap, y + rowH - gap)
+                    p.style = android.graphics.Paint.Style.FILL; p.color = if (now in pr[0] until pr[1]) Color.parseColor("#3A2C6E") else card
+                    c.drawRoundRect(r, dp(8).toFloat(), dp(8).toFloat(), p)
+                    val fl = row.flags[j]
+                    if (fl == "rec" || fl == "plan") { p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat(); p.color = Color.parseColor(if (fl == "rec") "#E5484D" else "#F5C518"); c.drawRoundRect(r, dp(8).toFloat(), dp(8).toFloat(), p) }
+                    val tx = maxOf(x0, scrollXf) + dp(7); val avail = x1 - gap - tx - dp(4)
+                    if (avail > dp(14)) {
+                        c.drawText(android.text.TextUtils.ellipsize((if (fl == "rec") "⏺ " else if (fl == "plan") "⏰ " else "") + row.titles[j], tp, avail, TextUtils.TruncateAt.END).toString(), tx, y + gap + dp(21), tp)
+                        c.drawText(android.text.TextUtils.ellipsize(hm(pr[0]) + "–" + hm(pr[1]), sp, avail, TextUtils.TruncateAt.END).toString(), tx, y + gap + dp(40), sp)
+                    }
+                }
+            }
+            if (now in from until to) { p.style = android.graphics.Paint.Style.FILL; p.color = Color.parseColor("#7CE0A3"); val x = (now - from) / 60000f * perMin; c.drawRect(x - dp(1), axisH - dp(4), x + dp(1), height.toFloat(), p) }
+            c.restore()
+            rows.forEachIndexed { i, row ->   // logo (stała kolumna)
+                val y = axisH + i * rowH
+                r.set(0f, y + gap, logoW - dp(6), y + rowH - gap); p.style = android.graphics.Paint.Style.FILL; p.color = Color.WHITE
+                c.drawRoundRect(r, dp(8).toFloat(), dp(8).toFloat(), p)
+                val b = row.bmp
+                if (b != null) { val s0 = minOf((r.width() - dp(8)) / b.width, (r.height() - dp(8)) / b.height); val w = b.width * s0; val h = b.height * s0
+                    c.drawBitmap(b, null, android.graphics.RectF(r.centerX() - w / 2, r.centerY() - h / 2, r.centerX() + w / 2, r.centerY() + h / 2), p) }
+                else { val bp = android.text.TextPaint(tp).apply { color = Color.BLACK; textSize = dp(11).toFloat() }
+                    val lay = android.text.StaticLayout.Builder.obtain(row.name, 0, row.name.length, bp, (r.width() - dp(6)).toInt()).setMaxLines(3).setEllipsize(TextUtils.TruncateAt.END).setAlignment(android.text.Layout.Alignment.ALIGN_CENTER).build()
+                    c.save(); c.translate(r.left + dp(3), r.centerY() - lay.height / 2f); lay.draw(c); c.restore() }
+            }
+        }
+        private var downX = 0f; private var downY = 0f; private var startScroll = 0f; private var dragging = false
+        override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; startScroll = scrollXf; dragging = false }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val dx = e.x - downX
+                    if (!dragging && kotlin.math.abs(dx) > dp(10) && kotlin.math.abs(dx) > kotlin.math.abs(e.y - downY)) { dragging = true; parent?.requestDisallowInterceptTouchEvent(true) }
+                    if (dragging) { scrollXf = (startScroll - dx).coerceIn(0f, maxScroll()); invalidate() }
+                }
+                android.view.MotionEvent.ACTION_UP -> if (!dragging && kotlin.math.abs(e.x - downX) < dp(10) && kotlin.math.abs(e.y - downY) < dp(10)) {
+                    val i = ((e.y - axisH) / rowH).toInt(); val row = rows.getOrNull(i)
+                    if (row != null && e.y >= axisH) {
+                        if (e.x < logoW) onLogo?.invoke(row)
+                        else { val t = from + ((e.x - logoW + scrollXf) / perMin * 60000).toLong(); row.progs.firstOrNull { t >= it[0] && t < it[1] }?.let { onProg?.invoke(row.ci, it[0]) } }
+                    }
+                }
+            }
+            return true
+        }
+    }
+
     private fun guide() {
         if (cur == null) { choosePc(); return }
         val (d, box, tabs) = screen("📅 " + s(R.string.pilot_guide) + " · " + curName)
@@ -522,20 +601,14 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         var groups = listOf<String>()
         val info = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), 0, dp(4), dp(6)) }
         box.addView(info)
-        val perMin = dp(2).toFloat()   // 2 dp na minutę = 120 dp na godzinę
-        val logos = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
-        val rows = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
-        val gridFrame = android.widget.FrameLayout(act).apply { addView(rows) }
-        val hs = android.widget.HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(gridFrame) }
-        val body = LinearLayout(act).apply { addView(logos, LinearLayout.LayoutParams(dp(66), -2)); addView(hs, LinearLayout.LayoutParams(0, -2, 1f)) }
+        val grid = EpgView()
         val more = TextView(act).apply { text = s(R.string.pilot_more_ch); textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(0, dp(14), 0, dp(14)); visibility = View.GONE
             background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(12).toFloat() } }
-        box.addView(ScrollView(act).apply { addView(LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; addView(body); addView(more, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }) }) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        box.addView(ScrollView(act).apply { addView(LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; addView(grid, LinearLayout.LayoutParams(-1, -2)); addView(more, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }) }) }, LinearLayout.LayoutParams(-1, 0, 1f))
         box.addView(TextView(act).apply { textSize = 12f; setTextColor(dim); setPadding(dp(4), dp(6), dp(4), 0)
             text = android.text.SpannableStringBuilder(s(R.string.pilot_epg_hint) + "\n").apply {
                 fun leg(c: Int, t: String) { val a = length; append("■"); setSpan(android.text.style.ForegroundColorSpan(c), a, length, 0); append(" $t   ") }
                 leg(Color.parseColor("#3A2C6E"), s(R.string.pilot_leg_now)); leg(Color.parseColor("#F5C518"), s(R.string.pilot_leg_plan)); leg(Color.parseColor("#E5484D"), s(R.string.pilot_leg_rec)); leg(Color.parseColor("#7CE0A3"), s(R.string.pilot_leg_now) + " (—)") } })
-        var from = 0L; var to = 0L; var scrolled = false
         lateinit var load: (Boolean) -> Unit
         fun drawTabs() {
             tabs.removeAllViews()
@@ -549,58 +622,35 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             tabs.addView(pillV(days[day] + " ▾", false) { AlertDialog.Builder(act).setItems(days.toTypedArray()) { _, i -> day = i; drawTabs(); load(true) }.show() }, tabLp())
             tabs.addView(pillV("⏰ " + s(R.string.pilot_plans), false) { plans() }, tabLp())
         }
+        var keepScroll = false
         load = { fresh ->
-            if (fresh) { page = 0; logos.removeAllViews(); rows.removeAllViews(); scrolled = false }
-            info.text = s(R.string.pilot_loading)
+            if (fresh) { page = 0; grid.rows.clear(); grid.scrollXf = 0f; keepScroll = false; imgGen++; grid.requestLayout(); grid.invalidate() }
+            info.text = s(R.string.pilot_loading); info.visibility = View.VISIBLE
             if (!ask("epg", mode, page.toDouble(), day.toString(), if (mode == "tv") group else "")) info.text = s(R.string.pilot_unavailable, curName)
         }
-        fun progClick(ch: Int, start: Long) { ask("epg-act", "info", ch.toDouble(), start.toString()) }
+        grid.onProg = { ch, st -> ask("epg-act", "info", ch.toDouble(), st.toString()) }
+        grid.onLogo = { row -> if (ask("epg-act", "play", row.ci.toDouble())) android.widget.Toast.makeText(act, s(R.string.pilot_starting, row.name), android.widget.Toast.LENGTH_SHORT).show() }
         onList = { o ->
             when (o.optString("kind")) {
                 "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); h.postDelayed({ if (d.isShowing) load(false) }, 3000) }
                     else if (o.optInt("page") == page) {
                     o.optJSONArray("groups")?.let { g -> if (g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() } }
-                    from = o.optLong("from"); to = o.optLong("to"); val now = System.currentTimeMillis(); val total = o.optInt("total")
-                    val w = ((to - from) / 60000 * perMin).toInt()
-                    if (rows.childCount == 0) {   // oś czasu: co godzinę
-                        val axis = android.widget.FrameLayout(act); var t = (from / 3_600_000L + 1) * 3_600_000L
-                        val tz = java.util.TimeZone.getDefault(); t -= tz.getOffset(t) % 3_600_000L
-                        while (t < to) { axis.addView(TextView(act).apply { text = hm(t); textSize = 12f; setTextColor(dim) }, android.widget.FrameLayout.LayoutParams(-2, -2).apply { leftMargin = ((t - from) / 60000 * perMin).toInt() }); t += 3_600_000L }
-                        rows.addView(axis, LinearLayout.LayoutParams(w, dp(22))); logos.addView(View(act), LinearLayout.LayoutParams(-1, dp(22)))
-                        if (now in from until to) gridFrame.addView(View(act).apply { setBackgroundColor(Color.parseColor("#7CE0A3")) }, android.widget.FrameLayout.LayoutParams(dp(2), -1).apply { leftMargin = ((now - from) / 60000 * perMin).toInt(); topMargin = dp(18) })
-                    }
+                    grid.from = o.optLong("from"); grid.to = o.optLong("to"); val total = o.optInt("total")
                     val chans = o.optJSONArray("chans")
                     for (k in 0 until (chans?.length() ?: 0)) {
-                        val c = chans!!.getJSONArray(k); val ci = c.optInt(0); val name = c.optString(1)
-                        val logoUrl = tvLogo[name.trim().lowercase()] ?: c.optString(2)
-                        logos.addView(android.widget.FrameLayout(act).apply {
-                            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(8).toFloat() }; isClickable = true
-                            setOnClickListener { ask("epg-act", "play", ci.toDouble()); android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show() }
-                            if (logoUrl.isEmpty()) addView(TextView(act).apply { text = name; textSize = 10f; setTextColor(Color.BLACK); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER; maxLines = 3 }, android.widget.FrameLayout.LayoutParams(-1, -1))
-                            else addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, logoUrl) }, android.widget.FrameLayout.LayoutParams(-1, -1))
-                        }, LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(2), dp(4), dp(2)) })
-                        val row = android.widget.FrameLayout(act)
-                        val ps = c.optJSONArray(3)
-                        for (j in 0 until (ps?.length() ?: 0)) {
-                            val p = ps!!.getJSONArray(j); val st = p.optLong(0); val sp = p.optLong(1); val flag = p.optString(3)
-                            val x0 = ((maxOf(st, from) - from) / 60000 * perMin).toInt(); val x1 = ((minOf(sp, to) - from) / 60000 * perMin).toInt()
-                            if (x1 - x0 < dp(6)) continue
-                            row.addView(TextView(act).apply {
-                                text = android.text.SpannableStringBuilder((if (flag == "rec") "⏺ " else if (flag == "plan") "⏰ " else "") + p.optString(2)).apply {
-                                    setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0); val a = length; append("\n" + hm(st) + "–" + hm(sp))
-                                    setSpan(android.text.style.ForegroundColorSpan(dim), a, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.85f), a, length, 0) }
-                                textSize = 13f; setTextColor(Color.WHITE); maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(7), dp(5), dp(5), dp(4)); isClickable = true
-                                background = GradientDrawable().apply { setColor(if (now in st until sp) Color.parseColor("#3A2C6E") else card); cornerRadius = dp(8).toFloat()
-                                    if (flag == "rec") setStroke(dp(2), Color.parseColor("#E5484D")) else if (flag == "plan") setStroke(dp(2), Color.parseColor("#F5C518")) }
-                                setOnClickListener { progClick(ci, st) }
-                            }, android.widget.FrameLayout.LayoutParams(x1 - x0 - dp(3), -1).apply { leftMargin = x0 })
-                        }
-                        rows.addView(row, LinearLayout.LayoutParams(w, dp(58)).apply { setMargins(0, dp(2), 0, dp(2)) })
+                        val c = chans!!.getJSONArray(k); val ps = c.optJSONArray(3)
+                        val pr = ArrayList<LongArray>(); val ti = ArrayList<String>(); val fl = ArrayList<String>()
+                        for (j in 0 until (ps?.length() ?: 0)) { val p = ps!!.getJSONArray(j); pr.add(longArrayOf(p.optLong(0), p.optLong(1))); ti.add(p.optString(2)); fl.add(p.optString(3)) }
+                        val name = c.optString(1)
+                        val row = EpgRow(c.optInt(0), name, tvLogo[name.trim().lowercase()] ?: c.optString(2), pr, ti, fl)
+                        grid.rows.add(row)
+                        loadBmp(row.logo, null) { b -> if (b != null) { row.bmp = b; grid.invalidate() } }
                     }
                     info.text = if (total == 0) s(R.string.pilot_epg_empty) else ""
-                    info.visibility = if (info.text.isEmpty()) View.GONE else View.VISIBLE
+                    info.visibility = if (total == 0) View.VISIBLE else View.GONE
                     more.visibility = if ((page + 1) * 12 < total) View.VISIBLE else View.GONE
-                    if (!scrolled) { scrolled = true; hs.post { hs.scrollTo(maxOf(0, ((now - 30 * 60000 - from) / 60000 * perMin).toInt()), 0) } }   // od pół godziny przed „teraz”
+                    if (!keepScroll) { keepScroll = true; grid.post { grid.scrollXf = ((System.currentTimeMillis() - 30 * 60000 - grid.from) / 60000f * grid.perMin).coerceIn(0f, grid.maxScroll()); grid.invalidate() } }   // od pół godziny przed „teraz”
+                    grid.requestLayout(); grid.invalidate()
                 }
                 "epg-info" -> progSheet(o) { load(true) }
             }
@@ -666,29 +716,18 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         d.show(); ask("plans")
     }
 
-    // 🎲 Co dziś obejrzeć: 3 propozycje z biblioteki komputera (te same zasady co losowanie w Kanapie), plakat i opis z biblioteki telefonu
+    // 🎲 Co dziś obejrzeć: od razu 3 propozycje z biblioteki komputera (te same zasady co losowanie w Kanapie) - plakat, opis, ▶ i ☆ przy każdej
     private fun randomPick() {
         if (cur == null) { choosePc(); return }
         val (d, box, tabs) = screen("🎲 " + s(R.string.pilot_rand))
         var genre = prefs.getString("pilot-los-gatunek", "") ?: ""; var len = prefs.getString("pilot-los-dlugosc", "") ?: ""; var unseen = prefs.getBoolean("pilot-los-nowe", true)
-        var genres = listOf<String>(); var items: org.json.JSONArray? = null; var at = 0
+        var genres = listOf<String>()
         val lens = listOf("" to s(R.string.pilot_len_any), "krotki" to s(R.string.pilot_len_short), "sredni" to s(R.string.pilot_len_mid), "dlugi" to s(R.string.pilot_len_long))
-        val poster = ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat() }; clipToOutline = true }
-        val pTitle = TextView(act).apply { textSize = 26f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setShadowLayer(8f, 0f, 2f, Color.BLACK); setPadding(dp(14), 0, dp(14), dp(12)) }
-        val frame = android.widget.FrameLayout(act).apply { addView(poster, android.widget.FrameLayout.LayoutParams(-1, -1)); addView(pTitle, android.widget.FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)) }
-        val sub = TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE); setPadding(dp(2), dp(10), dp(2), 0) }
-        val desc = TextView(act).apply { textSize = 14f; setTextColor(dim); maxLines = 4; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(2), dp(2), dp(2), dp(8)) }
-        val hint = TextView(act).apply { textSize = 12f; setTextColor(dim); gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0) }
-        fun big(t: String, prim: Boolean, f: () -> Unit) = TextView(act).apply { text = t; textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(dp(8), dp(14), dp(8), dp(14)); isClickable = true
-            background = GradientDrawable().apply { setColor(if (prim) accent else card); cornerRadius = dp(16).toFloat() }; setOnClickListener { f() } }
+        val list = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(ScrollView(act).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
         lateinit var roll: () -> Unit
-        lateinit var show: () -> Unit
-        val favBtn = big("☆ " + s(R.string.pilot_fav), false) {}
-        val watch = big("▶ " + s(R.string.pilot_watch_pc), true) {}
-        box.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f)); box.addView(sub); box.addView(desc); box.addView(watch, LinearLayout.LayoutParams(-1, -2))
-        box.addView(LinearLayout(act).apply { addView(big("🎲 " + s(R.string.pilot_roll), false) { roll() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
-            addView(favBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) }) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        box.addView(hint)
+        box.addView(TextView(act).apply { text = "🎲  " + s(R.string.pilot_roll); textSize = 17f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(0, dp(16), 0, dp(16)); isClickable = true
+            background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(16).toFloat() }; setOnClickListener { roll() } }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         fun drawTabs() {
             tabs.removeAllViews()
             tabs.addView(pillV(s(R.string.pilot_genre) + ": " + genre.ifBlank { s(R.string.pilot_genre_any) } + " ▾", false) {
@@ -697,44 +736,45 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 AlertDialog.Builder(act).setItems(lens.map { it.second }.toTypedArray()) { _, i -> len = lens[i].first; prefs.edit().putString("pilot-los-dlugosc", len).apply(); drawTabs(); roll() }.show() }, tabLp())
             tabs.addView(pillV(s(R.string.pilot_unseen), unseen) { unseen = !unseen; prefs.edit().putBoolean("pilot-los-nowe", unseen).apply(); drawTabs(); roll() }, tabLp())
         }
-        show = {
-            val a = items
-            if (a == null || a.length() == 0) { pTitle.text = ""; poster.setImageDrawable(null); sub.text = s(R.string.pilot_rand_empty); desc.text = ""; hint.text = ""; watch.alpha = 0.4f; favBtn.alpha = 0.4f }
-            else {
-                val it2 = a.getJSONArray(at); val idx = it2.optInt(0); val name = it2.optString(1); var fav = it2.optBoolean(3)
-                watch.alpha = 1f; favBtn.alpha = 1f
-                pTitle.text = name; sub.text = it2.optString(2)
-                val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
-                desc.text = ji?.overview?.ifBlank { null } ?: it2.optString(8)
-                poster.setImageDrawable(null)
-                if (jc != null && ji != null) loadImage(poster, Jelly.image(jc, ji.id), jc.key) else loadImage(poster, it2.optString(4))
-                hint.text = s(R.string.pilot_rand_hint, at + 1, a.length())
-                favBtn.text = (if (fav) "★ " else "☆ ") + s(R.string.pilot_fav)
-                favBtn.setOnClickListener { if (ask("fav-film", name, idx.toDouble())) { fav = !fav; it2.put(3, fav); favBtn.text = (if (fav) "★ " else "☆ ") + s(R.string.pilot_fav) } }
-                val resumeAt = it2.optLong(7)
-                fun go(how: String) { if (ask("play-film", name, idx.toDouble(), sort = how)) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
-                watch.setOnClickListener {
+        fun card(it2: org.json.JSONArray): View {
+            val idx = it2.optInt(0); val name = it2.optString(1); var fav = it2.optBoolean(3); val resumeAt = it2.optLong(7)
+            val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
+            val v = LinearLayout(act).apply { setPadding(dp(10), dp(10), dp(10), dp(10)); background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat() } }
+            val poster = ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")) }
+            if (jc != null && ji != null) loadImage(poster, Jelly.image(jc, ji.id), jc.key, it2.optString(4)) else loadImage(poster, it2.optString(4))
+            v.addView(poster, LinearLayout.LayoutParams(dp(110), dp(165)))
+            val col = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0) }
+            col.addView(TextView(act).apply { text = name; textSize = 18f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
+            col.addView(TextView(act).apply { text = it2.optString(2); textSize = 13f; setTextColor(Color.WHITE); setPadding(0, dp(2), 0, dp(2)) })
+            col.addView(TextView(act).apply { text = ji?.overview?.ifBlank { null } ?: it2.optString(8); textSize = 13f; setTextColor(dim); maxLines = 4; ellipsize = TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(-1, 0, 1f))
+            val btns = LinearLayout(act)
+            fun go(how: String) { if (ask("play-film", name, idx.toDouble(), sort = how)) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
+            btns.addView(TextView(act).apply { text = "▶ " + s(R.string.pilot_watch_pc); textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(dp(6), dp(10), dp(6), dp(10)); isClickable = true
+                background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(12).toFloat() }
+                setOnClickListener {
                     if (resumeAt > 0) AlertDialog.Builder(act).setTitle(name).setMessage(s(R.string.pilot_resume_q, fmt(resumeAt)))
                         .setPositiveButton("▶ " + s(R.string.pilot_resume, fmt(resumeAt))) { _, _ -> go("wznow") }
                         .setNegativeButton("⏮ " + s(R.string.pilot_from_start)) { _, _ -> go("poczatek") }.show()
                     else go("")
-                }
-            }
+                } }, LinearLayout.LayoutParams(0, -2, 1f))
+            btns.addView(TextView(act).apply { text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); gravity = Gravity.CENTER; isClickable = true; contentDescription = s(R.string.pilot_fav)
+                setOnClickListener { if (ask("fav-film", name, idx.toDouble())) { fav = !fav; text = if (fav) "★" else "☆"
+                    android.widget.Toast.makeText(act, s(if (fav) R.string.pilot_fav_added else R.string.pilot_fav_removed, name), android.widget.Toast.LENGTH_SHORT).show() } } }, LinearLayout.LayoutParams(dp(48), dp(44)))
+            col.addView(btns, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+            v.addView(col, LinearLayout.LayoutParams(0, -1, 1f))
+            v.setOnLongClickListener { ask("info", "film", idx.toDouble()); true }
+            return v
         }
-        roll = { sub.text = s(R.string.pilot_loading); ask("rand", if (unseen) "" else "", 0.0, if (unseen) "1" else "", genre, len) }
-        var downX = 0f
-        frame.setOnTouchListener { _, e ->   // przesunięcie plakatu w bok = następna / poprzednia propozycja
-            when (e.action) {
-                android.view.MotionEvent.ACTION_DOWN -> downX = e.x
-                android.view.MotionEvent.ACTION_UP -> { val dx = e.x - downX; val n = items?.length() ?: 0
-                    if (n > 0 && kotlin.math.abs(dx) > dp(60)) { at = (at + (if (dx < 0) 1 else n - 1)) % n; show() } }
-            }
-            true
-        }
+        roll = { list.removeAllViews(); imgGen++
+            list.addView(TextView(act).apply { text = s(R.string.pilot_loading); textSize = 15f; setTextColor(dim); setPadding(dp(6), dp(12), 0, 0) })
+            ask("rand", "", 0.0, if (unseen) "1" else "", genre, len) }
         onList = { o -> if (o.optString("kind") == "rand") {
             o.optJSONArray("keys")?.let { ka -> jfKeys = (0 until ka.length()).mapNotNull { ka.optJSONArray(it)?.let { p -> p.optString(0) to p.optString(1) } }.filter { it.first.isNotEmpty() } }
             o.optJSONArray("genres")?.let { g -> genres = (0 until g.length()).map { g.optString(it) } }
-            items = o.optJSONArray("items"); at = 0; drawTabs(); show()
+            drawTabs(); list.removeAllViews()
+            val a = o.optJSONArray("items")
+            if (a == null || a.length() == 0) list.addView(TextView(act).apply { text = s(R.string.pilot_rand_empty); textSize = 16f; setTextColor(dim); setPadding(dp(6), dp(12), 0, 0) })
+            for (i in 0 until (a?.length() ?: 0)) list.addView(card(a!!.getJSONArray(i)), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(5), 0, dp(5)) })
         } }
         drawTabs(); d.show()
         phoneData { roll() }

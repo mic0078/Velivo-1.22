@@ -479,7 +479,6 @@
     <string name="pilot_len_long">over 2 h</string>
     <string name="pilot_unseen">Unwatched</string>
     <string name="pilot_genre_any">any</string>
-    <string name="pilot_rand_hint">Suggestion %1$d of %2$d – swipe sideways for the next one</string>
     <string name="pilot_rand_empty">No films match – change the genre or length.</string>
     <string name="pilot_more_ch">Show more channels</string>
     <string name="pilot_nothing">Nothing is playing</string>

@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { " (nie zamykaj Velivo)", " (do not close Velivo)" },
             { "XTTS: pobieram model (ok. 2 GB)…", "XTTS: downloading the model (about 2 GB)…" },
             { "model", "model" },
             { "✅ Usunięto. Zwolniono ", "✅ Removed. Freed " },

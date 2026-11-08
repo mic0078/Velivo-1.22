@@ -49,6 +49,15 @@ for line in sys.stdin:
         {
             var psi = new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = XttsRoot };
             psi.Environment["TTS_HOME"] = Path.Combine(XttsRoot, "model");
+            psi.Environment["PIP_CACHE_DIR"] = Path.Combine(XttsRoot, "pip-cache");   // pobierane pakiety w folderze XTTS - widać postęp, po instalacji kasowane
+            psi.Environment["TMP"] = psi.Environment["TEMP"] = Path.Combine(XttsRoot, "tmp");
+            Directory.CreateDirectory(Path.Combine(XttsRoot, "tmp"));
+            long start = DirSize(XttsRoot); var sw = Stopwatch.StartNew();
+            using (var tick = new Timer(_ =>
+            {
+                long mb = Math.Max(0, DirSize(XttsRoot) - start) / 1048576; var t = sw.Elapsed;
+                Dispatcher.BeginInvoke(new Action(() => ShowToast("⬇ XTTS – " + what + ": " + mb + " MB · " + (int)t.TotalMinutes + ":" + t.Seconds.ToString("00") + L.T(" (nie zamykaj Velivo)"), null)));
+            }, null, 2000, 2000))
             using (var p = Process.Start(psi))
             {
                 var err = new StringBuilder();
@@ -81,7 +90,7 @@ for line in sys.stdin:
                     {
                         ShowToast("⬇ " + L.T("XTTS: pobieram Pythona…"), null);
                         var zip = Path.Combine(XttsRoot, "python.zip");
-                        await DownloadFile(http, XttsPyZip, zip, null);
+                        await DownloadFile(http, XttsPyZip, zip, (d, t) => Dispatcher.BeginInvoke(new Action(() => ShowToast("⬇ " + L.T("XTTS: pobieram Pythona…") + " " + d / 1048576 + " MB", null))));
                         if (Directory.Exists(pyDir)) Directory.Delete(pyDir, true);
                         ZipFile.ExtractToDirectory(zip, pyDir); File.Delete(zip);
                         var pth = Directory.GetFiles(pyDir, "python3*._pth").FirstOrDefault();
@@ -103,6 +112,7 @@ for line in sys.stdin:
                 ShowToast("⬇ " + L.T("XTTS: pobieram model (ok. 2 GB)…"), null);
                 if (!await RunXttsStep(XttsPy, "-c \"import os;os.environ['COQUI_TOS_AGREED']='1';from TTS.utils.manage import ModelManager;ModelManager().download_model('tts_models/multilingual/multi-dataset/xtts_v2')\"", L.T("model"))) return false;
                 File.WriteAllText(XttsReady, DateTime.Now.ToString("s"));
+                foreach (var tmp in new[] { "pip-cache", "tmp" }) try { Directory.Delete(Path.Combine(XttsRoot, tmp), true); } catch (Exception) { }   // kilka GB pobranych paczek - już zainstalowane
                 ShowToast(L.T("✅ Głos ") + "XTTS-v2" + L.T(" gotowy – działa bez internetu."), null);
                 return true;
             }

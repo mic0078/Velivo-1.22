@@ -1492,7 +1492,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             33 -> showYtSongs()
             34 -> ytAddCurrent()
             35 -> askSleep()
-            44 -> { startLan(true); Pilot(this, lan, prefs).show() }   // 🎮 Velivo Pilot - sterowanie odtwarzaczem na komputerze
+            44 -> { startLan(true); Pilot(this, lan, prefs, passwords).show() }   // 🎮 Velivo Pilot - sterowanie odtwarzaczem na komputerze
             36 -> askDefaultBrowser()
             37 -> AlertDialog.Builder(this).setTitle(R.string.default_player).setMessage(R.string.default_player_help)
                 .setPositiveButton(R.string.phone_videos) { _, _ -> showPhoneVideos() }.setNegativeButton(android.R.string.ok, null).show()

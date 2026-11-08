@@ -441,6 +441,8 @@
     <string name="pilot_stopped">zatrzymany</string>
     <string name="pilot_closed">odtwarzacz zamknięty – wybierz Telewizję albo Filmy poniżej</string>
     <string name="pilot_live">NA ŻYWO</string>
+    <string name="pilot_view_list">Lista</string>
+    <string name="pilot_view_kanapa">Kanapa</string>
     <string name="pilot_nothing">Nic nie jest odtwarzane</string>
     <string name="pilot_prev">Poprzedni</string>
     <string name="pilot_play">Odtwórz / pauza</string>

@@ -25,7 +25,7 @@ import java.net.InetAddress
 // 🎮 Velivo Pilot: telefon steruje odtwarzaczem filmów i TV w Velivo na Windows (Pilot.cs).
 // Komputery w domu znajdują się same (sparowane synchronizacją LAN – ten sam klucz i ta sama ochrona), ostatni wybrany jest zapamiętany.
 // Polecenia zawsze tylko do jednego komputera; stan odtwarzacza przychodzi z komputera co sekundę i po każdej zmianie.
-class Pilot(private val act: Activity, private val lan: LanSync, private val prefs: SharedPreferences) {
+class Pilot(private val act: Activity, private val lan: LanSync, private val prefs: SharedPreferences, private val pw: Passwords) {
     private class Pc(val id: String, var name: String, var addr: InetAddress?, var seen: Long, var st: JSONObject?)
 
     private val pcs = LinkedHashMap<String, Pc>()
@@ -57,11 +57,25 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private val imgCache = android.util.LruCache<String, android.graphics.Bitmap>(150)
     private val imgPool by lazy { java.util.concurrent.Executors.newFixedThreadPool(3) }
     private var jfKeys = listOf<Pair<String, String>>()
-    private fun loadImage(iv: ImageView, url: String) {
+    // dane, które telefon już ma: logo z listy TV telefonu, plakaty i opisy z biblioteki Jellyfin telefonu
+    private var tvLogo = mapOf<String, String>()
+    private var jfConf: Jelly.Conf? = null
+    private var jfById = mapOf<String, Jelly.Item>(); private var jfByName = mapOf<String, Jelly.Item>()
+    private fun norm(t: String) = t.lowercase().replace(Regex("\\s*\\(\\d{4}\\)\\s*$"), "").trim()
+    private fun phoneData(done: () -> Unit) = Thread {
+        runCatching { tvLogo = Tv.sources(pw).flatMap { src -> runCatching { Tv.channels(act, pw, src, false) }.getOrDefault(emptyList()) }.filter { it.logo.isNotEmpty() }.associate { it.name.trim().lowercase() to it.logo } }
+        runCatching {
+            jfConf = Jelly.conf(pw)
+            val lib = Jelly.cached(act, pw)?.first ?: emptyList()
+            jfById = lib.associateBy { it.id }; jfByName = lib.associateBy { norm(it.name) + "|" + it.year }
+        }
+        act.runOnUiThread(done)
+    }.start()
+    private fun loadImage(iv: ImageView, url: String, key0: String? = null) {
         iv.tag = url
         if (url.isEmpty()) return
         imgCache.get(url)?.let { iv.setImageBitmap(it); return }
-        val key = jfKeys.firstOrNull { url.startsWith(it.first) }?.second
+        val key = key0 ?: jfKeys.firstOrNull { url.startsWith(it.first) }?.second
         imgPool.execute {
             val bmp = runCatching {
                 val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -266,6 +280,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val sorts = if (kind == "tv") listOf("" to s(R.string.pilot_sort_list), "name" to s(R.string.pilot_sort_az), "name-desc" to s(R.string.pilot_sort_za))
             else listOf("" to s(R.string.pilot_sort_az), "name-desc" to s(R.string.pilot_sort_za), "new" to s(R.string.pilot_sort_new), "year" to s(R.string.pilot_sort_year), "rating" to s(R.string.pilot_sort_rating), "last" to s(R.string.pilot_sort_last))
         var sort = prefs.getString("pilot-sort-$kind", "") ?: ""   // zapamiętane sortowanie
+        var grid = prefs.getBoolean("pilot-kanapa", false)   // filmy: lista z plakatami albo Kanapa (siatka plakatów), zapamiętane
         val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(bg) }
         fun pill(t: String, on: Boolean, f: () -> Unit) = TextView(act).apply {   // TextView zamiast Button - przycisk ucinał napis (stała wysokość, wewnętrzne marginesy)
@@ -304,6 +319,9 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 AlertDialog.Builder(act).setTitle(R.string.pilot_sort).setItems(sorts.map { it.second }.toTypedArray()) { _, i ->
                     sort = sorts[i].first; prefs.edit().putString("pilot-sort-$kind", sort).apply(); drawTabs(); load(true)
                 }.show()
+            }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), dp(8), 0) })
+            if (kind == "film") tabs.addView(pill(if (grid) "☰ " + s(R.string.pilot_view_list) else "▦ " + s(R.string.pilot_view_kanapa), false) {
+                grid = !grid; prefs.edit().putBoolean("pilot-kanapa", grid).apply(); drawTabs(); load(true)
             }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), 0, 0) })
         }
         load = { fresh ->
@@ -319,8 +337,27 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                 list.findViewWithTag<View>("more")?.let { list.removeView(it) }
                 for (k in 0 until (items?.length() ?: 0)) {
                     val it2 = items!!.getJSONArray(k); val idx = it2.optInt(0); val name = it2.optString(1); val sub = it2.optString(2)
-                    var fav = it2.optBoolean(3); val img = it2.optString(4)
+                    var fav = it2.optBoolean(3); var img = it2.optString(4); var key: String? = null; var overview = ""
+                    if (kind == "tv") tvLogo[name.trim().lowercase()]?.let { img = it }   // logo z listy TV telefonu
+                    else { val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
+                        if (ji != null) overview = ji.overview
+                        if (jc != null && ji != null) { img = Jelly.image(jc, ji.id); key = jc.key } }   // plakat z biblioteki telefonu (ten sam adres i klucz co Biblioteka)
                     val play = { if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble())) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
+                    if (kind == "film" && !grid) {   // 🎬 lista: plakat po lewej, tytuł, rok/ocena, opis (jak Biblioteka)
+                        val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; isClickable = true
+                            setPadding(dp(6), dp(6), 0, dp(6)); background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
+                            setOnClickListener { play() }; setOnLongClickListener { ask("info", "film", idx.toDouble()); true } }
+                        line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img, key) }, LinearLayout.LayoutParams(dp(64), dp(96)))
+                        line.addView(TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE); maxLines = 5; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(12), 0, dp(4), 0)
+                            text = android.text.SpannableStringBuilder(name).apply { setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0)
+                                if (sub.isNotBlank()) append("\n" + sub); if (overview.isNotBlank()) { val st0 = length; append("\n" + overview); setSpan(android.text.style.ForegroundColorSpan(dim), st0, length, 0) } } }, LinearLayout.LayoutParams(0, -2, 1f))
+                        line.addView(Button(act).apply { text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); background = null; contentDescription = s(R.string.pilot_fav)
+                            setOnClickListener { if (ask("fav-film", name, idx.toDouble())) { fav = !fav; text = if (fav) "★" else "☆"
+                                android.widget.Toast.makeText(act, s(if (fav) R.string.pilot_fav_added else R.string.pilot_fav_removed, name), android.widget.Toast.LENGTH_SHORT).show()
+                                if (!fav && mode == "ffav") list.removeView(line) } } }, LinearLayout.LayoutParams(dp(52), dp(56)))
+                        list.addView(line, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(3), 0, dp(3)) })
+                        continue
+                    }
                     if (kind == "film") {   // 🎬 siatka plakatów jak w Kanapie: plakat, tytuł, rok/ocena, ☆; przytrzymanie = opis
                         var gridRow = list.getChildAt(list.childCount - 1) as? LinearLayout
                         if (gridRow?.tag != "grid" || gridRow.childCount >= 3) { gridRow = LinearLayout(act).apply { tag = "grid"; orientation = LinearLayout.HORIZONTAL }; list.addView(gridRow, LinearLayout.LayoutParams(-1, -2)) }
@@ -331,7 +368,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                             setOnLongClickListener { ask("info", "film", idx.toDouble()); true }
                         }
                         val ph = android.widget.FrameLayout(act)
-                        ph.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img) }, android.widget.FrameLayout.LayoutParams(-1, -1))
+                        ph.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.parseColor("#33363F")); loadImage(this, img, key) }, android.widget.FrameLayout.LayoutParams(-1, -1))
                         if (img.isEmpty()) ph.addView(TextView(act).apply { text = "🎬"; textSize = 32f; gravity = Gravity.CENTER }, android.widget.FrameLayout.LayoutParams(-1, -1))
                         ph.addView(TextView(act).apply {
                             text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); setPadding(dp(8), 0, dp(8), dp(2))
@@ -348,7 +385,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                         continue
                     }
                     val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-                    line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, img) }, LinearLayout.LayoutParams(dp(64), dp(48)).apply { marginEnd = dp(6) })   // 📺 logo kanału
+                    line.addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, img, key) }, LinearLayout.LayoutParams(dp(64), dp(48)).apply { marginEnd = dp(6) })   // 📺 logo kanału
                     line.addView(TextView(act).apply {   // TextView - cały tytuł i podpis bez ucinania
                         text = if (sub.isBlank()) name else "$name\n$sub"; textSize = 16f; setTextColor(Color.WHITE); isClickable = true
                         gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); minHeight = dp(56)
@@ -387,7 +424,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         d.setContentView(box)
         d.setOnDismissListener { onList = null }
         d.show()
-        load(true)
+        phoneData { load(true) }   // najpierw logo i plakaty z telefonu, potem lista
     }
 
     // ⚙ Sterowanie: Obraz, Dźwięk, Napisy, Odtwarzanie - tylko to, co obecny odtwarzacz naprawdę obsługuje

@@ -180,7 +180,7 @@ namespace Velivo
                     var v = _pilotFilms[i]; var m = MetaFor(v.Path);
                     var sub = string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null,
                         v.Done ? "✓" : v.Len > v.Pos && v.Pos > 0 ? "▶ " + (int)((v.Len - v.Pos) / 60000) + " min" : null }.Where(x => x != null));
-                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m) });   // plakat z Jellyfin
+                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m), m?.Id ?? "", m?.Year ?? 0 });   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
                 }
             }
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;

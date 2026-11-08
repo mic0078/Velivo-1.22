@@ -2285,6 +2285,8 @@ namespace Velivo
             { "Nagrywanie", "Recording" },
             { "Film", "Video" },
             { "Obraz i dźwięk", "Picture & sound" },
+            { "Teraz", "Now" },
+            { "Potem", "Next" },
             { "Czytaj wszystko po kolei (bez pomijania)", "Read everything in order (no skipping)" },
             { "Włączone: lektor czyta każdą kwestię do końca i w kolejności – gdy napisy są szybsze, czyta z opóźnieniem. Wyłączone: czyta tylko kwestię widoczną teraz na ekranie (zaległe pomija).", "On: the voice-over reads every line fully and in order – if subtitles are faster, it reads with a delay. Off: it reads only the line shown now (skips the backlog)." },
             { "Supertonic M2 (polski, męski, naturalny offline)", "Supertonic M2 (Polish, male, natural offline)" },

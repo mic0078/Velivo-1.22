@@ -202,6 +202,7 @@ class LanSync(
             "media-conf" -> mediaConf(p)
             "media-give" -> mediaGive(p)
             "pilot-st" -> pilotSt(p, sender)
+            "pilot-list" -> openBlob(p)?.let { o -> if (o.optString("to") == id) onPilotList?.invoke(p.optString("id"), o) }
         }
     }
 
@@ -728,13 +729,14 @@ class LanSync(
     // 🎮 Velivo Pilot (Pilot.kt ↔ Pilot.cs na Windows): polecenie albo „ping” zaszyfrowane kluczem z parowania,
     // komputer odpowiada stanem odtwarzacza („pilot-st”) na adres telefonu
     @Volatile var onPilot: ((pc: String, device: String, st: JSONObject?, from: InetAddress?) -> Unit)? = null
+    @Volatile var onPilotList: ((pc: String, list: JSONObject) -> Unit)? = null   // 📺🎬 lista kanałów / filmów z komputera
     val hasKey get() = encKey != null
 
-    fun sendPilot(to: String, op: String, v: String? = null, n: Double = 0.0, target: InetAddress? = null): Boolean {
+    fun sendPilot(to: String, op: String, v: String? = null, n: Double = 0.0, target: InetAddress? = null, q: String? = null, g: String? = null, sort: String? = null): Boolean {
         if (encKey == null) return false
         Thread {
             runCatching {
-                val pkt = sealBlob("pilot", JSONObject().put("to", to).put("op", op).put("v", v ?: "").put("n", n)) ?: return@runCatching
+                val pkt = sealBlob("pilot", JSONObject().put("to", to).put("op", op).put("v", v ?: "").put("n", n).put("q", q ?: "").put("g", g ?: "").put("s", sort ?: "")) ?: return@runCatching
                 if (target != null) sendTo(pkt, target) else { send(pkt); pcAddress?.let { sendTo(pkt, it) } }
             }
         }.start()

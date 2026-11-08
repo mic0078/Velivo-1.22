@@ -83,8 +83,10 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         root.addView(pcBtn, LinearLayout.LayoutParams(-1, dp(60)))
         status = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), dp(8), dp(4), 0) }
         root.addView(status)
-        title = TextView(act).apply { textSize = 17f; setTextColor(Color.WHITE); maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(4), dp(6), dp(4), dp(10)) }
+        title = TextView(act).apply { textSize = 17f; setTextColor(Color.WHITE); maxLines = 4; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(4), dp(6), dp(4), dp(10)) }
         root.addView(title)
+        // 📺🎬 wybór z listy komputera i włączenie wprost z telefonu
+        root.addView(row(big("📺", s(R.string.pilot_tv)) { browse("tv") }, big("🎬", s(R.string.pilot_films)) { browse("film") }))
         // środek: duże przyciski
         playBtn = big("⏯", s(R.string.pilot_play)) { send("play") }
         root.addView(row(big("⏮", s(R.string.pilot_prev)) { send("prev") }, playBtn, big("⏭", s(R.string.pilot_next)) { send("next") }, big("⏹", s(R.string.pilot_stop)) { send("stop") }))
@@ -126,9 +128,10 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
 
         dlg = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen).apply {
             setContentView(ScrollView(act).apply { setBackgroundColor(bg); isFillViewport = true; addView(root) })
-            setOnDismissListener { lan.onPilot = null; h.removeCallbacksAndMessages(null) }
+            setOnDismissListener { lan.onPilot = null; lan.onPilotList = null; h.removeCallbacksAndMessages(null) }
         }
         lan.onPilot = { id, dev, st, from -> act.runOnUiThread { got(id, dev, st, from) } }
+        lan.onPilotList = { id, o -> act.runOnUiThread { if (id == cur) onList?.invoke(o) } }
         dlg.show()
         tick()
         refresh()
@@ -176,7 +179,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             else -> stText(p)
         }
         val st = if (online(p)) p?.st else null
-        title.text = st?.optString("title")?.ifBlank { null } ?: s(R.string.pilot_nothing)
+        title.text = (st?.optString("title")?.ifBlank { null } ?: s(R.string.pilot_nothing)) + (st?.optString("now")?.ifBlank { null }?.let { "\n📺 $it" } ?: "")   // na kanale: co teraz leci
         playBtn.text = (if (st?.optString("st") == "play") "⏸" else "▶") + "\n" + s(R.string.pilot_play)
         val l = st?.optLong("len") ?: 0L; val pos = st?.optLong("pos") ?: 0L
         if (!dragging) { seek.progress = if (l > 0) (pos * 1000 / l).toInt() else 0; time.text = fmt(pos) + " / " + fmt(l) }
@@ -212,6 +215,124 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             lan.sendPilot("*", "ping", target = p.addr)
             refresh()
         }.show()
+    }
+
+    private var onList: ((JSONObject) -> Unit)? = null
+
+    // prośba do wybranego komputera, gdy odtwarzacz nie musi być otwarty (listy, włączenie kanału / filmu)
+    private fun ask(op: String, v: String? = null, n: Double = 0.0, q: String? = null, g: String? = null, sort: String? = null): Boolean {
+        val c = cur ?: run { choosePc(); return false }
+        val p = pcs[c]
+        if (!online(p)) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_LONG).show(); return false }
+        return lan.sendPilot(c, op, v, n, p?.addr, q, g, sort)
+    }
+
+    // 📺 Telewizja / 🎬 Filmy z komputera: zakładki, grupa / gatunek, szukanie, stuknięcie = włącz na komputerze
+    private fun browse(kind: String) {
+        if (cur == null) { choosePc(); return }
+        var mode = if (kind == "tv") "fav" else "cont"   // na start: ulubione kanały / oglądaj dalej
+        var group = ""; var query = ""; var page = 0
+        val sorts = if (kind == "tv") listOf("" to s(R.string.pilot_sort_list), "name" to s(R.string.pilot_sort_az), "name-desc" to s(R.string.pilot_sort_za))
+            else listOf("" to s(R.string.pilot_sort_az), "name-desc" to s(R.string.pilot_sort_za), "new" to s(R.string.pilot_sort_new), "year" to s(R.string.pilot_sort_year), "rating" to s(R.string.pilot_sort_rating), "last" to s(R.string.pilot_sort_last))
+        var sort = prefs.getString("pilot-sort-$kind", "") ?: ""   // zapamiętane sortowanie
+        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(bg) }
+        fun pill(t: String, on: Boolean, f: () -> Unit) = Button(act).apply {
+            text = t; isAllCaps = false; textSize = 15f; setTextColor(Color.WHITE)
+            background = GradientDrawable().apply { setColor(if (on) accent else card); cornerRadius = dp(20).toFloat() }
+            setOnClickListener { f() }
+        }
+        val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(Button(act).apply { text = "✕"; textSize = 20f; setTextColor(Color.WHITE); background = null; setOnClickListener { d.dismiss() }; contentDescription = act.getString(android.R.string.cancel) }, LinearLayout.LayoutParams(dp(56), dp(56)))
+        head.addView(TextView(act).apply { text = (if (kind == "tv") "📺 " + s(R.string.pilot_tv) else "🎬 " + s(R.string.pilot_films)) + " · " + curName; textSize = 19f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+        box.addView(head)
+        val tabs = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
+        box.addView(tabs)
+        val search = android.widget.EditText(act).apply {
+            hint = s(R.string.pilot_search); setTextColor(Color.WHITE); setHintTextColor(dim); textSize = 17f; isSingleLine = true
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }; setPadding(dp(14), 0, dp(14), 0)
+        }
+        box.addView(search, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(8) })
+        val info = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), dp(8), dp(4), dp(4)) }
+        box.addView(info)
+        val list = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(ScrollView(act).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        var groups = listOf<String>()
+        lateinit var load: (Boolean) -> Unit
+        fun drawTabs() {
+            tabs.removeAllViews()
+            val a = if (kind == "tv") listOf("fav" to "⭐ " + s(R.string.pilot_fav), "tv" to s(R.string.pilot_all)) else listOf("cont" to "▶ " + s(R.string.pilot_continue), "ffav" to "⭐ " + s(R.string.pilot_fav), "film" to s(R.string.pilot_all))
+            for ((m, t) in a) tabs.addView(pill(t, mode == m) { mode = m; group = ""; drawTabs(); load(true) }, LinearLayout.LayoutParams(-2, dp(48)).apply { setMargins(0, dp(6), dp(8), 0) })
+            if (mode == "tv" || mode == "film") tabs.addView(pill((if (kind == "tv") s(R.string.pilot_group) else s(R.string.pilot_genre)) + ": " + group.ifBlank { s(R.string.pilot_any) } + " ▾", false) {
+                val names = listOf(s(R.string.pilot_any)) + groups
+                AlertDialog.Builder(act).setItems(names.toTypedArray()) { _, i -> group = if (i == 0) "" else groups[i - 1]; drawTabs(); load(true) }.show()
+            }, LinearLayout.LayoutParams(-2, dp(48)).apply { setMargins(0, dp(6), dp(8), 0) })
+            if (mode != "cont") tabs.addView(pill("⇅ " + (sorts.firstOrNull { it.first == sort }?.second ?: sorts[0].second), false) {
+                AlertDialog.Builder(act).setTitle(R.string.pilot_sort).setItems(sorts.map { it.second }.toTypedArray()) { _, i ->
+                    sort = sorts[i].first; prefs.edit().putString("pilot-sort-$kind", sort).apply(); drawTabs(); load(true)
+                }.show()
+            }, LinearLayout.LayoutParams(-2, dp(48)).apply { setMargins(0, dp(6), 0, 0) })
+        }
+        load = { fresh ->
+            if (fresh) { page = 0; list.removeAllViews() }
+            info.text = s(R.string.pilot_loading)
+            if (!ask("list", mode, page.toDouble(), query, group, sort)) info.text = s(R.string.pilot_unavailable, curName)
+        }
+        onList = { o ->
+            if (o.optString("kind") == "info")   // ℹ opis filmu / co teraz i dalej na kanale
+                AlertDialog.Builder(act).setTitle(o.optString("title")).setMessage(o.optString("text")).setPositiveButton(android.R.string.ok, null).show()
+            else if (o.optString("kind") == mode && o.optInt("page") == page) {
+                val g = o.optJSONArray("groups"); if (g != null && g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() }
+                val items = o.optJSONArray("items"); val total = o.optInt("total")
+                list.findViewWithTag<View>("more")?.let { list.removeView(it) }
+                for (k in 0 until (items?.length() ?: 0)) {
+                    val it2 = items!!.getJSONArray(k); val idx = it2.optInt(0); val name = it2.optString(1); val sub = it2.optString(2)
+                    var fav = it2.optBoolean(3)
+                    val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
+                    line.addView(Button(act).apply {
+                        text = if (sub.isBlank()) name else "$name\n$sub"; isAllCaps = false; textSize = 16f; setTextColor(Color.WHITE)
+                        gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8)); maxLines = 3
+                        background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
+                        setOnLongClickListener { ask("info", if (kind == "tv") "tv" else "film", idx.toDouble()); true }   // przytrzymanie = opis
+                        setOnClickListener {
+                            if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble())) {
+                                android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss()
+                            }
+                        }
+                    }, LinearLayout.LayoutParams(0, -2, 1f))
+                    line.addView(Button(act).apply {   // ⭐ dodaj / usuń z ulubionych (te same ulubione co na komputerze)
+                        text = if (fav) "★" else "☆"; textSize = 24f; setTextColor(Color.parseColor("#F5C518")); background = null
+                        contentDescription = s(R.string.pilot_fav)
+                        setOnClickListener {
+                            if (ask(if (kind == "tv") "fav-tv" else "fav-film", name, idx.toDouble())) {
+                                fav = !fav; text = if (fav) "★" else "☆"
+                                android.widget.Toast.makeText(act, s(if (fav) R.string.pilot_fav_added else R.string.pilot_fav_removed, name), android.widget.Toast.LENGTH_SHORT).show()
+                                if (!fav && (mode == "fav" || mode == "ffav")) list.removeView(line)
+                            }
+                        }
+                    }, LinearLayout.LayoutParams(dp(56), dp(56)))
+                    list.addView(line, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(3), 0, dp(3)) })
+                }
+                val shown = (page + 1) * 100
+                info.text = if (total == 0) s(if (kind == "tv") R.string.pilot_empty_tv else R.string.pilot_empty_films) else s(R.string.pilot_count, total)
+                if (shown < total) list.addView(Button(act).apply {
+                    tag = "more"; text = s(R.string.pilot_more); isAllCaps = false; textSize = 16f; setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(12).toFloat() }
+                    setOnClickListener { page++; load(false) }
+                }, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(6) })
+            }
+        }
+        search.setOnEditorActionListener { _, _, _ ->
+            query = search.text.toString().trim()
+            if (query.isNotEmpty() && (mode == "fav" || mode == "cont")) mode = if (kind == "tv") "tv" else "film"   // szukanie zawsze w całej liście
+            drawTabs(); load(true); true
+        }
+        drawTabs()
+        d.setContentView(box)
+        d.setOnDismissListener { onList = null }
+        d.show()
+        load(true)
     }
 
     // ⚙ Sterowanie: Obraz, Dźwięk, Napisy, Odtwarzanie - tylko to, co obecny odtwarzacz naprawdę obsługuje

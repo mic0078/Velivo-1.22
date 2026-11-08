@@ -4182,6 +4182,7 @@ namespace Velivo
                 ["sub"] = mp.Spu, ["subs"] = mp.SpuDescription.Select(t => new object[] { t.Id, t.Id < 0 ? "" : t.Name }).ToList(),
                 ["aud"] = mp.AudioTrack, ["auds"] = mp.AudioTrackDescription.Where(t => t.Id >= 0).Select(t => new object[] { t.Id, t.Name }).ToList(),
                 ["asp"] = mp.AspectRatio ?? "", ["zoom"] = mp.Scale,
+                ["now"] = PilotNowOnTv(),   // 📺 co teraz leci na włączonym kanale
             };
             win.Closed += (s, e) => { _vlcPilotCmd = null; _vlcPilotState = null; };
             win.Closed += (s, e) =>

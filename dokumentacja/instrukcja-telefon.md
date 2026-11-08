@@ -248,6 +248,7 @@ Menu ☰ → Filmy i TV → **🎮 Pilot**. Telefon musi być połączony z komp
 * Komputery z Velivo znajdują się same. Przy każdym: dostępny / niedostępny, co robi odtwarzacz i co gra.
 * Pierwszy raz wybierasz komputer z listy. Następnym razem Pilot od razu steruje tym samym (także po ponownym uruchomieniu telefonu). Inny komputer: dotknij jego nazwy u góry.
 * Duże przyciski: Poprzedni, Odtwórz / pauza, Następny, Stop, Cofnij 10 s, Do przodu 10 s; pasek postępu z czasem (przesuń, aby przewinąć), głośność i Wycisz.
+* **📺 Telewizja** i **🎬 Filmy**: lista z komputera, nic nie trzeba włączać na komputerze. Telewizja: Ulubione / Wszystkie, grupa, szukanie, sortowanie, przy kanale – co teraz leci. Filmy: Oglądaj dalej / Ulubione / Wszystkie, gatunek, szukanie, sortowanie. Stuknięcie włącza na komputerze, przytrzymanie pokazuje opis (film) albo program (co teraz i potem), ☆ dodaje lub usuwa z ulubionych.
 * **⚙ Sterowanie**: Obraz (pełny ekran, dopasowanie obrazu, powiększenie), Dźwięk (ścieżka dźwięku), Napisy (wybór albo wyłączone), Odtwarzanie.
 * Zmiany zrobione na komputerze (pauza, głośność, napisy) widać na telefonie po chwili. Polecenia idą zawsze tylko do jednego, wybranego komputera, zaszyfrowane kluczem z parowania.
 

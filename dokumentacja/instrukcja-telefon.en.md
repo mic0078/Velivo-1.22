@@ -248,6 +248,7 @@ Menu ☰ → Films and TV → **🎮 Pilot**. The phone must be paired with the 
 * Computers with Velivo are found automatically, each with: available / not available, what the player is doing and what is playing.
 * The first time you pick a computer from the list. Next time Pilot controls the same one straight away (also after the phone restarts). Another computer: tap its name at the top.
 * Big buttons: Previous, Play / pause, Next, Stop, Back 10 s, Forward 10 s; progress bar with time (drag to seek), volume and Mute.
+* **📺 TV** and **🎬 Films**: the list comes from the computer, nothing needs starting there. TV: Favourites / All, group, search, sorting, what is on now for each channel. Films: Continue watching / Favourites / All, genre, search, sorting. Tap plays on the computer, hold shows the description (film) or programme (now and next), ☆ adds or removes a favourite.
 * **⚙ Controls**: Picture (full screen, aspect ratio, zoom), Sound (audio track), Subtitles (choose or off), Playback.
 * Changes made on the computer (pause, volume, subtitles) appear on the phone within a moment. Commands always go to one chosen computer only, encrypted with the pairing key.
 

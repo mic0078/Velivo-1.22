@@ -439,7 +439,7 @@
     <string name="pilot_playing">playing</string>
     <string name="pilot_paused">paused</string>
     <string name="pilot_stopped">stopped</string>
-    <string name="pilot_closed">player closed – start a movie or TV on the computer</string>
+    <string name="pilot_closed">player closed – choose TV or a film below</string>
     <string name="pilot_nothing">Nothing is playing</string>
     <string name="pilot_prev">Previous</string>
     <string name="pilot_play">Play / pause</string>
@@ -463,4 +463,29 @@
     <string name="pilot_subs_title">Subtitles</string>
     <string name="pilot_subs_off">Off</string>
     <string name="pilot_playback">PLAYBACK</string>
+    <string name="pilot_tv">TV</string>
+    <string name="pilot_films">Films</string>
+    <string name="pilot_fav">Favourites</string>
+    <string name="pilot_all">All</string>
+    <string name="pilot_continue">Continue watching</string>
+    <string name="pilot_group">Group</string>
+    <string name="pilot_genre">Genre</string>
+    <string name="pilot_any">all</string>
+    <string name="pilot_search">Search…</string>
+    <string name="pilot_more">Show more…</string>
+    <string name="pilot_loading">Loading the list from the computer…</string>
+    <string name="pilot_empty_tv">No channels here. Add a TV channel list in Velivo on the computer (TV), or add favourites.</string>
+    <string name="pilot_empty_films">No films here.</string>
+    <string name="pilot_starting">Starting on the computer: %1$s</string>
+    <string name="pilot_count">%1$d on the list – tap to play on the computer, hold for the description, ☆ = favourite</string>
+    <string name="pilot_sort">Sort</string>
+    <string name="pilot_sort_list">As on the list</string>
+    <string name="pilot_sort_az">Name A–Z</string>
+    <string name="pilot_sort_za">Name Z–A</string>
+    <string name="pilot_sort_new">Newly added</string>
+    <string name="pilot_sort_year">Year (newest)</string>
+    <string name="pilot_sort_rating">Rating</string>
+    <string name="pilot_sort_last">Recently watched</string>
+    <string name="pilot_fav_added">Added to favourites: %1$s</string>
+    <string name="pilot_fav_removed">Removed from favourites: %1$s</string>
 </resources>

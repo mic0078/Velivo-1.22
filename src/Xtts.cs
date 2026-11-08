@@ -25,7 +25,7 @@ namespace Velivo
         static string XttsPy => Path.Combine(XttsRoot, "python", "python.exe");
         static string XttsReady => Path.Combine(XttsRoot, "gotowe.txt");
         static bool XttsInstalled() => File.Exists(XttsPy) && File.Exists(XttsReady);
-        // predkosc: XTTS (coqui-tts 0.25) pomija parametr speed (sprawdzone u wlasciciela: 1.0 -> 5,2 s, 1.6 -> 5,8 s) - przyspieszamy nagranie bez zmiany wysokosci glosu (librosa)
+        // predkosc: XTTS (coqui-tts 0.25) pomija parametr speed (sprawdzone u wlasciciela: 1.0 -> 5,2 s, 1.6 -> 5,8 s), a przyspieszanie nagrania (librosa) brzmialo jak robot - XTTS zawsze 1:1
         static string XttsOwnWav => Path.Combine(XttsRoot, "moj-glos.wav");
         static bool XttsHasNvidia() => File.Exists(Path.Combine(Environment.SystemDirectory, "nvidia-smi.exe"));
 
@@ -215,7 +215,7 @@ for line in sys.stdin:
                 Directory.CreateDirectory(PiperOutDir);
                 var path = Path.Combine(PiperOutDir, "xt-" + Guid.NewGuid().ToString("N") + ".wav");
                 if (v.Xt == "@" && !File.Exists(XttsOwnWav)) { ShowToast(L.T("🎙 Brak nagrania Twojego głosu – Ustawienia → Czytanie na głos → „Mój głos dla XTTS…”."), null); return null; }
-                var req = JsonSerializer.Serialize(new { text = line, lang = v.Lang, speaker = v.Xt == "@" ? "@" + XttsOwnWav : v.Xt, speed = Math.Max(0.7, Math.Min(1.6, rate)), @out = path });
+                var req = JsonSerializer.Serialize(new { text = line, lang = v.Lang, speaker = v.Xt == "@" ? "@" + XttsOwnWav : v.Xt, speed = 1.0, @out = path });
                 await _xtProc.StandardInput.WriteLineAsync(req);
                 await _xtProc.StandardInput.FlushAsync();
                 var res = await XttsReadLine("OK ", 180000);

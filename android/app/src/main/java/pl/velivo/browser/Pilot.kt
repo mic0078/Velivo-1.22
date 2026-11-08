@@ -228,6 +228,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         lan.onPilot = { id, dev, st, from -> act.runOnUiThread { got(id, dev, st, from) } }
         lan.onPilotList = { id, o -> act.runOnUiThread {
             if (id != cur) return@runOnUiThread
+            pcs[id]?.seen = System.currentTimeMillis()   // każda odpowiedź komputera (lista, program, obrazek) = jest dostępny
             if (o.has("epgv")) { val v = o.optInt("epgv"); if (pcEpgv != v) { pcEpgv = v; onEpgv?.invoke(v) } }   // komputer ma nowy program / plany
             if (o.optString("kind") == "plans") { if (o.has("libtv")) pcLibv["tv"] = o.optInt("libtv"); if (o.has("libfilm")) pcLibv["film"] = o.optInt("libfilm") }
             if (o.optString("kind") == "plans") o.optJSONArray("items")?.let { a ->   // ⏰ stan planów pod kafelkami
@@ -262,7 +263,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         refresh()
     }
 
-    private fun online(p: Pc?) = p != null && System.currentTimeMillis() - p.seen < 9000
+    private fun online(p: Pc?) = p != null && System.currentTimeMillis() - p.seen < 20000   // stan co 1 s; komputer zajęty listą/programem TV potrafi milczeć kilka sekund - 20 s, nie 9
+    private fun reachable(p: Pc?) = p != null && p.addr != null && System.currentTimeMillis() - p.seen < 120_000   // polecenie wysyłamy nawet przy chwilowej ciszy
     private fun len(): Long = pcs[cur]?.st?.optLong("len") ?: 0L
 
     private fun stText(p: Pc): String = if (!online(p)) s(R.string.pilot_offline) else {
@@ -308,7 +310,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private fun send(op: String, v: String? = null, n: Double = 0.0) {
         val c = cur ?: run { choosePc(); return }
         val p = pcs[c]
-        if (!online(p) || p?.st == null) { android.widget.Toast.makeText(act, if (!online(p)) s(R.string.pilot_unavailable, curName) else s(R.string.pilot_closed), android.widget.Toast.LENGTH_SHORT).show(); return }
+        if (!reachable(p) || p?.st == null) { android.widget.Toast.makeText(act, if (!reachable(p)) s(R.string.pilot_unavailable, curName) else s(R.string.pilot_closed), android.widget.Toast.LENGTH_SHORT).show(); return }
         lan.sendPilot(c, op, v, n, p.addr)
     }
 
@@ -356,7 +358,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private fun ask(op: String, v: String? = null, n: Double = 0.0, q: String? = null, g: String? = null, sort: String? = null): Boolean {
         val c = cur ?: run { choosePc(); return false }
         val p = pcs[c]
-        if (!online(p)) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_LONG).show(); return false }
+        if (!reachable(p)) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_LONG).show(); return false }
         return lan.sendPilot(c, op, v, n, p?.addr, q, g, sort)
     }
 

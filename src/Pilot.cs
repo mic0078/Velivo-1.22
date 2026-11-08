@@ -56,6 +56,7 @@ namespace Velivo
         const string PilotFavList = "⭐ Ulubione";
         List<IptvChannel> _pilotTv = new List<IptvChannel>();
         List<LibraryVideo> _pilotFilms = new List<LibraryVideo>();
+        string _pilotFilmsKey; List<string> _pilotFilmGroups = new List<string>();
         string _pilotResume;   // „wznow” / „poczatek” wybrane na telefonie dla najbliższego filmu
 
         void PilotLists(string phoneId, LanPilotCmd cmd)
@@ -74,7 +75,7 @@ namespace Velivo
             if (filmOp && want != null && ((int)cmd.n < 0 || (int)cmd.n >= _pilotFilms.Count || ShownTitle(_pilotFilms[(int)cmd.n], MetaFor(_pilotFilms[(int)cmd.n].Path)) != want))
             {
                 var hit = LoadLibrary().FirstOrDefault(v => !string.IsNullOrEmpty(v.Path) && ShownTitle(v, MetaFor(v.Path)) == want);
-                if (hit != null) { _pilotFilms = new List<LibraryVideo> { hit }; cmd.n = 0; }
+                if (hit != null) { _pilotFilms = new List<LibraryVideo> { hit }; cmd.n = 0; _pilotFilmsKey = null; }
             }
             if (cmd.op == "play-tv")
             {
@@ -177,24 +178,29 @@ namespace Velivo
             }
             else
             {
-                var lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path))
-                    .GroupBy(v => { var m = MetaFor(v.Path); return !string.IsNullOrEmpty(m?.Id) ? "j:" + m.Id : "t:" + ShownTitle(v, m).ToLowerInvariant() + "|" + (m?.Year ?? 0); })
-                    .Select(g => g.OrderByDescending(v => v.Last).ThenBy(v => v.Peer != null).First()).ToList();   // jeden film raz (jak Kanapa)
-                groups = lib.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct().OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
-                var favs = new HashSet<string>(LoadPlaylists().Named.TryGetValue(PilotFavList, out var fl) ? fl : new List<string>(), StringComparer.OrdinalIgnoreCase);
-                IEnumerable<LibraryVideo> sel = lib;
-                if (cmd.v == "cont") sel = lib.Where(v => v.Pos > 0 && !v.Done && v.Last > 0).OrderByDescending(v => v.Last);
+                var favs = new HashSet<string>(LoadPlaylists().Named.TryGetValue(PilotFavList, out var fl0) ? fl0 : new List<string>(), StringComparer.OrdinalIgnoreCase);
+                string fkey = cmd.v + "|" + cmd.g + "|" + q + "|" + cmd.s;
+                if (page > 0 && fkey == _pilotFilmsKey) { groups = _pilotFilmGroups; total = _pilotFilms.Count; }   // kolejne strony - lista już policzona (komputer nie liczy całej biblioteki dla każdej strony)
                 else
                 {
-                    if (cmd.v == "ffav") sel = sel.Where(v => favs.Contains(v.Path));
-                    if (!string.IsNullOrEmpty(cmd.g)) sel = sel.Where(v => MetaFor(v.Path)?.Genres?.Contains(cmd.g) == true);
-                    if (q.Length > 0) sel = sel.Where(v => ShownTitle(v, MetaFor(v.Path)).IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0);
-                    Func<LibraryVideo, string> t = v => ShownTitle(v, MetaFor(v.Path));
-                    sel = cmd.s == "new" ? sel.OrderByDescending(v => v.Added) : cmd.s == "year" ? sel.OrderByDescending(v => MetaFor(v.Path)?.Year ?? 0)
-                        : cmd.s == "rating" ? sel.OrderByDescending(v => MetaFor(v.Path)?.Rating ?? 0) : cmd.s == "last" ? sel.OrderByDescending(v => v.Last)
-                        : cmd.s == "name-desc" ? sel.OrderByDescending(t, StringComparer.CurrentCultureIgnoreCase) : sel.OrderBy(t, StringComparer.CurrentCultureIgnoreCase);   // sortowanie jak w Kanapie
+                    var lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path))
+                        .GroupBy(v => { var m = MetaFor(v.Path); return !string.IsNullOrEmpty(m?.Id) ? "j:" + m.Id : "t:" + ShownTitle(v, m).ToLowerInvariant() + "|" + (m?.Year ?? 0); })
+                        .Select(g => g.OrderByDescending(v => v.Last).ThenBy(v => v.Peer != null).First()).ToList();   // jeden film raz (jak Kanapa)
+                    groups = lib.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct().OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
+                    IEnumerable<LibraryVideo> sel = lib;
+                    if (cmd.v == "cont") sel = lib.Where(v => v.Pos > 0 && !v.Done && v.Last > 0).OrderByDescending(v => v.Last);
+                    else
+                    {
+                        if (cmd.v == "ffav") sel = sel.Where(v => favs.Contains(v.Path));
+                        if (!string.IsNullOrEmpty(cmd.g)) sel = sel.Where(v => MetaFor(v.Path)?.Genres?.Contains(cmd.g) == true);
+                        if (q.Length > 0) sel = sel.Where(v => ShownTitle(v, MetaFor(v.Path)).IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0);
+                        Func<LibraryVideo, string> t = v => ShownTitle(v, MetaFor(v.Path));
+                        sel = cmd.s == "new" ? sel.OrderByDescending(v => v.Added) : cmd.s == "year" ? sel.OrderByDescending(v => MetaFor(v.Path)?.Year ?? 0)
+                            : cmd.s == "rating" ? sel.OrderByDescending(v => MetaFor(v.Path)?.Rating ?? 0) : cmd.s == "last" ? sel.OrderByDescending(v => v.Last)
+                            : cmd.s == "name-desc" ? sel.OrderByDescending(t, StringComparer.CurrentCultureIgnoreCase) : sel.OrderBy(t, StringComparer.CurrentCultureIgnoreCase);   // sortowanie jak w Kanapie
+                    }
+                    _pilotFilms = sel.ToList(); total = _pilotFilms.Count; _pilotFilmsKey = fkey; _pilotFilmGroups = groups;
                 }
-                _pilotFilms = sel.ToList(); total = _pilotFilms.Count;
                 for (int i = page * 100; i < Math.Min(total, page * 100 + 100); i++)
                 {
                     var v = _pilotFilms[i]; var m = MetaFor(v.Path);

@@ -11,7 +11,7 @@ namespace Velivo
     // Telefon tylko pokazuje i wysyła polecenia - robi to komputer tymi samymi funkcjami co okno TV i Kanapa (SwitchAt, RecordProgramme, PlayArchive, losowanie).
     public partial class MainWindow
     {
-        List<IptvChannel> _pilotEpgCh = new List<IptvChannel>();
+        List<IptvChannel> _pilotEpgCh = new List<IptvChannel>(); string _pilotEpgKey;
 
         // wersja programu TV na komputerze: zmienia się, gdy komputer wczyta nowy program (wg własnego harmonogramu) albo zmienią się plany/nagrania - telefon odświeża swoją kopię tylko wtedy
         int PilotEpgVer()
@@ -53,12 +53,17 @@ namespace Velivo
                 var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
                 if (_iptvEpg == null) { LoadIptvInBackground(() => { }); PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "epg", ["wait"] = true }); return; }   // program TV wczytuje się - telefon zapyta ponownie
                 var groups = all.Select(c => c.Group ?? "").Where(g => g.Length > 0).Distinct().OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
-                _pilotEpgCh = cmd.v == "fav"
-                    ? IptvSt.Fav.Select(u => all.FirstOrDefault(c => c.Url == u) ?? (_iptvPlaying.TryGetValue(u, out var c1) ? c1 : null)).Where(c => c != null).ToList()
-                    : all.Where(c => string.IsNullOrEmpty(cmd.g) || c.Group == cmd.g).ToList();
-                _pilotEpgCh = _pilotEpgCh.Where(c => EpgFor(_iptvEpg, c)?.Count > 0).ToList();   // tylko kanały z programem
-                if (cmd.s == "name") _pilotEpgCh = _pilotEpgCh.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
-                else if (cmd.s == "name-desc") _pilotEpgCh = _pilotEpgCh.OrderByDescending(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                string ekey = cmd.v + "|" + cmd.g + "|" + cmd.s;
+                if (cmd.n < 1 || ekey != _pilotEpgKey)   // kolejne strony - lista kanałów już policzona
+                {
+                    _pilotEpgCh = cmd.v == "fav"
+                        ? IptvSt.Fav.Select(u => all.FirstOrDefault(c => c.Url == u) ?? (_iptvPlaying.TryGetValue(u, out var c1) ? c1 : null)).Where(c => c != null).ToList()
+                        : all.Where(c => string.IsNullOrEmpty(cmd.g) || c.Group == cmd.g).ToList();
+                    _pilotEpgCh = _pilotEpgCh.Where(c => EpgFor(_iptvEpg, c)?.Count > 0).ToList();   // tylko kanały z programem
+                    if (cmd.s == "name") _pilotEpgCh = _pilotEpgCh.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                    else if (cmd.s == "name-desc") _pilotEpgCh = _pilotEpgCh.OrderByDescending(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                    _pilotEpgKey = ekey;
+                }
                 int.TryParse(cmd.q ?? "0", out int day);
                 var d0 = DateTime.Today.AddDays(day); var d1 = d0.AddDays(1);
                 var from = day == 0 ? DateTime.Now.AddHours(-2) : d0;
@@ -85,7 +90,7 @@ namespace Velivo
                 if (!string.IsNullOrEmpty(cmd.g) && (i < 0 || i >= _pilotEpgCh.Count || _pilotEpgCh[i].Name != cmd.g))   // telefon z zapisanej siatki - kanał po nazwie
                 {
                     var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>(); var hit = all.FirstOrDefault(c => c.Name == cmd.g);
-                    if (hit != null) { _pilotEpgCh = all.Where(c => c.Group == hit.Group).ToList(); i = _pilotEpgCh.IndexOf(hit); }
+                    if (hit != null) { _pilotEpgCh = all.Where(c => c.Group == hit.Group).ToList(); i = _pilotEpgCh.IndexOf(hit); _pilotEpgKey = null; }
                 }
                 if (i < 0 || i >= _pilotEpgCh.Count) return;
                 var ch = _pilotEpgCh[i];

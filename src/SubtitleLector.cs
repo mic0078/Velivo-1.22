@@ -187,6 +187,12 @@ namespace Velivo
             return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
         }
 
+        static long LectorWavMs(string wav)
+        {
+            try { using (var fs = System.IO.File.OpenRead(wav)) { var h = new byte[44]; if (fs.Read(h, 0, 44) < 44) return 0; int bps = BitConverter.ToInt32(h, 28); return bps > 0 ? (fs.Length - 44) * 1000 / bps : 0; } }
+            catch (Exception) { return 0; }
+        }
+
         static void LectorDropPre(Lector lc)
         {
             var p = lc.PreWav; lc.PreWav = null; lc.PreIdx = -1;
@@ -266,7 +272,9 @@ namespace Velivo
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);
                 voice.Open(new Uri(wav)); voice.Play();
-                await Task.WhenAny(done.Task, Task.Delay(30000));
+                var played = System.Diagnostics.Stopwatch.StartNew(); long durMs = LectorWavMs(wav);
+                bool natural = await Task.WhenAny(done.Task, Task.Delay(30000)) == done.Task && done.Task.Result;
+                if (natural && lc.Voice == voice) { long left = durMs - played.ElapsedMilliseconds + 250; if (left > 0) await Task.Delay((int)Math.Min(left, 3000)); }   // koniec pliku != koniec dzwieku - w buforze glosnika zostaje koncowka, Stop od razu ucinal ostatnie slowo
                 if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
                 try { System.IO.File.Delete(wav); } catch (Exception) { }
             }

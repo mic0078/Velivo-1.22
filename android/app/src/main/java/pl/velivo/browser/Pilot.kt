@@ -620,9 +620,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val info = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), 0, dp(4), dp(6)) }
         box.addView(info)
         val grid = EpgView()
-        val more = TextView(act).apply { text = s(R.string.pilot_more_ch); textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(0, dp(14), 0, dp(14)); visibility = View.GONE
-            background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(12).toFloat() } }
-        box.addView(ScrollView(act).apply { addView(LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; addView(grid, LinearLayout.LayoutParams(-1, -2)); addView(more, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }) }) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        box.addView(ScrollView(act).apply { addView(grid, android.widget.FrameLayout.LayoutParams(-1, -2)) }, LinearLayout.LayoutParams(-1, 0, 1f))
         box.addView(TextView(act).apply { textSize = 12f; setTextColor(dim); setPadding(dp(4), dp(6), dp(4), 0)
             text = android.text.SpannableStringBuilder(s(R.string.pilot_epg_hint) + "\n").apply {
                 fun leg(c: Int, t: String) { val a = length; append("■"); setSpan(android.text.style.ForegroundColorSpan(c), a, length, 0); append(" $t   ") }
@@ -644,39 +642,58 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             tabs.addView(pillV("⏰ " + s(R.string.pilot_plans), false) { plans() }, tabLp())
         }
         var keepScroll = false
-        load = { fresh ->
-            if (fresh) { page = 0; grid.rows.clear(); grid.scrollXf = 0f; keepScroll = false; imgGen++; grid.requestLayout(); grid.invalidate() }
-            info.text = s(R.string.pilot_loading); info.visibility = View.VISIBLE
-            if (!ask("epg", mode, page.toDouble(), day.toString(), if (mode == "tv") group else "", sort)) info.text = s(R.string.pilot_unavailable, curName)
+        // 📦 program TV trzymany w telefonie (plik na wybór: ulubione/grupa/dzień/sortowanie) - po otwarciu od razu, a z komputera dociąga się sam, wszystkie strony po kolei
+        fun cacheFile() = java.io.File(act.filesDir, "pilot-epg-" + (mode + "|" + group + "|" + day + "|" + sort + "|" + cur).hashCode() + ".json")
+        var fresh0 = false; var pages = org.json.JSONArray(); var asked = 0L; var force = false
+        fun render(o: JSONObject) {
+            o.optJSONArray("groups")?.let { g -> if (g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() } }
+            grid.from = o.optLong("t0"); grid.to = o.optLong("t1")
+            val chans = o.optJSONArray("chans")
+            for (k in 0 until (chans?.length() ?: 0)) {
+                val c = chans!!.getJSONArray(k); val ps = c.optJSONArray(3)
+                val pr = ArrayList<LongArray>(); val ti = ArrayList<String>(); val fl = ArrayList<String>()
+                for (j in 0 until (ps?.length() ?: 0)) { val p = ps!!.getJSONArray(j); pr.add(longArrayOf(p.optLong(0), p.optLong(1))); ti.add(p.optString(2)); fl.add(p.optString(3)) }
+                val name = c.optString(1)
+                val row = EpgRow(c.optInt(0), name, pick(tvLogo[chKey(name)], c.optString(2)), pr, ti, fl)
+                grid.rows.add(row)
+                loadBmp(row.logo, null) { b -> if (b != null) { row.bmp = b; grid.invalidate() } }
+            }
+            if (!keepScroll) { keepScroll = true; grid.post { grid.scrollXf = ((System.currentTimeMillis() - 30 * 60000 - grid.from) / 60000f * grid.perMin).coerceIn(0f, grid.maxScroll()); grid.invalidate() } }   // od pół godziny przed „teraz”
+            grid.requestLayout(); grid.invalidate()
         }
+        fun askPage() { asked = System.currentTimeMillis()
+            if (!ask("epg", mode, page.toDouble(), day.toString(), if (mode == "tv") group else "", sort)) info.text = s(R.string.pilot_unavailable, curName) }
+        load = { fresh ->
+            if (fresh) {
+                page = 0; grid.rows.clear(); grid.scrollXf = 0f; keepScroll = false; imgGen++; fresh0 = true; pages = org.json.JSONArray()
+                runCatching { val a0 = org.json.JSONArray(cacheFile().readText()); for (i in 0 until a0.length()) render(a0.getJSONObject(i)) }   // zapisany program - od razu
+                grid.requestLayout(); grid.invalidate()
+                val f0 = cacheFile()
+                if (!force && grid.rows.isNotEmpty() && System.currentTimeMillis() - f0.lastModified() < 3 * 3600_000L) { fresh0 = false; info.visibility = View.GONE }   // świeży (do 3 h) - bez pytania komputera
+                force = false
+            }
+            if (fresh0 || page > 0 || info.visibility != View.GONE) { info.text = s(R.string.pilot_loading); info.visibility = View.VISIBLE; askPage() }
+        }
+        fun watchdog() { h.postDelayed({ if (d.isShowing) { if (System.currentTimeMillis() - asked > 4000 && (fresh0 || pages.length() > 0) && info.visibility == View.VISIBLE) askPage(); watchdog() } }, 2000) }   // zgubiony pakiet - zapytaj ponownie
         grid.onProg = { ch, st -> ask("epg-act", "info", ch.toDouble(), st.toString()) }
         grid.onLogo = { row -> if (ask("epg-act", "play", row.ci.toDouble())) android.widget.Toast.makeText(act, s(R.string.pilot_starting, row.name), android.widget.Toast.LENGTH_SHORT).show() }
         onList = { o ->
             when (o.optString("kind")) {
-                "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); h.postDelayed({ if (d.isShowing) load(false) }, 3000) }
+                "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); asked = System.currentTimeMillis() }
                     else if (o.optInt("page") == page) {
-                    o.optJSONArray("groups")?.let { g -> if (g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() } }
-                    grid.from = o.optLong("t0"); grid.to = o.optLong("t1"); val total = o.optInt("total")
-                    val chans = o.optJSONArray("chans")
-                    for (k in 0 until (chans?.length() ?: 0)) {
-                        val c = chans!!.getJSONArray(k); val ps = c.optJSONArray(3)
-                        val pr = ArrayList<LongArray>(); val ti = ArrayList<String>(); val fl = ArrayList<String>()
-                        for (j in 0 until (ps?.length() ?: 0)) { val p = ps!!.getJSONArray(j); pr.add(longArrayOf(p.optLong(0), p.optLong(1))); ti.add(p.optString(2)); fl.add(p.optString(3)) }
-                        val name = c.optString(1)
-                        val row = EpgRow(c.optInt(0), name, pick(tvLogo[chKey(name)], c.optString(2)), pr, ti, fl)
-                        grid.rows.add(row)
-                        loadBmp(row.logo, null) { b -> if (b != null) { row.bmp = b; grid.invalidate() } }
+                    if (fresh0) { fresh0 = false; grid.rows.clear() }   // świeże dane z komputera zastępują zapisane
+                    render(o); pages.put(o)
+                    val total = o.optInt("total")
+                    if ((page + 1) * 12 < total) { page++; info.text = s(R.string.pilot_loading) + " " + minOf(total, page * 12) + " / " + total; askPage() }   // następna strona sama
+                    else {
+                        info.text = if (total == 0) s(R.string.pilot_epg_empty) else ""; info.visibility = if (total == 0) View.VISIBLE else View.GONE
+                        val save = pages; Thread { runCatching { cacheFile().writeText(save.toString()) } }.start()
                     }
-                    info.text = if (total == 0) s(R.string.pilot_epg_empty) else ""
-                    info.visibility = if (total == 0) View.VISIBLE else View.GONE
-                    more.visibility = if ((page + 1) * 12 < total) View.VISIBLE else View.GONE
-                    if (!keepScroll) { keepScroll = true; grid.post { grid.scrollXf = ((System.currentTimeMillis() - 30 * 60000 - grid.from) / 60000f * grid.perMin).coerceIn(0f, grid.maxScroll()); grid.invalidate() } }   // od pół godziny przed „teraz”
-                    grid.requestLayout(); grid.invalidate()
                 }
-                "epg-info" -> progSheet(o) { load(true) }
+                "epg-info" -> progSheet(o) { force = true; load(true) }   // po planie / nagraniu - od nowa z komputera (znaczniki ⏰ ⏺)
             }
         }
-        more.setOnClickListener { page++; load(false) }
+        watchdog()
         drawTabs(); d.show()
         phoneData { load(true) }
     }

@@ -480,7 +480,6 @@
     <string name="pilot_unseen">Nieobejrzane</string>
     <string name="pilot_genre_any">każdy</string>
     <string name="pilot_rand_empty">Brak filmów spełniających warunki – zmień gatunek albo długość.</string>
-    <string name="pilot_more_ch">Pokaż więcej kanałów</string>
     <string name="pilot_nothing">Nic nie jest odtwarzane</string>
     <string name="pilot_prev">Poprzedni</string>
     <string name="pilot_play">Odtwórz / pauza</string>

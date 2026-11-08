@@ -480,7 +480,6 @@
     <string name="pilot_unseen">Unwatched</string>
     <string name="pilot_genre_any">any</string>
     <string name="pilot_rand_empty">No films match – change the genre or length.</string>
-    <string name="pilot_more_ch">Show more channels</string>
     <string name="pilot_nothing">Nothing is playing</string>
     <string name="pilot_prev">Previous</string>
     <string name="pilot_play">Play / pause</string>

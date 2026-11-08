@@ -513,6 +513,10 @@ namespace Velivo
             ownBtn.HorizontalAlignment = HorizontalAlignment.Left; ownBtn.Margin = new Thickness(0, 0, 0, 4);
             ownBtn.ToolTip = L.T("Wybierz nagranie WAV 6–30 s czystej mowy (bez muzyki i szumu) – XTTS będzie czytać tym głosem. Tylko własny głos albo za zgodą osoby.");
             root.Children.Add(ownBtn);
+            var recBtn = SmallButton(L.T("🎤 Nagraj mój głos (mikrofon)…"), () => RecordXttsOwnVoice(win));
+            recBtn.HorizontalAlignment = HorizontalAlignment.Left; recBtn.Margin = new Thickness(0, 0, 0, 4);
+            recBtn.ToolTip = L.T("Nagraj 15–30 s swojego głosu prosto w Velivo – XTTS będzie nim czytać. Czytaj pokazany tekst spokojnie, w cichym pokoju.");
+            root.Children.Add(recBtn);
             var updBtn = SmallButton(L.T("🔄 Aktualizacje głosów…"), () => _ = VoiceUpdateCheckAsync(win));
             updBtn.HorizontalAlignment = HorizontalAlignment.Left; updBtn.Margin = new Thickness(0, 0, 0, 4);
             updBtn.ToolTip = L.T("Sprawdza nowe wersje pobranych głosów (Piper, Supertonic, XTTS) i aktualizuje po Twojej zgodzie. Velivo sprawdza to też samo raz na dobę i powiadamia.");

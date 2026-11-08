@@ -230,6 +230,67 @@ for line in sys.stdin:
         static long FileSize(string f) => File.Exists(f) ? new FileInfo(f).Length : 0;
 
         // 🧹 pobrane głosy, których nie używa ani czytanie stron (readTag - wybór z okna Ustawień), ani lektor filmów
+        [System.Runtime.InteropServices.DllImport("winmm.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern int mciSendString(string cmd, StringBuilder ret, int len, IntPtr hwnd);
+
+        // 🎤 nagranie wlasnego glosu z mikrofonu (Windows MCI - bez dodatkowych bibliotek), WAV 16 bit mono 22 kHz
+        void RecordXttsOwnVoice(Window owner)
+        {
+            var tmp = Path.Combine(Path.GetTempPath(), "velivo-moj-glos.wav");
+            var win = new Window { Title = L.T("Nagraj mój głos"), Owner = owner, Width = 520, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new System.Windows.Controls.TextBlock { TextWrapping = TextWrapping.Wrap, Text = L.T("Kliknij „Nagrywaj” i przeczytaj spokojnie, normalnym głosem, w cichym pokoju (15–30 s):") });
+            sp.Children.Add(new System.Windows.Controls.TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 15, Margin = new Thickness(0, 10, 0, 10), FontStyle = FontStyles.Italic,
+                Text = L.T("Dzień dobry. Nazywam się tak, jak nazywam się na co dzień, i właśnie nagrywam swój głos dla Velivo. Lubię spokojne wieczory, dobry film i ciekawą książkę. Wiosną chodzę na długie spacery, a zimą piję gorącą herbatę z cytryną. Jedna, dwie, trzy – sprawdzam, jak brzmię.") });
+            var info = new System.Windows.Controls.TextBlock { FontSize = 16, FontWeight = FontWeights.SemiBold, Text = "0 s" };
+            sp.Children.Add(info);
+            var row = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var rec = new System.Windows.Controls.Button { Content = L.T("🔴 Nagrywaj"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 8, 0) };
+            var save = new System.Windows.Controls.Button { Content = L.T("✅ Użyj nagrania"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+            var close = new System.Windows.Controls.Button { Content = L.T("Zamknij"), Padding = new Thickness(12, 4, 12, 4) };
+            row.Children.Add(rec); row.Children.Add(save); row.Children.Add(close); sp.Children.Add(row);
+            bool recording = false; var sw = new Stopwatch();
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            timer.Tick += (a, b) => { info.Text = (int)sw.Elapsed.TotalSeconds + " s" + (sw.Elapsed.TotalSeconds >= 30 ? L.T(" – wystarczy, zatrzymaj") : ""); if (sw.Elapsed.TotalSeconds >= 45) rec.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); };
+            void Mci(string c) { int e = mciSendString(c, null, 0, IntPtr.Zero); if (e != 0) throw new Exception("MCI " + e + ": " + c.Split(' ')[0]); }
+            void Stop() { try { mciSendString("close velivorec", null, 0, IntPtr.Zero); } catch (Exception) { } }
+            rec.Click += (a, b) =>
+            {
+                try
+                {
+                    if (!recording)
+                    {
+                        Stop();
+                        Mci("open new type waveaudio alias velivorec");
+                        Mci("set velivorec bitspersample 16 samplespersec 22050 channels 1 alignment 2 bytespersec 44100");
+                        Mci("record velivorec");
+                        recording = true; sw.Restart(); timer.Start(); rec.Content = L.T("⏹ Zatrzymaj"); save.IsEnabled = false;
+                    }
+                    else
+                    {
+                        recording = false; sw.Stop(); timer.Stop();
+                        Mci("stop velivorec"); Mci("save velivorec \"" + tmp + "\""); Stop();
+                        rec.Content = L.T("🔴 Nagraj jeszcze raz");
+                        bool ok = sw.Elapsed.TotalSeconds >= 6;
+                        save.IsEnabled = ok;
+                        info.Text = (int)sw.Elapsed.TotalSeconds + " s" + (ok ? L.T(" – gotowe, kliknij „Użyj nagrania”") : L.T(" – za krótko, potrzeba co najmniej 6 s"));
+                    }
+                }
+                catch (Exception ex) { recording = false; timer.Stop(); Stop(); App.LogError(ex); info.Text = L.T("❌ Mikrofon nie działa: ") + ex.Message + L.T(" (Windows: Ustawienia → Prywatność → Mikrofon → dostęp dla aplikacji klasycznych)"); rec.Content = L.T("🔴 Nagrywaj"); }
+            };
+            save.Click += (a, b) =>
+            {
+                if (MessageBox.Show(win, L.T("XTTS będzie mówić głosem z tego nagrania. Używaj tylko własnego głosu albo głosu osoby, która się na to zgodziła.\n\nUżyć tego nagrania?"), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                try { Directory.CreateDirectory(XttsRoot); File.Copy(tmp, XttsOwnWav, true); File.Delete(tmp); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Velivo"); return; }
+                win.Close();
+                MessageBox.Show(owner, L.T("✅ Zapisano. Wybierz głos „XTTS-v2 mój głos” (czytanie stron albo lektor filmów)."), "Velivo");
+            };
+            close.Click += (a, b) => win.Close();
+            win.Closed += (a, b) => { timer.Stop(); if (recording) Stop(); };
+            win.Content = sp; ApplyWindowTheme(win); win.ShowDialog();
+        }
+
         // 🎙 wlasny glos XTTS: probka WAV 6–30 s (czysta mowa, bez muzyki) - tylko glos wlasny albo za zgoda osoby
         void PickXttsOwnVoice(Window owner)
         {

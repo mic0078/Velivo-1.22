@@ -234,8 +234,10 @@ namespace Velivo
         {
             var v = SelectedPiperVoice(ReadVoiceTag());
             if (v == null || core == null) { try { if (core != null) await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(false)"); } catch (Exception) { } return false; }
-            if (!await EnsurePiperAsync(v)) { await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(false)"); return false; }
-            await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(true)");
+            bool ok = await EnsurePiperAsync(v);   // pobieranie glosu (XTTS - wiele minut): karta mogla zostac zamknieta lub uspiona
+            try { await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(" + (ok ? "true" : "false") + ")"); }
+            catch (Exception) { return false; }
+            if (!ok) return false;
             if (!_piperDriven.Contains(core)) { _piperDriven.Add(core); _ = PiperDriveLoop(core, v); }
             return true;
         }
@@ -274,7 +276,8 @@ namespace Velivo
                     // nastepne zdanie liczymy w tle, gdy gra biezace
                     cachedText = p.next; cachedWav = string.IsNullOrEmpty(p.next) ? null : PiperSynthesizeAsync(v, p.next, _settings.ReadRate);
 
-                    var st = await PiperState(core);
+                    JsonElement? st;
+                    try { st = await PiperState(core); } catch (Exception) { break; }   // karta zamknieta w trakcie syntezy
                     if (st == null || !st.Value.GetProperty("active").GetBoolean() || st.Value.GetProperty("paused").GetBoolean() || st.Value.GetProperty("seq").GetInt32() != p.seq) continue;
                     if (wav == null) { await core.ExecuteScriptAsync("window.__velivoRead.done(" + p.seq + ")"); continue; }
 

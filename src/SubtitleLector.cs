@@ -239,7 +239,12 @@ namespace Velivo
                     if (gen != lc.RenderGen) { if (tmp != null) try { System.IO.File.Delete(tmp); } catch (Exception) { } return; }
                     if (tmp == null) { await Task.Delay(2000); continue; }
                     var dst = Path.Combine(dir, idx + ".wav");
-                    try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; int n = lc.Ready.Count, all = lc.Cues.Count; if (all > 0 && n * 10 / all != (n - 1) * 10 / all) lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + n + " / " + all); } catch (Exception ex) { App.LogError(ex); await Task.Delay(2000); }   // postęp na ekranie co 10%
+                    try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; int n = lc.Ready.Count, all = lc.Cues.Count; if (all > 0 && n * 10 / all != (n - 1) * 10 / all) lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + n + " / " + all); }   // postęp na ekranie co 10%
+                    catch (Exception ex)
+                    {
+                        if (File.Exists(dst) && new FileInfo(dst).Length > 44) { lc.Ready[idx] = dst; try { File.Delete(tmp); } catch (Exception) { } }   // nagranie juz jest (wlasnie grane) - zostaje
+                        else { App.LogError(ex); await Task.Delay(2000); }
+                    }
                 }
             }
             catch (Exception ex) { App.LogError(ex); lc.RenderKey = LectorKeyParams(lc); lc.Osd?.Invoke(L.T("🗣 Lektor: nie udało się przygotować filmu – ") + ex.Message); }   // bez ponawiania co 120 ms

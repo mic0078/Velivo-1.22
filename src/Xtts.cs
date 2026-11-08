@@ -138,7 +138,7 @@ for line in sys.stdin:
                 string idx = nv ? " --index-url https://download.pytorch.org/whl/cu124" : " --index-url https://download.pytorch.org/whl/cpu";
                 if (!await RunXttsStep(XttsPy, "-m pip install --no-warn-script-location torch==2.5.1 torchaudio==2.5.1" + idx, "PyTorch")) return false;
                 XtStatus(4, L.T("XTTS: instaluję coqui-tts…"));
-                if (!await RunXttsStep(XttsPy, "-m pip install --no-warn-script-location coqui-tts==0.25.3", "coqui-tts")) return false;
+                if (!await RunXttsStep(XttsPy, "-m pip install --no-warn-script-location coqui-tts==0.25.3 click", "coqui-tts")) return false;
                 File.WriteAllText(Path.Combine(XttsRoot, "velivo_xtts.py"), XttsScript);
                 XtStatus(5, L.T("XTTS: pobieram model (ok. 2 GB)…"));
                 if (!await RunXttsStep(XttsPy, "-c \"import os;os.environ['COQUI_TOS_AGREED']='1';from TTS.utils.manage import ModelManager;ModelManager().download_model('tts_models/multilingual/multi-dataset/xtts_v2')\"", L.T("model"))) return false;

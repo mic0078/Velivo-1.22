@@ -1,0 +1,92 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Makieta Pilot EPG</title>
+<style>
+:root{--bg:#15161A;--card:#24262D;--acc:#6D3FDB;--dim:#A0A4AE;--txt:#fff;--now:#7CE0A3}
+body{margin:0;background:#0d0e11;color:var(--txt);font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:16px}
+h1{font-size:20px;margin:4px 0 4px}p.s{color:var(--dim);margin:0 0 16px;font-size:14px}
+.row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.ph{width:320px;background:var(--bg);border-radius:28px;border:2px solid #333;padding:14px;box-sizing:border-box;min-height:640px;position:relative}
+.cap{font-size:13px;color:var(--dim);text-align:center;margin-top:8px;width:320px}
+.btn{background:var(--card);border-radius:16px;padding:12px;text-align:center;font-size:15px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.big{background:var(--card);border-radius:18px;padding:16px 10px;text-align:center;font-size:16px;font-weight:600}
+.big small{display:block;font-weight:400;color:var(--dim);font-size:12px;margin-top:4px}
+.prim{background:var(--acc);border-radius:18px;padding:14px;text-align:center;font-weight:600;margin:8px 0}
+.new{outline:3px dashed #F5C518;outline-offset:2px}
+.head{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;margin-bottom:8px}
+.pills{display:flex;gap:6px;margin-bottom:8px;overflow:hidden}.pill{background:var(--card);border-radius:14px;padding:6px 10px;font-size:12px;white-space:nowrap}.pill.on{background:var(--acc)}
+.epg{position:relative;overflow:hidden;border-radius:10px}
+.tl{display:flex;margin-left:62px;font-size:11px;color:var(--dim);margin-bottom:4px}.tl span{width:80px}
+.ch{display:flex;height:52px;margin-bottom:3px}
+.logo{width:58px;flex:none;background:#fff;color:#000;border-radius:8px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-right:4px;text-align:center}
+.pr{background:var(--card);border-radius:7px;margin-right:3px;padding:5px 6px;font-size:11px;overflow:hidden;white-space:nowrap;box-sizing:border-box}
+.pr b{display:block;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis}.pr i{font-style:normal;color:var(--dim);font-size:10px}
+.pr.cur{background:#3a2c6e}.pr.rec{box-shadow:inset 0 0 0 2px #e5484d}.pr.plan{box-shadow:inset 0 0 0 2px #F5C518}
+.nowl{position:absolute;top:18px;bottom:0;width:2px;background:var(--now);left:150px}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1d1f25;border-radius:22px 22px 28px 28px;padding:16px;border-top:1px solid #333}
+.sheet h3{margin:0 0 2px;font-size:17px}.sheet .d{color:var(--dim);font-size:12px;margin-bottom:10px}
+.act{background:var(--card);border-radius:14px;padding:12px 14px;margin:6px 0;font-size:15px}
+.act.p{background:var(--acc)}
+.poster{height:300px;border-radius:16px;background:linear-gradient(160deg,#2b3a67,#6D3FDB 60%,#e07a5f);display:flex;align-items:flex-end;padding:12px;box-sizing:border-box;font-size:22px;font-weight:800}
+.leg{font-size:11px;color:var(--dim);margin-top:8px}.leg span{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:middle;margin:0 4px 0 8px}
+</style></head><body>
+<h1>Pilot: Program TV i „Co dziś obejrzeć” – propozycja</h1>
+<p class="s">Żółta przerywana ramka = nowe. Wszystko robi komputer (te same funkcje co w Velivo na Windows: program TV, przełączenie o godzinie, nagrywanie, losowanie).</p>
+<div class="row">
+<div><div class="ph">
+ <div class="btn" style="text-align:left;font-weight:700;font-size:18px">💻 RYZENMIC ▾</div>
+ <div style="color:var(--dim);font-size:13px;margin:8px 2px">dostępny · odtwarza</div>
+ <div style="font-size:17px;margin:2px 2px 8px">📺 TVN24 FHD<br><span style="color:var(--dim);font-size:13px">▶ 13:00–14:00 Serwis informacyjny</span></div>
+ <div class="grid2"><div class="big">📺<br>Telewizja</div><div class="big">🎬<br>Filmy</div></div>
+ <div class="grid2" style="grid-template-columns:repeat(4,1fr)"><div class="btn">⏮</div><div class="btn">⏯</div><div class="btn">⏭</div><div class="btn">⏹</div></div>
+ <div class="grid2"><div class="btn">⏪ 10 s</div><div class="btn">⏩ 10 s</div></div>
+ <div style="text-align:center;font-size:13px;margin:6px">🔴 NA ŻYWO · 12:41</div>
+ <div style="font-size:13px;margin:6px 2px">🔊 Głośność 60% ━━━━━○──── 🔇</div>
+ <div class="prim">⚙ Sterowanie</div>
+ <div class="grid2"><div class="big new">📅 Program TV<small>co leci, zaplanuj, nagraj</small></div><div class="big new">🎲 Co dziś obejrzeć<small>losowanie filmu</small></div></div>
+ <div class="act new" style="font-size:12px;text-align:center">⏰ 2 zaplanowane · ⏺ 1 nagranie</div>
+</div><div class="cap">1. Ekran pilota – dwa duże kafelki pod „Sterowanie”, pod nimi krótki stan planów</div></div>
+
+<div><div class="ph">
+ <div class="head">✕ 📅 Program TV · RYZENMIC</div>
+ <div class="pills"><span class="pill on">⭐ Ulubione</span><span class="pill">Grupa: PL ▾</span><span class="pill">Dziś ▾</span><span class="pill">⏰ Plany</span></div>
+ <div class="epg">
+  <div class="tl"><span>12:00</span><span>13:00</span><span>14:00</span></div>
+  <div class="nowl"></div>
+  <div class="ch"><div class="logo">TVN24</div><div class="pr" style="width:50px"><b>Fakty</b><i>12:00</i></div><div class="pr cur" style="width:80px"><b>Serwis informacyjny</b><i>13:00–14:00</i></div><div class="pr" style="width:60px"><b>Pogoda</b></div></div>
+  <div class="ch"><div class="logo">13<br>ULICA</div><div class="pr cur" style="width:110px"><b>Bez śladu 5</b><i>12:20–13:05</i></div><div class="pr plan" style="width:80px"><b>⏰ Bez śladu 5</b><i>13:05</i></div></div>
+  <div class="ch"><div class="logo">AXN</div><div class="pr cur" style="width:70px"><b>Walker 3</b></div><div class="pr rec" style="width:120px"><b>⏺ Nieustraszony</b><i>13:30–14:20</i></div></div>
+  <div class="ch"><div class="logo">4FUN</div><div class="pr cur" style="width:130px"><b>Dance na dzień dobry</b></div><div class="pr" style="width:60px"><b>Polo Top</b></div></div>
+  <div class="ch"><div class="logo">ALE<br>KINO+</div><div class="pr" style="width:40px"><b>…</b></div><div class="pr cur" style="width:150px"><b>Grantchester 11</b><i>12:30–13:30</i></div></div>
+  <div class="ch"><div class="logo">TVP1</div><div class="pr cur" style="width:100px"><b>Wiadomości</b></div><div class="pr" style="width:90px"><b>Klan</b></div></div>
+ </div>
+ <div class="leg">przesuń palcem w bok – inne godziny<br><span style="background:#3a2c6e"></span>teraz <span style="background:#F5C518"></span>zaplanowane <span style="background:#e5484d"></span>nagrywanie <span style="background:var(--now)"></span>teraz (linia)</div>
+</div><div class="cap">2. Siatka programu jak na Twoim obrazku: logo kanałów z lewej, czas u góry, zielona linia „teraz”</div></div>
+
+<div><div class="ph">
+ <div class="head">✕ 📅 Program TV</div>
+ <div class="epg" style="opacity:.35">
+  <div class="ch"><div class="logo">TVN24</div><div class="pr cur" style="width:180px"><b>Serwis informacyjny</b></div></div>
+  <div class="ch"><div class="logo">AXN</div><div class="pr" style="width:180px"><b>Nieustraszony</b></div></div>
+  <div class="ch"><div class="logo">13</div><div class="pr" style="width:180px"><b>Bez śladu 5</b></div></div>
+ </div>
+ <div class="sheet">
+  <h3>Nieustraszony</h3><div class="d">AXN · dziś 13:30–14:20<br>Opis odcinka z programu TV…</div>
+  <div class="act p">▶ Włącz kanał teraz</div>
+  <div class="act">⏰ Przełącz o 13:30 (na komputerze)</div>
+  <div class="act">⏺ Nagraj 13:30–14:20</div>
+  <div class="act">⏪ Oglądaj z archiwum <span style="color:var(--dim);font-size:12px">(gdy kanał ma)</span></div>
+ </div>
+</div><div class="cap">3. Stuknięcie w program – czynności. W „⏰ Plany” lista zaplanowanych i nagrań z ✕ usuń</div></div>
+
+<div><div class="ph">
+ <div class="head">✕ 🎲 Co dziś obejrzeć</div>
+ <div class="pills"><span class="pill">Gatunek: każdy ▾</span><span class="pill">Długość ▾</span><span class="pill on">Nieobejrzane</span></div>
+ <div class="poster">Pandorum</div>
+ <div style="margin:10px 2px 2px;font-size:14px">2009 · ★ 6,7 · 1 h 48 min · Sci-Fi, Horror</div>
+ <div style="color:var(--dim);font-size:13px;margin:0 2px 8px">Dwóch astronautów budzi się z hibernacji na opuszczonym statku kosmicznym…</div>
+ <div class="act p" style="text-align:center">▶ Oglądaj na komputerze</div>
+ <div class="grid2"><div class="btn">🎲 Losuj dalej</div><div class="btn">☆ Ulubione</div></div>
+ <div style="font-size:12px;color:var(--dim);text-align:center">3 propozycje: przesuń w bok, by zobaczyć następną</div>
+</div><div class="cap">4. Losowanie z biblioteki komputera (te same zasady co 🎲 Co dziś w Kanapie), plakat z biblioteki telefonu</div></div>
+</div></body>

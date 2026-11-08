@@ -86,7 +86,7 @@ namespace Velivo
                     if (!_stStyles.TryGetValue(v.St, out var style))
                         _stStyles[v.St] = style = Helper.LoadVoiceStyle(new List<string> { SupertonicPath("voice_styles/" + v.St + ".json") });
                     float speed = (float)Math.Max(0.7, Math.Min(2.0, 1.05 * rate));
-                    var (wav, _) = _stTts.Call(line, v.Lang, style, _stGpu ? 8 : 5, speed, 0.2f);   // kroki: karta graficzna - jakość, procesor - szybciej
+                    var (wav, _) = _stTts.Call(line, v.Lang, style, _settings.SupertonicSteps > 0 ? _settings.SupertonicSteps : _stGpu ? 8 : 5, speed, 0.2f);   // kroki (Jakość w panelu lektora); samo: karta graficzna 8, procesor 5
                     Directory.CreateDirectory(PiperOutDir);
                     var path = Path.Combine(PiperOutDir, "st-" + Guid.NewGuid().ToString("N") + ".wav");
                     Helper.WriteWavFile(path, wav, _stTts.SampleRate);

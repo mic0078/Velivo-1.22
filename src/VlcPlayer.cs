@@ -2176,6 +2176,12 @@ namespace Velivo
             var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 4) / 4);
             var ldRow = sliderRow(L.T("Film podczas czytania"), 0, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v);
             foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
+            // 🗣 jakość głosu Supertonic (kroki): więcej = naturalniej, dłużej liczy; 0 = samo
+            var stTxt = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Ile razy Supertonic dopracowuje głos: więcej – naturalniej, ale dłużej liczy. Samo: karta graficzna 8, procesor 5.") };
+            var stSl = new Slider { Minimum = 0, Maximum = 16, Width = 240, IsMoveToPointEnabled = true, IsSnapToTickEnabled = true, TickFrequency = 1, Value = _settings.SupertonicSteps };
+            Action stUpd = () => stTxt.Text = L.T("Jakość głosu Supertonic") + ": " + (stSl.Value < 2 ? L.T("samo") : (int)stSl.Value + " " + L.T("kroków"));
+            stSl.ValueChanged += (a2, b2) => { _settings.SupertonicSteps = stSl.Value < 2 ? 0 : (int)stSl.Value; stUpd(); LectorDropPre(lc); _settings.Save(DataDir); };
+            stUpd(); lectorPanel.Children.Add(stTxt); lectorPanel.Children.Add(stSl);
             // ustawienia filmu do panelu i odtwarzacza (przy wczytaniu filmu): zapisane dla filmu, inaczej ostatnio uzywane
             Action applyFilmPrefs = () =>
             {

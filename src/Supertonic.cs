@@ -89,8 +89,7 @@ namespace Velivo
                     var (wav, _) = _stTts.Call(line, v.Lang, style, steps > 0 ? steps : _stGpu ? 8 : 5, speed, 0.2f);   // kroki (Jakość w panelu lektora); samo: karta graficzna 8, procesor 5
                     Directory.CreateDirectory(PiperOutDir);
                     var path = Path.Combine(PiperOutDir, "st-" + Guid.NewGuid().ToString("N") + ".wav");
-                    var padded = new float[wav.Length + _stTts.SampleRate / 8]; Array.Copy(wav, padded, wav.Length);   // 0,12 s ciszy na koncu - ostatnie slowo nie ginie w buforze dzwieku
-                    Helper.WriteWavFile(path, padded, _stTts.SampleRate);
+                    Helper.WriteWavFile(path, wav, _stTts.SampleRate);
                     return path;
                 });
             }

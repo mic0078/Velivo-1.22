@@ -251,6 +251,8 @@ Menu ☰ → Filmy i TV → **🎮 Pilot**. Telefon musi być połączony z komp
 * **📺 Telewizja** i **🎬 Filmy**: lista z komputera, nic nie trzeba włączać na komputerze. Telewizja: Ulubione / Wszystkie, grupa, szukanie, sortowanie, przy kanale – co teraz leci. Filmy: Oglądaj dalej / Ulubione / Wszystkie, gatunek, szukanie, sortowanie. Stuknięcie włącza na komputerze, przytrzymanie pokazuje opis (film) albo program (co teraz i potem), ☆ dodaje lub usuwa z ulubionych.
 * **⚙ Sterowanie**: Obraz (pełny ekran, dopasowanie obrazu, powiększenie), Dźwięk (ścieżka dźwięku), Napisy (wybór albo wyłączone), Odtwarzanie.
 * Zmiany zrobione na komputerze (pauza, głośność, napisy) widać na telefonie po chwili. Polecenia idą zawsze tylko do jednego, wybranego komputera, zaszyfrowane kluczem z parowania.
+* **📅 Program TV** (kafelek pod Sterowaniem): siatka programu – logo kanałów z lewej, godziny u góry, zielona linia „teraz”; przesuń w bok – inne godziny. Ulubione albo grupa, dzień, ⏰ Plany. Stuknięcie w program: ▶ Włącz kanał teraz, ⏰ Przełącz o godzinie, ⏺ Nagraj, ⏪ Archiwum (gdy kanał ma). Robi to komputer – te same plany i nagrania co w Velivo na Windows. Pod kafelkami: ile zaplanowanych przełączeń i nagrań (stuknij – lista z ✕ usuń).
+* **🎲 Co dziś obejrzeć**: 3 propozycje z biblioteki komputera (gatunek, długość, tylko nieobejrzane), duży plakat i opis; przesuń plakat w bok – następna, 🎲 Losuj dalej, ▶ Oglądaj na komputerze.
 
 ## 8b. Klawiatura Velivo
 

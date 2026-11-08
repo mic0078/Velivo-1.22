@@ -47,6 +47,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private lateinit var vol: SeekBar
     private lateinit var volTxt: TextView
     private lateinit var muteBtn: Button
+    private lateinit var plansTxt: TextView
+    private var plansAt = 0L
 
     private val bg = Color.parseColor("#15161A")
     private val card = Color.parseColor("#24262D")
@@ -176,6 +178,20 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(16).toFloat() }
             setOnClickListener { controls() }
         }, LinearLayout.LayoutParams(-1, dp(62)).apply { topMargin = dp(14) })
+        // 📅 Program TV i 🎲 Co dziś obejrzeć - dwa duże kafelki pod Sterowaniem, pod nimi stan planów (makieta-pilot-epg-losowanie.html)
+        fun tile(icon: String, t: String, sub: String, f: () -> Unit) = TextView(act).apply {
+            text = android.text.SpannableStringBuilder("$icon  $t").apply { setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0); val a = length; append("\n" + sub)
+                setSpan(android.text.style.ForegroundColorSpan(dim), a, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.8f), a, length, 0) }
+            textSize = 17f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(dp(8), dp(18), dp(8), dp(18)); isClickable = true
+            background = GradientDrawable().apply { setColor(card); cornerRadius = dp(18).toFloat() }; setOnClickListener { f() }
+        }
+        root.addView(LinearLayout(act).apply {
+            addView(tile("📅", s(R.string.pilot_guide), s(R.string.pilot_guide_sub)) { guide() }, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = dp(5) })
+            addView(tile("🎲", s(R.string.pilot_rand), s(R.string.pilot_rand_sub)) { randomPick() }, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(5) })
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        plansTxt = TextView(act).apply { textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(dp(8), dp(12), dp(8), dp(12)); visibility = View.GONE; isClickable = true
+            background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat() }; setOnClickListener { plans() } }
+        root.addView(plansTxt, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
 
         dlg = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen).apply {
             setContentView(ScrollView(act).apply { setBackgroundColor(bg); isFillViewport = true; addView(root) })
@@ -185,6 +201,10 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         lan.onPilot = { id, dev, st, from -> act.runOnUiThread { got(id, dev, st, from) } }
         lan.onPilotList = { id, o -> act.runOnUiThread {
             if (id != cur) return@runOnUiThread
+            if (o.optString("kind") == "plans") o.optJSONArray("items")?.let { a ->   // ⏰ stan planów pod kafelkami
+                val rec = (0 until a.length()).count { a.getJSONArray(it).optString(1) == "rec" }; val sw = a.length() - rec
+                plansTxt.text = s(R.string.pilot_plans_count, sw, rec); plansTxt.visibility = if (a.length() > 0) View.VISIBLE else View.GONE
+            }
             if (o.optString("kind") == "info")   // ℹ opis filmu / program kanału (z listy albo z ekranu pilota)
                 AlertDialog.Builder(act).setTitle(o.optString("title")).setMessage(o.optString("text")).setPositiveButton(android.R.string.ok, null).show()
             else onList?.invoke(o)
@@ -197,6 +217,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     // szukanie komputerów i podtrzymanie: co 3 s „ping” do wszystkich w sieci domowej (komputer bez pingu przez 30 s przestaje wysyłać stan)
     private fun tick() {
         if (!dlg.isShowing) return
+        if (cur != null && online(pcs[cur]) && System.currentTimeMillis() - plansAt > 15000) { plansAt = System.currentTimeMillis(); ask("plans") }   // stan planów co 15 s
         lan.sendPilot("*", "ping")
         cur?.let { c -> pcs[c]?.addr?.let { lan.sendPilot("*", "ping", target = it) } }
         refresh()
@@ -470,6 +491,253 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         d.setOnKeyListener { _, k, e -> volKey(k, e) }   // głośność komputera także na liście
         d.show()
         phoneData { load(true) }   // najpierw logo i plakaty z telefonu, potem lista
+    }
+
+    private fun hm(ms: Long) = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
+    private fun pillV(t: String, on: Boolean, f: () -> Unit) = TextView(act).apply {
+        text = t; textSize = 15f; setTextColor(Color.WHITE); isSingleLine = true; gravity = Gravity.CENTER; isClickable = true
+        setPadding(dp(14), dp(9), dp(14), dp(9)); background = GradientDrawable().apply { setColor(if (on) accent else card); cornerRadius = dp(20).toFloat() }
+        setOnClickListener { f() }
+    }
+    private fun screen(title: String): Triple<Dialog, LinearLayout, LinearLayout> {
+        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(bg) }
+        val head = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(Button(act).apply { text = "✕"; textSize = 20f; setTextColor(Color.WHITE); background = null; setOnClickListener { d.dismiss() } }, LinearLayout.LayoutParams(dp(56), dp(56)))
+        head.addView(TextView(act).apply { text = title; textSize = 19f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+        box.addView(head)
+        val tabs = LinearLayout(act)
+        box.addView(android.widget.HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(tabs) }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        d.setContentView(box); d.setOnKeyListener { _, k, e -> volKey(k, e) }
+        d.setOnDismissListener { onList = null }
+        return Triple(d, box, tabs)
+    }
+    private fun tabLp() = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) }
+
+    // 📅 Program TV: siatka - logo z lewej, godziny u góry, zielona linia „teraz”, kolory: teraz / zaplanowane / nagrywanie
+    private fun guide() {
+        if (cur == null) { choosePc(); return }
+        val (d, box, tabs) = screen("📅 " + s(R.string.pilot_guide) + " · " + curName)
+        var mode = prefs.getString("pilot-epg-tryb", "fav") ?: "fav"; var group = prefs.getString("pilot-epg-grupa", "") ?: ""; var day = 0; var page = 0
+        var groups = listOf<String>()
+        val info = TextView(act).apply { textSize = 14f; setTextColor(dim); setPadding(dp(4), 0, dp(4), dp(6)) }
+        box.addView(info)
+        val perMin = dp(2).toFloat()   // 2 dp na minutę = 120 dp na godzinę
+        val logos = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        val rows = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        val gridFrame = android.widget.FrameLayout(act).apply { addView(rows) }
+        val hs = android.widget.HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(gridFrame) }
+        val body = LinearLayout(act).apply { addView(logos, LinearLayout.LayoutParams(dp(66), -2)); addView(hs, LinearLayout.LayoutParams(0, -2, 1f)) }
+        val more = TextView(act).apply { text = s(R.string.pilot_more_ch); textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(0, dp(14), 0, dp(14)); visibility = View.GONE
+            background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(12).toFloat() } }
+        box.addView(ScrollView(act).apply { addView(LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; addView(body); addView(more, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }) }) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        box.addView(TextView(act).apply { textSize = 12f; setTextColor(dim); setPadding(dp(4), dp(6), dp(4), 0)
+            text = android.text.SpannableStringBuilder(s(R.string.pilot_epg_hint) + "\n").apply {
+                fun leg(c: Int, t: String) { val a = length; append("■"); setSpan(android.text.style.ForegroundColorSpan(c), a, length, 0); append(" $t   ") }
+                leg(Color.parseColor("#3A2C6E"), s(R.string.pilot_leg_now)); leg(Color.parseColor("#F5C518"), s(R.string.pilot_leg_plan)); leg(Color.parseColor("#E5484D"), s(R.string.pilot_leg_rec)); leg(Color.parseColor("#7CE0A3"), s(R.string.pilot_leg_now) + " (—)") } })
+        var from = 0L; var to = 0L; var scrolled = false
+        lateinit var load: (Boolean) -> Unit
+        fun drawTabs() {
+            tabs.removeAllViews()
+            tabs.addView(pillV("⭐ " + s(R.string.pilot_fav), mode == "fav") { mode = "fav"; prefs.edit().putString("pilot-epg-tryb", mode).apply(); drawTabs(); load(true) }, tabLp())
+            tabs.addView(pillV(s(R.string.pilot_group) + ": " + group.ifBlank { s(R.string.pilot_any) } + " ▾", mode == "tv") {
+                val names = listOf(s(R.string.pilot_any)) + groups
+                AlertDialog.Builder(act).setItems(names.toTypedArray()) { _, i -> mode = "tv"; group = if (i == 0) "" else groups[i - 1]
+                    prefs.edit().putString("pilot-epg-tryb", mode).putString("pilot-epg-grupa", group).apply(); drawTabs(); load(true) }.show()
+            }, tabLp())
+            val days = (0..6).map { i -> when (i) { 0 -> s(R.string.pilot_today); 1 -> s(R.string.pilot_tomorrow); else -> java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault()).format(java.util.Date(System.currentTimeMillis() + i * 86_400_000L)) } }
+            tabs.addView(pillV(days[day] + " ▾", false) { AlertDialog.Builder(act).setItems(days.toTypedArray()) { _, i -> day = i; drawTabs(); load(true) }.show() }, tabLp())
+            tabs.addView(pillV("⏰ " + s(R.string.pilot_plans), false) { plans() }, tabLp())
+        }
+        load = { fresh ->
+            if (fresh) { page = 0; logos.removeAllViews(); rows.removeAllViews(); scrolled = false }
+            info.text = s(R.string.pilot_loading)
+            if (!ask("epg", mode, page.toDouble(), day.toString(), if (mode == "tv") group else "")) info.text = s(R.string.pilot_unavailable, curName)
+        }
+        fun progClick(ch: Int, start: Long) { ask("epg-act", "info", ch.toDouble(), start.toString()) }
+        onList = { o ->
+            when (o.optString("kind")) {
+                "epg" -> if (o.optBoolean("wait")) { info.text = s(R.string.pilot_epg_wait); h.postDelayed({ if (d.isShowing) load(false) }, 3000) }
+                    else if (o.optInt("page") == page) {
+                    o.optJSONArray("groups")?.let { g -> if (g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() } }
+                    from = o.optLong("from"); to = o.optLong("to"); val now = System.currentTimeMillis(); val total = o.optInt("total")
+                    val w = ((to - from) / 60000 * perMin).toInt()
+                    if (rows.childCount == 0) {   // oś czasu: co godzinę
+                        val axis = android.widget.FrameLayout(act); var t = (from / 3_600_000L + 1) * 3_600_000L
+                        val tz = java.util.TimeZone.getDefault(); t -= tz.getOffset(t) % 3_600_000L
+                        while (t < to) { axis.addView(TextView(act).apply { text = hm(t); textSize = 12f; setTextColor(dim) }, android.widget.FrameLayout.LayoutParams(-2, -2).apply { leftMargin = ((t - from) / 60000 * perMin).toInt() }); t += 3_600_000L }
+                        rows.addView(axis, LinearLayout.LayoutParams(w, dp(22))); logos.addView(View(act), LinearLayout.LayoutParams(-1, dp(22)))
+                        if (now in from until to) gridFrame.addView(View(act).apply { setBackgroundColor(Color.parseColor("#7CE0A3")) }, android.widget.FrameLayout.LayoutParams(dp(2), -1).apply { leftMargin = ((now - from) / 60000 * perMin).toInt(); topMargin = dp(18) })
+                    }
+                    val chans = o.optJSONArray("chans")
+                    for (k in 0 until (chans?.length() ?: 0)) {
+                        val c = chans!!.getJSONArray(k); val ci = c.optInt(0); val name = c.optString(1)
+                        val logoUrl = tvLogo[name.trim().lowercase()] ?: c.optString(2)
+                        logos.addView(android.widget.FrameLayout(act).apply {
+                            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(8).toFloat() }; isClickable = true
+                            setOnClickListener { ask("epg-act", "play", ci.toDouble()); android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show() }
+                            if (logoUrl.isEmpty()) addView(TextView(act).apply { text = name; textSize = 10f; setTextColor(Color.BLACK); setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER; maxLines = 3 }, android.widget.FrameLayout.LayoutParams(-1, -1))
+                            else addView(ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)); loadImage(this, logoUrl) }, android.widget.FrameLayout.LayoutParams(-1, -1))
+                        }, LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(2), dp(4), dp(2)) })
+                        val row = android.widget.FrameLayout(act)
+                        val ps = c.optJSONArray(3)
+                        for (j in 0 until (ps?.length() ?: 0)) {
+                            val p = ps!!.getJSONArray(j); val st = p.optLong(0); val sp = p.optLong(1); val flag = p.optString(3)
+                            val x0 = ((maxOf(st, from) - from) / 60000 * perMin).toInt(); val x1 = ((minOf(sp, to) - from) / 60000 * perMin).toInt()
+                            if (x1 - x0 < dp(6)) continue
+                            row.addView(TextView(act).apply {
+                                text = android.text.SpannableStringBuilder((if (flag == "rec") "⏺ " else if (flag == "plan") "⏰ " else "") + p.optString(2)).apply {
+                                    setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0); val a = length; append("\n" + hm(st) + "–" + hm(sp))
+                                    setSpan(android.text.style.ForegroundColorSpan(dim), a, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.85f), a, length, 0) }
+                                textSize = 13f; setTextColor(Color.WHITE); maxLines = 2; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(7), dp(5), dp(5), dp(4)); isClickable = true
+                                background = GradientDrawable().apply { setColor(if (now in st until sp) Color.parseColor("#3A2C6E") else card); cornerRadius = dp(8).toFloat()
+                                    if (flag == "rec") setStroke(dp(2), Color.parseColor("#E5484D")) else if (flag == "plan") setStroke(dp(2), Color.parseColor("#F5C518")) }
+                                setOnClickListener { progClick(ci, st) }
+                            }, android.widget.FrameLayout.LayoutParams(x1 - x0 - dp(3), -1).apply { leftMargin = x0 })
+                        }
+                        rows.addView(row, LinearLayout.LayoutParams(w, dp(58)).apply { setMargins(0, dp(2), 0, dp(2)) })
+                    }
+                    info.text = if (total == 0) s(R.string.pilot_epg_empty) else ""
+                    info.visibility = if (info.text.isEmpty()) View.GONE else View.VISIBLE
+                    more.visibility = if ((page + 1) * 12 < total) View.VISIBLE else View.GONE
+                    if (!scrolled) { scrolled = true; hs.post { hs.scrollTo(maxOf(0, ((now - 30 * 60000 - from) / 60000 * perMin).toInt()), 0) } }   // od pół godziny przed „teraz”
+                }
+                "epg-info" -> progSheet(o) { load(true) }
+            }
+        }
+        more.setOnClickListener { page++; load(false) }
+        drawTabs(); d.show()
+        phoneData { load(true) }
+    }
+
+    // stuknięcie w program: opis i czynności (komputer: włącz, przełącz o godzinie, nagraj, archiwum)
+    private fun progSheet(o: JSONObject, reload: () -> Unit) {
+        val ch = o.optInt("ch"); val st = o.optLong("start"); val sp = o.optLong("stop"); val now = System.currentTimeMillis()
+        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar)
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(22))
+            background = GradientDrawable().apply { setColor(Color.parseColor("#1D1F25")); cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f) } }
+        box.addView(TextView(act).apply { text = o.optString("title"); textSize = 20f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+        val dayTxt = if (java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.ROOT).let { f -> f.format(java.util.Date(st)) == f.format(java.util.Date(now)) }) s(R.string.pilot_today).lowercase()
+            else java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault()).format(java.util.Date(st))
+        box.addView(TextView(act).apply { text = o.optString("chName") + " · " + dayTxt + " " + hm(st) + "–" + hm(sp); textSize = 14f; setTextColor(dim); setPadding(0, dp(2), 0, dp(4)) })
+        o.optString("desc").ifBlank { null }?.let { box.addView(ScrollView(act).apply { addView(TextView(act).apply { text = it; textSize = 14f; setTextColor(dim) }) }, LinearLayout.LayoutParams(-1, -2).apply { height = -2 }) }
+        fun act0(t: String, prim: Boolean, f: () -> Unit) = box.addView(TextView(act).apply {
+            text = t; textSize = 16f; setTextColor(Color.WHITE); setPadding(dp(16), dp(14), dp(16), dp(14)); isClickable = true
+            background = GradientDrawable().apply { setColor(if (prim) accent else card); cornerRadius = dp(14).toFloat() }
+            setOnClickListener { f(); d.dismiss() }
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        fun done(op: String) { if (ask("epg-act", op, ch.toDouble(), st.toString())) { android.widget.Toast.makeText(act, s(R.string.pilot_sent), android.widget.Toast.LENGTH_SHORT).show(); h.postDelayed({ reload() }, 700) } }
+        act0("▶  " + s(R.string.pilot_play_now), true) { if (ask("epg-act", "play", ch.toDouble())) android.widget.Toast.makeText(act, s(R.string.pilot_starting, o.optString("chName")), android.widget.Toast.LENGTH_SHORT).show() }
+        val job = o.optString("job"); val jobId = o.optString("jobId")
+        if (job == "switch") act0("✕  " + s(R.string.pilot_cancel_plan), false) { ask("plan-del", q = jobId); h.postDelayed({ reload() }, 700) }
+        else if (st > now) act0("⏰  " + s(R.string.pilot_switch_at, hm(st)), false) { done("switch") }
+        if (job == "rec") act0("✕  " + s(R.string.pilot_cancel_rec), false) { ask("plan-del", q = jobId); h.postDelayed({ reload() }, 700) }
+        else if (sp > now) act0("⏺  " + s(R.string.pilot_rec, hm(st) + "–" + hm(sp)), false) { done("rec") }
+        if (o.optBoolean("arch")) act0("⏪  " + s(R.string.pilot_archive), false) { done("arch") }
+        d.setContentView(box)
+        d.window?.apply { setGravity(Gravity.BOTTOM); setLayout(-1, -2); setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)) }
+        d.setOnKeyListener { _, k, e -> volKey(k, e) }
+        d.show()
+    }
+
+    // ⏰ zaplanowane przełączenia i nagrania na komputerze, ✕ usuwa
+    private fun plans() {
+        if (cur == null) { choosePc(); return }
+        val (d, box, _) = screen("⏰ " + s(R.string.pilot_plans) + " · " + curName)
+        val list = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(ScrollView(act).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        val prev = onList
+        onList = { o -> if (o.optString("kind") == "plans") {
+            list.removeAllViews(); val a = o.optJSONArray("items")
+            if (a == null || a.length() == 0) list.addView(TextView(act).apply { text = s(R.string.pilot_plans_empty); textSize = 16f; setTextColor(dim); setPadding(dp(8), dp(12), 0, 0) })
+            for (i in 0 until (a?.length() ?: 0)) {
+                val it2 = a!!.getJSONArray(i); val rec = it2.optString(1) == "rec"; val id = it2.optString(0)
+                val line = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(10), dp(4), dp(10))
+                    background = GradientDrawable().apply { setColor(card); cornerRadius = dp(14).toFloat(); setStroke(dp(2), Color.parseColor(if (rec) "#E5484D" else "#F5C518")) } }
+                line.addView(TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE)
+                    text = (if (rec) "⏺ " + hm(it2.optLong(4)) + "–" + hm(it2.optLong(5)) else "⏰ " + hm(it2.optLong(4))) + "  ·  " + it2.optString(2) + "\n" + it2.optString(3) +
+                        (if (it2.optBoolean(6)) "  🔴 " + s(R.string.pilot_recording_now) else "") }, LinearLayout.LayoutParams(0, -2, 1f))
+                line.addView(Button(act).apply { text = "✕"; textSize = 20f; setTextColor(Color.WHITE); background = null
+                    contentDescription = s(if (rec) R.string.pilot_cancel_rec else R.string.pilot_cancel_plan); setOnClickListener { ask("plan-del", q = id) } }, LinearLayout.LayoutParams(dp(52), dp(52)))
+                list.addView(line, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(4), 0, dp(4)) })
+            }
+        } else prev?.invoke(o) }
+        d.setOnDismissListener { onList = prev }
+        d.show(); ask("plans")
+    }
+
+    // 🎲 Co dziś obejrzeć: 3 propozycje z biblioteki komputera (te same zasady co losowanie w Kanapie), plakat i opis z biblioteki telefonu
+    private fun randomPick() {
+        if (cur == null) { choosePc(); return }
+        val (d, box, tabs) = screen("🎲 " + s(R.string.pilot_rand))
+        var genre = prefs.getString("pilot-los-gatunek", "") ?: ""; var len = prefs.getString("pilot-los-dlugosc", "") ?: ""; var unseen = prefs.getBoolean("pilot-los-nowe", true)
+        var genres = listOf<String>(); var items: org.json.JSONArray? = null; var at = 0
+        val lens = listOf("" to s(R.string.pilot_len_any), "krotki" to s(R.string.pilot_len_short), "sredni" to s(R.string.pilot_len_mid), "dlugi" to s(R.string.pilot_len_long))
+        val poster = ImageView(act).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat() }; clipToOutline = true }
+        val pTitle = TextView(act).apply { textSize = 26f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setShadowLayer(8f, 0f, 2f, Color.BLACK); setPadding(dp(14), 0, dp(14), dp(12)) }
+        val frame = android.widget.FrameLayout(act).apply { addView(poster, android.widget.FrameLayout.LayoutParams(-1, -1)); addView(pTitle, android.widget.FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)) }
+        val sub = TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE); setPadding(dp(2), dp(10), dp(2), 0) }
+        val desc = TextView(act).apply { textSize = 14f; setTextColor(dim); maxLines = 4; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(2), dp(2), dp(2), dp(8)) }
+        val hint = TextView(act).apply { textSize = 12f; setTextColor(dim); gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0) }
+        fun big(t: String, prim: Boolean, f: () -> Unit) = TextView(act).apply { text = t; textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(dp(8), dp(14), dp(8), dp(14)); isClickable = true
+            background = GradientDrawable().apply { setColor(if (prim) accent else card); cornerRadius = dp(16).toFloat() }; setOnClickListener { f() } }
+        lateinit var roll: () -> Unit
+        lateinit var show: () -> Unit
+        val favBtn = big("☆ " + s(R.string.pilot_fav), false) {}
+        val watch = big("▶ " + s(R.string.pilot_watch_pc), true) {}
+        box.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f)); box.addView(sub); box.addView(desc); box.addView(watch, LinearLayout.LayoutParams(-1, -2))
+        box.addView(LinearLayout(act).apply { addView(big("🎲 " + s(R.string.pilot_roll), false) { roll() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
+            addView(favBtn, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(5) }) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        box.addView(hint)
+        fun drawTabs() {
+            tabs.removeAllViews()
+            tabs.addView(pillV(s(R.string.pilot_genre) + ": " + genre.ifBlank { s(R.string.pilot_genre_any) } + " ▾", false) {
+                AlertDialog.Builder(act).setItems((listOf(s(R.string.pilot_genre_any)) + genres).toTypedArray()) { _, i -> genre = if (i == 0) "" else genres[i - 1]; prefs.edit().putString("pilot-los-gatunek", genre).apply(); drawTabs(); roll() }.show() }, tabLp())
+            tabs.addView(pillV(s(R.string.pilot_len) + (if (len.isEmpty()) "" else ": " + lens.first { it.first == len }.second) + " ▾", false) {
+                AlertDialog.Builder(act).setItems(lens.map { it.second }.toTypedArray()) { _, i -> len = lens[i].first; prefs.edit().putString("pilot-los-dlugosc", len).apply(); drawTabs(); roll() }.show() }, tabLp())
+            tabs.addView(pillV(s(R.string.pilot_unseen), unseen) { unseen = !unseen; prefs.edit().putBoolean("pilot-los-nowe", unseen).apply(); drawTabs(); roll() }, tabLp())
+        }
+        show = {
+            val a = items
+            if (a == null || a.length() == 0) { pTitle.text = ""; poster.setImageDrawable(null); sub.text = s(R.string.pilot_rand_empty); desc.text = ""; hint.text = ""; watch.alpha = 0.4f; favBtn.alpha = 0.4f }
+            else {
+                val it2 = a.getJSONArray(at); val idx = it2.optInt(0); val name = it2.optString(1); var fav = it2.optBoolean(3)
+                watch.alpha = 1f; favBtn.alpha = 1f
+                pTitle.text = name; sub.text = it2.optString(2)
+                val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
+                desc.text = ji?.overview?.ifBlank { null } ?: it2.optString(8)
+                poster.setImageDrawable(null)
+                if (jc != null && ji != null) loadImage(poster, Jelly.image(jc, ji.id), jc.key) else loadImage(poster, it2.optString(4))
+                hint.text = s(R.string.pilot_rand_hint, at + 1, a.length())
+                favBtn.text = (if (fav) "★ " else "☆ ") + s(R.string.pilot_fav)
+                favBtn.setOnClickListener { if (ask("fav-film", name, idx.toDouble())) { fav = !fav; it2.put(3, fav); favBtn.text = (if (fav) "★ " else "☆ ") + s(R.string.pilot_fav) } }
+                val resumeAt = it2.optLong(7)
+                fun go(how: String) { if (ask("play-film", name, idx.toDouble(), sort = how)) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
+                watch.setOnClickListener {
+                    if (resumeAt > 0) AlertDialog.Builder(act).setTitle(name).setMessage(s(R.string.pilot_resume_q, fmt(resumeAt)))
+                        .setPositiveButton("▶ " + s(R.string.pilot_resume, fmt(resumeAt))) { _, _ -> go("wznow") }
+                        .setNegativeButton("⏮ " + s(R.string.pilot_from_start)) { _, _ -> go("poczatek") }.show()
+                    else go("")
+                }
+            }
+        }
+        roll = { sub.text = s(R.string.pilot_loading); ask("rand", if (unseen) "" else "", 0.0, if (unseen) "1" else "", genre, len) }
+        var downX = 0f
+        frame.setOnTouchListener { _, e ->   // przesunięcie plakatu w bok = następna / poprzednia propozycja
+            when (e.action) {
+                android.view.MotionEvent.ACTION_DOWN -> downX = e.x
+                android.view.MotionEvent.ACTION_UP -> { val dx = e.x - downX; val n = items?.length() ?: 0
+                    if (n > 0 && kotlin.math.abs(dx) > dp(60)) { at = (at + (if (dx < 0) 1 else n - 1)) % n; show() } }
+            }
+            true
+        }
+        onList = { o -> if (o.optString("kind") == "rand") {
+            o.optJSONArray("keys")?.let { ka -> jfKeys = (0 until ka.length()).mapNotNull { ka.optJSONArray(it)?.let { p -> p.optString(0) to p.optString(1) } }.filter { it.first.isNotEmpty() } }
+            o.optJSONArray("genres")?.let { g -> genres = (0 until g.length()).map { g.optString(it) } }
+            items = o.optJSONArray("items"); at = 0; drawTabs(); show()
+        } }
+        drawTabs(); d.show()
+        phoneData { roll() }
     }
 
     // ⚙ Sterowanie: Obraz, Dźwięk, Napisy, Odtwarzanie - tylko to, co obecny odtwarzacz naprawdę obsługuje

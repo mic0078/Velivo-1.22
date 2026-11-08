@@ -27,6 +27,10 @@ namespace Velivo
             {
                 try { PilotLists(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
             }
+            else if (cmd.to == _lanId && (cmd.op == "epg" || cmd.op == "epg-act" || cmd.op == "plans" || cmd.op == "plan-del" || cmd.op == "rand"))   // 📅 program TV, plany, nagrywanie, 🎲 losowanie
+            {
+                try { PilotGuide(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
+            }
             else if (cmd.op != "ping" && cmd.to == _lanId)   // polecenie tylko do jednego, wybranego komputera
             {
                 try { _vlcPilotCmd?.Invoke(cmd.op ?? "", cmd.v, cmd.n); } catch (Exception ex) { App.LogError(ex); }

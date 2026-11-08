@@ -190,7 +190,7 @@ namespace Velivo
             return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
         }
 
-        string LectorKeyParams(Lector lc) => (_settings.VlcLectorVoice ?? "") + "|" + _settings.VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + _settings.VlcLectorSteps + "|" + lc.Lang;
+        string LectorKeyParams(Lector lc) => (_settings.VlcLectorVoice ?? "") + "|" + _settings.VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + ((SelectedPiperVoice(string.IsNullOrEmpty(_settings.VlcLectorVoice) ? "piper:st3-M1-pl" : _settings.VlcLectorVoice)?.St != null) ? _settings.VlcLectorSteps.ToString() : "-") + "|" + lc.Lang;   // jakosc (kroki) liczy sie tylko dla Supertonic - przy innym glosie suwak nie buduje od nowa
 
         static void LectorStopRender(Lector lc) { lc.RenderGen++; lc.Rendering = false; lc.Ready = new Dictionary<int, string>(); lc.RenderKey = null; lc.BuildNow = false; }
 

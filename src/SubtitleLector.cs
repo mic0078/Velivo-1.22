@@ -200,15 +200,25 @@ namespace Velivo
             try
             {
                 string key = LectorKeyParams(lc);
-                var sb = new System.Text.StringBuilder(key);
+                var sb = new System.Text.StringBuilder();
                 foreach (var c in lc.Cues) sb.Append('\n').Append(c.Start).Append('|').Append(c.End).Append('|').Append(c.Text);
-                string hash;
-                using (var sha = System.Security.Cryptography.SHA1.Create()) hash = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))).Replace("-", "").Substring(0, 20);
-                var root = Path.Combine(DataDir, "lektor"); var dir = Path.Combine(root, hash);
+                string film, set;
+                using (var sha = System.Security.Cryptography.SHA1.Create())
+                {
+                    film = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))).Replace("-", "").Substring(0, 16);
+                    set = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(key))).Replace("-", "").Substring(0, 8);
+                }
+                var root = Path.Combine(DataDir, "lektor"); var dir = Path.Combine(root, film + "-" + set);   // jeden folder na film: inny glos / tempo / jakosc kasuje poprzedni folder tego filmu
                 var found = await Task.Run(() =>
                 {
                     Directory.CreateDirectory(dir); Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow);
-                    try { foreach (var old in new DirectoryInfo(root).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).Skip(3)) old.Delete(true); } catch (Exception) { }   // najwyzej 3 filmy na dysku (film ~ kilkaset MB nagran)
+                    try
+                    {
+                        foreach (var old in new DirectoryInfo(root).GetDirectories())
+                            if (old.FullName != new DirectoryInfo(dir).FullName && (old.Name.StartsWith(film + "-") || !old.Name.Contains('-'))) old.Delete(true);   // stare ustawienia tego filmu i foldery starego formatu
+                        foreach (var old in new DirectoryInfo(root).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).Skip(3)) old.Delete(true);   // najwyzej 3 filmy na dysku (film ~ kilkaset MB nagran)
+                    }
+                    catch (Exception) { }
                     var m = new Dictionary<int, string>();
                     foreach (var p in Directory.EnumerateFiles(dir, "*.wav")) { int n; if (int.TryParse(Path.GetFileNameWithoutExtension(p), out n) && new FileInfo(p).Length > 44) m[n] = p; }
                     return m;

@@ -266,6 +266,7 @@ namespace Velivo
                                 if (startPos > 0.02) { readPos = startPos; ShowToast(L.T("📖 Wracam do miejsca, w którym skończyłeś czytać"), null); }
                                 await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
                                 await PreparePiperReading(view.CoreWebView2);
+                                try { if (view.CoreWebView2 == null) return; } catch (Exception) { return; }   // okno czytania zamkniete w trakcie pobierania glosu (XTTS - minuty)
                                 // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
                                 await view.CoreWebView2.ExecuteScriptAsync(@"(() => {
   if (window.__velivoClickRead) return; window.__velivoClickRead = true;

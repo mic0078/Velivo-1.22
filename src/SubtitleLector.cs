@@ -129,6 +129,7 @@ namespace Velivo
             public int LastSpoken = -1;
             public long LastTime = long.MinValue;
             public long LastWall;   // Environment.TickCount64 przy LastTime
+            public int PreIdx = -1; public Task<string> PreWav;   // nastepna kwestia liczona z wyprzedzeniem (lektor gotowy, gdy napis sie pojawi)
             public int Gen;   // zmienia sie przy przewinieciu / pauzie - spozniona synteza jest wyrzucana
             public bool Busy;
             public System.Windows.Media.MediaPlayer Voice;
@@ -162,6 +163,21 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); return null; }
         }
 
+        // tempo z dlugosci kwestii na ekranie (nie z chwili startu) - ta sama synteza nadaje sie do liczenia z wyprzedzeniem
+        Task<string> LectorSynth(Lector lc, SubCue cue)
+        {
+            double secs = Math.Max(0.6, (cue.End - cue.Start) / 1000.0);
+            double need = cue.Text.Length / 15.0 / secs;
+            double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 4) / 4;   // stopnie co 0,25 - kazde inne tempo to ponowne uruchomienie Pipera
+            return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
+        }
+
+        static void LectorDropPre(Lector lc)
+        {
+            var p = lc.PreWav; lc.PreWav = null; lc.PreIdx = -1;
+            p?.ContinueWith(t => { try { if (t.Status == TaskStatus.RanToCompletion && t.Result != null) System.IO.File.Delete(t.Result); } catch (Exception) { } });
+        }
+
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
@@ -177,7 +193,7 @@ namespace Velivo
             long now = Environment.TickCount64;
             if (!mp.IsPlaying)
             {
-                if (lc.Voice != null || lc.Busy) { LectorStopVoice(lc, mp); lc.Gen++; }
+                if (lc.Voice != null || lc.Busy) { LectorStopVoice(lc, mp); lc.Gen++; LectorDropPre(lc); }
                 if (lc.LastTime != long.MinValue) { lc.LastTime = long.MinValue; lc.LastSpoken = CueAt(lc.Cues, t) - 1; if (lc.LastSpoken < -1) lc.LastSpoken = -1; }   // pauza: po wznowieniu biezaca kwestia od nowa
                 return;
             }
@@ -185,11 +201,16 @@ namespace Velivo
             long expected = lc.LastTime == long.MinValue ? t : lc.LastTime + (long)((now - lc.LastWall) * speed);
             if (lc.LastTime == long.MinValue || Math.Abs(t - expected) > 700)   // przewiniecie w przod/tyl (takze male i suwakiem) albo wznowienie
             {
-                if (lc.LastTime != long.MinValue) { LectorStopVoice(lc, mp); lc.Gen++; }
+                if (lc.LastTime != long.MinValue) { LectorStopVoice(lc, mp); lc.Gen++; LectorDropPre(lc); }
                 lc.LastSpoken = CueAt(lc.Cues, t) - 1; if (lc.LastSpoken < -1) lc.LastSpoken = -1;
             }
             lc.LastTime = t; lc.LastWall = now;
             int i = CueAt(lc.Cues, t);
+            if (i < 0 && lc.PreWav == null && !lc.Busy)
+            {   // przerwa miedzy napisami: najblizsza kwestia liczona juz teraz (po starcie i po przewinieciu)
+                int j = lc.Cues.FindIndex(c => c.Start > t);
+                if (j >= 0 && lc.Cues[j].Start - t < 15000) { lc.PreIdx = j; lc.PreWav = LectorSynth(lc, lc.Cues[j]); }
+            }
             if (i < 0 || i <= lc.LastSpoken || lc.Busy) return;
             lc.LastSpoken = i;
             var cue = lc.Cues[i];
@@ -198,10 +219,10 @@ namespace Velivo
             try
             {
                 // tempo: ustawione w panelu lektora; dluga kwestia w krotkim czasie - szybciej (do 2x)
-                double secs = Math.Max(0.6, (cue.End - t) / 1000.0);
-                double need = cue.Text.Length / 15.0 / secs;
-                double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 4) / 4;   // stopnie co 0,25 - kazde inne tempo to ponowne uruchomienie Pipera
-                var wav = await LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
+                var wavTask = lc.PreIdx == i ? lc.PreWav : null;
+                if (wavTask == null) { LectorDropPre(lc); wavTask = LectorSynth(lc, cue); } else { lc.PreIdx = -1; lc.PreWav = null; }
+                if (i + 1 < lc.Cues.Count) { lc.PreIdx = i + 1; lc.PreWav = LectorSynth(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
+                var wav = await wavTask;
                 if (wav == null || gen != lc.Gen || !mp.IsPlaying) { if (wav != null) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
                 long tn = mp.Time - mp.SpuDelay / 1000;
                 if (tn < cue.Start - 300 || tn > cue.End + 1500) { try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie

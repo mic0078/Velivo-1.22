@@ -2178,7 +2178,7 @@ namespace Velivo
                 _settings.VlcLectorVoice = tag; LectorStopVoice(lc, mp); filmPrefsChanged();
             };
             lectorPanel.Children.Add(voiceBox);
-            var lvRow = sliderRow(L.T("Głośność lektora"), 10, 100, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = WpfVol(_settings.VlcLectorVolume); });
+            var lvRow = sliderRow(L.T("Głośność lektora"), 10, 200, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; try { if (lc.VPlayer != null) lc.VPlayer.Volume = LectorVlcVol(); } catch (Exception) { } });   // od razu, także w trakcie kwestii
             var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 10) / 10);
             var ldRow = sliderRow(L.T("Film podczas czytania"), 0, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v);
             foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
@@ -4189,6 +4189,7 @@ namespace Velivo
             win.Closed += (s, e) =>
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
+                { var lv = lc.VPlayer; lc.VPlayer = null; if (lv != null) System.Threading.Tasks.Task.Run(() => { try { lv.Stop(); lv.Dispose(); } catch (Exception) { } }); }   // odtwarzacz głosu lektora - razem z filmem
                 _vlcWin = null; _vlcLoad = null; _vlcQuiet = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 if (!_mainClosing) SaveTvResume(-1);

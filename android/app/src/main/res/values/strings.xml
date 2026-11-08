@@ -443,6 +443,9 @@
     <string name="pilot_live">LIVE</string>
     <string name="pilot_view_list">List</string>
     <string name="pilot_view_kanapa">Couch</string>
+    <string name="pilot_resume_q">This film was watched up to %1$s.</string>
+    <string name="pilot_resume">Resume from %1$s</string>
+    <string name="pilot_from_start">From the beginning</string>
     <string name="pilot_nothing">Nothing is playing</string>
     <string name="pilot_prev">Previous</string>
     <string name="pilot_play">Play / pause</string>

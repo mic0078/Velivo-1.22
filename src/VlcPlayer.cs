@@ -2916,7 +2916,7 @@ namespace Velivo
                     once.Tick += (s, e) =>
                     {
                         once.Stop(); if (mp.Length <= 0) return;
-                        var how = forced ? "wznow" : GetPref("wznawianie") ?? "pytaj";   // po restarcie odtwarzacza - bez pytania   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
+                        var how = forced ? "wznow" : _pilotResume ?? GetPref("wznawianie") ?? "pytaj"; _pilotResume = null;   // po restarcie odtwarzacza - bez pytania   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
                         if (how == "poczatek" || _together != null) return;
                         if (how == "wznow") { seekResume(); showOsd(L.T("Wznowiono od ") + FormatTime(r)); return; }
                         mp.SetPause(true);

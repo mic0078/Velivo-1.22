@@ -52,6 +52,7 @@ namespace Velivo
         const string PilotFavList = "⭐ Ulubione";
         List<IptvChannel> _pilotTv = new List<IptvChannel>();
         List<LibraryVideo> _pilotFilms = new List<LibraryVideo>();
+        string _pilotResume;   // „wznow” / „poczatek” wybrane na telefonie dla najbliższego filmu
 
         void PilotLists(string phoneId, LanPilotCmd cmd)
         {
@@ -130,6 +131,7 @@ namespace Velivo
                 int i = (int)cmd.n;
                 if (i < 0 || i >= _pilotFilms.Count || ShownTitle(_pilotFilms[i], MetaFor(_pilotFilms[i].Path)) != cmd.v) return;
                 if (_kanapa != null) _kanapa.Close();
+                _pilotResume = cmd.s == "wznow" || cmd.s == "poczatek" ? cmd.s : null;   // wybór z telefonu - komputer nie pyta
                 PlayVideos(new[] { _pilotFilms[i].Path }, 0);
                 return;
             }
@@ -180,7 +182,7 @@ namespace Velivo
                     var v = _pilotFilms[i]; var m = MetaFor(v.Path);
                     var sub = string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null,
                         v.Done ? "✓" : v.Len > v.Pos && v.Pos > 0 ? "▶ " + (int)((v.Len - v.Pos) / 60000) + " min" : null }.Where(x => x != null));
-                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m), m?.Id ?? "", m?.Year ?? 0 });   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
+                    items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len) });   // [7] miejsce przerwania - telefon pyta: wznów / od początku   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
                 }
             }
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;

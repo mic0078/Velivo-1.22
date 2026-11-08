@@ -89,6 +89,18 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         }
     }
 
+    // 🔊 przyciski głośności telefonu sterują głośnością odtwarzacza na komputerze (krok 5%, przytrzymanie powtarza)
+    private fun volKey(k: Int, e: android.view.KeyEvent): Boolean {
+        if (k != android.view.KeyEvent.KEYCODE_VOLUME_UP && k != android.view.KeyEvent.KEYCODE_VOLUME_DOWN) return false
+        val st = pcs[cur]?.st ?: return false   // nic nie gra - zwykła głośność telefonu
+        if (e.action == android.view.KeyEvent.ACTION_DOWN) {
+            val v = ((if (volDragging) vol.progress else st.optInt("vol")) + if (k == android.view.KeyEvent.KEYCODE_VOLUME_UP) 5 else -5).coerceIn(0, vol.max)
+            st.put("vol", v); vol.progress = v; volTxt.text = "🔊 " + s(R.string.pilot_volume) + " $v%"
+            send("vol", n = v.toDouble())
+        }
+        return true
+    }
+
     private fun dp(v: Int) = (v * act.resources.displayMetrics.density).toInt()
     private fun s(id: Int, vararg a: Any) = act.getString(id, *a)
 
@@ -168,6 +180,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         dlg = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen).apply {
             setContentView(ScrollView(act).apply { setBackgroundColor(bg); isFillViewport = true; addView(root) })
             setOnDismissListener { lan.onPilot = null; lan.onPilotList = null; h.removeCallbacksAndMessages(null) }
+            setOnKeyListener { _, k, e -> volKey(k, e) }   // przyciski głośności telefonu = głośność na komputerze
         }
         lan.onPilot = { id, dev, st, from -> act.runOnUiThread { got(id, dev, st, from) } }
         lan.onPilotList = { id, o -> act.runOnUiThread {
@@ -342,7 +355,14 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                     else { val jc = jfConf; val ji = jfById[it2.optString(5)] ?: jfByName[norm(name) + "|" + it2.optInt(6)]
                         if (ji != null) overview = ji.overview
                         if (jc != null && ji != null) { img = Jelly.image(jc, ji.id); key = jc.key } }   // plakat z biblioteki telefonu (ten sam adres i klucz co Biblioteka)
-                    val play = { if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble())) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
+                    val resumeAt = it2.optLong(7)
+                    fun go(how: String) { if (ask(if (kind == "tv") "play-tv" else "play-film", name, idx.toDouble(), sort = how)) { android.widget.Toast.makeText(act, s(R.string.pilot_starting, name), android.widget.Toast.LENGTH_SHORT).show(); d.dismiss() } }
+                    val play = {   // film przerwany: pytanie na telefonie (komputer nie czeka na kliknięcie)
+                        if (kind == "film" && resumeAt > 0) AlertDialog.Builder(act).setTitle(name).setMessage(s(R.string.pilot_resume_q, fmt(resumeAt)))
+                            .setPositiveButton("▶ " + s(R.string.pilot_resume, fmt(resumeAt))) { _, _ -> go("wznow") }
+                            .setNegativeButton("⏮ " + s(R.string.pilot_from_start)) { _, _ -> go("poczatek") }.show()
+                        else go("")
+                    }
                     if (kind == "film" && !grid) {   // 🎬 lista: plakat po lewej, tytuł, rok/ocena, opis (jak Biblioteka)
                         val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; isClickable = true
                             setPadding(dp(6), dp(6), 0, dp(6)); background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
@@ -423,6 +443,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         drawTabs()
         d.setContentView(box)
         d.setOnDismissListener { onList = null }
+        d.setOnKeyListener { _, k, e -> volKey(k, e) }   // głośność komputera także na liście
         d.show()
         phoneData { load(true) }   // najpierw logo i plakaty z telefonu, potem lista
     }

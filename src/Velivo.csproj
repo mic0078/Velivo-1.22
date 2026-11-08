@@ -26,6 +26,8 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
     <!-- odtwarzacz filmow (dodatek z instalatora): sama obsluga; biblioteka VLC (libvlc) pobierana przy instalacji do vlc\ -->
     <PackageReference Include="LibVLCSharp.WPF" Version="3.10.1" />
+    <!-- 🗣 Supertonic 3 (naturalny lektor offline): ONNX Runtime z DirectML - karta graficzna, zapasowo procesor -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.20.1" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="app.ico" />

@@ -23,6 +23,7 @@ namespace Velivo
         sealed class PiperVoice
         {
             public string Id, Label, Lang, Path;
+            public string St;   // Supertonic 3: styl głosu (F1, M1…); null = Piper
         }
 
         // Tag w ustawieniach: "piper:<Id>"
@@ -34,6 +35,11 @@ namespace Velivo
             new PiperVoice { Id = "en_US-lessac-medium",    Label = "Lessac (angielski US, naturalny offline)", Lang = "en", Path = "en/en_US/lessac/medium/" },
             new PiperVoice { Id = "en_US-ryan-medium",      Label = "Ryan (angielski US, naturalny offline)",   Lang = "en", Path = "en/en_US/ryan/medium/" },
             new PiperVoice { Id = "en_GB-alba-medium",      Label = "Alba (angielski UK, naturalny offline)",   Lang = "en", Path = "en/en_GB/alba/medium/" },
+            // Supertonic 3 - trzeci silnik (obok Pipera i głosów Windows): jeden model, wiele języków i głosów
+            new PiperVoice { Id = "st3-F1-pl", Label = "Supertonic F1 (polski, kobiecy, naturalny offline)",    Lang = "pl", St = "F1" },
+            new PiperVoice { Id = "st3-M1-pl", Label = "Supertonic M1 (polski, męski, naturalny offline)",      Lang = "pl", St = "M1" },
+            new PiperVoice { Id = "st3-F1-en", Label = "Supertonic F1 (angielski, kobiecy, naturalny offline)", Lang = "en", St = "F1" },
+            new PiperVoice { Id = "st3-M1-en", Label = "Supertonic M1 (angielski, męski, naturalny offline)",   Lang = "en", St = "M1" },
         };
 
         const string PiperZipUrl = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip";
@@ -51,6 +57,7 @@ namespace Velivo
 
         static bool PiperVoiceInstalled(PiperVoice v)
         {
+            if (v.St != null) return SupertonicInstalled(v);
             return File.Exists(PiperExe) && File.Exists(Path.Combine(PiperRoot, "voices", v.Id + ".onnx")) && File.Exists(Path.Combine(PiperRoot, "voices", v.Id + ".onnx.json"));
         }
 
@@ -83,6 +90,7 @@ namespace Velivo
         // Pobiera program Piper i wybrany glos, jesli ich nie ma. Zwraca false przy bledzie.
         async Task<bool> EnsurePiperAsync(PiperVoice v)
         {
+            if (v.St != null) return await EnsureSupertonicAsync(v);
             if (PiperVoiceInstalled(v)) return true;
             if (_piperDownloading) { ShowToast(L.T("🔊 Trwa pobieranie głosu – chwilę…"), null); return false; }
             _piperDownloading = true;
@@ -143,6 +151,7 @@ namespace Velivo
 
         async Task<string> PiperSynthesizeAsync(PiperVoice v, string text, double rate)
         {
+            if (v.St != null) return await SupertonicSynthesizeAsync(v, text, rate);
             await _piperLock.WaitAsync();
             try
             {

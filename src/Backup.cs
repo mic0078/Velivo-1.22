@@ -36,7 +36,7 @@ namespace Velivo
                 return true;
             }
             foreach (var p in parts.Take(parts.Length - 1).Select(x => x.ToLowerInvariant()))
-                if (p == "piper" || p == "narzedzia" || p == "miniatury stron" || p == "filtry" || p == "logo" || p == "velivo-smieci") return false;   // do pobrania na nowo
+                if (p == "piper" || p == "supertonic" || p == "narzedzia" || p == "miniatury stron" || p == "filtry" || p == "logo" || p == "velivo-smieci") return false;   // do pobrania na nowo
             int eb = Array.FindIndex(parts, x => x.Equals("EBWebView", StringComparison.OrdinalIgnoreCase));
             if (eb >= 0)   // dane silnika stron: tylko zalogowania (ciasteczka) i dane stron - bez pamieci podrecznej
                 return parts.Skip(eb).Any(x => x.Equals("Network", StringComparison.OrdinalIgnoreCase) || x.Equals("Local Storage", StringComparison.OrdinalIgnoreCase));

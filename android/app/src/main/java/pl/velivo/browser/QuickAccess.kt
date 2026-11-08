@@ -24,21 +24,44 @@ class QuickAccess(private val ctx: Context) {
     private val fromPc = File(ctx.filesDir, "szybki-komputer")
     private val favicons = File(ctx.cacheDir, "ikony-stron")
 
-    // Paczka ZIP Szybkiego Dostępu z Windows: rozpakowujemy tylko dane (folder "dane/"), nie kod strony.
+    var onChange: (() -> Unit)? = null   // strona zapisała własną kopia.json - wysyłamy ją do komputera (w obie strony)
+
+    // Paczka ZIP Szybkiego Dostępu z Windows: tylko dane (folder "dane/"). kopia.json komputera trafia jako z-sieci.json
+    // (jak na Windows) - strona scala ją z naszą kopia.json (nowsze wygrywa, usunięte znikają), zmiany telefonu nie giną.
+    @Synchronized
     fun importFromComputer(zip: ByteArray) {
-        val tmp = File(ctx.filesDir, "szybki-komputer.tmp").apply { deleteRecursively(); mkdirs() }
         java.util.zip.ZipInputStream(zip.inputStream()).use { z ->
             while (true) {
                 val e = z.nextEntry ?: break
                 val name = e.name.replace('\\', '/')
                 if (e.isDirectory || !name.startsWith("dane/") || !safe(name)) continue
-                val f = File(tmp, name)
+                val base = name.substringAfterLast('/')
+                if (base.equals("z-sieci.json", true)) continue
+                val target = if (base.equals("kopia.json", true)) name.dropLast(base.length) + "z-sieci.json" else name
+                val f = File(fromPc, target)
                 f.parentFile?.mkdirs()
-                f.outputStream().use { z.copyTo(it) }
+                val tmp = File(f.path + ".tmp")
+                tmp.outputStream().use { z.copyTo(it) }
+                tmp.renameTo(f)
             }
         }
-        fromPc.deleteRecursively()
-        tmp.renameTo(fromPc)
+    }
+
+    // Dane telefonu dla komputera: folder "dane/" bez z-sieci.json (to kopia od komputera).
+    @Synchronized
+    fun exportForComputer(): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { z ->
+            fromPc.walkTopDown().filter { it.isFile && !it.name.equals("z-sieci.json", true) && !it.name.endsWith(".tmp") }
+                .sortedBy { it.path }.forEach { f ->
+                    val rel = f.relativeTo(fromPc).path.replace('\\', '/')
+                    if (!safe(rel) || !rel.startsWith("dane/")) return@forEach
+                    z.putNextEntry(java.util.zip.ZipEntry(rel).apply { time = 946684800000L })
+                    f.inputStream().use { it.copyTo(z) }
+                    z.closeEntry()
+                }
+        }
+        return out.toByteArray()
     }
 
     private fun safe(path: String) = path.isNotEmpty() && !path.startsWith("/") && !path.contains(':') &&
@@ -103,7 +126,7 @@ class QuickAccess(private val ctx: Context) {
                 "write" -> {
                     val bytes = android.util.Base64.decode(z.optString("b64"), android.util.Base64.DEFAULT)
                     if (bytes.size > 12 * 1024 * 1024) JSONObject().put("ok", false)
-                    else { f.parentFile?.mkdirs(); f.writeBytes(bytes); JSONObject().put("ok", true) }
+                    else { f.parentFile?.mkdirs(); f.writeBytes(bytes); if (f.name.equals("kopia.json", true)) onChange?.invoke(); JSONObject().put("ok", true) }
                 }
                 "list" -> JSONObject().put("ok", true).put("pliki", JSONArray((f.listFiles()?.filter { it.isFile }?.map { it.name }) ?: emptyList<String>()))
                 "del" -> { f.delete(); JSONObject().put("ok", true) }

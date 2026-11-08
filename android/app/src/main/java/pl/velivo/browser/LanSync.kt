@@ -693,6 +693,37 @@ class LanSync(
         }.getOrElse { it.message ?: it.javaClass.simpleName }
     }
 
+    // Szybki Dostęp telefon → komputer (ten sam protokół "quick-access" co komputer → telefon, QuickAccessLanSync.cs).
+    fun sendQuickAccess(zip: ByteArray): String {
+        val k = encKey ?: return "brak parowania"
+        val a = authKey ?: return "brak parowania"
+        val target = pcAddress ?: return "brak komputera w sieci"
+        if (zip.isEmpty() || zip.size > QA_LIMIT) return "zły rozmiar"
+        val hash = MessageDigest.getInstance("SHA-256").digest(zip).joinToString("") { "%02X".format(it) }
+        val nonce = ByteArray(12).also { random.nextBytes(it) }
+        val h = JSONObject().put("Type", "quick-access").put("Id", id).put("Device", deviceName()).put("Profile", profile())
+            .put("Timestamp", System.currentTimeMillis()).put("Hash", hash).put("Length", zip.size).put("Nonce", b64(nonce))
+        val ad = listOf(h.optString("Type"), h.optString("Id"), h.optString("Device"), h.optString("Profile"),
+            h.optLong("Timestamp").toString(), hash, zip.size.toString()).joinToString("\n").toByteArray(Charsets.UTF_8)
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
+        c.updateAAD(ad)
+        val sealed = c.doFinal(zip)
+        h.put("Tag", b64(sealed.copyOfRange(zip.size, sealed.size))).put("Mac", b64(hmac(a, ad)))
+        return runCatching {
+            java.net.Socket().use { s ->
+                s.connect(InetSocketAddress(target, PORT), 5000)
+                s.soTimeout = 30000
+                val out = s.getOutputStream()
+                val hb = h.toString().toByteArray(Charsets.UTF_8)
+                out.write(byteArrayOf(hb.size.toByte(), (hb.size shr 8).toByte(), (hb.size shr 16).toByte(), (hb.size shr 24).toByte()) + hb)
+                out.write(sealed, 0, zip.size); out.flush()
+                val ack = ByteArray(32).also { DataInputStream(s.getInputStream()).readFully(it) }
+                if (MessageDigest.isEqual(ack, hmac(a, "ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"
+            }
+        }.getOrElse { it.message ?: it.javaClass.simpleName }
+    }
+
     val computer get() = pcAddress
 
     private fun hmac(key: ByteArray, data: ByteArray) =

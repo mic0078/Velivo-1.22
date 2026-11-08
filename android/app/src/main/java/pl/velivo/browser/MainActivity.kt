@@ -86,7 +86,22 @@ class MainActivity : Activity() {
     @Volatile private var blockedCount = 0
 
     private val home = "https://www.startpage.com/"
-    private val quickAccess by lazy { QuickAccess(this) }
+    private val quickAccess by lazy { QuickAccess(this).also { q -> q.onChange = { qaSendSoon() } } }
+    private val qaHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    @Volatile private var qaSentHash = ""
+    // ⇄ Szybki Dostęp telefon → komputer: 3 s po ostatniej zmianie, tylko gdy dane inne niż ostatnio wysłane
+    private fun qaSendSoon() {
+        qaHandler.removeCallbacksAndMessages("qa")
+        qaHandler.postAtTime({
+            Thread {
+                runCatching {
+                    val zip = quickAccess.exportForComputer()
+                    val h = java.security.MessageDigest.getInstance("SHA-256").digest(zip).joinToString("") { "%02x".format(it) }
+                    if (zip.isNotEmpty() && h != qaSentHash && lan.sendQuickAccess(zip) == "ok") qaSentHash = h
+                }
+            }.start()
+        }, "qa", android.os.SystemClock.uptimeMillis() + 3000)
+    }
     private val youtubeJs by lazy { assets.open("youtube.js").bufferedReader().use { it.readText() } }
     // bez zachęt „pobierz aplikację” (Startpage i inne) - ten sam skrypt co w Velivo na Windows
     private val noAppPromoJs by lazy { assets.open("velivo-bez-aplikacji.js").bufferedReader().use { it.readText() } }

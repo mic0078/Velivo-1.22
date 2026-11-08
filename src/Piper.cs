@@ -24,6 +24,7 @@ namespace Velivo
         {
             public string Id, Label, Lang, Path;
             public string St;   // Supertonic 3: styl głosu (F1, M1…); null = Piper
+            public string Xt;   // XTTS-v2: wbudowany mówca (np. Ana Florence); null = inny silnik
         }
 
         // Tag w ustawieniach: "piper:<Id>"
@@ -48,6 +49,11 @@ namespace Velivo
             new PiperVoice { Id = "st3-F5-pl", Label = "Supertonic F5 (polski, kobiecy, naturalny offline)", Lang = "pl", St = "F5" },
             new PiperVoice { Id = "st3-F1-en", Label = "Supertonic F1 (angielski, kobiecy, naturalny offline)", Lang = "en", St = "F1" },
             new PiperVoice { Id = "st3-M1-en", Label = "Supertonic M1 (angielski, męski, naturalny offline)",   Lang = "en", St = "M1" },
+            // XTTS-v2 - czwarty silnik, pobierany tylko na życzenie (kilka GB), wielojęzyczny
+            new PiperVoice { Id = "xtts-F-pl", Label = "XTTS-v2 Ana (polski, kobiecy, najbardziej ludzki)", Lang = "pl", Xt = "Ana Florence" },
+            new PiperVoice { Id = "xtts-M-pl", Label = "XTTS-v2 Damien (polski, męski, najbardziej ludzki)", Lang = "pl", Xt = "Damien Black" },
+            new PiperVoice { Id = "xtts-F-en", Label = "XTTS-v2 Ana (angielski, kobiecy, najbardziej ludzki)", Lang = "en", Xt = "Ana Florence" },
+            new PiperVoice { Id = "xtts-M-en", Label = "XTTS-v2 Damien (angielski, męski, najbardziej ludzki)", Lang = "en", Xt = "Damien Black" },
         };
 
         const string PiperZipUrl = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip";
@@ -70,13 +76,14 @@ namespace Velivo
             if (t.Length > 0) return t;
             var f1 = SelectedPiperVoice("piper:st3-F1-pl");
             if (f1 != null && PiperVoiceInstalled(f1)) return "piper:" + f1.Id;
-            var pp = PiperVoices.FirstOrDefault(v => v.St == null && v.Lang == "pl" && PiperVoiceInstalled(v));
+            var pp = PiperVoices.FirstOrDefault(v => v.St == null && v.Xt == null && v.Lang == "pl" && PiperVoiceInstalled(v));
             return pp != null ? "piper:" + pp.Id : "";
         }
 
         static bool PiperVoiceInstalled(PiperVoice v)
         {
             if (v.St != null) return SupertonicInstalled(v);
+            if (v.Xt != null) return XttsInstalled();
             return File.Exists(PiperExe) && File.Exists(Path.Combine(PiperRoot, "voices", v.Id + ".onnx")) && File.Exists(Path.Combine(PiperRoot, "voices", v.Id + ".onnx.json"));
         }
 
@@ -110,6 +117,7 @@ namespace Velivo
         async Task<bool> EnsurePiperAsync(PiperVoice v)
         {
             if (v.St != null) return await EnsureSupertonicAsync(v);
+            if (v.Xt != null) return await EnsureXttsAsync(v);
             if (PiperVoiceInstalled(v)) return true;
             if (_piperDownloading) { ShowToast(L.T("🔊 Trwa pobieranie głosu – chwilę…"), null); return false; }
             _piperDownloading = true;
@@ -172,6 +180,7 @@ namespace Velivo
         async Task<string> PiperSynthesizeAsync(PiperVoice v, string text, double rate, int steps = -1)
         {
             if (v.St != null) return await SupertonicSynthesizeAsync(v, text, rate, steps < 0 ? _settings.SupertonicSteps : steps);   // -1 = czytanie stron
+            if (v.Xt != null) return await XttsSynthesizeAsync(v, text, rate);
             await _piperLock.WaitAsync();
             try
             {

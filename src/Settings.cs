@@ -498,13 +498,17 @@ namespace Velivo
             }
             // naturalne glosy offline (Piper) - pobieraja sie przy pierwszym czytaniu
             foreach (var pv in PiperVoices)
-                voice.Items.Add(new ComboBoxItem { Content = "★ " + L.T(pv.Label) + (PiperVoiceInstalled(pv) ? "" : pv.St != null ? L.T(" – pobierze ok. 400 MB") : L.T(" – pobierze ok. 60 MB")), Tag = "piper:" + pv.Id });
+                voice.Items.Add(new ComboBoxItem { Content = "★ " + L.T(pv.Label) + (PiperVoiceInstalled(pv) ? "" : pv.Xt != null ? L.T(" – pobierze kilka GB") : pv.St != null ? L.T(" – pobierze ok. 400 MB") : L.T(" – pobierze ok. 60 MB")), Tag = "piper:" + pv.Id });
             voice.SelectedItem = System.Linq.Enumerable.FirstOrDefault(System.Linq.Enumerable.Cast<ComboBoxItem>(voice.Items), i => (string)i.Tag == (s.ReadVoice ?? "")) ?? voice.Items[0];
             var rate = new ComboBox { Width = 90 };
             foreach (var rv in ReadRates) { var it = new ComboBoxItem { Content = rv.ToString("0.##") + "×", Tag = rv }; rate.Items.Add(it); if (Math.Abs(rv - s.ReadRate) < 0.01) rate.SelectedItem = it; }
             if (rate.SelectedItem == null) rate.SelectedIndex = 1;
             voiceRow.Children.Add(voice); voiceRow.Children.Add(rate);
             root.Children.Add(voiceRow);
+            var cleanBtn = SmallButton(L.T("🧹 Usuń nieużywane głosy z dysku…"), () => CleanUnusedVoices(win, (string)((ComboBoxItem)voice.SelectedItem).Tag));
+            cleanBtn.HorizontalAlignment = HorizontalAlignment.Left; cleanBtn.Margin = new Thickness(0, 4, 0, 4);
+            cleanBtn.ToolTip = L.T("Pokazuje pobrane głosy (Piper, Supertonic, XTTS) z rozmiarem i usuwa te, których nie używa czytanie stron ani lektor filmów.");
+            root.Children.Add(cleanBtn);
             var restore = Check(L.T("Po uruchomieniu przywracaj karty z poprzedniej sesji"), L.T("Karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T."), s.RestoreTabs);
             root.Children.Add(restore);
             var sameTab = Check(L.T("Otwieraj linki w tej samej karcie"), L.T("Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach."), s.LinksInSameTab);

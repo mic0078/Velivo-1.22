@@ -160,7 +160,8 @@ namespace Velivo
             var tag = _settings.VlcLectorVoice ?? "";
             var piper = tag.StartsWith("piper:") ? SelectedPiperVoice(tag) : tag.StartsWith("win:") ? null : SelectedPiperVoice("piper:st3-M1-pl");
             if (piper?.St != null && piper.Lang != lang) piper = PiperVoices.FirstOrDefault(v => v.St == piper.St && v.Lang == lang) ?? new PiperVoice { Id = piper.Id, Label = piper.Label, St = piper.St, Lang = lang };   // Supertonic: ten sam głos w języku napisów
-            if (piper != null && !PiperVoiceInstalled(piper) && !_piperDownloading && !_stDownloading && _lectorFetchTried.Add(piper.Id)) _ = EnsurePiperAsync(piper);   // domyślny głos lektora pobiera się sam; do tego czasu głos Windows
+            if (piper?.Xt != null && piper.Lang != lang) piper = new PiperVoice { Id = piper.Id, Label = piper.Label, Xt = piper.Xt, Lang = lang };   // XTTS: ten sam mówca w języku napisów
+            if (piper != null && !PiperVoiceInstalled(piper) && !_piperDownloading && !_stDownloading && !_xtDownloading && _lectorFetchTried.Add(piper.Id)) _ = EnsurePiperAsync(piper);   // domyślny głos lektora pobiera się sam; do tego czasu głos Windows
             if (piper != null && PiperVoiceInstalled(piper)) return await PiperSynthesizeAsync(piper, text, rate, _settings.VlcLectorSteps);
             try
             {

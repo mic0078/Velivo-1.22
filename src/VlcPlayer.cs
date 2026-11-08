@@ -2161,7 +2161,7 @@ namespace Velivo
             lectorPanel.Children.Add(new TextBlock { Text = L.T("Głos lektora:"), Foreground = Brushes.White, Margin = new Thickness(0, 2, 0, 2) });
             var voiceBox = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Left };
             voiceBox.Items.Add(new ComboBoxItem { Content = L.T("Automatycznie (język napisów)"), Tag = "" });
-            foreach (var pv in PiperVoices) voiceBox.Items.Add(new ComboBoxItem { Content = (pv.St != null ? "" : "Piper: ") + L.T(pv.Label) + (PiperVoiceInstalled(pv) ? "" : L.T(" – pobierz")), Tag = "piper:" + pv.Id });
+            foreach (var pv in PiperVoices) voiceBox.Items.Add(new ComboBoxItem { Content = (pv.St != null || pv.Xt != null ? "" : "Piper: ") + L.T(pv.Label) + (PiperVoiceInstalled(pv) ? "" : L.T(" – pobierz")), Tag = "piper:" + pv.Id });
             try { foreach (var wv in Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices) voiceBox.Items.Add(new ComboBoxItem { Content = "Windows: " + wv.DisplayName + " (" + wv.Language + ")", Tag = "win:" + wv.DisplayName }); } catch (Exception) { }
             Action<string> selectVoice = tag => voiceBox.SelectedItem = voiceBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (tag ?? "")) ?? voiceBox.Items[0];
             bool settingVoice = false;
@@ -2174,7 +2174,7 @@ namespace Velivo
                 {
                     showOsd(L.T("Pobieram głos ") + L.T(pv.Label) + "…");
                     if (!await EnsurePiperAsync(pv)) { settingVoice = true; selectVoice(_settings.VlcLectorVoice); settingVoice = false; return; }
-                    it.Content = (pv.St != null ? "" : "Piper: ") + L.T(pv.Label);
+                    it.Content = (pv.St != null || pv.Xt != null ? "" : "Piper: ") + L.T(pv.Label);
                 }
                 _settings.VlcLectorVoice = tag; LectorStopVoice(lc, mp); filmPrefsChanged();
             };

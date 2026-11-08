@@ -55,6 +55,17 @@ namespace Velivo
             return PiperVoices.FirstOrDefault(v => v.Id == id);
         }
 
+        // głos czytnika: wybrany ręcznie, a „automatycznie” (pusty) = Supertonic F1 polski, gdy pobrany; inaczej pobrany polski Piper; inaczej głos Windows
+        string ReadVoiceTag()
+        {
+            var t = _settings.ReadVoice ?? "";
+            if (t.Length > 0) return t;
+            var f1 = SelectedPiperVoice("piper:st3-F1-pl");
+            if (f1 != null && PiperVoiceInstalled(f1)) return "piper:" + f1.Id;
+            var pp = PiperVoices.FirstOrDefault(v => v.St == null && v.Lang == "pl" && PiperVoiceInstalled(v));
+            return pp != null ? "piper:" + pp.Id : "";
+        }
+
         static bool PiperVoiceInstalled(PiperVoice v)
         {
             if (v.St != null) return SupertonicInstalled(v);
@@ -149,9 +160,9 @@ namespace Velivo
             _piperProc = null; _piperProcKey = null;
         }
 
-        async Task<string> PiperSynthesizeAsync(PiperVoice v, string text, double rate)
+        async Task<string> PiperSynthesizeAsync(PiperVoice v, string text, double rate, int steps = -1)
         {
-            if (v.St != null) return await SupertonicSynthesizeAsync(v, text, rate);
+            if (v.St != null) return await SupertonicSynthesizeAsync(v, text, rate, steps < 0 ? _settings.SupertonicSteps : steps);   // -1 = czytanie stron
             await _piperLock.WaitAsync();
             try
             {
@@ -203,7 +214,7 @@ namespace Velivo
         // Wlacza tryb Piper na stronie (gdy wybrany glos Piper) i uruchamia petle odtwarzania. Zwraca false = czytaj systemowo.
         async Task<bool> PreparePiperReading(CoreWebView2 core)
         {
-            var v = SelectedPiperVoice(_settings.ReadVoice);
+            var v = SelectedPiperVoice(ReadVoiceTag());
             if (v == null || core == null) { try { if (core != null) await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(false)"); } catch (Exception) { } return false; }
             if (!await EnsurePiperAsync(v)) { await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(false)"); return false; }
             await core.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.setExternal(true)");
@@ -238,7 +249,7 @@ namespace Velivo
                     if (string.IsNullOrEmpty(str)) { if (++idle > 750) break; continue; }   // ~1 min bez czytania - konczymy
                     idle = 0;
                     var p = JsonSerializer.Deserialize<PiperPending>(str);
-                    var v = SelectedPiperVoice(_settings.ReadVoice) ?? voice;
+                    var v = SelectedPiperVoice(ReadVoiceTag()) ?? voice;
 
                     var wavTask = (cachedText == p.text && cachedWav != null) ? cachedWav : PiperSynthesizeAsync(v, p.text, _settings.ReadRate);
                     var wav = await wavTask;

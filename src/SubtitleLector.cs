@@ -138,13 +138,16 @@ namespace Velivo
         }
 
         // syntezuje kwestie: Piper (jezyk zgodny z napisami, jesli jest taki glos), inaczej glos Windows
+        readonly HashSet<string> _lectorFetchTried = new HashSet<string>();   // pobieranie głosu lektora - raz na uruchomienie (bez powtórek po błędzie)
+
         async Task<string> LectorSynthesizeAsync(string text, string lang, double rate)
         {
-            // glos wybrany w panelu lektora; "automatycznie" = glos czytania na glos, w jezyku napisow
+            // glos wybrany w panelu lektora; "automatycznie" = Supertonic M1 (meski) w jezyku napisow
             var tag = _settings.VlcLectorVoice ?? "";
-            var piper = tag.StartsWith("piper:") ? SelectedPiperVoice(tag) : tag.StartsWith("win:") ? null : SelectedPiperVoice(_settings.ReadVoice);
-            if (piper != null && tag.Length == 0 && piper.Lang != lang) piper = PiperVoices.FirstOrDefault(v => v.Lang == lang && PiperVoiceInstalled(v)) ?? piper;
-            if (piper != null && PiperVoiceInstalled(piper)) return await PiperSynthesizeAsync(piper, text, rate);
+            var piper = tag.StartsWith("piper:") ? SelectedPiperVoice(tag) : tag.StartsWith("win:") ? null : SelectedPiperVoice("piper:st3-M1-pl");
+            if (piper?.St != null && piper.Lang != lang) piper = PiperVoices.FirstOrDefault(v => v.St == piper.St && v.Lang == lang) ?? piper;   // Supertonic: ten sam głos w języku napisów
+            if (piper != null && !PiperVoiceInstalled(piper) && !_piperDownloading && !_stDownloading && _lectorFetchTried.Add(piper.Id)) _ = EnsurePiperAsync(piper);   // domyślny głos lektora pobiera się sam; do tego czasu głos Windows
+            if (piper != null && PiperVoiceInstalled(piper)) return await PiperSynthesizeAsync(piper, text, rate, _settings.VlcLectorSteps);
             try
             {
                 var synth = new Windows.Media.SpeechSynthesis.SpeechSynthesizer();
@@ -168,7 +171,7 @@ namespace Velivo
         {
             double secs = Math.Max(0.6, (cue.End - cue.Start) / 1000.0);
             double need = cue.Text.Length / 15.0 / secs;
-            double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 4) / 4;   // stopnie co 0,25 - kazde inne tempo to ponowne uruchomienie Pipera
+            double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 10) / 10;   // stopnie co 0,1 - kazde inne tempo to ponowne uruchomienie Pipera
             return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
         }
 

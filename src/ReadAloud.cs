@@ -200,7 +200,7 @@ namespace Velivo
             if (tab == null || !await EnsureReader(tab)) return;
             if (_readTab != null && _readTab != tab) StopReading();
             var n = await tab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead.start(" + (onlySelection ? "true" : "false") + "," +
-                Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
+                Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(ReadVoiceTag()) + ")");
             if (n == "0" || n == "null") { ShowToast(L.T("🔊 Nie znalazłem tekstu do przeczytania na tej stronie."), null); return; }
             _readTab = tab;
             ShowReadControls(true, false);
@@ -219,7 +219,7 @@ namespace Velivo
             if (_readTab != null && _readTab != tab) StopReading();
             double zoom = tab.View.ZoomFactor > 0 ? tab.View.ZoomFactor : 1;
             var n = await tab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead.startAt(" + Num(x / zoom) + "," + Num(y / zoom) + "," +
-                Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
+                Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(ReadVoiceTag()) + ")");
             if (n == "0" || n == "null") { ShowToast(L.T("🔊 W tym miejscu nie ma tekstu do przeczytania – kliknij prawym przyciskiem na akapicie."), null); return; }
             _readTab = tab;
             ShowReadControls(true, false);

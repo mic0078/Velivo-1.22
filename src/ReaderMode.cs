@@ -245,7 +245,7 @@ namespace Velivo
                         view.Dispose();
                     };
 
-                    var readAllJs = "window.getSelection().removeAllRanges();window.__velivoRead && window.__velivoRead.start(false," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")";
+                    var readAllJs = "window.getSelection().removeAllRanges();window.__velivoRead && window.__velivoRead.start(false," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(ReadVoiceTag()) + ")";
                     win.Loaded += async (a, b) =>
                     {
                         try
@@ -273,7 +273,7 @@ namespace Velivo
   document.addEventListener('click', e => {
     if (e.button !== 0 || (getSelection() && getSelection().toString().trim())) return;
     if (e.target.closest('a,button,input,textarea,select')) return;
-    window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", " + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + @");
+    window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", " + JsonSerializer.Serialize(ReadVoiceTag()) + @");
   });
 })();");
                                 if (readAll) await view.CoreWebView2.ExecuteScriptAsync(readAllJs);
@@ -340,7 +340,7 @@ namespace Velivo
         async System.Threading.Tasks.Task ReadSummaryInReader(WebView2 view)
         {
             if (view == null || view.CoreWebView2 == null) return;
-            string js = "(function(){var el=document.getElementById('velivo-summary');if(!el||!window.__velivoRead)return 0;var r=document.createRange();r.selectNodeContents(el);var s=window.getSelection();s.removeAllRanges();s.addRange(r);return window.__velivoRead.start(true," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ");})()";
+            string js = "(function(){var el=document.getElementById('velivo-summary');if(!el||!window.__velivoRead)return 0;var r=document.createRange();r.selectNodeContents(el);var s=window.getSelection();s.removeAllRanges();s.addRange(r);return window.__velivoRead.start(true," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(ReadVoiceTag()) + ");})()";
             await view.CoreWebView2.ExecuteScriptAsync(js);
         }
 

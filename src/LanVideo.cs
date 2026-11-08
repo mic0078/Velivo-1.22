@@ -69,14 +69,14 @@ namespace Velivo
         // ustawienia filmu do przeslania (bez sciezki - drugi komputer jej nie potrzebuje)
         internal static LibraryVideo PrefsOf(LibraryVideo v)
         {
-            return v == null ? null : new LibraryVideo { Vol = v.Vol, LVol = v.LVol, LRate = v.LRate, LDuck = v.LDuck, LVoice = v.LVoice, Spu = v.Spu, Audio = v.Audio };
+            return v == null ? null : new LibraryVideo { Vol = v.Vol, LVol = v.LVol, LRate = v.LRate, LDuck = v.LDuck, LVoice = v.LVoice, LSteps = v.LSteps, Spu = v.Spu, Audio = v.Audio };
         }
 
         internal static void ApplyPrefs(LibraryVideo target, LibraryVideo p)
         {
             if (target == null || p == null) return;
             if (p.Vol != null) target.Vol = p.Vol; if (p.LVol != null) target.LVol = p.LVol; if (p.LRate != null) target.LRate = p.LRate;
-            if (p.LDuck != null) target.LDuck = p.LDuck; if (p.LVoice != null) target.LVoice = p.LVoice;
+            if (p.LDuck != null) target.LDuck = p.LDuck; if (p.LVoice != null) target.LVoice = p.LVoice; if (p.LSteps != null) target.LSteps = p.LSteps;
             if (p.Spu != null) target.Spu = p.Spu; if (p.Audio != null) target.Audio = p.Audio;
         }
         readonly Dictionary<string, RemoteFilm> _remoteFilms = new Dictionary<string, RemoteFilm>(StringComparer.OrdinalIgnoreCase);

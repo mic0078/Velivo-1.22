@@ -141,6 +141,7 @@ namespace Velivo
             public double? LRate { get; set; }
             public int? LDuck { get; set; }
             public string LVoice { get; set; }
+            public int? LSteps { get; set; }   // jakosc glosu Supertonic lektora tego filmu
             public string Peer { get; set; }       // kopia filmu z innego komputera (dysk tamtego komputera): jego id - gra przez siec
             public string RemoteId { get; set; }   // id filmu w bibliotece tamtego komputera
             public bool? Shared { get; set; }  // we wspolnej bibliotece; null = film z dysku sieciowego (NAS) wspolny, z dysku tego komputera prywatny
@@ -2108,16 +2109,16 @@ namespace Velivo
             Action showLector = () => lector.Background = _settings.VlcLector ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent;
             // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
             // domyslne ustawienia (film bez wlasnych): te z ustawien Velivo - zmiany w filmie ich nie nadpisuja
-            int defVol = _settings.VlcVolume, defDuck = _settings.VlcLectorDuck; double defLVol = _settings.VlcLectorVolume, defRate = _settings.VlcLectorRate; string defVoice = _settings.VlcLectorVoice;
+            int defVol = _settings.VlcVolume, defDuck = _settings.VlcLectorDuck; double defLVol = _settings.VlcLectorVolume, defRate = _settings.VlcLectorRate; string defVoice = _settings.VlcLectorVoice; int defSteps = _settings.VlcLectorSteps;
             Action saveLector = () =>
             {
                 try
                 {
-                    if (current == null) { defVol = _settings.VlcVolume; defDuck = _settings.VlcLectorDuck; defLVol = _settings.VlcLectorVolume; defRate = _settings.VlcLectorRate; defVoice = _settings.VlcLectorVoice; _settings.Save(DataDir); return; }
+                    if (current == null) { defVol = _settings.VlcVolume; defDuck = _settings.VlcLectorDuck; defLVol = _settings.VlcLectorVolume; defRate = _settings.VlcLectorRate; defVoice = _settings.VlcLectorVoice; defSteps = _settings.VlcLectorSteps; _settings.Save(DataDir); return; }
                     // zapis pozostalych ustawien (lektor wl., napisy) z domyslnymi wartosciami filmu - ustawienia tego filmu ida do biblioteki
-                    var keep = (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice);
-                    _settings.VlcVolume = defVol; _settings.VlcLectorDuck = defDuck; _settings.VlcLectorVolume = defLVol; _settings.VlcLectorRate = defRate; _settings.VlcLectorVoice = defVoice;
-                    try { _settings.Save(DataDir); } finally { (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice) = keep; }
+                    var keep = (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice, _settings.VlcLectorSteps);
+                    _settings.VlcVolume = defVol; _settings.VlcLectorDuck = defDuck; _settings.VlcLectorVolume = defLVol; _settings.VlcLectorRate = defRate; _settings.VlcLectorVoice = defVoice; _settings.VlcLectorSteps = defSteps;
+                    try { _settings.Save(DataDir); } finally { (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice, _settings.VlcLectorSteps) = keep; }
                 }
                 catch (Exception) { }
             };
@@ -2128,7 +2129,7 @@ namespace Velivo
             {
                 filmPrefsTimer.Stop(); saveLector();
                 if (current == null) return;
-                current.Vol = _settings.VlcVolume; current.LVol = _settings.VlcLectorVolume; current.LRate = _settings.VlcLectorRate; current.LDuck = _settings.VlcLectorDuck; current.LVoice = _settings.VlcLectorVoice;
+                current.Vol = _settings.VlcVolume; current.LVol = _settings.VlcLectorVolume; current.LRate = _settings.VlcLectorRate; current.LDuck = _settings.VlcLectorDuck; current.LVoice = _settings.VlcLectorVoice; current.LSteps = _settings.VlcLectorSteps;
                 if (_remoteFilms.TryGetValue(current.Path, out var rfp)) { SendRemoteProgress(rfp, mp.Time, mp.Length, false); return; }   // film z innego komputera - ustawienia do jego biblioteki
                 var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current));
                 if (v == null) return;
@@ -2173,14 +2174,14 @@ namespace Velivo
             };
             lectorPanel.Children.Add(voiceBox);
             var lvRow = sliderRow(L.T("Głośność lektora"), 10, 100, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = _settings.VlcLectorVolume; });
-            var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 4) / 4);
+            var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 10) / 10);
             var ldRow = sliderRow(L.T("Film podczas czytania"), 0, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v);
             foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
             // 🗣 jakość głosu Supertonic (kroki): więcej = naturalniej, dłużej liczy; 0 = samo
             var stTxt = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Ile razy Supertonic dopracowuje głos: więcej – naturalniej, ale dłużej liczy. Samo: karta graficzna 8, procesor 5.") };
-            var stSl = new Slider { Minimum = 0, Maximum = 16, Width = 240, IsMoveToPointEnabled = true, IsSnapToTickEnabled = true, TickFrequency = 1, Value = _settings.SupertonicSteps };
+            var stSl = new Slider { Minimum = 0, Maximum = 16, Width = 240, IsMoveToPointEnabled = true, IsSnapToTickEnabled = true, TickFrequency = 1, Value = _settings.VlcLectorSteps };
             Action stUpd = () => stTxt.Text = L.T("Jakość głosu Supertonic") + ": " + (stSl.Value < 2 ? L.T("samo") : (int)stSl.Value + " " + L.T("kroków"));
-            stSl.ValueChanged += (a2, b2) => { _settings.SupertonicSteps = stSl.Value < 2 ? 0 : (int)stSl.Value; stUpd(); LectorDropPre(lc); _settings.Save(DataDir); };
+            stSl.ValueChanged += (a2, b2) => { _settings.VlcLectorSteps = stSl.Value < 2 ? 0 : (int)stSl.Value; stUpd(); LectorDropPre(lc); filmPrefsChanged(); };   // osobno dla filmu
             stUpd(); lectorPanel.Children.Add(stTxt); lectorPanel.Children.Add(stSl);
             // ustawienia filmu do panelu i odtwarzacza (przy wczytaniu filmu): zapisane dla filmu, inaczej ostatnio uzywane
             Action applyFilmPrefs = () =>
@@ -2189,6 +2190,7 @@ namespace Velivo
                 lvRow.Item2.Value = (current?.LVol ?? defLVol) * 100;
                 lrRow.Item2.Value = current?.LRate ?? defRate;
                 ldRow.Item2.Value = current?.LDuck ?? defDuck;
+                stSl.Value = current?.LSteps ?? defSteps;
                 settingVoice = true; _settings.VlcLectorVoice = current?.LVoice ?? defVoice; selectVoice(_settings.VlcLectorVoice); settingVoice = false;
                 vol.Value = current?.Vol ?? defVol;
                 mp.Volume = muted ? 0 : (int)vol.Value;   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)

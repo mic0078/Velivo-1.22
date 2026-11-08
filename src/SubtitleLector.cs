@@ -333,8 +333,9 @@ namespace Velivo
                 lc.Voice = voice; lc.VoiceDone = done;
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);
-                voice.Open(new Uri(wav)); voice.Play();
-                var played = System.Diagnostics.Stopwatch.StartNew(); long durMs = LectorWavMs(wav);
+                double sr = 1; if (queue) { long late = tn - cue.Start; if (late > 500) sr = Math.Min(1.5, 1 + (late - 500) / 6000.0); }   // nadrabianie jak lektor: spoznienie ponad 0,5 s = szybciej (do 1,5x), po dogonieniu obrazu zwykle tempo
+                voice.Open(new Uri(wav)); voice.SpeedRatio = sr; voice.Play();
+                var played = System.Diagnostics.Stopwatch.StartNew(); long durMs = (long)(LectorWavMs(wav) / sr);
                 bool natural = await Task.WhenAny(done.Task, Task.Delay(30000)) == done.Task && done.Task.Result;
                 if (natural && lc.Voice == voice) { long left = durMs - played.ElapsedMilliseconds; if (left > 0) await Task.Delay((int)Math.Min(left, 3000)); }   // koniec pliku != koniec dzwieku - w buforze glosnika zostaje koncowka, Stop od razu ucinal ostatnie slowo
                 if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku

@@ -17,8 +17,9 @@ New-Item -ItemType Directory -Force build | Out-Null
 try { Stop-Transcript | Out-Null } catch { }   # poprzednia budowa w tym samym oknie mogla zostawic zapis otwarty
 try { Start-Transcript -Path (Join-Path $PSScriptRoot 'build\budowa.log') -Force | Out-Null } catch { }   # gdyby okno sie zamknelo - przebieg zostaje w build\budowa.log
 
-git checkout rozwoj
-git pull origin rozwoj
+$galaz = (git rev-parse --abbrev-ref HEAD).Trim()   # buduje gałąź, na której jesteś (rozwoj albo gałąź próbna, np. lektor-cache)
+Write-Host "Gałąź: $galaz" -ForegroundColor Cyan
+git pull origin $galaz
 $head = (git rev-parse HEAD).Trim()
 $cfgDir = Join-Path $env:LOCALAPPDATA 'Velivo-budowa'
 New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null

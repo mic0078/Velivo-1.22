@@ -188,6 +188,12 @@ namespace Velivo
             return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
         }
 
+        static long LectorWavMs(string wav)   // dlugosc WAV z naglowka (bajty danych / bajty na sekunde)
+        {
+            try { using (var fs = System.IO.File.OpenRead(wav)) { var h = new byte[44]; if (fs.Read(h, 0, 44) < 44) return 0; int bps = BitConverter.ToInt32(h, 28); return bps > 0 ? (fs.Length - 44) * 1000 / bps : 0; } }
+            catch (Exception) { return 0; }
+        }
+
         static void LectorDropPre(Lector lc)
         {
             var p = lc.PreWav; lc.PreWav = null; lc.PreIdx = -1;
@@ -274,11 +280,24 @@ namespace Velivo
                 }
                 var voice = lc.VPlayer;
                 lc.Voice = voice; lc.VoiceDone = done;
-                using (var media = new LibVLCSharp.Shared.Media(lc.VLib, wav, LibVLCSharp.Shared.FromType.FromPath)) voice.Play(media);
+                float vr = 1f; if (queue) { long late = tn - cue.Start; if (late > 1000) vr = (float)Math.Min(1.4, 1 + (late - 1000) / 10000.0); }   // nadrabianie jak lektor: spoznienie ponad 1 s = szybciej (do 1,4x, bez zmiany wysokosci glosu), po dogonieniu zwykle tempo
+                long durMs = LectorWavMs(wav);
+                using (var media = new LibVLCSharp.Shared.Media(lc.VLib, wav, LibVLCSharp.Shared.FromType.FromPath))
+                {
+                    media.AddOption(":file-caching=0");   // VLC domyslnie czeka 1 s na bufor pliku - kazda kwestia startowala ~1 s po napisie i spoznienie roslo
+                    voice.Play(media);
+                }
+                var played = System.Diagnostics.Stopwatch.StartNew();
                 voice.Volume = LectorVlcVol();
-                if (queue) { long late = tn - cue.Start; try { voice.SetRate(late > 1000 ? (float)Math.Min(1.4, 1 + (late - 1000) / 10000.0) : 1f); } catch (Exception) { } }   // nadrabianie jak lektor: spoznienie ponad 1 s = szybciej (do 1,4x, bez zmiany wysokosci glosu), po dogonieniu zwykle tempo
-                await Task.WhenAny(done.Task, Task.Delay(30000));
-                if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
+                try { voice.SetRate(vr); } catch (Exception) { }
+                bool natural = await Task.WhenAny(done.Task, Task.Delay(30000)) == done.Task && done.Task.Result;
+                if (natural && lc.Voice == voice)
+                {   // koniec pliku w VLC != koniec dzwieku: w buforze wyjscia zostaje koncowka - Stop od razu ucinal ostatnie slowa
+                    long left = (long)(durMs / vr) - played.ElapsedMilliseconds + 150;
+                    if (left > 0) await Task.Delay((int)Math.Min(left, 3000));
+                    if (lc.Voice == voice) { lc.Voice = null; if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; } }   // bez Stop - VLC sam skonczyl
+                }
+                else if (lc.Voice == voice) LectorStopVoice(lc, mp);   // przewiniecie zatrzymuje glos przez LectorStopVoice w ticku
                 try { System.IO.File.Delete(wav); } catch (Exception) { }
             }
             catch (Exception ex) { App.LogError(ex); }

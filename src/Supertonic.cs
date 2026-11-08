@@ -73,6 +73,7 @@ namespace Velivo
         {
             var line = (text ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
             if (line.Length == 0 || !SupertonicInstalled(v)) return null;
+            if (char.IsLetterOrDigit(line[line.Length - 1])) line += ".";   // bez kropki na koncu model ucinal ostatnie slowo (napisy czesto bez kropki)
             await _stLock.WaitAsync();
             try
             {
@@ -85,11 +86,14 @@ namespace Velivo
                     }
                     if (!_stStyles.TryGetValue(v.St, out var style))
                         _stStyles[v.St] = style = Helper.LoadVoiceStyle(new List<string> { SupertonicPath("voice_styles/" + v.St + ".json") });
-                    float speed = (float)Math.Max(0.7, Math.Min(2.0, 1.05 * rate));
+                    float speed = (float)Math.Max(0.7, Math.Min(1.6, 1.05 * rate));
                     var (wav, _) = _stTts.Call(line, v.Lang, style, steps > 0 ? steps : _stGpu ? 8 : 5, speed, 0.2f);   // kroki (Jakość w panelu lektora); samo: karta graficzna 8, procesor 5
                     Directory.CreateDirectory(PiperOutDir);
                     var path = Path.Combine(PiperOutDir, "st-" + Guid.NewGuid().ToString("N") + ".wav");
-                    Helper.WriteWavFile(path, wav, _stTts.SampleRate);
+                    int a = 0, b = wav.Length; while (a < b && Math.Abs(wav[a]) < 0.003f) a++; while (b > a && Math.Abs(wav[b - 1]) < 0.003f) b--;   // cisza na poczatku (~0,3 s) i na koncu - lektor startuje razem z napisem
+                    a = Math.Max(0, a - _stTts.SampleRate / 50); b = Math.Min(wav.Length, b + _stTts.SampleRate / 20);
+                    var cut = new float[Math.Max(0, b - a)]; Array.Copy(wav, a, cut, 0, cut.Length);
+                    Helper.WriteWavFile(path, cut, _stTts.SampleRate);
                     return path;
                 });
             }

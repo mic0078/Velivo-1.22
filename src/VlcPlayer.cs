@@ -338,7 +338,7 @@ namespace Velivo
             item("\uE710", L.T("Dodaj filmy do biblioteki…"), () => { var f = PickVideoFiles(true); if (f != null) AddPathsToLibrary(f); });
             item("\uE8F4", L.T("Dodaj folder z filmami do biblioteki…"), () => { var d = PickFolder(); if (d != null) AddPathsToLibrary(new[] { d }); });
             menu.Items.Add(new Separator());
-            item("\uE74D", L.T("Odinstaluj odtwarzacz filmów…"), UninstallVlc);
+            item("\uE74D", L.T("Odinstaluj odtwarzacz filmów…"), () => UninstallVlc());
             menu.Items.Add(PhoneMediaMenu());
             _filmBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane wlaczenie filmu dziala takze bez modulu TV
@@ -398,9 +398,9 @@ namespace Velivo
             if (_libWin != null && _libWin.IsLoaded) _libRefresh?.Invoke();
         }
 
-        void UninstallVlc()
+        void UninstallVlc(bool ask = true)
         {
-            if (!AskYes(this, L.T("Odinstalować odtwarzacz filmów (bibliotekę VLC)?\n\nFilmy MP4 i WebM dalej otworzysz w karcie Velivo. Twoja lista filmów zostaje – wróci po ponownej instalacji dodatku."))) return;
+            if (ask && !AskYes(this, L.T("Odinstalować odtwarzacz filmów (bibliotekę VLC)?\n\nFilmy MP4 i WebM dalej otworzysz w karcie Velivo. Twoja lista filmów zostaje – wróci po ponownej instalacji dodatku."))) return;
             if (_vlcWin != null) _vlcWin.Close();
             if (_libWin != null) _libWin.Close();
             bool loaded = _libVlc != null;

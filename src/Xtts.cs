@@ -273,5 +273,44 @@ for line in sys.stdin:
             MessageBox.Show(owner, failed.Count == 0 ? L.T("✅ Usunięto. Zwolniono ") + Mb(items.Sum(x => x.size)) + "."
                 : L.T("Część nie dała się usunąć (plik w użyciu – uruchom Velivo ponownie i spróbuj jeszcze raz):") + "\n" + string.Join("\n", failed), "Velivo");
         }
-    }
+    
+        // 🧩 skladniki do usuniecia (zostaje sama przegladarka); kazdy pobiera sie ponownie przy uzyciu
+        void RemoveComponents(Window owner)
+        {
+            if (_piperDownloading || _stDownloading || _xtDownloading) { MessageBox.Show(owner, L.T("🔊 Trwa pobieranie głosu – chwilę…"), "Velivo"); return; }
+            var items = new System.Collections.Generic.List<(string name, long size, Action del)>();
+            if (VlcInstalled) items.Add((L.T("Odtwarzacz filmów i TV (VLC)"), DirSize(VlcDir), () => UninstallVlc(false)));
+            if (Directory.Exists(XttsRoot)) items.Add((L.T("XTTS-v2 (Python, PyTorch, model)"), DirSize(XttsRoot), () => { StopXttsProcess(); Directory.Delete(XttsRoot, true); }));
+            if (Directory.Exists(SupertonicRoot)) items.Add((L.T("Supertonic (model i wszystkie głosy)"), DirSize(SupertonicRoot), () => { _stTts = null; _stStyles.Clear(); GC.Collect(); GC.WaitForPendingFinalizers(); Directory.Delete(SupertonicRoot, true); }));
+            if (Directory.Exists(PiperRoot)) items.Add((L.T("Głosy Piper"), DirSize(PiperRoot), () => { StopPiperProcess(); Directory.Delete(PiperRoot, true); }));
+            if (File.Exists(YtDlpPath) || File.Exists(FfmpegPath)) items.Add((L.T("Pobieranie filmów (yt-dlp, ffmpeg)"), FileSize(YtDlpPath) + FileSize(FfmpegPath), () => { if (File.Exists(YtDlpPath)) File.Delete(YtDlpPath); if (File.Exists(FfmpegPath)) File.Delete(FfmpegPath); }));
+            if (File.Exists(Aria2Path)) items.Add((L.T("Torrenty (aria2)"), FileSize(Aria2Path), () => File.Delete(Aria2Path)));
+            string Mb(long b) => (b / 1048576.0).ToString("0") + " MB";
+            var win = new Window { Title = L.T("Usuń składniki Velivo"), Owner = owner, Width = 480, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new System.Windows.Controls.TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10),
+                Text = items.Count == 0 ? L.T("Nie ma pobranych składników – Velivo to teraz sama przeglądarka.")
+                    : L.T("Zaznacz, co usunąć z dysku. Przeglądarka, hasła, zakładki i Twoje dane zostają. Usunięty składnik pobierze się ponownie, gdy go użyjesz. Komunikator i klawiatura są wbudowane (nie zajmują miejsca) – wyłączysz je w Ustawieniach.") });
+            var boxes = new System.Collections.Generic.List<System.Windows.Controls.CheckBox>();
+            foreach (var it in items) { var cb = new System.Windows.Controls.CheckBox { Content = it.name + " – " + Mb(it.size), Margin = new Thickness(0, 2, 0, 2) }; boxes.Add(cb); sp.Children.Add(cb); }
+            var row = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var del = new System.Windows.Controls.Button { Content = L.T("🗑 Usuń zaznaczone"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+            var close = new System.Windows.Controls.Button { Content = L.T("Zamknij"), Padding = new Thickness(12, 4, 12, 4) };
+            foreach (var cb in boxes) cb.Click += (a, b) => del.IsEnabled = boxes.Any(x => x.IsChecked == true);
+            close.Click += (a, b) => win.Close();
+            del.Click += (a, b) =>
+            {
+                var pick = items.Where((x, k) => boxes[k].IsChecked == true).ToList();
+                if (MessageBox.Show(win, L.T("Usunąć z dysku:") + "\n" + string.Join("\n", pick.Select(x => "• " + x.name)) + "\n\n" + L.T("Razem: ") + Mb(pick.Sum(x => x.size)) + "?", "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                var failed = new System.Collections.Generic.List<string>();
+                foreach (var x in pick) { try { x.del(); } catch (Exception ex) { App.LogError(ex); failed.Add(x.name + ": " + ex.Message); } }
+                win.Close();
+                MessageBox.Show(owner, failed.Count == 0 ? L.T("✅ Usunięto. Zwolniono ") + Mb(pick.Sum(x => x.size)) + "."
+                    : L.T("Część nie dała się usunąć (plik w użyciu – uruchom Velivo ponownie i spróbuj jeszcze raz):") + "\n" + string.Join("\n", failed), "Velivo");
+            };
+            if (items.Count > 0) row.Children.Add(del);
+            row.Children.Add(close); sp.Children.Add(row);
+            win.Content = sp; ApplyWindowTheme(win); win.ShowDialog();
+        }
+}
 }

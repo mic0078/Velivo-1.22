@@ -517,6 +517,10 @@ namespace Velivo
             updBtn.HorizontalAlignment = HorizontalAlignment.Left; updBtn.Margin = new Thickness(0, 0, 0, 4);
             updBtn.ToolTip = L.T("Sprawdza nowe wersje pobranych głosów (Piper, Supertonic, XTTS) i aktualizuje po Twojej zgodzie. Velivo sprawdza to też samo raz na dobę i powiadamia.");
             root.Children.Add(updBtn);
+            var compBtn = SmallButton(L.T("🧩 Usuń składniki Velivo…"), () => RemoveComponents(win));
+            compBtn.HorizontalAlignment = HorizontalAlignment.Left; compBtn.Margin = new Thickness(0, 0, 0, 4);
+            compBtn.ToolTip = L.T("Wybierz, co usunąć z dysku (odtwarzacz filmów i TV, głosy, narzędzia pobierania, torrenty) – zostaje sama przeglądarka. Każdy składnik pobierze się ponownie, gdy go użyjesz.");
+            root.Children.Add(compBtn);
             var restore = Check(L.T("Po uruchomieniu przywracaj karty z poprzedniej sesji"), L.T("Karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T."), s.RestoreTabs);
             root.Children.Add(restore);
             var sameTab = Check(L.T("Otwieraj linki w tej samej karcie"), L.T("Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach."), s.LinksInSameTab);

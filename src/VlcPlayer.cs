@@ -2189,6 +2189,15 @@ namespace Velivo
             Action stUpd = () => stTxt.Text = L.T("Jakość głosu Supertonic") + ": " + (stSl.Value < 2 ? L.T("samo") : (int)stSl.Value + " " + L.T("kroków"));
             stSl.ValueChanged += (a2, b2) => { _settings.VlcLectorSteps = stSl.Value < 2 ? 0 : (int)stSl.Value; stUpd(); LectorDropPre(lc); filmPrefsChanged(); };   // osobno dla filmu
             stUpd(); lectorPanel.Children.Add(stTxt); lectorPanel.Children.Add(stSl);
+            // 🗣 lektor dla calego filmu: sam w tle albo dopiero po ustawieniu glosu, tempa i jakosci - przyciskiem
+            var autoBuild = new CheckBox { Content = L.T("Buduj lektora sam (cały film w tle)"), Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 6), IsChecked = _settings.VlcLectorAutoBuild,
+                ToolTip = L.T("Włączone: po włączeniu filmu Velivo samo przygotowuje głos dla całego filmu. Wyłączone: najpierw ustaw głos, prędkość i jakość, potem kliknij „Zbuduj lektora teraz”.") };
+            autoBuild.Click += (s, e) => { _settings.VlcLectorAutoBuild = autoBuild.IsChecked == true; _settings.Save(DataDir); };
+            lectorPanel.Children.Add(autoBuild);
+            var buildNow = new Button { Content = L.T("🗣 Zbuduj lektora teraz"), Padding = new Thickness(8, 4, 8, 4), HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = L.T("Przygotowuje głos dla całego filmu z obecnymi ustawieniami (głos, prędkość, jakość). Wcześniej przygotowane nagrania w innych ustawieniach są pomijane.") };
+            buildNow.Click += (s, e) => { LectorStopRender(lc); lc.BuildNow = true; };
+            lectorPanel.Children.Add(buildNow);
             // ustawienia filmu do panelu i odtwarzacza (przy wczytaniu filmu): zapisane dla filmu, inaczej ostatnio uzywane
             Action applyFilmPrefs = () =>
             {

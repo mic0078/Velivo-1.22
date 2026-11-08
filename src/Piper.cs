@@ -160,7 +160,8 @@ namespace Velivo
         Process _piperProc;
         string _piperProcKey;
         readonly SemaphoreSlim _piperLock = new SemaphoreSlim(1, 1);
-        static string PiperOutDir { get { return Path.Combine(Path.GetTempPath(), "velivo-piper"); } }
+        internal static string PiperOutOverride;   // folder lektora wybrany przez wlasciciela (np. ramdysk) - tam tez pliki robocze glosu
+        static string PiperOutDir { get { return Path.Combine(string.IsNullOrEmpty(PiperOutOverride) ? Path.GetTempPath() : PiperOutOverride, "velivo-piper"); } }
 
         void StopPiperProcess()
         {

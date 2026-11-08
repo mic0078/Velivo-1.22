@@ -2198,6 +2198,18 @@ namespace Velivo
                 ToolTip = L.T("Przygotowuje głos dla całego filmu z obecnymi ustawieniami (głos, prędkość, jakość). Wcześniej przygotowane nagrania w innych ustawieniach są pomijane.") };
             buildNow.Click += (s, e) => { LectorStopRender(lc); lc.BuildNow = true; };
             lectorPanel.Children.Add(buildNow);
+            // 📁 folder nagran lektora - np. ramdysk, zeby nie mielic dysku
+            Func<string> dirText = () => L.T("Folder nagrań: ") + (string.IsNullOrWhiteSpace(_settings.VlcLectorDir) ? L.T("domyślny (Dane\\lektor)") : _settings.VlcLectorDir);
+            var dirLbl = new TextBlock { Text = dirText(), Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 4) };
+            lectorPanel.Children.Add(dirLbl);
+            var dirRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var dirPick = new Button { Content = L.T("📁 Wybierz folder…"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 0),
+                ToolTip = L.T("Gdzie zapisywać nagrania lektora i pliki robocze głosu – np. ramdysk, żeby nie obciążać dysku. Nagrania liczą się od nowa w nowym miejscu.") };
+            dirPick.Click += (s, e) => { var f = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = Directory.Exists(_settings.VlcLectorDir) ? _settings.VlcLectorDir : null }; if (f.ShowDialog(win) == true) { _settings.VlcLectorDir = f.FolderName; _settings.Save(DataDir); dirLbl.Text = dirText(); LectorStopRender(lc); } };
+            var dirDef = new Button { Content = L.T("Domyślny"), Padding = new Thickness(8, 4, 8, 4), ToolTip = L.T("Wraca do folderu Dane\\lektor") };
+            dirDef.Click += (s, e) => { _settings.VlcLectorDir = ""; _settings.Save(DataDir); dirLbl.Text = dirText(); LectorStopRender(lc); };
+            dirRow.Children.Add(dirPick); dirRow.Children.Add(dirDef);
+            lectorPanel.Children.Add(dirRow);
             // ustawienia filmu do panelu i odtwarzacza (przy wczytaniu filmu): zapisane dla filmu, inaczej ostatnio uzywane
             Action applyFilmPrefs = () =>
             {

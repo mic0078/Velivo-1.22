@@ -208,7 +208,7 @@ namespace Velivo
                     film = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))).Replace("-", "").Substring(0, 16);
                     set = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(key))).Replace("-", "").Substring(0, 8);
                 }
-                var root = Path.Combine(DataDir, "lektor"); var dir = Path.Combine(root, film + "-" + set);   // jeden folder na film: inny glos / tempo / jakosc kasuje poprzedni folder tego filmu
+                var root = string.IsNullOrWhiteSpace(_settings.VlcLectorDir) ? Path.Combine(DataDir, "lektor") : Path.Combine(_settings.VlcLectorDir.Trim(), "velivo-lektor"); PiperOutOverride = string.IsNullOrWhiteSpace(_settings.VlcLectorDir) ? null : _settings.VlcLectorDir.Trim(); var dir = Path.Combine(root, film + "-" + set);   // jeden folder na film (inny glos / tempo / jakosc kasuje poprzedni folder tego filmu); wlasny folder - zawsze podfolder velivo-lektor, porzadki nie ruszaja innych plikow
                 var found = await Task.Run(() =>
                 {
                     if (loadOnly && !Directory.Exists(dir)) return new Dictionary<int, string>();

@@ -136,18 +136,18 @@ namespace Velivo
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
         public readonly float[] Scope = new float[8192]; public volatile int ScopePos; int pkN;
         public volatile bool Active; public long Frames;
-        // wskazniki VU lewego i prawego kanalu wyjscia: moc RMS wygladzona ~300 ms (balistyka VU), w dBFS
+        // wskazniki VU lewego i prawego kanalu wyjscia: moc RMS wygladzona ~80 ms, w dBFS
         public double VuL = double.NegativeInfinity, VuR = double.NegativeInfinity; double vuPL, vuPR; int vuN;
         public double VuInL = double.NegativeInfinity, VuInR = double.NegativeInfinity; double viPL, viPR; int viN;   // to samo dla oryginalu (przed przetwarzaniem)
         void VuIn(double l, double r)
         {
-            const double c = 0.99993;
+            const double c = 0.99974;
             viPL = l * l + c * (viPL - l * l); viPR = r * r + c * (viPR - r * r);
             if (++viN >= 480) { viN = 0; VuInL = 10 * Math.Log10(viPL * 2 + 1e-12); VuInR = 10 * Math.Log10(viPR * 2 + 1e-12); }
         }
         void Vu(double l, double r)
         {
-            const double c = 0.99993;   // ok. 300 ms przy 48 kHz
+            const double c = 0.99974;   // ok. 80 ms przy 48 kHz - szybka reakcja wskazowki (wlasciciel: 300 ms za wolno)
             vuPL = l * l + c * (vuPL - l * l); vuPR = r * r + c * (vuPR - r * r);
             if (++vuN >= 480) { vuN = 0; VuL = 10 * Math.Log10(vuPL * 2 + 1e-12); VuR = 10 * Math.Log10(vuPR * 2 + 1e-12); }   // *2: sinus 0 dBFS = 0 dB
         }   // ostatnio przetworzony dźwięk (do wskaźnika „pracuje”)

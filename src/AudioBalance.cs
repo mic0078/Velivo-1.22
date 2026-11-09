@@ -381,17 +381,39 @@ namespace Velivo
             lForget.Click += (s2, e2) => { if (AskYes(win, L.T("Usunąć wszystko, czego Audio Balance nauczył się o kanałach i filmach (") + AbLearnCount + ")?", L.T("Usuń"), L.T("Anuluj"))) { AbLearnForget(); ShowToast(L.T("🧠 Pamięć Audio Balance wyczyszczona"), null); } };
             lForget.ToolTip = L.T("Kasuje plik audio-nauka.json – Velivo zacznie uczyć się od nowa.");
             lrow.Children.Add(lForget); root.Children.Add(lrow);
-            // najwazniejsze na gorze: ZRODLO (ile ma oryginal) → ZMIANA (ile podglosnil / sciszyl) → WYNIK (co slychac); glosnosc z 3 s, 4×/s
-            var sum3 = new Grid { Margin = new Thickness(0, 8, 0, 4) }; var sumV = new TextBlock[3]; var sumL = new TextBlock[3];
+            // trzy paski jak linie przy V w logo (schodkowo): ŹRÓDŁO (oryginał) → ZMIANA (ile podgłośnił ▲ / ściszył ▼) → WYNIK (co słychać)
+            // paski co klatkę z tego samego pomiaru co V (RMS ok. 80 ms, zsynchronizowany z dźwiękiem z głośnika); liczby 4×/s - czytelne
+            var sum3 = new Grid { Margin = new Thickness(0, 4, 0, 4) }; var sumV = new TextBlock[3]; var sumL = new TextBlock[3]; var sumB = new Border[3]; var sumT = new Border[3];
+            sum3.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); sum3.ColumnDefinitions.Add(new ColumnDefinition()); sum3.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(66) });
+            var zero = new Border { Width = 2, Background = AbDim, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, -2, 0, -2) };
             for (int i = 0; i < 3; i++)
             {
-                sum3.ColumnDefinitions.Add(new ColumnDefinition());
-                var bx = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1F, 0x2B)), CornerRadius = new CornerRadius(6), Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 2 ? 0 : 3, 0), Padding = new Thickness(6, 4, 6, 4) };
-                var sp = new StackPanel(); sumL[i] = T(new[] { L.T("ŹRÓDŁO"), L.T("ZMIANA"), L.T("WYNIK") }[i], 10, dim); sumV[i] = T("–", 17, fg, FontWeights.Bold);
+                sum3.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                sumL[i] = T(new[] { L.T("ŹRÓDŁO"), L.T("ZMIANA"), L.T("WYNIK") }[i], 10, dim); sumL[i].TextWrapping = TextWrapping.NoWrap; sumL[i].VerticalAlignment = VerticalAlignment.Center; sumL[i].Margin = new Thickness(i * 12, 0, 8, 0); sumL[i].Width = 52 + i * 12; sumL[i].Padding = new Thickness(0);
+                sumB[i] = new Border { Background = new[] { AbRed, AbCyan, AbGreen }[i], CornerRadius = new CornerRadius(4), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
+                sumT[i] = new Border { Background = AbBtnBg, CornerRadius = new CornerRadius(4), Height = 8, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true };
+                var tg = new Grid(); tg.Children.Add(sumB[i]); if (i == 1) tg.Children.Add(zero); sumT[i].Child = tg;
+                sumV[i] = T("–", 14, new[] { AbRed, fg, AbGreen }[i], FontWeights.Bold); sumV[i].TextWrapping = TextWrapping.NoWrap; sumV[i].HorizontalAlignment = HorizontalAlignment.Right; sumV[i].VerticalAlignment = VerticalAlignment.Center;
                 System.Windows.Documents.Typography.SetNumeralAlignment(sumV[i], FontNumeralAlignment.Tabular);
-                sumL[i].TextWrapping = TextWrapping.NoWrap; sp.Children.Add(new Viewbox { Child = sumL[i], StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Height = 14 }); sp.Children.Add(new Viewbox { Child = sumV[i], StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Height = 24 }); bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);   // długa wartość się zmniejsza zamiast łamać (kafelek nie rośnie - nic pod nim nie skacze)
+                Grid.SetRow(sumL[i], i); Grid.SetRow(sumT[i], i); Grid.SetColumn(sumT[i], 1); Grid.SetRow(sumV[i], i); Grid.SetColumn(sumV[i], 2);
+                sum3.Children.Add(sumL[i]); sum3.Children.Add(sumT[i]); sum3.Children.Add(sumV[i]);
+                sumT[i].Margin = new Thickness(i * 12 - 24, 5, 0, 5);   // pasek zaczyna się tuż za podpisem - schodki jak linie w logo
             }
-            sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 10 s, bez ciszy – jak pomiar zintegrowany). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz; powinien być przy celu, który ustawiasz niżej.");
+            var sumUnit = T(L.T("LUFS · zmiana w dB"), 10, dim); sumUnit.Margin = new Thickness(24, 0, 0, 0); Grid.SetRow(sumUnit, 3); Grid.SetColumnSpan(sumUnit, 3); sum3.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); sum3.Children.Add(sumUnit);
+            double sbIn = -70, sbOut = -70, sbD = 0;   // wygładzenie pasków: w górę szybko, w dół płynnie (jak V)
+            void SumBars(bool on)
+            {   // co klatkę: tylko szerokości (bez nowych obiektów); skala -50…-10 dBFS, zmiana ±12 dB od środka
+                var sn = AbProc.Delayed(Math.Max(0, Interlocked.Read(ref AbProc.Frames) - AbPlayHead()));
+                double ri = on ? Math.Max(-70, (sn.VuInL + sn.VuInR) / 2) : -70, ro = on ? Math.Max(-70, (sn.VuL + sn.VuR) / 2) : -70;   // RMS ok. 80 ms - reakcja na dźwięk od razu (jak V)
+                double dl = sn.VuL - sn.VuInL, dr = sn.VuR - sn.VuInR, d = on && !AbBypass && sn.VuInL > -70 ? (dl + dr) / 2 : 0;
+                if (double.IsNaN(d) || double.IsInfinity(d)) d = 0; if (double.IsNaN(ri)) ri = -70; if (double.IsNaN(ro)) ro = -70;
+                sbIn += (ri - sbIn) * (ri > sbIn ? 0.8 : 0.4); sbOut += (ro - sbOut) * (ro > sbOut ? 0.8 : 0.4); sbD += (Math.Max(-12, Math.Min(12, d)) - sbD) * 0.7;
+                double w0 = sumT[0].ActualWidth, w1 = sumT[1].ActualWidth, w2 = sumT[2].ActualWidth;
+                sumB[0].Width = Math.Max(0, Math.Min(1, (sbIn + 50) / 40)) * w0; sumB[2].Width = Math.Max(0, Math.Min(1, (sbOut + 50) / 40)) * w2;
+                double half = w1 / 2, len = Math.Abs(sbD) / 12 * half;
+                sumB[1].Width = len; sumB[1].Margin = new Thickness(sbD >= 0 ? half : half - len, 0, 0, 0); sumB[1].Background = sbD >= 0 ? AbCyan : AbViolet;
+            }
+            sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał. Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz. Paski na bieżąco (ok. 80 ms, zsynchronizowane z dźwiękiem), liczby ze średniej z ostatnich sekund.");
             root.Children.Insert(3, sum3);
             var tgt = new ComboBox { Width = 330, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
@@ -446,13 +468,13 @@ namespace Velivo
             }
             for (int k = 0; k < 3; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(14, 4, 14, 4); tabBar.Children.Add(tabBtn[k]); }
             cols.Children.Add(tabBar);
-            // Podgląd: V obok kafelków, lektor, wykres, widmo, wyłącznik
+            // Podgląd: paski i V, lektor, wykres, widmo, wyłącznik
             var live = new Grid();
-            live.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); live.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var vCol = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 10, 0) }; var tCol = new StackPanel();
+            live.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); live.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var vCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; var tCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };   // paski po lewej, V po prawej - jak logo
             bigVu.Height = 105; bigVu.Margin = new Thickness(0); vuLeg.Visibility = Visibility.Collapsed;
-            Move(vCol, bigVu); sum3.Margin = new Thickness(0); Move(tCol, sum3, lekRow);
-            Grid.SetColumn(tCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); pages[0].Children.Add(live);
+            Move(vCol, bigVu); sum3.Margin = new Thickness(0); Move(tCol, sum3);
+            Grid.SetColumn(vCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); pages[0].Children.Add(live); Move(pages[0], lekRow);
             hist.Height = 70;
             Move(pages[0], leg, hist, spec, axis, numsHead, nums, info, bypassNote, bypassBtn);
             // Ustawienia: tryb, intensywność, dialogi, poziom, urządzenie, nauka, pomiary szczegółowe, przyciski okna
@@ -476,7 +498,7 @@ namespace Velivo
             {
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
                 bool live = _abOut != null && AbProc.Active && AbFlowing();
-                bigVuUpd(live);
+                bigVuUpd(live); SumBars(live);
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
                 state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
@@ -520,11 +542,10 @@ namespace Velivo
                     numsLast = DateTime.UtcNow;
                     {
                         double si = AbProc.Raw.Gated10 > double.NegativeInfinity ? AbProc.Raw.Gated10 : AbProc.Raw.ShortTerm, so = AbProc.Out.Gated10 > double.NegativeInfinity ? AbProc.Out.Gated10 : AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
-                        sumV[0].Text = F(si) + " LUFS"; sumV[0].Foreground = AbRed;
-                        sumL[1].Text = !okd || Math.Abs(dd) < 0.25 ? L.T("ZMIANA") : dd > 0 ? L.T("PODGŁOŚNIONO") : L.T("ŚCISZONO");
-                        sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0 dB" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0") + " dB";
+                        sumV[0].Text = F(si);
+                        sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0");
                         sumV[1].Foreground = !okd || Math.Abs(dd) < 0.25 ? fg : dd > 0 ? AbCyan : AbViolet;
-                        sumV[2].Text = F(so) + " LUFS"; sumV[2].Foreground = AbGreen;
+                        sumV[2].Text = F(so);
                     }
                     vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
                     vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;

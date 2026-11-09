@@ -63,13 +63,14 @@ namespace Velivo
         // mediana głośności chwilowej z 10 s (bez ciszy poniżej MedianGate) - poziom „dialogu”, odporny na krótkie wybuchy
         readonly double[] mom = new double[100]; readonly double[] sortBuf = new double[100]; int momN, momI;
         public double MedianGate = -60, Median = double.NegativeInfinity;
+        public double Gated10 = double.NegativeInfinity;   // jak „zintegrowana” (bramki -70 / -10 LU), ale z ostatnich 10 s - do dociagania wyniku do celu
         public AbMeter()
         {   // współczynniki K-weighting dla 48 kHz wprost z normy (etap 1: półka, etap 2: górnoprzepustowy RLB)
             shelf.Set(1.53512485958697, -2.69169618940638, 1.19839281085285, 1, -1.69065929318241, 0.73248077421585);
             hp.Set(1.0, -2.0, 1.0, 1, -1.99004745483398, 0.99007225036621);
         }
         public static double Lufs(double meanSq) => meanSq <= 1e-20 ? double.NegativeInfinity : -0.691 + 10 * Math.Log10(meanSq);
-        public void ResetWindows() { shelf.Reset(); hp.Reset(); Array.Clear(blocks, 0, 30); nBlocks = 0; bi = 0; acc = 0; accN = 0; momN = 0; momI = 0; Momentary = ShortTerm = Median = Fast = double.NegativeInfinity; }
+        public void ResetWindows() { shelf.Reset(); hp.Reset(); Array.Clear(blocks, 0, 30); nBlocks = 0; bi = 0; acc = 0; accN = 0; momN = 0; momI = 0; Momentary = ShortTerm = Median = Fast = Gated10 = double.NegativeInfinity; }
         public void ResetIntegrated() { Array.Clear(hCnt, 0, hCnt.Length); Array.Clear(hSum, 0, hSum.Length); }
         // jedna ramka stereo; zwraca chwilową moc K (do detektora kompresora)
         public double Push(double l, double r)
@@ -89,6 +90,13 @@ namespace Velivo
                     mom[momI] = Momentary; momI = (momI + 1) % 100; if (momN < 100) momN++;
                     int c = 0; for (int k = 0; k < momN; k++) if (mom[k] > MedianGate) sortBuf[c++] = mom[k];
                     if (c >= 20) { Array.Sort(sortBuf, 0, c); Median = sortBuf[c / 2]; }
+                    double e1 = 0; int n1 = 0; for (int k = 0; k < momN; k++) if (mom[k] > -70) { e1 += Math.Pow(10, (mom[k] + 0.691) / 10); n1++; }
+                    if (n1 >= 10)
+                    {
+                        double gate = Lufs(e1 / n1) - 10, e2 = 0; int n2 = 0;
+                        for (int k = 0; k < momN; k++) if (mom[k] > gate) { e2 += Math.Pow(10, (mom[k] + 0.691) / 10); n2++; }
+                        Gated10 = n2 > 0 ? Lufs(e2 / n2) : double.NegativeInfinity;
+                    }
                 }
                 if (nBlocks >= 4 && Momentary > -70) { int b = (int)Math.Round((Math.Min(Momentary, 29.9) + 70) * 10); if (b >= 0 && b < 1000) { hCnt[b]++; hSum[b] += m / 4; } }   // bloki 400 ms co 100 ms (75% zakładki)
             }
@@ -158,7 +166,7 @@ namespace Velivo
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb; long sinceStart;
+        double levDb, detP, grDb, fastDb, corrDb; long sinceStart;
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -180,7 +188,7 @@ namespace Velivo
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = 0; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = 0; corrDb = 0; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
@@ -253,7 +261,11 @@ namespace Velivo
                     else if (over > -3) want2 = -(1 - 1 / pr.Ratio) * (over + 3) * (over + 3) / 12;
                     if (over > 8) want2 -= (over - 8) * (1 / pr.Ratio - 0.05);   // powyżej progu + 8 dB prawie twarda granica (wybuchy nie przeskakują poziomu)
                     grDb = want2 < grDb ? want2 + aC * (grDb - want2) : want2 + rC * (grDb - want2);
-                    g = levDb + fastDb + grDb;
+                    // 4) korekta wyniku (makeup): kompresor i chwilowe sciszenia zabieraja czesc glosnosci - mierzymy to, co naprawde wychodzi
+                    //    (3 s, tylko gdy gra tresc), i powoli (1 dB/s) dociagamy do celu; limiter dalej pilnuje szczytow
+                    if (Out.Gated10 > double.NegativeInfinity && Out.Momentary > Target - 15 && In.Momentary > Target + pr.Gate)
+                        corrDb = Math.Max(-6, Math.Min(pr.MaxBoost > 0 ? 8 : 0, corrDb + Math.Max(-1, Math.Min(1, Target - Out.Gated10)) * 1.0 / Fs));
+                    g = levDb + fastDb + grDb + corrDb;
                 }
                 double lin = Math.Pow(10, g / 20) * vol;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami

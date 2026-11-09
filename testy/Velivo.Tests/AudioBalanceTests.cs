@@ -94,4 +94,22 @@ public class AudioBalanceTests
             Assert.InRange(p.Out.ShortTerm, -20, -16);
         }
     }
+
+    [Theory]
+    [InlineData("light")]
+    [InlineData("balanced")]
+    [InlineData("night")]
+    public void WynikTrafiaWCel(string profil)
+    {
+        // „film”: mowa z pauzami, muzyka w tle, co 15 s wybuch; źródło ok. -26 LUFS → wynik (zintegrowany od 60 s) przy celu -18 ±1
+        var p = new AbProcessor { Profile = AbProfile.ByName(profil), Target = -18 }; var buf = new float[960]; var rnd = new Random(2); var outM = new AbMeter();
+        for (int b = 0; b < 12000; b++)
+        {
+            double t = b * 0.01, sy = Math.Max(0, Math.Sin(2 * Math.PI * 4 * t)) * ((t % 6) < 4.5 ? 1 : 0); bool boom = (t % 15) > 12 && (t % 15) < 13;
+            for (int k = 0; k < 480; k++) { int i = b * 480 + k; double v = 0.06 * sy * Math.Sin(2 * Math.PI * 250 * i / 48000.0) + 0.012 * Math.Sin(2 * Math.PI * 110 * i / 48000.0) + (boom ? 0.12 * (rnd.NextDouble() * 2 - 1) : 0); buf[2 * k] = buf[2 * k + 1] = (float)v; }
+            p.Process(buf, 480);
+            if (t > 60) for (int k = 0; k < 480; k++) outM.Push(buf[2 * k], buf[2 * k + 1]);
+        }
+        Assert.InRange(outM.Integrated, -19, -17);
+    }
 }

@@ -323,7 +323,7 @@ namespace Velivo
                 System.Windows.Documents.Typography.SetNumeralAlignment(sumV[i], FontNumeralAlignment.Tabular);
                 sp.Children.Add(sumL[i]); sp.Children.Add(sumV[i]); bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);
             }
-            sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 3 s). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz. Cel ustawiasz niżej.");
+            sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 10 s, bez ciszy – jak pomiar zintegrowany). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz; powinien być przy celu, który ustawiasz niżej.");
             root.Children.Insert(3, sum3);
             var tgt = new ComboBox { Width = 210, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
@@ -419,7 +419,7 @@ namespace Velivo
                 {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
                     numsLast = DateTime.UtcNow;
                     {
-                        double si = AbProc.Raw.ShortTerm, so = AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
+                        double si = AbProc.Raw.Gated10 > double.NegativeInfinity ? AbProc.Raw.Gated10 : AbProc.Raw.ShortTerm, so = AbProc.Out.Gated10 > double.NegativeInfinity ? AbProc.Out.Gated10 : AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
                         sumV[0].Text = F(si) + " LUFS"; sumV[0].Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53));
                         sumL[1].Text = !okd || Math.Abs(dd) < 0.25 ? L.T("ZMIANA") : dd > 0 ? L.T("PODGŁOŚNIONO") : L.T("ŚCISZONO");
                         sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0 dB" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0") + " dB";

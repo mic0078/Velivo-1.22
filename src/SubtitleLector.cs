@@ -236,8 +236,9 @@ namespace Velivo
                 while (gen == lc.RenderGen)
                 {
                     int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
-                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
-                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
+                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k) && k != lc.PreIdx) { idx = k; break; }   // bez kwestii liczonej właśnie na żywo - ta sama praca dwa razy dławiła silnik (opóźnienie, pomijane kwestie)
+                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k) && k != lc.PreIdx) { idx = k; break; }
+                    if (idx < 0 && lc.PreIdx >= 0 && !lc.Ready.ContainsKey(lc.PreIdx)) { await Task.Delay(200); continue; }   // została tylko kwestia liczona na żywo - poczekaj, potem dokończ
                     if (idx < 0) { lc.Osd?.Invoke(L.T("🗣 Lektor gotowy dla całego filmu")); break; }   // caly film gotowy
                     var preSw = System.Diagnostics.Stopwatch.StartNew(); while (gen == lc.RenderGen && lc.PreWav != null && !lc.PreWav.IsCompleted && preSw.ElapsedMilliseconds < 120000) await Task.Delay(100);   // kwestia liczona na biezaco ma pierwszenstwo (XTTS/Supertonic licza jedna naraz); samo granie lektora budowy nie wstrzymuje
                     if (gen != lc.RenderGen) return;

@@ -399,7 +399,6 @@ namespace Velivo
                 sum3.Children.Add(sumL[i]); sum3.Children.Add(sumT[i]); sum3.Children.Add(sumV[i]);
                 sumT[i].Margin = new Thickness(i * 12 - 24, 5, 0, 5);   // pasek zaczyna się tuż za podpisem - schodki jak linie w logo
             }
-            var sumUnit = T(L.T("LUFS · zmiana w dB"), 10, dim); sumUnit.Margin = new Thickness(24, 0, 0, 0); Grid.SetRow(sumUnit, 3); Grid.SetColumnSpan(sumUnit, 3); sum3.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); sum3.Children.Add(sumUnit);
             double sbIn = -70, sbOut = -70, sbD = 0;   // wygładzenie pasków: w górę szybko, w dół płynnie (jak V)
             void SumBars(bool on)
             {   // co klatkę: tylko szerokości (bez nowych obiektów); skala -50…-10 dBFS, zmiana ±12 dB od środka
@@ -413,7 +412,7 @@ namespace Velivo
                 double half = w1 / 2, len = Math.Abs(sbD) / 12 * half;
                 sumB[1].Width = len; sumB[1].Margin = new Thickness(sbD >= 0 ? half : half - len, 0, 0, 0); sumB[1].Background = sbD >= 0 ? AbCyan : AbViolet;
             }
-            sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał. Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz. Paski na bieżąco (ok. 80 ms, zsynchronizowane z dźwiękiem), liczby ze średniej z ostatnich sekund.");
+            sum3.ToolTip = L.T("Źródło – dźwięk filmu. Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz.");
             root.Children.Insert(3, sum3);
             var tgt = new ComboBox { Width = 330, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });

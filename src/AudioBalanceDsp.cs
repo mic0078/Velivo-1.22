@@ -186,6 +186,14 @@ namespace Velivo
     public sealed class AbLearnEntry
     {
         public double Ad { get; set; } public double Adj { get; set; } public double AdjW { get; set; } public double Avg { get; set; } public double W { get; set; } public int N { get; set; } public DateTime T { get; set; }
+        // przed zapisem: ∞ / NaN (np. pomiar ciszy) zastąpione bezpieczną wartością - wpis bez sensownej średniej traci wagę (uczy się od nowa)
+        public void Sanitize()
+        {
+            static double F(double x, double d) => double.IsNaN(x) || double.IsInfinity(x) ? d : x;
+            Ad = Math.Max(-60, Math.Min(0, F(Ad, 0))); Adj = Math.Max(-AbLearnMath.MaxAdj, Math.Min(AbLearnMath.MaxAdj, F(Adj, 0))); AdjW = F(AdjW, 0);
+            if (double.IsNaN(Avg) || double.IsInfinity(Avg) || Avg < -70 || Avg > 0) { Avg = 0; W = 0; } W = F(W, 0);
+        }
+        public static readonly System.Text.Json.JsonSerializerOptions Json = new System.Text.Json.JsonSerializerOptions { NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals };
     }
 
     public sealed class AbProfile

@@ -156,6 +156,11 @@ public class AudioBalanceTests
         d["Kanał A"].W = 60; d["Kanał A"].AdjW = 30;
         var back = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, AbLearnEntry>>(System.Text.Json.JsonSerializer.Serialize(d));
         Assert.True(back["Kanał A"].W == 60 && back["Kanał A"].AdjW == 30 && back["Kanał A"].Adj == 1.5 && !System.Text.Json.JsonSerializer.Serialize(d).Contains("Lev"));
+        // ∞ / NaN (np. pomiar ciszy) - zapis nie rzuca błędem (było: okno „nieoczekiwany błąd”), wartości oczyszczone
+        var bad = new AbLearnEntry { Ad = double.NegativeInfinity, Avg = double.NegativeInfinity, W = 30, Adj = double.NaN };
+        bad.Sanitize();
+        var js = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, AbLearnEntry> { ["x"] = bad }, AbLearnEntry.Json);
+        Assert.True(bad.Ad == 0 && bad.Adj == 0 && bad.W == 0 && !js.Contains("Infinity") && !js.Contains("NaN"));
     }
 
     [Fact]

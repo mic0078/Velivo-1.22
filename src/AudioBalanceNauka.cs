@@ -22,7 +22,7 @@ namespace Velivo
             lock (AbLearnLock)
             {
                 if (_abLearn != null) return _abLearn;
-                try { _abLearn = System.IO.File.Exists(AbLearnFile) ? JsonSerializer.Deserialize<Dictionary<string, AbLearnEntry>>(System.IO.File.ReadAllText(AbLearnFile)) : null; } catch (Exception ex) { App.LogError(ex); }
+                try { _abLearn = System.IO.File.Exists(AbLearnFile) ? JsonSerializer.Deserialize<Dictionary<string, AbLearnEntry>>(System.IO.File.ReadAllText(AbLearnFile), AbLearnEntry.Json) : null; } catch (Exception ex) { App.LogError(ex); }
                 return _abLearn ??= new Dictionary<string, AbLearnEntry>();
             }
         }
@@ -34,7 +34,8 @@ namespace Velivo
             {
                 var d = AbLearnData();
                 foreach (var k in d.OrderByDescending(x => x.Value.T).Skip(400).Select(x => x.Key).ToList()) d.Remove(k);   // limit: 400 ostatnich źródeł
-                json = JsonSerializer.Serialize(d);
+                foreach (var e in d.Values) e.Sanitize();   // ∞ / NaN nigdy do pliku
+                json = JsonSerializer.Serialize(d, AbLearnEntry.Json);
             }
             System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLearnFile, json); } catch (Exception ex) { App.LogError(ex); } });
         }
@@ -76,7 +77,7 @@ namespace Velivo
         {
             if (_abLearnSrc == null || _abOut == null || !AbProc.Active || AbProc.Bypass || (DateTime.Now - _abLearnStart).TotalSeconds < 3) return;
             double ad = AbProc.FastMinDb, st = AbProc.In.ShortTerm; AbProc.FastMinDb = 0;
-            if (double.IsNaN(ad)) return;
+            if (double.IsNaN(ad) || double.IsInfinity(ad)) ad = 0;   // nieskończoność z pomiaru (cisza) - nie do nauki
             _abLearnChunkSec++;   // sekundy naprawdę odtwarzane (pauza się nie liczy - zegar nauki nie działa bez dźwięku)
             if (st > -60 && !double.IsInfinity(st)) _abLearnSess.Add((float)st);   // pomiar seansu (3 s, co sekundę) - cisza i pauzy pominięte
             if (_abLearnVolNow > 0) _abLearnVols.Add((float)_abLearnVolNow);   // Twoja głośność w seansie (wyciszenie pominięte)

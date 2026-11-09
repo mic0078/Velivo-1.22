@@ -20,7 +20,7 @@ namespace Velivo
         static Dictionary<string, LektorVoicePref> AbLekPrefs()
         {
             if (_abLekPrefs != null) return _abLekPrefs;
-            try { _abLekPrefs = System.IO.File.Exists(AbLekPrefsFile) ? JsonSerializer.Deserialize<Dictionary<string, LektorVoicePref>>(System.IO.File.ReadAllText(AbLekPrefsFile)) : null; } catch (Exception ex) { App.LogError(ex); }
+            try { _abLekPrefs = System.IO.File.Exists(AbLekPrefsFile) ? JsonSerializer.Deserialize<Dictionary<string, LektorVoicePref>>(System.IO.File.ReadAllText(AbLekPrefsFile), AbLearnEntry.Json) : null; } catch (Exception ex) { App.LogError(ex); }
             return _abLekPrefs ??= new Dictionary<string, LektorVoicePref>();
         }
 
@@ -69,8 +69,9 @@ namespace Velivo
             var d = AbLekPrefs(); var k = voice ?? "";
             if (!d.TryGetValue(k, out var p)) d[k] = p = new LektorVoicePref();
             if (Math.Abs(p.Vol - vol) < 0.005 && p.Over == over && p.N > 0) return;
-            p.Vol = vol; p.Over = over; p.N++; p.T = DateTime.Now;
-            string json = JsonSerializer.Serialize(d);
+            if (double.IsNaN(vol) || double.IsInfinity(vol)) return;
+            p.Vol = Math.Max(0.1, Math.Min(0.99, vol)); p.Over = Math.Max(0, Math.Min(20, over)); p.N++; p.T = DateTime.Now;
+            string json = JsonSerializer.Serialize(d, AbLearnEntry.Json);
             System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLekPrefsFile, json); } catch (Exception ex) { App.LogError(ex); } });
         }
 

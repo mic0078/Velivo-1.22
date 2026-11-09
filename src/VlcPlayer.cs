@@ -1479,6 +1479,7 @@ namespace Velivo
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
             _playerMp = mp;
+            AbAttach(mp);   // 🎚 Audio Balance / korektor: dzwiek przez procesor Velivo (przed pierwszym Play)
             var view = new VideoView { MediaPlayer = mp, Background = Brushes.Black };
             var win = new Window { Title = L.T("Odtwarzacz filmów"), Width = 960, Height = 600, Background = Brushes.Black, Icon = Icon, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             // warstwa na obrazie (nad okienkiem VLC): dwuklik = pelny ekran, klik = pauza, ruch myszy = pokaz pasek
@@ -2911,6 +2912,7 @@ namespace Velivo
                     await vlcRun(() => { var ps = mp.State; if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening) mp.Stop(); });
                     if (seq != loadSeq || vlcClosed) return;
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\nprzesuniecie dzwieku (J/K): " + aDelayMs + " ms, bufor: " + IptvSt.Buffer + " s\n"); _vlcDriftAt = DateTime.MinValue; } catch (Exception) { }   // dziennik od nowa dla tego filmu
+                    AbNewSource(tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path));   // 🎚 nowy pomiar zintegrowany dla nowego filmu/kanalu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -2955,7 +2957,7 @@ namespace Velivo
                 {
                     tracksTimer.Stop(); applyTracks(); mp.Volume = muted ? 0 : (int)vol.Value;
                     // wyjscie dzwieku Windows (WASAPI) nie przyjelo formatu filmu - DirectSound i ten sam film od tego miejsca
-                    if (_aoutFailed && !aoutDs)
+                    if (_aoutFailed && !aoutDs && _abOut == null)   // przy Audio Balance dzwiek idzie przez Velivo - zmiana wyjscia VLC odlaczylaby procesor
                     {
                         aoutDs = true; _aoutFailed = false;
                         long t = mp.Time; vlcRun(() => { mp.SetAudioOutput("directsound"); mp.Stop(); mp.Play(); });   // w tej samej kolejce co inne zatrzymania
@@ -3867,6 +3869,9 @@ namespace Velivo
                 var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
                 sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); restartPlayer(); };   // zmiana wyjscia dzwieku - odtwarzacz od nowa w tym samym miejscu
                 cm.Items.Add(sur);
+                var abm = new MenuItem { Header = L.T("🎚 Audio Balance i korektor…") + "   (" + AbProfileLabel(AbProfileName) + (AbEqOn ? " + EQ" : "") + ")" };
+                abm.Click += (a, b) => ShowAudioMonitor();
+                cm.Items.Add(abm);
             });
             popup(aspect, cm =>
             {
@@ -4218,7 +4223,7 @@ namespace Velivo
                 LibBack();   // 🎬 biblioteka, z której włączono film, wraca   // przegladarka wraca z zasobnika   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
                 view.MediaPlayer = null;
                 if (_playerMp == mp) _playerMp = null;   // zwolniony za 10 s - zegar synchronizacji nie może już pytać „czy gra” (awaria Velivo)
-                vlcClosed = true;
+                vlcClosed = true; AbDetach();
                 // Stop VLC moze chwile trwac - nie w watku okna; zwolnienie pozniej, gdy kolejka okna i jednorazowe zegary (do 1,5 s) juz minely
                 vlcRun(() => mp.Stop()).ContinueWith(async _ => { try { await System.Threading.Tasks.Task.Delay(10000); mp.Dispose(); } catch (Exception) { } });   // po kolejnych zatrzymaniach (nie w trakcie)
             };

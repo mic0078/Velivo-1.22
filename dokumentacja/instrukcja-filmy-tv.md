@@ -231,6 +231,15 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 
 ---
 
+## 11a. 🎚 Audio Balance i Audio Monitor (próba)
+
+- **Gdzie:** Ustawienia → Odtwarzacz filmów → „Dźwięk – Audio Balance”, menu dźwięku w odtwarzaczu („🎚 Audio Balance i korektor…”) albo zasobnik → „🎚 Audio Monitor”.
+- **Profile:** Off (bez zmian), Light (lekko, naturalna dynamika), Balanced (wygodne oglądanie: dialogi wyżej, wybuchy niżej), Night (mocno wyrównane, do cichego słuchania). Przełączanie działa od razu; pierwsze włączenie w trakcie filmu – chwila ciszy (ok. 0,5 s).
+- **Poziom docelowy** wybierasz sam: -14 (głośno) … -18 (zalecane do filmów) … -23 (EBU R128) / -24.
+- **Jak działa:** Velivo bierze dźwięk z odtwarzacza (bez drugiego odtwarzacza), mierzy go wg ITU-R BS.1770-4 (LUFS chwilowy, 3 s, całość, True Peak), na tej podstawie powoli wyrównuje poziom, kompresor łagodzi głośne sceny, a limiter pilnuje szczytów -1 dBTP (także między próbkami). Opóźnienie przetwarzania ok. 5 ms; obraz i dźwięk są zgrywane według czasu VLC.
+- **Audio Monitor:** widmo, LOW/MID/HIGH, LUFS, True Peak, wykres ORIGINAL / AUDIOBALANCE, profil, źródło, korektor 10 pasm. „⤵ Do zasobnika” albo minimalizacja chowa widżet do zasobnika (własna ikonka: klik – przywróć, prawy przycisk – menu). Ukrycie nie wyłącza Audio Balance.
+- **5.1:** przy Audio Balance dźwięk jest miksowany do stereo.
+
 ## 12. 🧹 Porządki i kopia bezpieczeństwa
 
 **Czyszczenie śmieci** – zaznaczasz, co usunąć (pamięć stron, miniatury, ikony kanałów, stary program TV, dzienniki). Przy każdej pozycji widać rozmiar. Hasła, zakładki, listy kanałów i biblioteka zostają.

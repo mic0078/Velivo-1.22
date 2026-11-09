@@ -59,4 +59,21 @@ public class AudioBalanceTests
         Assert.True(dial / nd > -25, "dialog: " + dial / nd);              // wejście ok. -38
         Assert.True(boom / nb - dial / nd < 10, "różnica: " + (boom / nb - dial / nd));   // wejście: ok. 35 dB
     }
+
+    [Fact]
+    public void ReklamaSciszonaOdRazuAProgramWracaDoCelu()
+    {
+        var p = new AbProcessor { Profile = AbProfile.Balanced, Target = -18 }; var buf = new float[960]; var rnd = new Random(1);
+        double hit = -1, after = 0; int na = 0;
+        for (int b = 0; b < 5000; b++)
+        {
+            double t = b * 0.01, amp = t < 30 || t > 40 ? 0.1 : 0.32;   // reklama +10 dB przez 10 s
+            for (int k = 0; k < 480; k++) { double v = amp * (0.5 * Math.Sin(2 * Math.PI * 440 * (b * 480 + k) / 48000.0) + 0.5 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)v; }
+            p.Process(buf, 480);
+            if (t > 30.05 && t < 40 && hit < 0 && p.Out.Fast < -16) hit = t - 30;
+            if (t > 45 && t < 47) { after += p.Out.Momentary; na++; }
+        }
+        Assert.InRange(hit, 0, 0.3);              // ściszone w ułamku sekundy
+        Assert.InRange(after / na, -21, -15);     // kilka sekund po reklamie program znowu przy celu
+    }
 }

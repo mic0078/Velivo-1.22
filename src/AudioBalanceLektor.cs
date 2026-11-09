@@ -9,7 +9,7 @@ namespace Velivo
     // dla każdego głosu. NICZEGO nie zmienia sam - każda propozycja czeka na „Zastosuj” w Audio Monitorze. Uczy się Twoich przyzwyczajeń.
     public partial class MainWindow
     {
-        sealed class LektorVoicePref { public double Vol { get; set; } public int Over { get; set; } public int N { get; set; } public DateTime T { get; set; } }
+        sealed class LektorVoicePref { public double Vol { get; set; } public int Duck { get; set; } public int N { get; set; } public DateTime T { get; set; } }
         static readonly AbLektorAdvisor _abLek = new AbLektorAdvisor();
         static Dictionary<string, LektorVoicePref> _abLekPrefs;
         static string AbLekPrefsFile => System.IO.Path.Combine(DataDir, "lektor-glosy.json");
@@ -27,7 +27,7 @@ namespace Velivo
         static string AbLekVoiceName(string tag) => string.IsNullOrEmpty(tag) ? L.T("automatyczny") : tag.StartsWith("piper:") ? L.T(PiperVoices.FirstOrDefault(v => "piper:" + v.Id == tag)?.Label ?? tag.Substring(6)) : tag.StartsWith("win:") ? tag.Substring(4) : tag;
 
         // nowy film / kanał - ocena od nowa (propozycja zostaje tylko, gdy dotyczy głosu)
-        internal static void AbLektorReset() { _abLek.Reset(); if (AbLekSugKey != null && AbLekSugKey.StartsWith("over|")) { AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; } }
+        internal static void AbLektorReset() { _abLek.Reset(); if (AbLekSugKey != null && !AbLekSugKey.StartsWith("voice|")) { AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; } }
 
         // jedna kwestia lektora (wołane z lektora): pomiar → ocena → ewentualnie propozycja
         void AbLektorCue(double lekBandDb, double lekVol, double duck)
@@ -36,14 +36,11 @@ namespace Velivo
             _abLek.Add(m);
             int up = _abLek.SuggestOverUp(); if (up <= 0 || AbLekSugText != null) return;
             string src = _abOut?.Source ?? "";
-            if (duck <= 0.101)
-            {   // film już najciszej, jak wolno (10%) - wyższa przewaga nic nie da; zostaje głośność lektora albo wyraźniejszy głos
-                if (_settings.VlcLectorVolume >= 0.98) Propose("vol|" + src, L.T("Lektor ginie, choć film jest już maksymalnie ściszony. Spróbuj wyraźniejszego głosu (panel lektora)."), null);
-                else { double nv = Math.Min(0.99, _settings.VlcLectorVolume + 0.15); Propose("vol|" + src, L.T("Lektor ginie, a filmu nie da się już bardziej ściszyć. Podnieść głośność lektora do ") + (int)Math.Round(nv * 100) + "%?", () => { _settings.VlcLectorVolume = nv; }); }
-                return;
-            }
-            int to = Math.Min(20, _settings.VlcLectorOver + up);
-            if (to > _settings.VlcLectorOver) Propose("over|" + src + "|" + to, L.T("Lektor często ginie przy tym filmie (przewaga w paśmie mowy ") + _abLek.Margin.ToString("+0.0;-0.0") + L.T(" dB). Podnieść „Lektor nad filmem” z +") + _settings.VlcLectorOver + L.T(" do +") + to + " dB?", () => { _settings.VlcLectorOver = to; });
+            // propozycja: mocniej ściszać film podczas czytania (Twój suwak „Film podczas czytania”) - o tyle dB, ile brakuje; najniżej 10%
+            int cur = _settings.VlcLectorDuck >= 100 ? 100 : _settings.VlcLectorDuck, to = Math.Max(10, (int)Math.Round(cur * Math.Pow(10, -up / 20.0) / 5) * 5);
+            if (to < cur) { Propose("duck|" + src + "|" + to, L.T("Lektor często ginie przy tym filmie (przewaga w paśmie mowy ") + _abLek.Margin.ToString("+0.0;-0.0") + L.T(" dB). Ściszać film podczas czytania z ") + cur + L.T("% do ") + to + "%?", () => { _settings.VlcLectorDuck = to; }); return; }
+            if (_settings.VlcLectorVolume >= 0.98) Propose("vol|" + src, L.T("Lektor ginie, choć film jest już maksymalnie ściszony. Spróbuj wyraźniejszego głosu (panel lektora)."), null);
+            else { double nv = Math.Min(0.99, _settings.VlcLectorVolume + 0.15); Propose("vol|" + src, L.T("Lektor ginie, a filmu nie da się już bardziej ściszyć. Podnieść głośność lektora do ") + (int)Math.Round(nv * 100) + "%?", () => { _settings.VlcLectorVolume = nv; }); }
         }
 
         static void Propose(string key, string text, Action apply)
@@ -59,18 +56,18 @@ namespace Velivo
             if (a == null) { if (k != null) AbLekDismissed.Add(k); return; }
             a(); try { _settings.Save(DataDir); } catch (Exception ex) { App.LogError(ex); }
             AbLektorUiRefresh?.Invoke(); _abLek.Reset();   // ocena od nowa - już z nowym ustawieniem
-            AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorOver);   // zaakceptowane = Twoje ustawienie dla tego głosu
+            AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorDuck);   // zaakceptowane = Twoje ustawienie dla tego głosu
         }
         internal static void AbLektorSugDismiss() { if (AbLekSugKey != null) AbLekDismissed.Add(AbLekSugKey); AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; }
 
         // Twoje ręczne ustawienie (suwaki lektora) = przyzwyczajenie dla tego głosu (ostatnie ustawienie, zapis od razu)
-        internal static void AbLektorUserSet(string voice, double vol, int over)
+        internal static void AbLektorUserSet(string voice, double vol, int duck)
         {
             var d = AbLekPrefs(); var k = voice ?? "";
             if (!d.TryGetValue(k, out var p)) d[k] = p = new LektorVoicePref();
-            if (Math.Abs(p.Vol - vol) < 0.005 && p.Over == over && p.N > 0) return;
+            if (Math.Abs(p.Vol - vol) < 0.005 && p.Duck == duck && p.N > 0) return;
             if (double.IsNaN(vol) || double.IsInfinity(vol)) return;
-            p.Vol = Math.Max(0.1, Math.Min(0.99, vol)); p.Over = Math.Max(0, Math.Min(20, over)); p.N++; p.T = DateTime.Now;
+            p.Vol = Math.Max(0.1, Math.Min(0.99, vol)); p.Duck = Math.Max(0, Math.Min(100, duck)); p.N++; p.T = DateTime.Now;
             string json = JsonSerializer.Serialize(d, AbLearnEntry.Json);
             System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLekPrefsFile, json); } catch (Exception ex) { App.LogError(ex); } });
         }
@@ -80,8 +77,8 @@ namespace Velivo
         {
             if (AbLekSugKey != null && AbLekSugKey.StartsWith("voice|")) { AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; }
             if (!AbLekPrefs().TryGetValue(voice ?? "", out var p) || p.N == 0) return;
-            if (Math.Abs(p.Vol - _settings.VlcLectorVolume) < 0.03 && p.Over == _settings.VlcLectorOver) return;
-            Propose("voice|" + voice + "|" + p.Vol.ToString("0.00") + "|" + p.Over, L.T("Dla głosu „") + AbLekVoiceName(voice) + L.T("” zwykle ustawiasz: głośność ") + (int)Math.Round(p.Vol * 100) + L.T("%, lektor nad filmem +") + p.Over + L.T(" dB. Zastosować?"), () => { _settings.VlcLectorVolume = p.Vol; _settings.VlcLectorOver = p.Over; });
+            if (Math.Abs(p.Vol - _settings.VlcLectorVolume) < 0.03 && p.Duck == _settings.VlcLectorDuck) return;
+            Propose("voice|" + voice + "|" + p.Vol.ToString("0.00") + "|" + p.Duck, L.T("Dla głosu „") + AbLekVoiceName(voice) + L.T("” zwykle ustawiasz: głośność ") + (int)Math.Round(p.Vol * 100) + L.T("%, film podczas czytania ") + p.Duck + L.T("%. Zastosować?"), () => { _settings.VlcLectorVolume = p.Vol; _settings.VlcLectorDuck = p.Duck; });
         }
 
         // tekst i kolor wskaźnika w Audio Monitorze

@@ -375,14 +375,7 @@ namespace Velivo
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); double duck = Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // film ciszej, jak lektor w TV
-                // 🎚 z Audio Balance: lektor (osobny tor - WAV przez Windows, stała głośność) zawsze VlcLectorOver dB nad filmem po wyrównaniu - film ściszany tyle, ile trzeba
-                //    (nigdy mniej niż ustawione ściszanie, najwyżej do 10%); bez Audio Balance - jak dotąd
-                double lekAll = LectorWavDb(wav, out var lekBand);   // jeden odczyt pliku: całość i pasmo mowy
-                if (AbProc.Active && !AbBypass && lc.Ducked > 0)
-                {
-                    double lekt = lekAll + 20 * Math.Log10(WpfVol(Math.Max(0.1, _settings.VlcLectorVolume))), film = AbProc.In.ShortTerm + AbProc.GainDb + 20 * Math.Log10(lc.Ducked / 100.0);   // film po wyrównaniu przy zwykłej głośności (bez ściszenia z poprzedniej kwestii)
-                    if (!double.IsNaN(lekt) && film > -70) duck = Math.Max(0.1, Math.Min(duck, Math.Pow(10, (lekt - _settings.VlcLectorOver - film) / 20)));   // Twoja proporcja lektor/film (panel lektora)
-                }
+                double lekAll = LectorWavDb(wav, out var lekBand);   // pomiar lektora tylko dla doradcy - ściszenie filmu ustawiasz sam („Film podczas czytania”), bez automatu (właściciel: automat ściszał za mocno, słychać skoki)
                 mp.Volume = (int)Math.Round(lc.Ducked * duck);
                 // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
                 if (AbProc.Active && !AbBypass && !double.IsNaN(lekBand)) AbLektorCue(lekBand, WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)), duck);

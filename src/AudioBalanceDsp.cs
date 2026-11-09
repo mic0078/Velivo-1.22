@@ -266,7 +266,7 @@ namespace Velivo
         readonly AbMeter OutPre = new AbMeter();   // wynik PRZED głośnością odtwarzacza - dla korekty wyniku (ściszanie pod lektora i suwak jej nie mylą)
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb, corrDb, wantS; long sinceStart;
+        double levDb, detP, grDb, fastDb, corrDb, wantS, vS = 1; long sinceStart;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -300,6 +300,7 @@ namespace Velivo
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
             double bgGate = pr == null ? -99 : Tg + pr.Gate, film = In.Integrated; if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
+            double kV = 1.0 / (0.08 * Fs);
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
             double aC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.AttackMs * Fs)), rC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.ReleaseMs * Fs)), detC = Math.Exp(-1000.0 / (10.0 * Fs));
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
@@ -309,8 +310,8 @@ namespace Velivo
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
-                    VuIn(buf[2 * f] * vol, buf[2 * f + 1] * vol); Raw.Push(buf[2 * f] * vol, buf[2 * f + 1] * vol);
-                    double l = buf[2 * f] * vol, r = buf[2 * f + 1] * vol;
+                    vS += (vol - vS) * kV; VuIn(buf[2 * f] * vS, buf[2 * f + 1] * vS); Raw.Push(buf[2 * f] * vS, buf[2 * f + 1] * vS);
+                    double l = buf[2 * f] * vS, r = buf[2 * f + 1] * vS;
                     buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
                     In.Push(l, r); Out.Push(l, r); Vu(l, r);
                     double tpo = tpOut.Push(l, r); if (tpo > peakHold) peakHold = tpo;
@@ -322,7 +323,7 @@ namespace Velivo
             for (int f = 0; f < frames; f++)
             {
                 double l = buf[2 * f], r = buf[2 * f + 1];
-                VuIn(l * vol, r * vol); Raw.Push(l * vol, r * vol);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
+                vS += (vol - vS) * kV; VuIn(l * vS, r * vS); Raw.Push(l * vS, r * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 { double dm0 = (l + r) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
@@ -385,7 +386,7 @@ namespace Velivo
                     g = levDb + fastDb + grDb + corrDb;
                     if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
                 }
-                double lin = Math.Pow(10, g / 20) * vol;
+                double lin = Math.Pow(10, g / 20) * vS;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami
                 double tp = tpIn.Push(l * lin, r * lin), rq = tp > ceil ? ceil / tp : 1;
                 // minimum w oknie La (kolejka monotoniczna)
@@ -403,9 +404,9 @@ namespace Velivo
                 if (or > ceil) or = ceil; else if (or < -ceil) or = -ceil;
                 buf[2 * f] = (float)ol; buf[2 * f + 1] = (float)or;
                 Out.Push(ol, or); Vu(ol, or);
-                if (vol > 1e-3) OutPre.Push(ol / vol, or / vol);   // to samo bez głośności odtwarzacza
+                if (vS > 1e-3) OutPre.Push(ol / vS, or / vS);   // to samo bez głośności odtwarzacza
                 {   // pomiar dla doradcy lektora: wynik w paśmie 1–4 kHz (przed głośnością odtwarzacza), stała czasu 3 s
-                    double om = vol > 1e-3 ? (ol + or) * 0.5 / vol : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);
+                    double om = vS > 1e-3 ? (ol + or) * 0.5 / vS : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);
                 }
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
                 int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 8191;

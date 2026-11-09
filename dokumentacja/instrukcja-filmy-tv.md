@@ -344,11 +344,11 @@ W Audio Monitorze pole „🧠 Ucz się sam” (domyślnie włączone). Velivo z
 3. **Twoje poprawki** – gdy na danym źródle podgłaśniasz albo ściszasz, jego cel przesuwa się o połowę Twojej zmiany (najwyżej ±6 dB).
 Przy źródle widać, co Velivo o nim wie („🧠 Znam to źródło…”). „🧹 Zapomnij, czego się nauczyłeś” czyści pamięć.
 
-**Lektor i Audio Balance:** gdy Audio Balance jest włączony, Velivo przy każdej kwestii mierzy głośność nagrania lektora (WAV) i filmu po wyrównaniu, i ścisza film tak, żeby lektor był ok. 8 dB głośniej – bez ręcznego ściszania filmu. Ustawione „ściszanie pod lektora” działa jako minimum (film nigdy głośniejszy niż ono pozwala), najmocniej do 10%.
+**Lektor i Audio Balance:** film podczas czytania ściszasz sam suwakiem „Film podczas czytania” (panel lektora). Ściszenie i powrót są płynne (ok. 0,1 s), bez skoków. Doradca lektora w Audio Monitorze może zaproponować mocniejsze ściszenie – zmienia dopiero po „Zastosuj”.
 
 ## 🗣 Doradca lektora (Audio Monitor)
 
 Lokalnie, bez chmury i bez modelu AI – pomiar sygnału i pamięć Twoich ustawień. **Sam niczego nie zmienia.**
 * **Wskaźnik:** 🟢 lektor dobrze słyszalny / 🟡 częściowo zagłuszany / 🔴 zagłuszany przez film. Liczony z 10 ostatnich kwestii: lektor i film porównane w paśmie zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu pod lektora i dialogów w filmie.
-* **Propozycje** (przycisk „✔ Zastosuj” albo „Nie teraz”): gdy lektor często ginie – podnieść „Lektor nad filmem”; gdy filmu nie da się już bardziej ściszyć – podnieść głośność lektora albo wybrać wyraźniejszy głos.
-* **Twoje przyzwyczajenia:** dla każdego głosu Velivo pamięta, jak ustawiasz głośność lektora i „Lektor nad filmem” (`lektor-glosy.json`). Po zmianie głosu proponuje Twoje zwykłe ustawienie dla tego głosu.
+* **Propozycje** (przycisk „✔ Zastosuj” albo „Nie teraz”): gdy lektor często ginie – mocniej ściszać film podczas czytania; gdy filmu nie da się już bardziej ściszyć – podnieść głośność lektora albo wybrać wyraźniejszy głos.
+* **Twoje przyzwyczajenia:** dla każdego głosu Velivo pamięta, jak ustawiasz głośność lektora i „Film podczas czytania” (`lektor-glosy.json`). Po zmianie głosu proponuje Twoje zwykłe ustawienie dla tego głosu.

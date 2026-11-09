@@ -360,7 +360,7 @@ namespace Velivo
                                 if (ctype.Contains("mpegurl")) hls = true;
                                 else
                                 {
-                                    using (var s = await resp.Content.ReadAsStreamAsync())
+                                    using (var s = await resp.Content.ReadAsStreamAsync(ct))
                                         await CopyUntil(s, outFs, until, ct);
                                 }
                             }
@@ -401,7 +401,7 @@ namespace Velivo
                     using (var resp = await http.GetAsync(seg, HttpCompletionOption.ResponseHeadersRead, ct))
                     {
                         if (!resp.IsSuccessStatusCode) continue;
-                        using (var s = await resp.Content.ReadAsStreamAsync()) await CopyUntil(s, outFs, () => DateTime.MaxValue, ct);
+                        using (var s = await resp.Content.ReadAsStreamAsync(ct)) await CopyUntil(s, outFs, () => DateTime.MaxValue, ct);
                     }
                 }
                 if (pl.Ended) break;   // nagranie (VOD) - koniec listy

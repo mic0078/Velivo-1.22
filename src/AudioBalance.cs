@@ -401,15 +401,22 @@ namespace Velivo
             brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), AbCloseMonitor));
             root.Children.Add(brow);
             var foot = T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim); root.Children.Add(foot);
-            // uklad poziomy (prostokat): 3 kolumny - stan i wskazniki | pomiar i wykres | sterowanie (wlasciciel: pionowo „masakra”)
+            // układ „Kokpit” (wybór właściciela, makieta A): 2 kolumny bez pustych miejsc - lewa: stan na żywo (V obok kafelków, lektor, wykres, liczby);
+            // prawa: ustawienia, korektor, widmo, przyciski; każdy element root musi trafić do kolumny (Move)
             var cols = new Grid { Margin = new Thickness(12) };
-            for (int i = 0; i < 3; i++) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var c1 = new StackPanel { Margin = new Thickness(0, 0, 8, 0) }; var c2 = new StackPanel { Margin = new Thickness(8, 0, 8, 0) }; var c3 = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+            cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) }); cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var c1 = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; var c3 = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
-            Move(c1, head, src, lekRow, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
-            Move(c2, lmh, lvl, nums, leg, hist, info, bypassNote);
-            Move(c3, prow, srow, drow, tgt, lrow, devBox, eqExp, brow, foot);   // 🧠 nauka pod celem - każdy element root musi trafić do kolumny
-            Grid.SetColumn(c1, 0); Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
+            Move(c1, head, src);
+            var live = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            live.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); live.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var vCol = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 10, 0) }; var tCol = new StackPanel();
+            bigVu.Height = 130; bigVu.Margin = new Thickness(0);
+            Move(vCol, bigVu, vuLeg); Move(tCol, sum3, lekRow);
+            Grid.SetColumn(tCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); c1.Children.Add(live);
+            Move(c1, leg, hist, lmh, lvl, nums, info, bypassNote);
+            Move(c3, prow, srow, drow, tgt, devBox, lrow, eqExp, spec, axis, bypassBtn, brow, foot);
+            Grid.SetColumn(c1, 0); Grid.SetColumn(c3, 1); cols.Children.Add(c1); cols.Children.Add(c3);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;

@@ -375,10 +375,13 @@ namespace Velivo
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
                 lc.Ducked = volume(); double duck = Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // film ciszej, jak lektor w TV
-                double lekAll = LectorWavDb(wav, out var lekBand);   // pomiar lektora tylko dla doradcy - ściszenie filmu ustawiasz sam („Film podczas czytania”), bez automatu (właściciel: automat ściszał za mocno, słychać skoki)
                 mp.Volume = (int)Math.Round(lc.Ducked * duck);
                 // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
-                if (AbProc.Active && !AbBypass && !double.IsNaN(lekBand)) AbLektorCue(lekBand, WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)), duck);
+                if (AbProc.Active && !AbBypass)
+                {   // pomiar lektora w tle (odczyt i filtr całego WAV - w wątku okna przycinał słupki Audio Monitora), wynik do doradcy w wątku okna; lektor nie czeka
+                    double lv = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)), dk = duck;
+                    _ = Task.Run(() => { LectorWavDb(wav, out var bd); return bd; }).ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion && !double.IsNaN(t.Result)) Dispatcher.BeginInvoke(new Action(() => AbLektorCue(t.Result, lv, dk))); });
+                }
                 var done = new TaskCompletionSource<bool>();
                 var voice = new System.Windows.Media.MediaPlayer { Volume = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)) };
                 lc.Voice = voice; lc.VoiceDone = done;

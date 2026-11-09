@@ -195,7 +195,7 @@ for line in sys.stdin:
         {
             var line = (text ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
             if (line.Length == 0 || !XttsInstalled()) return null;
-            await _xtLock.WaitAsync();
+            await EngineWait(_xtLock);
             try
             {
                 if (_xtProc == null || _xtProc.HasExited)

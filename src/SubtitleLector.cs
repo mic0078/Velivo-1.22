@@ -182,6 +182,9 @@ namespace Velivo
         }
 
         // tempo z dlugosci kwestii na ekranie (nie z chwili startu) - ta sama synteza nadaje sie do liczenia z wyprzedzeniem
+        // kwestia do zagrania teraz / następna - z pierwszeństwem przed czytaniem stron (budowa całego filmu w tle - bez)
+        async Task<string> LectorSynthLive(Lector lc, SubCue cue) { _synthLive.Value = true; return await LectorSynth(lc, cue); }
+
         Task<string> LectorSynth(Lector lc, SubCue cue)
         {
             double secs = Math.Max(0.6, (cue.End - cue.Start) / 1000.0);
@@ -340,7 +343,7 @@ namespace Velivo
             if (i < 0 && lc.PreWav == null && !lc.Busy)
             {   // przerwa miedzy napisami: najblizsza kwestia liczona juz teraz (po starcie i po przewinieciu)
                 int j = lc.Cues.FindIndex(c => c.Start > t);
-                if (j >= 0 && lc.Cues[j].Start - t < 15000 && !lc.Ready.ContainsKey(j)) { lc.PreIdx = j; lc.PreWav = LectorSynth(lc, lc.Cues[j]); }
+                if (j >= 0 && lc.Cues[j].Start - t < 15000 && !lc.Ready.ContainsKey(j)) { lc.PreIdx = j; lc.PreWav = LectorSynthLive(lc, lc.Cues[j]); }
             }
             if (i < 0 || i <= lc.LastSpoken || lc.Busy) return;
             lc.LastSpoken = i;
@@ -353,8 +356,8 @@ namespace Velivo
                 string readyWav; bool cached = lc.Ready.TryGetValue(i, out readyWav) && System.IO.File.Exists(readyWav);
                 var wavTask = cached ? Task.FromResult(readyWav) : lc.PreIdx == i ? lc.PreWav : null;
                 if (cached) { if (lc.PreIdx == i) LectorDropPre(lc); }
-                else if (wavTask == null) { LectorDropPre(lc); wavTask = LectorSynth(lc, cue); } else { lc.PreIdx = -1; lc.PreWav = null; }
-                if (i + 1 < lc.Cues.Count && !lc.Ready.ContainsKey(i + 1)) { lc.PreIdx = i + 1; lc.PreWav = LectorSynth(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
+                else if (wavTask == null) { LectorDropPre(lc); wavTask = LectorSynthLive(lc, cue); } else { lc.PreIdx = -1; lc.PreWav = null; }
+                if (i + 1 < lc.Cues.Count && !lc.Ready.ContainsKey(i + 1)) { lc.PreIdx = i + 1; lc.PreWav = LectorSynthLive(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
                 var wav = await wavTask;
                 if (wav == null || gen != lc.Gen || !mp.IsPlaying && !(queue && ended)) { if (wav != null && !cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
                 long tn = mp.Time - mp.SpuDelay / 1000;

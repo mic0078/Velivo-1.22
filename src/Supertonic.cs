@@ -74,7 +74,7 @@ namespace Velivo
             var line = (text ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
             if (line.Length == 0 || !SupertonicInstalled(v)) return null;
             if (char.IsLetterOrDigit(line[line.Length - 1])) line += ".";   // bez kropki na koncu model ucinal ostatnie slowo (napisy czesto bez kropki)
-            await _stLock.WaitAsync();
+            await EngineWait(_stLock);
             try
             {
                 return await Task.Run(() =>

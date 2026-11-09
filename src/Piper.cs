@@ -170,6 +170,17 @@ namespace Velivo
         Process _piperProc;
         string _piperProcKey;
         readonly SemaphoreSlim _piperLock = new SemaphoreSlim(1, 1);
+        // 🎬 pierwszeństwo: bieżąca kwestia lektora (film gra) przed czytaniem stron - wspólny silnik robi jedno nagranie naraz,
+        //    a kwestia, która czeka za czytnikiem, znika z ekranu i lektor milknie; czytnik czeka na wolny silnik między zdaniami
+        static readonly AsyncLocal<bool> _synthLive = new AsyncLocal<bool>();
+        static int _synthLiveWaiting;
+        static async Task EngineWait(SemaphoreSlim l)
+        {
+            if (_synthLive.Value) { Interlocked.Increment(ref _synthLiveWaiting); try { await l.WaitAsync(); } finally { Interlocked.Decrement(ref _synthLiveWaiting); } return; }
+            for (int i = 0; i < 1000 && Volatile.Read(ref _synthLiveWaiting) > 0; i++) await Task.Delay(15);   // ustąp lektorowi (najwyżej 15 s)
+            await l.WaitAsync();
+            if (Volatile.Read(ref _synthLiveWaiting) > 0) { l.Release(); await EngineWait(l); }   // lektor przyszedł w tej chwili - jeszcze raz za nim
+        }
         internal static string PiperOutOverride;   // folder lektora wybrany przez wlasciciela (np. ramdysk) - tam tez pliki robocze glosu
         static string PiperOutDir { get { return Path.Combine(string.IsNullOrEmpty(PiperOutOverride) ? Path.GetTempPath() : PiperOutOverride, "velivo-piper"); } }
 
@@ -183,7 +194,7 @@ namespace Velivo
         {
             if (v.St != null) return await SupertonicSynthesizeAsync(v, text, rate, steps < 0 ? _settings.SupertonicSteps : steps);   // -1 = czytanie stron
             if (v.Xt != null) return await XttsSynthesizeAsync(v, text, rate);
-            await _piperLock.WaitAsync();
+            await EngineWait(_piperLock);
             try
             {
                 double lengthScale = Math.Max(0.4, Math.Min(2.0, 1.0 / Math.Max(0.5, rate)));

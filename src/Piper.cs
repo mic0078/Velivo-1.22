@@ -166,10 +166,10 @@ namespace Velivo
             finally { _piperDownloading = false; }
         }
 
-        // ---------- proces Piper (jeden, trzymany w tle) ----------
-        Process _piperProc;
-        string _piperProcKey;
-        readonly SemaphoreSlim _piperLock = new SemaphoreSlim(1, 1);
+        // ---------- procesy Piper trzymane w tle: [0] lektor i reszta, [1] czytanie stron - lekki silnik, więc dwa naraz (lektor i czytnik równolegle) ----------
+        readonly Process[] _piperProcs = new Process[2];
+        readonly string[] _piperKeys = new string[2];
+        readonly SemaphoreSlim[] _piperLocks = { new SemaphoreSlim(1, 1), new SemaphoreSlim(1, 1) };
         // 🎬 pierwszeństwo: bieżąca kwestia lektora (film gra) przed czytaniem stron - wspólny silnik robi jedno nagranie naraz,
         //    a kwestia, która czeka za czytnikiem, znika z ekranu i lektor milknie; czytnik czeka na wolny silnik między zdaniami
         static readonly AsyncLocal<bool> _synthLive = new AsyncLocal<bool>();
@@ -186,23 +186,30 @@ namespace Velivo
 
         void StopPiperProcess()
         {
-            try { if (_piperProc != null && !_piperProc.HasExited) _piperProc.Kill(); } catch (Exception) { }
-            _piperProc = null; _piperProcKey = null;
+            for (int i = 0; i < 2; i++) StopPiperProcess(i);
+        }
+
+        void StopPiperProcess(int i)
+        {
+            try { if (_piperProcs[i] != null && !_piperProcs[i].HasExited) _piperProcs[i].Kill(); } catch (Exception) { }
+            _piperProcs[i] = null; _piperKeys[i] = null;
         }
 
         async Task<string> PiperSynthesizeAsync(PiperVoice v, string text, double rate, int steps = -1)
         {
             if (v.St != null) return await SupertonicSynthesizeAsync(v, text, rate, steps < 0 ? _settings.SupertonicSteps : steps);   // -1 = czytanie stron
             if (v.Xt != null) return await XttsSynthesizeAsync(v, text, rate);
-            await EngineWait(_piperLock);
+            int slot = steps < 0 ? 1 : 0;   // -1 = czytanie stron - własny proces, nie czeka na lektora
+            var plock = _piperLocks[slot];
+            if (slot == 0) await EngineWait(plock); else await plock.WaitAsync();
             try
             {
                 double lengthScale = Math.Max(0.4, Math.Min(2.0, 1.0 / Math.Max(0.5, rate)));
                 string key = v.Id + "|" + lengthScale.ToString("0.00", CultureInfo.InvariantCulture);
-                if (_piperProc == null || _piperProc.HasExited || _piperProcKey != key)
+                if (_piperProcs[slot] == null || _piperProcs[slot].HasExited || _piperKeys[slot] != key)
                 {
-                    StopPiperProcess();
-                    Directory.CreateDirectory(PiperOutDir);
+                    StopPiperProcess(slot);
+                    var outDir = slot == 1 ? Path.Combine(PiperOutDir, "czytnik") : PiperOutDir; Directory.CreateDirectory(outDir);   // osobny folder - dwa procesy nie nadpiszą sobie plików
                     var psi = new ProcessStartInfo(PiperExe)
                     {
                         UseShellExecute = false, CreateNoWindow = true,
@@ -211,26 +218,26 @@ namespace Velivo
                         WorkingDirectory = Path.GetDirectoryName(PiperExe)
                     };
                     psi.ArgumentList.Add("--model"); psi.ArgumentList.Add(Path.Combine(PiperRoot, "voices", v.Id + ".onnx"));
-                    psi.ArgumentList.Add("--output_dir"); psi.ArgumentList.Add(PiperOutDir);
+                    psi.ArgumentList.Add("--output_dir"); psi.ArgumentList.Add(outDir);
                     psi.ArgumentList.Add("--length_scale"); psi.ArgumentList.Add(lengthScale.ToString("0.00", CultureInfo.InvariantCulture));
                     psi.ArgumentList.Add("--sentence_silence"); psi.ArgumentList.Add("0.15");
-                    _piperProc = Process.Start(psi);
-                    _piperProc.ErrorDataReceived += (s, e) => { };
-                    _piperProc.BeginErrorReadLine();
-                    _piperProcKey = key;
+                    _piperProcs[slot] = Process.Start(psi);
+                    _piperProcs[slot].ErrorDataReceived += (s, e) => { };
+                    _piperProcs[slot].BeginErrorReadLine();
+                    _piperKeys[slot] = key;
                 }
                 // jedna linia = jeden plik WAV; Piper wypisuje jego sciezke
                 var line = (text ?? "").Replace('\r', ' ').Replace('\n', ' ').Trim();
                 if (line.Length == 0) return null;
-                await _piperProc.StandardInput.WriteLineAsync(line);
-                await _piperProc.StandardInput.FlushAsync();
-                var readTask = _piperProc.StandardOutput.ReadLineAsync();
-                if (await Task.WhenAny(readTask, Task.Delay(30000)) != readTask) { StopPiperProcess(); return null; }
+                await _piperProcs[slot].StandardInput.WriteLineAsync(line);
+                await _piperProcs[slot].StandardInput.FlushAsync();
+                var readTask = _piperProcs[slot].StandardOutput.ReadLineAsync();
+                if (await Task.WhenAny(readTask, Task.Delay(30000)) != readTask) { StopPiperProcess(slot); return null; }
                 var path = (readTask.Result ?? "").Trim();
                 return File.Exists(path) ? path : null;
             }
-            catch (Exception ex) { App.LogError(ex); StopPiperProcess(); return null; }
-            finally { _piperLock.Release(); }
+            catch (Exception ex) { App.LogError(ex); StopPiperProcess(slot); return null; }
+            finally { plock.Release(); }
         }
 
         // ---------- odtwarzanie sterowane przez strone ----------

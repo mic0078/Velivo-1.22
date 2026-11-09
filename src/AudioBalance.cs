@@ -52,9 +52,10 @@ namespace Velivo
         // wywolania VLC (watek dzwieku VLC) - tylko kopia, bez obliczen
         public void Play(IntPtr samples, uint count, long pts)
         {
+            // VLC oddaje S16N (16 bit, stereo, przeplot) - 4 bajty na ramke
             var c = new Chunk { Frames = (int)count, Pts = pts, Data = new float[count * 2] };
-            Marshal.Copy(samples, c.Data, 0, (int)count * 2);
-            for (int i = 0; i < c.Data.Length; i++) { float v = c.Data[i]; if (float.IsNaN(v) || float.IsInfinity(v)) c.Data[i] = 0; else if (v > 4) c.Data[i] = 4; else if (v < -4) c.Data[i] = -4; }   // uszkodzone probki nie moga zepsuc procesora
+            var raw = new short[count * 2]; Marshal.Copy(samples, raw, 0, raw.Length);
+            for (int i = 0; i < raw.Length; i++) c.Data[i] = raw[i] / 32768f;
             lock (_lk) { _q.Enqueue(c); while (_q.Count > 400) _q.Dequeue(); Monitor.Pulse(_lk); }
         }
         public void Pause() { _paused = true; if (_h != IntPtr.Zero) waveOutPause(_h); }
@@ -164,7 +165,7 @@ namespace Velivo
             _abFlush = (d, p) => _abOut?.Flush();
             _abDrain = d => { };
             _abVol = (d, v, m) => AbProc.Volume = m ? 0 : v;
-            mp.SetAudioFormat("FL32", AbProcessor.Fs, 2);   // VLC dekoduje i miksuje (5.1/AC3/E-AC3/AAC) do stereo 48 kHz
+            mp.SetAudioFormat("S16N", AbProcessor.Fs, 2);   // VLC dekoduje i miksuje (5.1/AC3/E-AC3/AAC) do stereo 48 kHz; S16N - format pewny w libVLC 3 ("FL32" nie jest jego nazwą - VLC dawał inne próbki, niż czytaliśmy)
             mp.SetAudioCallbacks(_abPlay, _abPause, _abResume, _abFlush, _abDrain);
             mp.SetVolumeCallback(_abVol);
             AbProc.NewMedia();
@@ -281,7 +282,8 @@ namespace Velivo
             brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), () => win.Close()));
             root.Children.Add(brow);
             root.Children.Add(T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim));
-            win.Content = root;
+            win.Content = new Border { Background = bg, Child = root };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
+            win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;
 
             // odswiezanie ~30 kl./s tylko, gdy widzet widoczny (FFT w watku okna, nie dzwieku)

@@ -40,6 +40,9 @@
     <EmbeddedResource Include="slowa-pl.txt" />
     <EmbeddedResource Include="slowa-pl-dodatek.txt" />
     <EmbeddedResource Include="slowa-en.txt" />
+    <!-- 📖 pełny słownik polski klawiatury (Hunspell pl_PL z sjp.pl, Apache 2.0 / MPL / LGPL) -->
+    <EmbeddedResource Include="hunspell-pl.aff.gz" />
+    <EmbeddedResource Include="hunspell-pl.dic.gz" />
     <None Include="filters.txt" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UbolExtension\**\*" Condition="Exists('UbolExtension\manifest.json')">
       <Link>Dodatki\uBlock Origin Lite\%(RecursiveDir)%(Filename)%(Extension)</Link>

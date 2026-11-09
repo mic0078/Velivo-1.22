@@ -99,6 +99,12 @@ class KlawiaturaVelivo : InputMethodService() {
                         words.addAll(min(5000, words.size), add)
                     }
                     Slownik.load(words)
+                    // 📖 pełny słownik polski (Hunspell sjp.pl) - każda odmiana; w tle po liście częstych słów (klawiatura działa od razu)
+                    Slownik.full = null
+                    if (l == "pl") runCatching {
+                        fun gz(n: String) = java.util.zip.GZIPInputStream(ctx.assets.open(n)).bufferedReader(Charsets.UTF_8)
+                        gz("hunspell-pl.aff.gz").use { a -> gz("hunspell-pl.dic.gz").use { d -> Slownik.full = Hunspell.load(a, d) } }
+                    }
                     synchronized(learned) {
                         learned.clear(); own.clear(); Slownik.clearLearned()
                         val f = file(ctx)

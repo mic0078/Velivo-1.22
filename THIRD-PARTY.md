@@ -15,6 +15,12 @@
   Only Polish-letter words, duplicates without diacritics removed, 40,000 words, frequencies dropped.
 - Uzupełnienie / Supplement: `src/slowa-pl-dodatek.txt` – własna lista Velivo (częste słowa brakujące w napisach filmowych: włączanie, przeglądarka, zakładka…). / Velivo's own list of common words missing from the subtitle corpus.
 
+## Pełny słownik polski klawiatury / Full Polish keyboard dictionary (Hunspell pl_PL)
+- Źródło / Source: słownik SJP.PL (sjp.pl), opiekun / maintainer: Marek Futrega; wersja z LibreOffice dictionaries (2017-05-14)
+- Licencja / License: do wyboru GPL, LGPL, MPL, Apache 2.0, CC SA 1.0 – Velivo korzysta na licencji Apache 2.0 / used under Apache 2.0
+- Kod źródłowy / Source: https://github.com/LibreOffice/dictionaries/tree/master/pl_PL
+- Zmiany / Changes: zamiana kodowania ISO-8859-2 na UTF-8 i kompresja gzip (`src/hunspell-pl.*.gz`, `android/klawiatura/src/main/assets/hunspell-pl.*.gz`); treść bez zmian. Encoding converted to UTF-8 and gzipped; content unchanged.
+
 ## Listy filtrów reklam w Velivo na Androida / Ad filter lists in Velivo for Android
 - EasyList, EasyPrivacy – The EasyList authors, licencja / licence: GNU GPL v3 lub / or CC BY-SA 3.0 (https://easylist.to/pages/licence.html)
 - Oficjalne Polskie Filtry (MajkiIT) – licencja / licence: CC BY-NC-SA 4.0 (https://github.com/MajkiIT/polish-ads-filter)

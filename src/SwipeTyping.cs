@@ -137,6 +137,7 @@ namespace Velivo
         // autokorekta pisania litera po literze: slowo spoza slownika -> najczestsze znane slowo, ktore rozni sie tylko polskimi znakami
         // (zolw -> żółw) albo jedna litera (brakujaca, nadmiarowa, inna, zamienione dwie sasiednie); null = zostaw jak jest
         static Dictionary<string, Entry> _fold;   // slowo bez polskich znakow -> najczestsze slowo slownika
+        internal static volatile Hunspell Full;     // 📖 pełny słownik (każda odmiana) - null, dopóki się wczytuje albo inny język
         static HashSet<string> _main;               // slowa slownika glownego (bez wyuczonych z pisania)
         static Dictionary<string, List<Entry>> _foldAll;   // bez polskich znakow -> wszystkie slowa (droga: droga, drogą)
         static string[] _sortedFold; static Entry[] _sortedEntry;   // do dopowiadania slowa w trakcie pisania
@@ -157,6 +158,20 @@ namespace Velivo
             }
         }
         // anyRank: literowka tez do rzadkiego slowa (do rozpoznania literowek w Moim slowniku, nie do poprawiania w trakcie pisania)
+        // bardzo częste słowo (z listy) o jedną literę dalej - także z polskimi znakami (wlanie -> właśnie)
+        static bool NearCommon(string w)
+        {
+            var fd = _fold; if (fd == null) return false; var fw = new string(w.Select(BaseKey).ToArray());
+            bool C(string v) => v != fw && fd.TryGetValue(v, out var e) && e.Rank < 3000;
+            if (C(fw)) return true;
+            for (int i = 0; i <= fw.Length; i++)
+            {
+                if (i < fw.Length && C(fw.Remove(i, 1))) return true;
+                foreach (var c in "abcdefghijklmnopqrstuvwxyz") if (C(fw.Insert(i, c.ToString())) || i < fw.Length && c != fw[i] && C(fw.Substring(0, i) + c + fw.Substring(i + 1))) return true;
+            }
+            return false;
+        }
+
         internal static string Correct(string typed, ICollection<string> keep = null, bool anyRank = false, bool split = true)
         {
             if (_words == null || string.IsNullOrEmpty(typed) || typed.Length < 2 || !typed.All(char.IsLetter)) return null;
@@ -181,6 +196,8 @@ namespace Velivo
             // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
             if (_phraseFix.TryGetValue(Fold(w), out var ph) && ph != w)
                 return char.IsUpper(typed[0]) ? char.ToUpperInvariant(ph[0]) + ph.Substring(1) : ph;
+            // poprawna polska forma spoza listy częstych słów (wstawiało, niezaplanowany, pulpicie) - bez zmian
+            if (Full is Hunspell fullD && !main.Contains(w) && fullD.Known(w) && !NearCommon(w)) return null;   // rzadkie słowo obok bardzo częstego (wlanie / właśnie) - poprawka jak dotąd
             // "nie" z czasownikiem osobno: niewiem -> nie wiem (sklejonego nie ma w slowniku, reszta to czeste slowo); tez bez polskich znakow (niemoge -> nie mogę)
             if (w.Length >= 5 && w.StartsWith("ni", StringComparison.Ordinal) && (w.StartsWith("nie", StringComparison.Ordinal) || _foldAll != null && !_foldAll.ContainsKey(Fold(w))))   // też bez „e” (tylko nieznane słowo - nikogo, nigdy zostają): niwiem -> nie wiem (nie „ni wiem”)
             {
@@ -287,6 +304,11 @@ namespace Velivo
                     var sp = l + " " + rw;
                     return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
                 }
+            }
+            if (best == null && !anyRank && w.Length >= 4 && Full is Hunspell fullS)
+            {   // literówka w rzadszym słowie spoza listy (wstwaialo -> wstawiało): pełny słownik, częstsze słowo z listy wygrywa
+                var sg = fullS.Suggest(w, v => _foldAll != null && _foldAll.TryGetValue(Fold(v), out var fe) ? fe.Min(x => x.Rank) : 500000);
+                if (sg != null && sg != w) best = new Entry { Word = sg, Rank = 3000 };
             }
             if (best == null || best.Word == w) return null;
             var r = Polite(best.Word);

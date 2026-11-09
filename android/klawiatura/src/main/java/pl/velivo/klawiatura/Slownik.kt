@@ -76,6 +76,7 @@ object Slownik {
     fun ownWords(): List<String> = synchronized(ownFold) { ownFold.values.sorted() }
 
     private var fold: HashMap<String, Entry>? = null
+    @Volatile var full: Hunspell? = null   // 📖 pełny słownik (każda odmiana) - null, dopóki się wczytuje albo inny język
     private var main: HashSet<String>? = null
     private var foldAll: HashMap<String, MutableList<Entry>>? = null
     private var sortedFold: Array<String>? = null; private var sortedEntry: Array<Entry>? = null
@@ -157,6 +158,18 @@ object Slownik {
         for (c in abc) cand(fw + c)
     }
 
+    // bardzo częste słowo (z listy) o jedną literę dalej - także z polskimi znakami (wlanie -> właśnie)
+    private fun nearCommon(w: String, f: Map<String, Entry>): Boolean {
+        val fw = w.map(::baseKey).joinToString("")
+        fun c(v: String) = v != fw && (f[v]?.rank ?: Int.MAX_VALUE) < 3000
+        if (c(fw)) return true
+        for (i in 0..fw.length) {
+            if (i < fw.length && c(fw.removeRange(i, i + 1))) return true
+            for (ch in 'a'..'z') if (c(fw.substring(0, i) + ch + fw.substring(i)) || (i < fw.length && ch != fw[i] && c(fw.substring(0, i) + ch + fw.substring(i + 1)))) return true
+        }
+        return false
+    }
+
     // autokorekta: słowo spoza słownika -> najczęstsze znane słowo różniące się polskimi znakami albo jedną literą; null = zostaw
     fun correct(typed: String, keep: Collection<String>? = null, anyRank: Boolean = false, split: Boolean = true): String? {
         if (words == null || typed.length < 2 || !typed.all { it.isLetter() }) return null
@@ -169,6 +182,8 @@ object Slownik {
         if (w == "ze") return null
         if (w in polite) return if (typed[0] == typed[0].uppercaseChar()) null else polite(w)
         phraseFix[fold(w)]?.let { if (it != w) return cap(typed, it) }
+        // poprawna polska forma spoza listy częstych słów (wstawiało, niezaplanowany, pulpicie) - bez zmian; rzadkie słowo obok bardzo częstego (wlanie / właśnie) - poprawka jak dotąd
+        full?.let { if (w !in m && it.known(w) && !nearCommon(w, f)) return null }
         if (w.length >= 5 && w.startsWith("ni") && (w.startsWith("nie") || foldAll?.containsKey(fold(w)) == false)) {   // też bez „e” (tylko nieznane słowo - nikogo, nigdy zostają): niwiem -> nie wiem (nie „ni wiem”)
             val rest = w.substring(if (w.startsWith("nie")) 3 else 2)
             val restOk = foldAll?.get(fold(rest))?.filter { it.rank < 4000 }?.minByOrNull { if (it.word == rest) -1.0 else score(it) }?.word
@@ -239,6 +254,10 @@ object Slownik {
                 val rw = if (r in m) r else correct(r, keep, false, false)?.lowercase()?.takeIf { !it.contains(' ') } ?: continue
                 return cap(typed, "$l $rw")
             }
+        }
+        if (best == null && !anyRank && w.length >= 4) full?.let { h ->   // literówka w rzadszym słowie spoza listy (wstwaialo -> wstawiało): pełny słownik, częstsze słowo z listy wygrywa
+            val sg = h.suggest(w) { v -> foldAll?.get(fold(v))?.minOfOrNull { it.rank } ?: 500000 }
+            if (sg != null && sg != w) best = Entry(sg, "", 3000)
         }
         val b = best ?: return null
         if (b.word == w) return null

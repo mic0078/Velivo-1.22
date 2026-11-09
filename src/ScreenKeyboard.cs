@@ -110,6 +110,15 @@ namespace Velivo
                     try { File.Delete(Path.Combine(DataDir, "klawiatura-slowa.txt")); } catch (Exception) { }   // dawny jawny plik - nauka od nowa, juz zaszyfrowana
                     var own = new HashSet<string>(); var learned = SwipeTyping.LoadLearned(SwipeFile, own);
                     SwipeTyping.Load(words);
+                    // 📖 pełny słownik polski (Hunspell sjp.pl) - każda odmiana; wczytywany w tle po liście częstych słów (klawiatura działa od razu)
+                    SwipeTyping.Full = null;
+                    if (lang == "pl")
+                        try
+                        {
+                            Stream Gz(string n) => new System.IO.Compression.GZipStream(asm.GetManifestResourceStream(asm.GetManifestResourceNames().First(x => x.EndsWith(n, StringComparison.Ordinal))), System.IO.Compression.CompressionMode.Decompress);
+                            using (var a = new StreamReader(Gz("hunspell-pl.aff.gz"), System.Text.Encoding.UTF8)) using (var d = new StreamReader(Gz("hunspell-pl.dic.gz"), System.Text.Encoding.UTF8)) SwipeTyping.Full = Hunspell.Load(a, d);
+                        }
+                        catch (Exception ex) { App.LogError(ex); }
                     // dawniej do Mojego slownika trafialy tez literowki (zolw, zzolw) - pisanie przeciagnieciem je podsuwalo: usuwamy je
                     var mine = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // dodane recznie / cofniete poprawki - zawsze zostaja
                     // bledna pisownia (napewno, niewiem) - usuwana zawsze, takze dodana recznie / cofnieta

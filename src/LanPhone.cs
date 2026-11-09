@@ -20,6 +20,7 @@ namespace Velivo
             public List<string> nofix { get; set; }
             public Dictionary<string, int> pairs { get; set; }
             public Dictionary<string, string> fix { get; set; }
+            public List<string> keys { get; set; }   // 🔑 nazwy kluczy sprzętowych urządzenia (null - starsza wersja)
         }
         void ReceiveKbSync(LanStatePacket pkt, LanKbSync k)
         {
@@ -33,9 +34,10 @@ namespace Velivo
             var nf = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));
             foreach (var w in k.nofix ?? new List<string>()) if (w?.Length is >= 2 and <= 40) nf.Add(w);
             SetPref("klawiatura-bez-korekty", string.Join("|", nf.Skip(Math.Max(0, nf.Count - 500))));
+            if (k.keys != null) { var dev = (pkt.device ?? "?").Trim(); var names = k.keys.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Take(10).ToList(); Dispatcher.BeginInvoke(new Action(() => KomHwKeysOther(dev, names))); }
             if (k.reply) return;
             LanKbSync mine;   // odpowiedz: nauka tego komputera dla telefonu
-            lock (_swLearned) mine = new LanKbSync { to = pkt.id, reply = true, own = _swOwn.ToList(), nofix = nf.ToList(), pairs = SwipeTyping.SyncPairs(), fix = SwipeTyping.SyncFixes() };
+            lock (_swLearned) mine = new LanKbSync { to = pkt.id, reply = true, own = _swOwn.ToList(), nofix = nf.ToList(), pairs = SwipeTyping.SyncPairs(), fix = SwipeTyping.SyncFixes(), keys = KomHwKeys().Select(x => x.Name ?? "?").ToList() };
             var outPkt = new LanStatePacket { t = "kb", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
             EncryptLanBlob(outPkt, JsonSerializer.SerializeToUtf8Bytes(mine));
             LanSend(outPkt);

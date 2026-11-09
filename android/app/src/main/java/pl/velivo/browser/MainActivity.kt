@@ -3077,6 +3077,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             keyboard = { json ->   // 🔄 nauka klawiatury Velivo (osobna aplikacja) - przez jej dostawcę danych, tylko aplikacje Velivo
                 runCatching { contentResolver.call(Uri.parse("content://pl.velivo.klawiatura.komunikator"), if (json == null) "slownik" else "slownik-wgraj", json, null)?.getString("json") }.getOrNull()
             },
+            hwKeys = { dev, arr -> val kp = getSharedPreferences("komunikator", MODE_PRIVATE)   // 🔑 klucze na moich komputerach (same nazwy)
+                if (dev != null && arr != null) pl.velivo.komunikator.Klucz.storeOthers(kp, dev, (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() })
+                org.json.JSONArray(pl.velivo.komunikator.Klucz.names(kp)) },
             saveFileFrom = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {

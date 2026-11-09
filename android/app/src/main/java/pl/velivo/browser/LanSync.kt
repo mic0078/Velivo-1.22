@@ -61,6 +61,8 @@ class LanSync(
     private val p2p: Komunikator? = null,
     // 🔄 nauka klawiatury Velivo: null - wydaj (JSON), tekst - przyjmij
     private val keyboard: (String?) -> String? = { null },
+    // 🔑 nazwy kluczy sprzętowych: (null, null) - moje do wysłania; (urządzenie, lista) - zapis kluczy komputera
+    private val hwKeys: (String?, JSONArray?) -> JSONArray? = { _, _ -> null },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -310,6 +312,7 @@ class LanSync(
         Thread {
             runCatching {
                 val o = JSONObject(keyboard(null) ?: return@runCatching).put("to", to).put("reply", reply)
+                hwKeys(null, null)?.let { o.put("keys", it) }   // 🔑 nazwy moich kluczy - komputer wie, gdzie klucz jest dodany
                 val pkt = sealBlob("kb", o) ?: return@runCatching
                 pcAddress?.let { sendTo(pkt, it) } ?: send(pkt)
             }
@@ -318,6 +321,7 @@ class LanSync(
     private fun kb(p: JSONObject) {
         val j = openBlob(p) ?: return
         if (j.optString("to") != id) return
+        j.optJSONArray("keys")?.let { k -> runCatching { hwKeys(p.optString("device").filter { !it.isISOControl() }.take(64), k) } }
         Thread { runCatching { keyboard(j.toString()) } }.start()
     }
 

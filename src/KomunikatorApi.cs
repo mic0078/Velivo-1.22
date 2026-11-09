@@ -17,16 +17,16 @@ namespace Velivo
     public partial class MainWindow
     {
         public const int KomApiPort = 41930;
-        // ⏱ pomiar zacięć: każda czynność w wątku okna dłuższa niż 0,5 s - wpis w Błędach Velivo z nazwą funkcji (zamiast zgadywania, co zawiesza Velivo)
+        // ⏱ pomiar zacięć: każda czynność w wątku okna dłuższa niż 0,1 s (tymczasowo, audyt przycięć; było 0,5 s) - wpis w Błędach Velivo z nazwą funkcji (zamiast zgadywania, co zawiesza Velivo)
         bool _komUiWatch; long _komOpT; System.Windows.Threading.DispatcherOperation _komOpCur; readonly Dictionary<string, DateTime> _komUiLast = new Dictionary<string, DateTime>();
         void KomUiWatch()
-        {   // bez przydziałów pamięci na każdą czynność: tylko znacznik czasu; nazwa funkcji odczytywana dopiero przy zacięciu > 0,5 s
+        {   // bez przydziałów pamięci na każdą czynność: tylko znacznik czasu; nazwa funkcji odczytywana dopiero przy zacięciu > 0,1 s
             if (_komUiWatch) return; _komUiWatch = true;
             Dispatcher.Hooks.OperationStarted += (s, e) => { _komOpCur = e.Operation; _komOpT = System.Diagnostics.Stopwatch.GetTimestamp(); };
             Dispatcher.Hooks.OperationCompleted += (s, e) =>
             {
                 if (!ReferenceEquals(e.Operation, _komOpCur)) return; _komOpCur = null;
-                var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _komOpT) * 1000 / System.Diagnostics.Stopwatch.Frequency; if (ms < 500) return;
+                var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - _komOpT) * 1000 / System.Diagnostics.Stopwatch.Frequency; if (ms < 100) return;
                 try
                 {
                     string name = "?"; var d = e.Operation.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(e.Operation) as Delegate;

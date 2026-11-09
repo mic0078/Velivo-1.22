@@ -26,6 +26,9 @@ namespace Velivo
         [DllImport("winmm.dll")] static extern int waveOutPause(IntPtr h);
         [DllImport("winmm.dll")] static extern int waveOutRestart(IntPtr h);
         [DllImport("winmm.dll")] static extern int waveOutClose(IntPtr h);
+        [StructLayout(LayoutKind.Sequential)] struct MmTime { public uint Type, Val, Pad; }
+        [DllImport("winmm.dll")] static extern int waveOutGetPosition(IntPtr h, ref MmTime t, int size);
+        long _written;   // ramki oddane karcie od ostatniego resetu
         const int HdrSize = 48, FlagsOff = 24, WhdrDone = 1;   // WAVEHDR x64
 
         sealed class Chunk { public float[] Data; public int Frames; public long Pts; }
@@ -64,7 +67,15 @@ namespace Velivo
 
         long Now => _vlc.Clock;   // zegar libVLC (µs) - ten sam co pts
 
-        int QueuedFrames() { int n = 0; foreach (var b in _bufs) if (b.Busy) { if ((Marshal.ReadInt32(b.Hdr, FlagsOff) & WhdrDone) != 0) { waveOutUnprepareHeader(_h, b.Hdr, HdrSize); b.Busy = false; } else n += b.Frames; } return n; }
+        // zwalnia odegrane bufory; zwraca dokladnie, ile ramek jeszcze nie zabrzmialo (oddane - pozycja karty). Wczesniej liczone calymi buforami:
+        // grany bufor liczyl sie w calosci, a po jego koncu kolejka „spadala” o 20–80 ms - program wstawial wtedy cisze (zacinanie dzwieku)
+        int QueuedFrames()
+        {
+            foreach (var b in _bufs) if (b.Busy && (Marshal.ReadInt32(b.Hdr, FlagsOff) & WhdrDone) != 0) { waveOutUnprepareHeader(_h, b.Hdr, HdrSize); b.Busy = false; }
+            var t = new MmTime { Type = 2 };   // TIME_SAMPLES
+            if (waveOutGetPosition(_h, ref t, 12) == 0 && t.Type == 2) return (int)Math.Max(0, _written - t.Val);
+            int n = 0; foreach (var b in _bufs) if (b.Busy) n += b.Frames; return n;
+        }
 
         void Loop()
         {
@@ -76,7 +87,7 @@ namespace Velivo
                 {
                     if (_flushReq != flushSeen)
                     {   // przewiniecie / zmiana kanalu: karta od nowa, procesor bez starych okien (zintegrowany zostaje dla filmu)
-                        flushSeen = _flushReq; waveOutReset(_h); QueuedFrames(); Proc.Reset();
+                        flushSeen = _flushReq; waveOutReset(_h); _written = 0; QueuedFrames(); Proc.Reset();
                         if (_paused) waveOutPause(_h);
                     }
                     Chunk c = null;
@@ -84,8 +95,8 @@ namespace Velivo
                     // kiedy zabrzmi pierwsza probka tego kawalka: po tym, co juz czeka w karcie, i po opoznieniu limitera (ok. 5 ms)
                     long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + AbProcessor.LatencyFrames * 1_000_000L / AbProcessor.Fs;
                     long gap = (c.Pts - Now) - playAt;   // > 0: VLC dal dzwiek wczesniej (zwykle) - cisza do jego chwili; < 0: spozniony
-                    if (gap > 20000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs * 2L, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
-                    else if (gap < -60000)
+                    if (gap > 40000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs * 2L, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
+                    else if (gap < -80000)
                     {   // spozniony o ponad 60 ms - pomijamy poczatek kawalka (obraz jest wazniejszy)
                         int skip = (int)Math.Min(c.Frames, -gap * AbProcessor.Fs / 1_000_000L); Interlocked.Increment(ref LateDrops);
                         if (skip >= c.Frames) continue;
@@ -116,7 +127,7 @@ namespace Velivo
             for (int o = 0; o < HdrSize; o += 8) Marshal.WriteInt64(b.Hdr, o, 0);
             Marshal.WriteIntPtr(b.Hdr, 0, b.Mem); Marshal.WriteInt32(b.Hdr, 8, frames * 4);
             b.Frames = frames; b.Busy = true;
-            waveOutPrepareHeader(_h, b.Hdr, HdrSize); waveOutWrite(_h, b.Hdr, HdrSize);
+            waveOutPrepareHeader(_h, b.Hdr, HdrSize); waveOutWrite(_h, b.Hdr, HdrSize); _written += frames;
         }
 
         public void Dispose()
@@ -351,7 +362,8 @@ namespace Velivo
                     double ty = Y(AbProc.Target); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = AbProc.Target.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
                 }
                 gainTxt.Text = !live ? "" : AbBypass ? L.T("Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)") : (AbProc.Dialog > 0 ? L.T("Dialogi +") + AbProc.DialogDb.ToString("0.0") + " dB · " : "") + (AbProc.Profile != null ? L.T("Audio Balance: wzmocnienie ") + AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("Audio Balance: wyłączony (sam korektor)")) +
-                    L.T(" · limiter ") + AbProc.LimitDb.ToString("0.0") + " dB" + L.T(" · wejście (3 s) ") + F(AbProc.In.ShortTerm) + " LUFS";
+                    L.T(" · limiter ") + AbProc.LimitDb.ToString("0.0") + " dB" + L.T(" · wejście (3 s) ") + F(AbProc.In.ShortTerm) + " LUFS" +
+                    L.T(" · zgrywanie z obrazem: cisza ") + Interlocked.Read(ref _abOut.EarlyWaits) + L.T(", pominięte ") + Interlocked.Read(ref _abOut.LateDrops);
             };
             win.StateChanged += (s, e) => { if (win.WindowState == WindowState.Minimized) AbHideMonitor(); };
             win.IsVisibleChanged += (s, e) => { if (win.IsVisible) _abTimer.Start(); else _abTimer.Stop(); };
@@ -441,21 +453,20 @@ namespace Velivo
         {
             if (_abDesk != null) { _abDesk.Show(); _abDesk.Activate(); return; }
             var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
-            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 260, Height = 120, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
+            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 130, Height = 56, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;
             if (double.TryParse(GetPref("ab-pulpit-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref("ab-pulpit-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
             { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = l0; w.Top = t0; }
-            else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - 280; w.Top = SystemParameters.WorkArea.Top + 20; }
-            var g = new Grid { Margin = new Thickness(10, 8, 10, 8) };
+            else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - 150; w.Top = SystemParameters.WorkArea.Top + 20; }
+            var g = new Grid { Margin = new Thickness(8, 4, 8, 4) };
             g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var top = new DockPanel(); var st = new TextBlock { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
-            top.Children.Add(new TextBlock { Text = "🎚 Velivo", FontSize = 11, Foreground = fg, FontWeight = FontWeights.SemiBold }); g.Children.Add(top);
-            const int NB = 24; var cv = new Canvas { Margin = new Thickness(0, 4, 0, 4), ClipToBounds = true }; Grid.SetRow(cv, 1); g.Children.Add(cv);
+            var top = new DockPanel(); var st = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
+            var lufs = new TextBlock { FontSize = 10, Foreground = fg, FontWeight = FontWeights.SemiBold }; top.Children.Add(lufs); g.Children.Add(top);
+            const int NB = 20; var cv = new Canvas { Margin = new Thickness(0, 2, 0, 0), ClipToBounds = true }; Grid.SetRow(cv, 1); g.Children.Add(cv);
             var grad = new LinearGradientBrush(Color.FromRgb(0x2E, 0xD3, 0xC6), Color.FromRgb(0x7C, 0x5C, 0xFF), 90);
             var bars = new Rectangle[NB]; for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1, RadiusY = 1 }; cv.Children.Add(bars[i]); }
-            var nums = new TextBlock { FontSize = 11, Foreground = dim }; Grid.SetRow(nums, 2); g.Children.Add(nums);
             w.Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(10), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g,
-                ToolTip = L.T("Audio Monitor na pulpicie: przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.") };
+};
             w.MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 2) ShowAudioMonitor(); else try { w.DragMove(); SetPref("ab-pulpit-x", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref("ab-pulpit-y", w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)); } catch (Exception) { } };
             var cm = new ContextMenu();
             void Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); }
@@ -471,7 +482,7 @@ namespace Velivo
             {
                 if (!w.IsVisible) return;
                 bool live = _abOut != null && AbProc.Active;
-                st.Text = AbBypass ? L.T("bez przetwarzania") : !AbWanted ? L.T("wyłączony") : AbProfileLabel(AbProfileName) + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "");
+                st.Text = AbBypass || !AbWanted ? "⏻" : AbProfileLabel(AbProfileName).Substring(0, 1) + (AbProc.Dialog > 0 ? "+🗣" : "");   // krotko: L / B / N, ⏻ = bez przetwarzania
                 int pos = AbProc.ScopePos;
                 for (int i = 0; i < 1024; i++) { re[i] = live ? AbProc.Scope[(pos - 1024 + i + 8192) & 8191] * hann[i] : 0; im[i] = 0; }
                 AbFft(re, im);
@@ -485,7 +496,9 @@ namespace Velivo
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = sm[b] * ch; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], ch - sm[b] * ch);
                 }
                 string F(double x) => double.IsNegativeInfinity(x) || double.IsNaN(x) || x < -69 || !live ? "–" : x.ToString("0.0");
-                nums.Text = "M " + F(AbProc.Out.Momentary) + "   S " + F(AbProc.Out.ShortTerm) + "   I " + F(AbProc.Out.Integrated) + " LUFS   TP " + F(AbProc.PeakOutDb);
+                lufs.Text = F(AbProc.Out.ShortTerm) + " LUFS";
+                if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
+                w.ToolTip = "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
             w.Closed += (s, e) => { tm.Stop(); _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref("ab-pulpit", "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };

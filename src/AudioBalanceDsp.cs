@@ -152,6 +152,7 @@ namespace Velivo
             if (++vuN >= 480) { vuN = 0; VuL = 10 * Math.Log10(vuPL * 2 + 1e-12); VuR = 10 * Math.Log10(vuPR * 2 + 1e-12); }   // *2: sinus 0 dBFS = 0 dB
         }   // ostatnio przetworzony dźwięk (do wskaźnika „pracuje”)
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
+        public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
         double levDb, detP, grDb;
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
@@ -164,7 +165,7 @@ namespace Velivo
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
         public void Reset()
         {
-            In.ResetWindows(); Out.ResetWindows(); tpIn.Reset(); tpOut.Reset();
+            In.ResetWindows(); Out.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
             minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0;
             foreach (var b in eq) b?.Reset();
@@ -175,7 +176,7 @@ namespace Velivo
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); levDb = 0; }
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
@@ -189,7 +190,7 @@ namespace Velivo
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
-                    VuIn(buf[2 * f] * vol, buf[2 * f + 1] * vol);
+                    VuIn(buf[2 * f] * vol, buf[2 * f + 1] * vol); Raw.Push(buf[2 * f] * vol, buf[2 * f + 1] * vol);
                     double l = buf[2 * f] * vol, r = buf[2 * f + 1] * vol;
                     buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
                     In.Push(l, r); Out.Push(l, r); Vu(l, r);
@@ -202,7 +203,7 @@ namespace Velivo
             for (int f = 0; f < frames; f++)
             {
                 double l = buf[2 * f], r = buf[2 * f + 1];
-                VuIn(l * vol, r * vol);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
+                VuIn(l * vol, r * vol); Raw.Push(l * vol, r * vol);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
                 {

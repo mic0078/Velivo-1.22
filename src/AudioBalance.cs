@@ -29,6 +29,7 @@ namespace Velivo
         [StructLayout(LayoutKind.Sequential)] struct MmTime { public uint Type, Val, Pad; }
         [DllImport("winmm.dll")] static extern int waveOutGetPosition(IntPtr h, ref MmTime t, int size);
         long _written;   // ramki oddane karcie od ostatniego resetu
+        uint _lastPos; long _posWraps;
         const int HdrSize = 48, FlagsOff = 24, WhdrDone = 1;   // WAVEHDR x64
 
         sealed class Chunk { public float[] Data; public int Frames; public long Pts; }
@@ -73,7 +74,12 @@ namespace Velivo
         {
             foreach (var b in _bufs) if (b.Busy && (Marshal.ReadInt32(b.Hdr, FlagsOff) & WhdrDone) != 0) { waveOutUnprepareHeader(_h, b.Hdr, HdrSize); b.Busy = false; }
             var t = new MmTime { Type = 2 };   // TIME_SAMPLES
-            if (waveOutGetPosition(_h, ref t, 12) == 0 && t.Type == 2) return (int)Math.Max(0, _written - t.Val);
+            if (waveOutGetPosition(_h, ref t, 12) == 0 && t.Type == 2)
+            {   // licznik karty ma 32 bity - po ok. 24,8 h odtwarzania bez przewijania przekreca sie; liczymy obroty
+                if (t.Val < _lastPos) _posWraps++;
+                _lastPos = t.Val;
+                return (int)Math.Max(0, Math.Min(int.MaxValue, _written - ((long)_posWraps << 32 | t.Val)));
+            }
             int n = 0; foreach (var b in _bufs) if (b.Busy) n += b.Frames; return n;
         }
 
@@ -87,7 +93,7 @@ namespace Velivo
                 {
                     if (_flushReq != flushSeen)
                     {   // przewiniecie / zmiana kanalu: karta od nowa, procesor bez starych okien (zintegrowany zostaje dla filmu)
-                        flushSeen = _flushReq; waveOutReset(_h); _written = 0; QueuedFrames(); Proc.Reset();
+                        flushSeen = _flushReq; waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); Proc.Reset();
                         if (_paused) waveOutPause(_h);
                     }
                     Chunk c = null;
@@ -172,10 +178,11 @@ namespace Velivo
             var o = new AbOutput(AbProc, _libVlc);
             if (!o.Open()) { App.LogError(new Exception("Audio Balance: wyjście dźwięku Windows (waveOut) nie otworzyło się – zwykły dźwięk VLC")); return false; }
             _abOut = o;
-            _abPlay = (d, s, c, p) => _abOut?.Play(s, c, p);
-            _abPause = (d, p) => _abOut?.Pause();
-            _abResume = (d, p) => _abOut?.Resume();
-            _abFlush = (d, p) => _abOut?.Flush();
+            // kazdy odtwarzacz rozmawia tylko ze swoim wyjsciem - stary (zamykany w tle) nie wpisze dzwieku do nowego
+            _abPlay = (d, s, c, p) => { if (_abOut == o) o.Play(s, c, p); };
+            _abPause = (d, p) => { if (_abOut == o) o.Pause(); };
+            _abResume = (d, p) => { if (_abOut == o) o.Resume(); };
+            _abFlush = (d, p) => { if (_abOut == o) o.Flush(); };
             _abDrain = d => { };
             _abVol = (d, v, m) => AbProc.Volume = m ? 0 : v;
             mp.SetAudioFormat("S16N", AbProcessor.Fs, 2);   // VLC dekoduje i miksuje (5.1/AC3/E-AC3/AAC) do stereo 48 kHz; S16N - format pewny w libVLC 3 ("FL32" nie jest jego nazwą - VLC dawał inne próbki, niż czytaliśmy)
@@ -396,7 +403,7 @@ namespace Velivo
                 {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
                     numsLast = DateTime.UtcNow;
                     {
-                        double si = AbProc.In.ShortTerm, so = AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
+                        double si = AbProc.Raw.ShortTerm, so = AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
                         sumV[0].Text = F(si) + " LUFS"; sumV[0].Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53));
                         sumL[1].Text = !okd || Math.Abs(dd) < 0.25 ? L.T("ZMIANA") : dd > 0 ? L.T("PODGŁOŚNIONO") : L.T("ŚCISZONO");
                         sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0 dB" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0") + " dB";
@@ -410,7 +417,7 @@ namespace Velivo
                 {   // nowy punkt co 100 ms (blok pomiaru BS.1770)
                     hLast = DateTime.UtcNow;
                     Array.Copy(hIn, 1, hIn, 0, HN - 1); Array.Copy(hOut, 1, hOut, 0, HN - 1);
-                    hIn[HN - 1] = live ? Math.Max(-70, AbProc.In.Momentary) : -70; hOut[HN - 1] = live ? Math.Max(-70, AbProc.Out.Momentary) : -70;
+                    hIn[HN - 1] = live ? Math.Max(-70, AbProc.Raw.Momentary) : -70; hOut[HN - 1] = live ? Math.Max(-70, AbProc.Out.Momentary) : -70;
                     double hw = hist.ActualWidth, hh = hist.ActualHeight;
                     double Y(double v) => hh - 4 - (Math.Max(-60, Math.Min(0, v)) + 60) / 60 * (hh - 8);
                     var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
@@ -426,7 +433,7 @@ namespace Velivo
                     infoV[0].Text = AbProc.Profile != null ? AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("wył.");
                     infoV[1].Text = AbProc.Dialog > 0 ? AbProc.DialogDb.ToString("+0.0;-0.0") + " dB" : L.T("wył.");
                     infoV[2].Text = AbProc.LimitDb.ToString("0.0") + " dB";
-                    infoV[3].Text = F(AbProc.In.ShortTerm) + " LUFS";
+                    infoV[3].Text = F(AbProc.Raw.ShortTerm) + " LUFS";
                     infoV[4].Text = Interlocked.Read(ref _abOut.EarlyWaits).ToString();
                     infoV[5].Text = Interlocked.Read(ref _abOut.LateDrops).ToString();
                 }
@@ -568,8 +575,8 @@ namespace Velivo
                 {   // liczby 4×/s - czytelne
                     numsAt = DateTime.UtcNow;
                     lufs.Text = F(AbProc.Out.ShortTerm) + " LUFS";
-                    orig.Text = L.T("źródło ") + F(AbProc.In.ShortTerm);
-                    double d = AbProc.Out.ShortTerm - AbProc.In.ShortTerm;
+                    orig.Text = L.T("źródło ") + F(AbProc.Raw.ShortTerm);
+                    double d = AbProc.Out.ShortTerm - AbProc.Raw.ShortTerm;
                     bool ok = live && !double.IsNaN(d) && !double.IsInfinity(d);
                     delta.Text = !ok ? "" : Math.Abs(d) < 0.25 ? "±0 dB" : (d > 0 ? "▲ +" : "▼ ") + d.ToString("0.0") + " dB";   // krotko - mieści się w wierszu
                     delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;

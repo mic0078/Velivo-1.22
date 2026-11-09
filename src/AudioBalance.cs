@@ -45,10 +45,23 @@ namespace Velivo
         readonly LibVLCSharp.Shared.LibVLC _vlc;
         public AbOutput(AbProcessor p, LibVLCSharp.Shared.LibVLC vlc) { Proc = p; _vlc = vlc; }
 
-        public bool Open()
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] struct WaveOutCaps { public ushort Mid, Pid; public uint DriverVersion; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string Name; public uint Formats; public ushort Channels, Reserved; public uint Support; }
+        [DllImport("winmm.dll")] static extern int waveOutGetNumDevs();
+        [DllImport("winmm.dll", CharSet = CharSet.Unicode)] static extern int waveOutGetDevCapsW(UIntPtr id, ref WaveOutCaps caps, int size);
+        // urzadzenia wyjscia dzwieku Windows (glosniki, sluchawki, Bluetooth, VB-CABLE…); nazwa ucieta przez Windows do 31 znakow
+        public static List<string> Devices()
+        {
+            var l = new List<string>();
+            try { int n = waveOutGetNumDevs(); for (int i = 0; i < n; i++) { var c = new WaveOutCaps(); if (waveOutGetDevCapsW((UIntPtr)i, ref c, Marshal.SizeOf<WaveOutCaps>()) == 0 && !string.IsNullOrEmpty(c.Name)) l.Add(c.Name); } } catch (Exception) { }
+            return l;
+        }
+
+        public bool Open(string device)
         {
             var f = new WaveFormat { Tag = 1, Channels = 2, Rate = AbProcessor.Fs, Bits = 16, Align = 4, BytesPerSec = AbProcessor.Fs * 4 };
-            if (waveOutOpen(out _h, 0xFFFFFFFF, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0) { _h = IntPtr.Zero; return false; }
+            uint id = 0xFFFFFFFF;   // domyslne urzadzenie Windows
+            if (!string.IsNullOrEmpty(device)) { int k = Devices().IndexOf(device); if (k >= 0) id = (uint)k; }   // wybrane - gdy go nie ma (odlaczone), domyslne
+            if (waveOutOpen(out _h, id, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0 && (id == 0xFFFFFFFF || waveOutOpen(out _h, 0xFFFFFFFF, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0)) { _h = IntPtr.Zero; return false; }
             _run = true; _th = new Thread(Loop) { IsBackground = true, Name = "Velivo Audio Balance", Priority = ThreadPriority.AboveNormal }; _th.Start();
             return true;
         }
@@ -176,7 +189,7 @@ namespace Velivo
             if (!AbWanted) return false;
             AbDetach();
             var o = new AbOutput(AbProc, _libVlc);
-            if (!o.Open()) { App.LogError(new Exception("Audio Balance: wyjście dźwięku Windows (waveOut) nie otworzyło się – zwykły dźwięk VLC")); return false; }
+            if (!o.Open(GetPref("ab-wyjscie"))) { App.LogError(new Exception("Audio Balance: wyjście dźwięku Windows (waveOut) nie otworzyło się – zwykły dźwięk VLC")); return false; }
             _abOut = o;
             // kazdy odtwarzacz rozmawia tylko ze swoim wyjsciem - stary (zamykany w tle) nie wpisze dzwieku do nowego
             _abPlay = (d, s, c, p) => { if (_abOut == o) o.Play(s, c, p); };
@@ -197,8 +210,9 @@ namespace Velivo
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;
-        static readonly string[] AbProfiles = { "off", "light", "balanced", "night" };
-        static string AbProfileLabel(string p) => p == "light" ? "Light" : p == "balanced" ? "Balanced" : p == "night" ? "Night" : "Off";
+        static readonly string[] AbProfiles = { "off", "limiter", "light", "balanced", "night" };
+        static string AbProfileLabel(string p) => p == "light" ? "Light" : p == "balanced" ? "Balanced" : p == "night" ? "Night" : p == "limiter" ? L.T("Tylko limiter") : "Off";
+        static string AbProfileShort(string p) => p == "light" ? "L" : p == "balanced" ? "B" : p == "night" ? "N" : p == "limiter" ? "Lim" : "⏻";
 
         internal void ShowAudioMonitor()
         {
@@ -315,6 +329,7 @@ namespace Velivo
             tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? tgt.Items[2];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
             root.Children.Add(tgt);
+            var devBox = AbDeviceBox(); root.Children.Add(devBox);
             // korektor (EQ) - zwiniety
             var eqExp = new Expander { Header = L.T("Korektor (EQ)"), Foreground = fg, Margin = new Thickness(0, 8, 0, 0) };
             var eqPanel = new StackPanel();
@@ -354,7 +369,7 @@ namespace Velivo
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
             Move(c1, head, src, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
             Move(c2, lmh, lvl, nums, leg, hist, info, bypassNote);
-            Move(c3, prow, drow, tgt, eqExp, brow, foot);
+            Move(c3, prow, drow, tgt, devBox, eqExp, brow, foot);
             Grid.SetColumn(c1, 0); Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
@@ -448,13 +463,33 @@ namespace Velivo
 
         static readonly float[] AbTargets = { -14, -16, -18, -20, -23, -24 };
         static string AbTargetLabel(float v) => v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
-        static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Balanced – wygodne oglądanie: cichsze dialogi wyżej, głośne sceny niżej.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
+        static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Balanced – wygodne oglądanie: cichsze dialogi wyżej, głośne sceny niżej.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : p == "limiter" ? L.T("Tylko limiter – dźwięk bez wyrównywania, tylko ochrona przed nagłym hukiem (szczyty nie wyżej niż -1 dBTP).") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
 
         internal void AbSetBypass(bool on)
         {
             SetPref("ab-wylacz", on ? "1" : "0"); AbProc.Bypass = on;
             ShowToast(on ? L.T("⏻ Przetwarzanie dźwięku wyłączone – film gra bez zmian") : L.T("🎚 Przetwarzanie dźwięku włączone"), null);
             AbNeedsRestartHint();
+        }
+
+        // wybor urzadzenia wyjscia: od razu (przelaczenie w trakcie filmu - chwila ciszy, ten sam film od tego miejsca)
+        internal void AbSetDevice(string name)
+        {
+            SetPref("ab-wyjscie", name ?? "");
+            if (_abOut != null && _playerMp != null) { AbDetach(); AbNeedsRestartHint(); }
+        }
+
+        ComboBox AbDeviceBox()
+        {
+            var box = new ComboBox { Width = 280, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0),
+                ToolTip = L.T("Gdzie gra dźwięk filmu przy Audio Balance / korektorze: głośniki, słuchawki, Bluetooth (także VB-CABLE, gdy jest zainstalowany).") };
+            box.Items.Add(new ComboBoxItem { Content = L.T("🔈 Domyślne urządzenie Windows"), Tag = "" });
+            var cur = GetPref("ab-wyjscie") ?? "";
+            foreach (var d in AbOutput.Devices()) box.Items.Add(new ComboBoxItem { Content = "🔈 " + d, Tag = d });
+            if (cur.Length > 0 && !box.Items.Cast<ComboBoxItem>().Any(i => (string)i.Tag == cur)) box.Items.Add(new ComboBoxItem { Content = "🔈 " + cur + L.T(" (odłączone)"), Tag = cur });
+            box.SelectedItem = box.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == cur) ?? box.Items[0];
+            box.SelectionChanged += (a, b) => { if (box.SelectedItem is ComboBoxItem it) AbSetDevice((string)it.Tag); };
+            return box;
         }
 
         void AbSetProfile(string p)
@@ -568,7 +603,7 @@ namespace Velivo
             {
                 if (!w.IsVisible) return;
                 bool live = _abOut != null && AbProc.Active;
-                st.Text = AbBypass || !AbWanted ? "⏻" : AbProfileLabel(AbProfileName).Substring(0, 1) + (AbProc.Dialog > 0 ? "+🗣" : "");   // krotko: L / B / N, ⏻ = bez przetwarzania
+                st.Text = AbBypass || !AbWanted ? "⏻" : AbProfileShort(AbProfileName) + (AbProc.Dialog > 0 ? "+🗣" : "");   // krotko: Lim / L / B / N, ⏻ = bez przetwarzania
                 vuUpd(live);
                 string F(double x) => double.IsNegativeInfinity(x) || double.IsNaN(x) || x < -69 || !live ? "–" : x.ToString("0.0");
                 if ((DateTime.UtcNow - numsAt).TotalMilliseconds >= 250)

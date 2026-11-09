@@ -776,6 +776,7 @@ namespace Velivo
             abMon.ToolTip = L.T("Widżet z widmem, LUFS i True Peak, korektor i wybór profilu. Można go schować do zasobnika.");
             abRow.Children.Add(abMon);
             root.Children.Add(abRow);
+            root.Children.Add(AbDeviceBox());
             var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
             abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) ShowAbDesk(); else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
             root.Children.Add(abDeskBox);

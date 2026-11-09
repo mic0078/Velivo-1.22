@@ -114,7 +114,9 @@ namespace Velivo
         public static readonly AbProfile Light = new AbProfile { Name = "light", MaxBoost = 6, MaxCut = 8, UpDbS = 0.5, DownDbS = 1.0, Gate = -25, ThrOff = 8, Ratio = 2, AttackMs = 25, ReleaseMs = 400 };
         public static readonly AbProfile Balanced = new AbProfile { Name = "balanced", MaxBoost = 12, MaxCut = 12, UpDbS = 1.5, DownDbS = 2.0, Gate = -30, ThrOff = 4, Ratio = 3, AttackMs = 12, ReleaseMs = 300 };
         public static readonly AbProfile Night = new AbProfile { Name = "night", MaxBoost = 18, MaxCut = 18, UpDbS = 2.5, DownDbS = 3.0, Gate = -35, ThrOff = 0, Ratio = 6, AttackMs = 6, ReleaseMs = 200 };
-        public static AbProfile ByName(string n) => n == "light" ? Light : n == "balanced" ? Balanced : n == "night" ? Night : null;
+        // tylko limiter: bez wyrownywania i kompresji - naturalny dzwiek, chroniony tylko przed nagłym hukiem (szczyty -1 dBTP)
+        public static readonly AbProfile LimiterOnly = new AbProfile { Name = "limiter", MaxBoost = 0, MaxCut = 0, UpDbS = 0, DownDbS = 0, Gate = -99, ThrOff = 200, Ratio = 1, AttackMs = 10, ReleaseMs = 300 };
+        public static AbProfile ByName(string n) => n == "light" ? Light : n == "balanced" ? Balanced : n == "night" ? Night : n == "limiter" ? LimiterOnly : null;
     }
 
     public sealed class AbProcessor

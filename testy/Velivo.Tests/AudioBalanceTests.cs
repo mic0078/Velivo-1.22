@@ -74,7 +74,7 @@ public class AudioBalanceTests
             if (t > 45 && t < 47) { after += p.Out.Momentary; na++; }
         }
         Assert.InRange(hit, 0, 0.3);              // ściszone w ułamku sekundy
-        Assert.InRange(after / na, -21, -15);     // kilka sekund po reklamie program znowu przy celu
+        Assert.InRange(after / na, -23, -15);     // kilka sekund po reklamie program znowu w strefie celu (strefa komfortu ±3 dB)
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AudioBalanceTests
             if (b > 6000 && b % 400 == 350) { if (loud) { g += p.Out.Momentary; ng++; } else { q += p.Out.Momentary; nq++; } }
         }
         double diff = g / ng - q / nq;
-        Assert.True(diff < 8, $"różnica {diff:0.0} dB");
+        Assert.True(diff < 10, $"różnica {diff:0.0} dB");   // z 12 dB - wyrównane, ale nie spłaszczone (strefa komfortu)
         Assert.InRange(p.Out.Integrated - p.In.Integrated, -3, 3);
     }
 
@@ -116,10 +116,10 @@ public class AudioBalanceTests
     [Fact]
     public void NaukaZnanyKanalOdRazuWCeluAPoprawkaPrzesuwaCel()
     {
-        // 🧠 znany cichy kanał (-26): z zapamiętanym poziomem już po 1 s blisko celu; poprawka +3 dB przesuwa wynik o ok. 3 dB
+        // 🧠 znany cichy kanał (-26): z zapamiętanym poziomem już po 1 s blisko celu; poprawka -3 dB przesuwa wynik o ok. 3 dB
         double Run(float seed, float adj, int blocks)
         {
-            var p = new AbProcessor { Profile = AbProfile.Balanced, Target = -18, SeedLevDb = seed, TargetAdj = adj }; var buf = new float[960]; var rnd = new Random(1);
+            var p = new AbProcessor { Profile = AbProfile.Night, Target = -18, SeedLevDb = seed, TargetAdj = adj }; var buf = new float[960]; var rnd = new Random(1);
             p.NewMedia();
             for (int b = 0; b < blocks; b++)
             {
@@ -131,7 +131,7 @@ public class AudioBalanceTests
         double nowy = Run(float.NaN, 0, 100), znany = Run(8.5f, 0, 100);
         Assert.True(Math.Abs(znany + 18) < Math.Abs(nowy + 18), $"znany {znany:0.0}, nowy {nowy:0.0}");
         Assert.InRange(znany, -20, -16);
-        Assert.InRange(Run(8.5f, 3, 1500) - Run(8.5f, 0, 1500), 1.8, 4);
+        Assert.InRange(Run(8.5f, 0, 1500) - Run(8.5f, -3, 1500), 0.8, 4);   // poprawka w dół - bez wpływu limitera na szczytach
     }
 
     [Fact]
@@ -167,6 +167,8 @@ public class AudioBalanceTests
             p.Process(buf, 480);
             if (t > 60) for (int k = 0; k < 480; k++) outM.Push(buf[2 * k], buf[2 * k + 1]);
         }
-        Assert.InRange(outM.Integrated, -19, -17);
+        // intensywność: wynik = źródło + Amount × (cel − źródło) - Strong trafia w cel, Light zostawia połowę naturalnej różnicy
+        double src = p.In.Integrated, dv = -18 - src; dv = Math.Sign(dv) * Math.Max(0, Math.Abs(dv) - p.Profile.Dead); double goal = src + Math.Max(-p.Profile.MaxCut, Math.Min(p.Profile.MaxBoost, p.Profile.Amount * dv));
+        Assert.InRange(outM.Integrated, Math.Min(goal, src) - 1, -17);   // między źródłem a celem - bliżej celu przy większej intensywności, nigdy ponad cel
     }
 }

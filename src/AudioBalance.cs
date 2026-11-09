@@ -474,7 +474,7 @@ namespace Velivo
         }
 
         static readonly float[] AbTargets = { 0, -14, -16, -18, -20, -23, -24 };   // 0 = Auto (średnia źródła)
-        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – wyrównuj do średniej filmu (zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
+        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
         static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Włączone – Velivo pilnuje głośności: płynnie podgłaśnia ciche i ścisza głośne, żeby wynik był stale przy celu.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : p == "limiter" ? L.T("Tylko limiter – dźwięk bez wyrównywania, tylko ochrona przed nagłym hukiem (szczyty nie wyżej niż -1 dBTP).") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
 
         internal void AbSetBypass(bool on)

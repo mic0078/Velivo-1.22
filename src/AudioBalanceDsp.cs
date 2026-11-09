@@ -117,16 +117,32 @@ namespace Velivo
         }
     }
 
+    // Inteligentna normalizacja (specyfikacja właściciela 2026-11-09, wzór AudioBalance): tryb Auto Level / Limit Only × intensywność Light / Normal / Strong.
+    // Amount - jaką część odchylenia od celu korygujemy (Light zachowuje więcej naturalnej dynamiki); LimitOnly - nigdy nie podgłaśnia.
     public sealed class AbProfile
     {
-        public string Name; public double MaxBoost, MaxCut, UpDbS, DownDbS, Gate, ThrOff, Ratio, AttackMs, ReleaseMs;
-        public double FastDownDbS;   // nagły skok w górę (reklama, głośna scena) - ściszanie prawie natychmiast (dB/s); podgłaśnianie zostaje powolne
-        public static readonly AbProfile Light = new AbProfile { FastDownDbS = 30, Name = "light", MaxBoost = 6, MaxCut = 8, UpDbS = 6, DownDbS = 10, Gate = -25, ThrOff = 8, Ratio = 2, AttackMs = 25, ReleaseMs = 400 };
-        public static readonly AbProfile Balanced = new AbProfile { FastDownDbS = 40, Name = "balanced", MaxBoost = 15, MaxCut = 12, UpDbS = 6, DownDbS = 10, Gate = -30, ThrOff = 4, Ratio = 3, AttackMs = 12, ReleaseMs = 300 };
-        public static readonly AbProfile Night = new AbProfile { FastDownDbS = 60, Name = "night", MaxBoost = 20, MaxCut = 18, UpDbS = 15, DownDbS = 30, Gate = -35, ThrOff = 0, Ratio = 6, AttackMs = 6, ReleaseMs = 200 };
-        // tylko limiter: bez wyrownywania i kompresji - naturalny dzwiek, chroniony tylko przed nagłym hukiem (szczyty -1 dBTP)
-        public static readonly AbProfile LimiterOnly = new AbProfile { Name = "limiter", MaxBoost = 0, MaxCut = 0, UpDbS = 0, DownDbS = 0, Gate = -99, ThrOff = 200, Ratio = 1, AttackMs = 10, ReleaseMs = 300 };
-        public static AbProfile ByName(string n) => n == "light" ? Light : n == "balanced" ? Balanced : n == "night" ? Night : n == "limiter" ? LimiterOnly : null;
+        public string Name; public double MaxBoost, MaxCut, UpDbS, DownDbS, Gate, ThrOff, Ratio, AttackMs, ReleaseMs, Amount = 1, Dead = 1.5, FastHead = 6; public bool LimitOnly;   // Dead - strefa komfortu ±dB wokół punktu odniesienia: tam bez zmian
+        public double FastDownDbS;   // nagły skok w górę (eksplozja, reklama) - ściszanie prawie natychmiast (dB/s); podgłaśnianie zostaje płynne
+        static AbProfile Mk(bool lim, string sila)
+        {
+            int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
+            var p = new AbProfile { LimitOnly = lim, Name = (lim ? "limit" : "auto") + "-" + new[] { "light", "normal", "strong" }[k],
+                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 9.0, 6, 4 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
+                UpDbS = new[] { 1.5, 2.5, 4 }[k], DownDbS = new[] { 3.0, 5, 8 }[k], Gate = new[] { -25.0, -30, -35 }[k],
+                ThrOff = lim ? new[] { 8.0, 5, 2 }[k] : new[] { 8.0, 5, 3 }[k], Ratio = new[] { 1.5, 2, 3 }[k],
+                AttackMs = new[] { 25.0, 15, 8 }[k], ReleaseMs = new[] { 400.0, 300, 200 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
+            return p;
+        }
+        public static readonly AbProfile[] All = { Mk(false, "light"), Mk(false, "normal"), Mk(false, "strong"), Mk(true, "light"), Mk(true, "normal"), Mk(true, "strong") };
+        public static AbProfile Light => All[0]; public static AbProfile Balanced => All[1]; public static AbProfile Night => All[2]; public static AbProfile LimiterOnly => All[4];
+        // tryb: "auto" / "limit" / "off"; intensywność: "light" / "normal" / "strong" (stare nazwy light/balanced/night/limiter - też)
+        public static AbProfile ByName(string mode, string sila = "normal")
+        {
+            if (mode == "light") return All[0]; if (mode == "balanced") return All[1]; if (mode == "night") return All[2]; if (mode == "limiter") return All[4];
+            if (mode != "auto" && mode != "limit") return null;
+            int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
+            return All[(mode == "limit" ? 3 : 0) + k];
+        }
     }
 
     public sealed class AbProcessor
@@ -197,15 +213,7 @@ namespace Velivo
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
-            if (Tg >= -0.5)
-            {   // Auto (Target = 0): wyrównanie do WŁASNEJ średniej źródła (od włączenia filmu/kanału) - głośne sceny i reklamy w dół, ciche dialogi w górę,
-                //    całość nie jest podgłaśniana; na początku (brak średniej) - bieżące 3 s
-                double ig = In.Integrated;
-                Tg = ig > -70 ? ig : In.ShortTerm > -70 ? In.ShortTerm : -23;
-                //    🧠 znane źródło: przez pierwsze 60 s zapamiętana średnia (bez zgadywania z 3 s), potem płynnie własny pomiar
-                if (!float.IsNaN(SeedAvg)) { double w = Math.Min(1, sinceStart / (60.0 * Fs)); Tg = SeedAvg * (1 - w) + (ig > -70 ? ig : SeedAvg) * w; }
-                Tg = Math.Max(-32, Math.Min(-12, Tg));
-            }
+            if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
             Tg += TargetAdj; EffTarget = Tg; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double vdb = vol > 1e-3 ? 20 * Math.Log10(vol) : -60;
@@ -247,25 +255,32 @@ namespace Velivo
                 double g = 0;
                 if (pr != null)
                 {
-                    // 1) kontrola głośności (właściciel 2026-11-09: „ma kontrolować głośność”): wynik trzymany na celu w każdej chwili -
-                    //    pomiar bieżący (400 ms), podgłaśnianie i ściszanie szybko w obie strony; w ciszy/pauzie wstrzymany (nie podnosi szumu)
+                    // 1) wyrównywanie: pomiar krótkoterminowy (3 s, BS.1770) - bez pompowania między słowami; korekta = Amount × odchylenie od celu
+                    //    (Light zostawia połowę naturalnej dynamiki), płynnie (wygładzenie 1 s + limit dB/s); Limit Only - tylko w dół; w ciszy wstrzymany
                     In.MedianGate = Tg + pr.Gate;
-                    if (In.Momentary > double.NegativeInfinity && In.Momentary > Tg + pr.Gate)
+                    // podstawa: 3 s, ale nie wyżej niż mediana 10 s + 3 dB - krótki huk (eksplozja) nie ciągnie regulatora w dół (robi to szybka warstwa),
+                    //    a cichnięcie widać od razu (3 s) - po wybuchu poziom dialogu wraca bez czekania na okno pomiarowe
+                    double basis = In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
+                    if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
+                    if (basis > double.NegativeInfinity && In.Momentary > Tg + pr.Gate)
                     {
-                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, Tg - In.Momentary));
-                        wantS += (want - wantS) * (1.0 / (0.6 * Fs));   // płynnie: wygładzenie ok. 0,6 s - bez skoków między słowami
-                        levDb += Math.Max(-dnS, Math.Min(upS, wantS - levDb));
+                        double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
+                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
+                        if (pr.LimitOnly) want = Math.Min(0, want);
+                        wantS += (want - wantS) * (1.0 / Fs);
+                        double up = sinceStart < Fs * 4 ? upS * 3 : upS, dn = sinceStart < Fs * 4 ? dnS * 3 : dnS;   // pierwsze 4 s nowego źródła - szybciej do poziomu
+                        levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,
                     // ściszamy szybko (30–60 dB/s, czyli kilka dB w ok. 0,1 s) - bez czekania na powolne wyrównanie z 10 s
                     // osobne, chwilowe sciszenie (fastDb): szybko w dol, a gdy zgloszenie minie - wraca w ok. 1–2 s; powolny poziom (levDb)
                     // zostaje nietkniety, wiec po wybuchu dialog od razu jest znowu glosny (nie czeka na powolne podglosnianie)
                     double fastIn = Math.Max(In.Fast, In.Momentary);   // 100 ms - reakcja w ok. 0,1 s
-                    double fastWant = pr.FastDownDbS > 0 && fastIn > double.NegativeInfinity ? Math.Min(0, Math.Max(-pr.MaxCut, Tg + 1 - (fastIn + levDb))) : 0;
+                    double fastWant = pr.FastDownDbS > 0 && fastIn > double.NegativeInfinity ? Math.Min(0, Math.Max(-pr.MaxCut, Tg + pr.FastHead - (fastIn + levDb)))   /* zapas ponad poziom dialogu - huk zostaje hukiem, tylko bez skoku */ : 0;
                     fastDb = fastWant < fastDb ? Math.Max(fastWant, fastDb - pr.FastDownDbS * FastMul / Fs) : Math.Min(fastWant, fastDb + pr.FastDownDbS / 5 / Fs);
                     if (fastDb < FastMinDb) FastMinDb = fastDb;
                     // 2) kompresor: szybki detektor mocy K (10 ms) po wyrównaniu, miękkie kolano 6 dB
-                    double pl = p * Math.Pow(10, levDb / 10);
+                    double pl = p * Math.Pow(10, (levDb + fastDb) / 10);   // kompresor widzi już ściszony huk - warstwy nie ściszają tego samego dwa razy
                     detP = pl + detC * (detP - pl);
                     double lev = AbMeter.Lufs(detP), thr = Tg + pr.ThrOff, over = lev - thr, want2 = 0;
                     if (over > 3) want2 = -over * (1 - 1 / pr.Ratio);
@@ -275,8 +290,14 @@ namespace Velivo
                     // 4) korekta wyniku (makeup): kompresor i chwilowe sciszenia zabieraja czesc glosnosci - mierzymy to, co naprawde wychodzi
                     //    (3 s, tylko gdy gra tresc), i powoli (1 dB/s) dociagamy do celu; limiter dalej pilnuje szczytow
                     // wynik liczony BEZ glosnosci odtwarzacza (vdb): suwak glosnosci i sciszanie pod lektora nie moga byc "dociagane" z powrotem do celu
-                    if (vol > 1e-3 && Out.Gated10 > double.NegativeInfinity && Out.Momentary - vdb > Tg - 15 && In.Momentary > Tg + pr.Gate)
-                        corrDb = Math.Max(-6, Math.Min(pr.MaxBoost > 0 ? 8 : 0, corrDb + Math.Max(-1, Math.Min(1, Tg - (Out.Gated10 - vdb))) * 1.0 / Fs));
+                    //    cel wyniku zgodny z intensywnością: źródło + Amount × odchylenie (Light nie jest dociągany do pełnego celu); Limit Only - tylko w dół
+                    if (vol > 1e-3 && Out.Gated10 > double.NegativeInfinity && In.Gated10 > double.NegativeInfinity && Math.Abs(In.ShortTerm - In.Gated10) < 3 && Out.Momentary - vdb > Tg - 15 && In.Momentary > Tg + pr.Gate)
+                    {
+                        double dev = Tg - In.Gated10; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead); double goal = In.Gated10 + Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
+                        if (pr.LimitOnly) goal = Math.Min(goal, In.Gated10);
+                        corrDb = Math.Max(-3, Math.Min(pr.MaxBoost > 0 ? 3 : 0, corrDb + Math.Max(-1, Math.Min(1, goal - (Out.Gated10 - vdb))) * 1.0 / Fs));
+                    }
+                    else corrDb -= corrDb / (2.0 * Fs);   // materiał się zmienia (muzyka → dialog): drobna korekta wygasa w ok. 2 s, nie ciągnie poprzedniej sceny
                     g = levDb + fastDb + grDb + corrDb;
                 }
                 double lin = Math.Pow(10, g / 20) * vol;

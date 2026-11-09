@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Auto – inteligentnie (odniesienie -23 LUFS, zalecane)", "Auto – smart (reference -23 LUFS, recommended)" },
             { "Włączone – Velivo pilnuje głośności: płynnie podgłaśnia ciche i ścisza głośne, żeby wynik był stale przy celu.", "On – Velivo controls the volume: smoothly raises quiet parts and lowers loud ones, keeping the result at the target." },
             { "Włączone", "On" },
             { "Auto – wyrównuj do średniej filmu", "Auto – level to the film's own average" },

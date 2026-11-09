@@ -135,7 +135,22 @@ namespace Velivo
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
         public readonly float[] Scope = new float[8192]; public volatile int ScopePos; int pkN;
-        public volatile bool Active; public long Frames;   // ostatnio przetworzony dźwięk (do wskaźnika „pracuje”)
+        public volatile bool Active; public long Frames;
+        // wskazniki VU lewego i prawego kanalu wyjscia: moc RMS wygladzona ~300 ms (balistyka VU), w dBFS
+        public double VuL = double.NegativeInfinity, VuR = double.NegativeInfinity; double vuPL, vuPR; int vuN;
+        public double VuInL = double.NegativeInfinity, VuInR = double.NegativeInfinity; double viPL, viPR; int viN;   // to samo dla oryginalu (przed przetwarzaniem)
+        void VuIn(double l, double r)
+        {
+            const double c = 0.99993;
+            viPL = l * l + c * (viPL - l * l); viPR = r * r + c * (viPR - r * r);
+            if (++viN >= 480) { viN = 0; VuInL = 10 * Math.Log10(viPL * 2 + 1e-12); VuInR = 10 * Math.Log10(viPR * 2 + 1e-12); }
+        }
+        void Vu(double l, double r)
+        {
+            const double c = 0.99993;   // ok. 300 ms przy 48 kHz
+            vuPL = l * l + c * (vuPL - l * l); vuPR = r * r + c * (vuPR - r * r);
+            if (++vuN >= 480) { vuN = 0; VuL = 10 * Math.Log10(vuPL * 2 + 1e-12); VuR = 10 * Math.Log10(vuPR * 2 + 1e-12); }   // *2: sinus 0 dBFS = 0 dB
+        }   // ostatnio przetworzony dźwięk (do wskaźnika „pracuje”)
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
         double levDb, detP, grDb;
@@ -174,9 +189,10 @@ namespace Velivo
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
+                    VuIn(buf[2 * f] * vol, buf[2 * f + 1] * vol);
                     double l = buf[2 * f] * vol, r = buf[2 * f + 1] * vol;
                     buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
-                    In.Push(l, r); Out.Push(l, r);
+                    In.Push(l, r); Out.Push(l, r); Vu(l, r);
                     double tpo = tpOut.Push(l, r); if (tpo > peakHold) peakHold = tpo;
                     int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 8191;
                     if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }
@@ -186,6 +202,7 @@ namespace Velivo
             for (int f = 0; f < frames; f++)
             {
                 double l = buf[2 * f], r = buf[2 * f + 1];
+                VuIn(l * vol, r * vol);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
                 {
@@ -236,7 +253,7 @@ namespace Velivo
                 if (ol > ceil) ol = ceil; else if (ol < -ceil) ol = -ceil;   // bezpiecznik
                 if (or > ceil) or = ceil; else if (or < -ceil) or = -ceil;
                 buf[2 * f] = (float)ol; buf[2 * f + 1] = (float)or;
-                Out.Push(ol, or);
+                Out.Push(ol, or); Vu(ol, or);
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
                 int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 8191;
                 if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }   // szczyt True Peak z ostatniej sekundy

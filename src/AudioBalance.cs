@@ -235,7 +235,7 @@ namespace Velivo
             for (int i = 0; i < 4; i++)
             {
                 nums.ColumnDefinitions.Add(new ColumnDefinition());
-                var sp = new StackPanel { ToolTip = tips[i] }; sp.Children.Add(T(names[i], 10, dim)); vals[i] = T("–", 15, fg, FontWeights.SemiBold); sp.Children.Add(vals[i]);
+                var sp = new StackPanel { ToolTip = tips[i] }; sp.Children.Add(T(names[i], 10, dim)); vals[i] = T("–", 15, fg, FontWeights.SemiBold); System.Windows.Documents.Typography.SetNumeralAlignment(vals[i], FontNumeralAlignment.Tabular); sp.Children.Add(vals[i]);
                 Grid.SetColumn(sp, i); nums.Children.Add(sp);
             }
             root.Children.Add(nums);
@@ -250,7 +250,21 @@ namespace Velivo
             hist.Children.Add(tl); hist.Children.Add(tlTxt); hist.Children.Add(plIn); hist.Children.Add(plOut);
             root.Children.Add(hist);
             const int HN = 150; var hIn = new double[HN]; var hOut = new double[HN]; for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70; var hLast = DateTime.MinValue;
-            var gainTxt = T("", 11, dim); gainTxt.Margin = new Thickness(0, 6, 0, 0); root.Children.Add(gainTxt);
+            // szczegóły pracy procesora: stała siatka 3×2 (podpis nad wartością), cyfry równej szerokości, odświeżanie 4×/s - nie skacze i nie mruga
+            var info = new Grid { Margin = new Thickness(0, 8, 0, 0) }; var infoV = new TextBlock[6]; var infoL = new TextBlock[6];
+            var infoNames = new[] { L.T("Wzmocnienie"), L.T("Dialogi"), L.T("Limiter"), L.T("Wejście (3 s)"), L.T("Zgrywanie: cisza"), L.T("Pominięte") };
+            for (int i = 0; i < 3; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
+            for (int i = 0; i < 2; i++) info.RowDefinitions.Add(new RowDefinition());
+            for (int i = 0; i < 6; i++)
+            {
+                var sp = new StackPanel { Margin = new Thickness(0, 0, 6, 4) };
+                infoL[i] = T(infoNames[i], 10, dim); infoV[i] = T("–", 12, fg, FontWeights.SemiBold);
+                System.Windows.Documents.Typography.SetNumeralAlignment(infoV[i], FontNumeralAlignment.Tabular);
+                sp.Children.Add(infoL[i]); sp.Children.Add(infoV[i]); Grid.SetColumn(sp, i % 3); Grid.SetRow(sp, i / 3); info.Children.Add(sp);
+            }
+            var bypassNote = T(L.T("Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)"), 11, dim); bypassNote.Margin = new Thickness(0, 8, 0, 0);
+            root.Children.Add(info); root.Children.Add(bypassNote);
+            var infoLast = DateTime.MinValue; var numsLast = DateTime.MinValue;
             // profil i cel - zmiana od razu w glownym procesorze
             var prow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
             var pbtn = new Dictionary<string, Button>();
@@ -350,8 +364,12 @@ namespace Velivo
                 lmhBars[0].Value = Db(lowE); lmhBars[1].Value = Db(midE); lmhBars[2].Value = Db(hiE);
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
                 lvl.Value = live && AbProc.Out.Momentary > -40 && AbProc.Out.Momentary < 10 ? AbProc.Out.Momentary : -40;
-                vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
-                vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;
+                if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)
+                {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
+                    numsLast = DateTime.UtcNow;
+                    vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
+                    vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;
+                }
                 if ((DateTime.UtcNow - hLast).TotalMilliseconds >= 100)
                 {   // nowy punkt co 100 ms (blok pomiaru BS.1770)
                     hLast = DateTime.UtcNow;
@@ -364,9 +382,18 @@ namespace Velivo
                     plIn.Points = a1; plOut.Points = a2;
                     double ty = Y(AbProc.Target); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = AbProc.Target.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
                 }
-                gainTxt.Text = !live ? "" : AbBypass ? L.T("Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)") : (AbProc.Dialog > 0 ? L.T("Dialogi +") + AbProc.DialogDb.ToString("0.0") + " dB · " : "") + (AbProc.Profile != null ? L.T("Audio Balance: wzmocnienie ") + AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("Audio Balance: wyłączony (sam korektor)")) +
-                    L.T(" · limiter ") + AbProc.LimitDb.ToString("0.0") + " dB" + L.T(" · wejście (3 s) ") + F(AbProc.In.ShortTerm) + " LUFS" +
-                    L.T(" · zgrywanie z obrazem: cisza ") + Interlocked.Read(ref _abOut.EarlyWaits) + L.T(", pominięte ") + Interlocked.Read(ref _abOut.LateDrops);
+                bool byp = live && AbBypass;
+                info.Visibility = live && !byp ? Visibility.Visible : Visibility.Collapsed; bypassNote.Visibility = byp ? Visibility.Visible : Visibility.Collapsed;
+                if (live && !byp && (DateTime.UtcNow - infoLast).TotalMilliseconds >= 250)
+                {
+                    infoLast = DateTime.UtcNow;
+                    infoV[0].Text = AbProc.Profile != null ? AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("wył.");
+                    infoV[1].Text = AbProc.Dialog > 0 ? AbProc.DialogDb.ToString("+0.0;-0.0") + " dB" : L.T("wył.");
+                    infoV[2].Text = AbProc.LimitDb.ToString("0.0") + " dB";
+                    infoV[3].Text = F(AbProc.In.ShortTerm) + " LUFS";
+                    infoV[4].Text = Interlocked.Read(ref _abOut.EarlyWaits).ToString();
+                    infoV[5].Text = Interlocked.Read(ref _abOut.LateDrops).ToString();
+                }
             };
             win.StateChanged += (s, e) => { if (win.WindowState == WindowState.Minimized) AbHideMonitor(); };
             win.IsVisibleChanged += (s, e) => { if (win.IsVisible) _abTimer.Start(); else _abTimer.Stop(); };

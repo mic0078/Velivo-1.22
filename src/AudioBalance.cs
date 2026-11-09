@@ -42,7 +42,26 @@ namespace Velivo
         Thread _th; volatile bool _run, _paused; volatile int _flushReq;
         public volatile string Source = "";
         public long LateDrops, EarlyWaits;
-        public volatile int AheadFrames;   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać) - wskaźniki są o tyle opóźniane
+        public volatile int AheadFrames;   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
+        // dokładnie „która próbka procesora teraz gra”: każdy kawałek zapisuje, gdzie trafił w kolejce karty (W) i jaki ma numer w procesorze (P);
+        // pozycja karty (zapisana w wątku dźwięku z czasem) → kawałek → próbka. Cisza wstawiona przez Velivo nie ma odpowiednika.
+        struct Seg { public long W, P; public int N; }
+        readonly Seg[] _segs = new Seg[512]; int _segI; long _posNow; long _posAt;
+        public long PlayedProcFrame()
+        {
+            long pos, at, pAt; lock (_segs) { pos = _posNow; at = _posAt; }
+            pos += (long)((System.Diagnostics.Stopwatch.GetTimestamp() - at) / (double)System.Diagnostics.Stopwatch.Frequency * AbProcessor.Fs * (_paused ? 0 : 1));
+            lock (_segs)
+            {
+                if (pos > _written) pos = _written;
+                for (int k = _segI - 1; k >= 0 && k >= _segI - 512; k--)
+                {
+                    var g = _segs[k & 511];
+                    if (pos >= g.W) return g.P + Math.Min(g.N, pos - g.W);
+                }
+                return _segI > 0 ? _segs[Math.Max(0, _segI - 512) & 511].P : 0;
+            }
+        }
 
         readonly LibVLCSharp.Shared.LibVLC _vlc;
         public AbOutput(AbProcessor p, LibVLCSharp.Shared.LibVLC vlc) { Proc = p; _vlc = vlc; }
@@ -108,11 +127,12 @@ namespace Velivo
                 {
                     if (_flushReq != flushSeen)
                     {   // przewiniecie / zmiana kanalu: karta od nowa, procesor bez starych okien (zintegrowany zostaje dla filmu)
-                        flushSeen = _flushReq; waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); Proc.Reset();
+                        flushSeen = _flushReq; waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); Proc.Reset(); lock (_segs) { _segI = 0; _posNow = 0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
                         if (_paused) waveOutPause(_h);
                     }
                     Chunk c = null;
-                    lock (_lk) { if (_q.Count == 0 || _paused) { Monitor.Wait(_lk, 20); continue; } c = _q.Dequeue(); }
+                    lock (_lk) { if (_q.Count == 0 || _paused) { Monitor.Wait(_lk, 20); c = null; } else c = _q.Dequeue(); }
+                    if (c == null) { int q0 = QueuedFrames(); lock (_segs) { _posNow = _written - q0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); } continue; }   // pozycja karty także bez nowych kawałków
                     // kiedy zabrzmi pierwsza probka tego kawalka: po tym, co juz czeka w karcie, i po opoznieniu limitera (ok. 5 ms)
                     long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + AbProcessor.LatencyFrames * 1_000_000L / AbProcessor.Fs;
                     long gap = (c.Pts - Now) - playAt;   // > 0: VLC dal dzwiek wczesniej (zwykle) - cisza do jego chwili; < 0: spozniony
@@ -123,9 +143,12 @@ namespace Velivo
                         if (skip >= c.Frames) continue;
                         var rest = new float[(c.Frames - skip) * 2]; Array.Copy(c.Data, skip * 2, rest, 0, rest.Length); c.Data = rest; c.Frames -= skip;
                     }
+                    long pBefore = Interlocked.Read(ref Proc.Frames);
                     Proc.Process(c.Data, c.Frames);
+                    lock (_segs) { _segs[_segI & 511] = new Seg { W = _written, P = pBefore, N = c.Frames }; _segI++; }
                     WriteFrames(c.Data, c.Frames, ref pcm);
-                    AheadFrames = QueuedFrames();
+                    int qf = QueuedFrames(); AheadFrames = qf;
+                    lock (_segs) { _posNow = _written - qf; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
                     Proc.Active = true;
                 }
                 catch (Exception ex) { App.LogError(ex); Thread.Sleep(50); }
@@ -167,19 +190,7 @@ namespace Velivo
         internal static readonly AbProcessor AbProc = new AbProcessor();
         // dźwięk naprawdę płynie (nowe próbki w ostatnich 2 s) - pauza / koniec / zatrzymanie = wskaźniki na zero, nie ostatnia chwila
         static long _abFramesSeen; static DateTime _abFramesAt;
-        // „co teraz słychać” (numer próbki): płynie według zegara w każdej klatce, przy każdej paczce z VLC delikatnie korygowane
-        // do (przetworzone − czekające w karcie). Wcześniej czytane tylko przy paczce (co 0,1–0,2 s) - widmo stało i skakało.
-        static double _abHead; static long _abHeadAt;
-        internal long AbPlayHead()
-        {
-            long now = System.Diagnostics.Stopwatch.GetTimestamp(), frames = Interlocked.Read(ref AbProc.Frames), target = frames - (_abOut?.AheadFrames ?? 0);
-            double dt = _abHeadAt == 0 ? 0 : (now - _abHeadAt) / (double)System.Diagnostics.Stopwatch.Frequency; _abHeadAt = now;
-            if (AbFlowing()) _abHead += Math.Min(0.2, dt) * AbProcessor.Fs;
-            double err = target - _abHead;
-            if (Math.Abs(err) > AbProcessor.Fs / 5) _abHead = target; else _abHead += err * 0.05;   // duży rozjazd (przewinięcie) - od razu; mały - łagodnie
-            if (_abHead > frames) _abHead = frames;
-            return (long)_abHead;
-        }
+        internal long AbPlayHead() => _abOut?.PlayedProcFrame() ?? Interlocked.Read(ref AbProc.Frames);   // dokładnie ta próbka, która teraz gra
 
         internal static bool AbFlowing()
         {

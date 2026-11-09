@@ -205,9 +205,9 @@ namespace Velivo
         {
             int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
             var p = new AbProfile { LimitOnly = lim, Name = (lim ? "limit" : "auto") + "-" + new[] { "light", "normal", "strong" }[k],
-                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 9.0, 6, 4 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
-                UpDbS = new[] { 1.5, 2.5, 4 }[k], DownDbS = new[] { 3.0, 5, 8 }[k], Gate = new[] { -25.0, -30, -35 }[k],
-                ThrOff = lim ? new[] { 8.0, 5, 2 }[k] : new[] { 8.0, 5, 3 }[k], Ratio = new[] { 1.5, 2, 3 }[k],
+                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 12.0, 10, 8 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
+                UpDbS = new[] { 0.7, 1.0, 1.5 }[k], DownDbS = new[] { 1.0, 1.5, 2.5 }[k], Gate = new[] { -25.0, -30, -35 }[k],
+                ThrOff = lim ? new[] { 8.0, 6, 4 }[k] : new[] { 8.0, 6, 5 }[k], Ratio = new[] { 1.5, 2, 2.5 }[k],
                 AttackMs = new[] { 25.0, 15, 8 }[k], ReleaseMs = new[] { 400.0, 300, 200 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
             return p;
         }
@@ -269,10 +269,9 @@ namespace Velivo
             if (++vuN >= 480) { vuN = 0; VuL = 10 * Math.Log10(vuPL * 2 + 1e-12); VuR = 10 * Math.Log10(vuPR * 2 + 1e-12); }   // *2: sinus 0 dBFS = 0 dB
         }   // ostatnio przetworzony dźwięk (do wskaźnika „pracuje”)
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
-        readonly AbMeter OutPre = new AbMeter();   // wynik PRZED głośnością odtwarzacza - dla korekty wyniku (ściszanie pod lektora i suwak jej nie mylą)
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb, corrDb, wantS, vS = 1; long sinceStart;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
+        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -283,7 +282,7 @@ namespace Velivo
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
         public void Reset()
         {
-            In.ResetWindows(); Out.ResetWindows(); OutPre.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
+            In.ResetWindows(); Out.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
             minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0; aHp.Reset(); aLp.Reset(); sHp.Reset(); sLp.Reset(); aP = sS = sA = 0;
             foreach (var b in eq) b?.Reset();
@@ -297,7 +296,7 @@ namespace Velivo
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); OutPre.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; corrDb = 0; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
@@ -351,15 +350,17 @@ namespace Velivo
                     In.MedianGate = Tg + pr.Gate;
                     // podstawa: 3 s, ale nie wyżej niż mediana 10 s + 3 dB - krótki huk (eksplozja) nie ciągnie regulatora w dół (robi to szybka warstwa),
                     //    a cichnięcie widać od razu (3 s) - po wybuchu poziom dialogu wraca bez czekania na okno pomiarowe
-                    double basis = In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
+                    // podstawa: głośność samej treści z 10 s (bramka -10 LU jak w BS.1770 - przerwy między zdaniami pomijane), na starcie 3 s;
+                    //    krótki huk nie ciągnie (mediana + 3 dB) - bez falowania między zdaniami (było: okno 3 s z przerwami → „roller coaster”)
+                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
                     if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
                     if (basis > double.NegativeInfinity && In.Momentary > bgGate)
                     {
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
                         if (pr.LimitOnly) want = Math.Min(0, want);
-                        wantS += (want - wantS) * (1.0 / Fs);
-                        double up = sinceStart < Fs * 4 ? upS * 3 : upS, dn = sinceStart < Fs * 4 ? dnS * 3 : dnS;   // pierwsze 4 s nowego źródła - szybciej do poziomu
+                        wantS += (want - wantS) * (1.0 / (2.0 * Fs));
+                        double up = sinceStart < Fs * 6 ? upS * 6 : upS, dn = sinceStart < Fs * 6 ? dnS * 6 : dnS;   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,
@@ -378,18 +379,8 @@ namespace Velivo
                     else if (over > -3) want2 = -(1 - 1 / pr.Ratio) * (over + 3) * (over + 3) / 12;
                     if (over > 8) want2 -= (over - 8) * (1 / pr.Ratio - 0.05);   // powyżej progu + 8 dB prawie twarda granica (wybuchy nie przeskakują poziomu)
                     grDb = want2 < grDb ? want2 + aC * (grDb - want2) : want2 + rC * (grDb - want2);
-                    // 4) korekta wyniku (makeup): kompresor i chwilowe sciszenia zabieraja czesc glosnosci - mierzymy to, co naprawde wychodzi
-                    //    (3 s, tylko gdy gra tresc), i powoli (1 dB/s) dociagamy do celu; limiter dalej pilnuje szczytow
-                    // wynik mierzony PRZED głośnością odtwarzacza (OutPre): suwak i ściszanie pod lektora nie są ani dociągane, ani mylą okna 10 s
-                    //    cel wyniku zgodny z intensywnością: źródło + Amount × odchylenie (Light nie jest dociągany do pełnego celu); Limit Only - tylko w dół
-                    if (OutPre.Gated10 > double.NegativeInfinity && In.Gated10 > double.NegativeInfinity && Math.Abs(In.ShortTerm - In.Gated10) < 3 && OutPre.Momentary > Tg - 15 && In.Momentary > Tg + pr.Gate)
-                    {
-                        double dev = Tg - In.Gated10; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead); double goal = In.Gated10 + Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
-                        if (pr.LimitOnly) goal = Math.Min(goal, In.Gated10);
-                        corrDb = Math.Max(-3, Math.Min(pr.MaxBoost > 0 ? 3 : 0, corrDb + Math.Max(-1, Math.Min(1, goal - OutPre.Gated10)) * 1.0 / Fs));
-                    }
-                    else corrDb -= corrDb / (2.0 * Fs);   // materiał się zmienia (muzyka → dialog): drobna korekta wygasa w ok. 2 s, nie ciągnie poprzedniej sceny
-                    g = levDb + fastDb + grDb + corrDb;
+                    // (korekta wyniku „corrDb” usunięta 2026-11-09: domykała pętlę na wyjściu i między zdaniami pchała głośność w górę i w dół - falowanie ±3 dB)
+                    g = levDb + fastDb + grDb;
                     if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
                 }
                 double lin = Math.Pow(10, g / 20) * vS;
@@ -410,7 +401,6 @@ namespace Velivo
                 if (or > ceil) or = ceil; else if (or < -ceil) or = -ceil;
                 buf[2 * f] = (float)ol; buf[2 * f + 1] = (float)or;
                 Out.Push(ol, or); Vu(ol, or);
-                if (vS > 1e-3) OutPre.Push(ol / vS, or / vS);   // to samo bez głośności odtwarzacza
                 {   // pomiar dla doradcy lektora: wynik w paśmie 1–4 kHz (przed głośnością odtwarzacza), stała czasu 3 s
                     double om = vS > 1e-3 ? (ol + or) * 0.5 / vS : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);
                 }

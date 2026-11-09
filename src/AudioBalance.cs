@@ -315,14 +315,14 @@ namespace Velivo
             bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
             MarkBypass(); root.Children.Insert(2, bypassBtn);
             // 🧠 nauka: włącz/wyłącz i „zapomnij”
-            var lrow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var lrow = new WrapPanel { Margin = new Thickness(0, 6, 0, 6) };
             var lOn = new CheckBox { Content = L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), IsChecked = AbLearnOn, Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 6), ToolTip = L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów.") };
             lOn.Click += (s2, e2) => { SetPref("ab-nauka", lOn.IsChecked == true ? "1" : "0"); if (lOn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
             lrow.Children.Add(lOn);
             var lForget = Mk(L.T("🧹 Zapomnij, czego się nauczyłeś"), () => { });
             lForget.Click += (s2, e2) => { if (AskYes(win, L.T("Usunąć wszystko, czego Audio Balance nauczył się o kanałach i filmach (") + AbLearnCount + ")?", L.T("Usuń"), L.T("Anuluj"))) { AbLearnForget(); ShowToast(L.T("🧠 Pamięć Audio Balance wyczyszczona"), null); } };
             lForget.ToolTip = L.T("Kasuje plik audio-nauka.json – Velivo zacznie uczyć się od nowa.");
-            lrow.Children.Add(lForget); root.Children.Insert(3, lrow);   // wysoko, pod przyciskiem ⏻ - widoczne od razu
+            lrow.Children.Add(lForget); root.Children.Add(lrow);
             // najwazniejsze na gorze: ZRODLO (ile ma oryginal) → ZMIANA (ile podglosnil / sciszyl) → WYNIK (co slychac); glosnosc z 3 s, 4×/s
             var sum3 = new Grid { Margin = new Thickness(0, 8, 0, 4) }; var sumV = new TextBlock[3]; var sumL = new TextBlock[3];
             for (int i = 0; i < 3; i++)
@@ -380,7 +380,7 @@ namespace Velivo
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
             Move(c1, head, src, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
             Move(c2, lmh, lvl, nums, leg, hist, info, bypassNote);
-            Move(c3, prow, drow, tgt, devBox, eqExp, brow, foot);
+            Move(c3, prow, drow, tgt, lrow, devBox, eqExp, brow, foot);   // 🧠 nauka pod celem - każdy element root musi trafić do kolumny
             Grid.SetColumn(c1, 0); Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)

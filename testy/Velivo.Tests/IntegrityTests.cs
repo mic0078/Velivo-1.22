@@ -114,11 +114,22 @@ public class IntegrityTests
     }
 
     // Prawdziwe pliki z internetu - tak jak pobiera je Velivo.
+    // GitHub bywa chwilowo niedostępny (504, przerwane połączenie) - do 4 prób; sprawdzanie sumy zostaje ścisłe
+    static async Task<byte[]> Get(HttpClient http, string url)
+    {
+        for (int i = 1; ; i++)
+        {
+            try { return await http.GetByteArrayAsync(url); }
+            catch (HttpRequestException ex) when (i < 4 && (ex.StatusCode == null || (int)ex.StatusCode >= 500)) { await Task.Delay(3000 * i); }
+            catch (TaskCanceledException) when (i < 4) { await Task.Delay(3000 * i); }
+        }
+    }
+
     [Fact]
     public async Task Piper_z_GitHuba_zgadza_sie_z_przypieta_suma()
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        var f = Tool(await http.GetByteArrayAsync("https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"));
+        var f = Tool(await Get(http, "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"));
         Assert.True(Integrity.Matches(f, Integrity.PiperZipSha256));
         var b = File.ReadAllBytes(f); b[b.Length / 2] ^= 0xFF; File.WriteAllBytes(f, b);   // jeden zmieniony bajt
         Assert.False(Integrity.Matches(f, Integrity.PiperZipSha256));
@@ -128,7 +139,7 @@ public class IntegrityTests
     public async Task YtDlp_z_GitHuba_przechodzi_weryfikacje_z_SHA2_256SUMS()
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        var f = Tool(await http.GetByteArrayAsync("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"));
+        var f = Tool(await Get(http, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"));
         await Integrity.VerifyAgainstSumsAsync(http, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", "yt-dlp.exe", f);
     }
 }

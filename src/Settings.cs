@@ -804,7 +804,7 @@ namespace Velivo
             abByp.Click += (a, b) => AbSetBypass(abByp.IsChecked == true);
             root.Children.Add(abByp);
             var abLearn = Check(L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów."), AbLearnOn);
-            abLearn.Click += (a, b) => { SetPref("ab-nauka", abLearn.IsChecked == true ? "1" : "0"); if (abLearn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; AbProc.SeedAvg = float.NaN; } };
+            abLearn.Click += (a, b) => { SetPref("ab-nauka", abLearn.IsChecked == true ? "1" : "0"); if (abLearn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
             root.Children.Add(abLearn);
             root.Children.Add(new TextBlock { Text = L.T("Włączanie i wyłączanie działa od razu, także w trakcie filmu (przy pierwszym włączeniu chwila ciszy). Dźwięk 5.1 jest wtedy miksowany do stereo."), FontSize = 11, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) });
 

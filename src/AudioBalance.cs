@@ -210,7 +210,7 @@ namespace Velivo
         }
 
         void AbDetach() { AbLearnEnd(); var o = _abOut; _abOut = null; o?.Dispose(); }
-        internal void AbNewSource(string name) { if (_abOut != null) { _abOut.Source = name ?? ""; AbLearnBegin(name); AbProc.NewMedia(); } }
+        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;
@@ -330,7 +330,7 @@ namespace Velivo
             // 🧠 nauka: włącz/wyłącz i „zapomnij”
             var lrow = new WrapPanel { Margin = new Thickness(0, 6, 0, 6) };
             var lOn = new CheckBox { Content = L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), IsChecked = AbLearnOn, Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 6), ToolTip = L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów.") };
-            lOn.Click += (s2, e2) => { SetPref("ab-nauka", lOn.IsChecked == true ? "1" : "0"); if (lOn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; AbProc.SeedAvg = float.NaN; } };
+            lOn.Click += (s2, e2) => { SetPref("ab-nauka", lOn.IsChecked == true ? "1" : "0"); if (lOn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
             lrow.Children.Add(lOn);
             var lForget = Mk(L.T("🧹 Zapomnij, czego się nauczyłeś"), () => { });
             lForget.Click += (s2, e2) => { if (AskYes(win, L.T("Usunąć wszystko, czego Audio Balance nauczył się o kanałach i filmach (") + AbLearnCount + ")?", L.T("Usuń"), L.T("Anuluj"))) { AbLearnForget(); ShowToast(L.T("🧠 Pamięć Audio Balance wyczyszczona"), null); } };

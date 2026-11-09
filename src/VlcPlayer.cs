@@ -2924,7 +2924,7 @@ namespace Velivo
                     await vlcRun(() => { var ps = mp.State; if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening) mp.Stop(); });
                     if (seq != loadSeq || vlcClosed) return;
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\nprzesuniecie dzwieku (J/K): " + aDelayMs + " ms, bufor: " + IptvSt.Buffer + " s\n"); _vlcDriftAt = DateTime.MinValue; } catch (Exception) { }   // dziennik od nowa dla tego filmu
-                    AbLearnUserVolume(vol.Value); AbNewSource(tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path));   // 🎚 nowy pomiar zintegrowany dla nowego filmu/kanalu
+                    AbLearnUserVolume(vol.Value); AbNewSource(tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path), tv != null);   // 🎚 nowy pomiar zintegrowany dla nowego filmu/kanalu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;

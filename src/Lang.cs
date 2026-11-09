@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { " seans.", " sess." },
+            { "uczę się – średnia po pierwszym seansie", "learning – average after the first session" },
             { "📌 Tylko konkrety", "📌 Key points only" },
             { "Czyta tylko najważniejsze zdania artykułu (ramka „W skrócie”) – bez wstępów i powtórzeń.", "Reads only the article's most important sentences (the “In short” box) – no intros or repetition." },
             { "Głos czytania", "Reading voice" },

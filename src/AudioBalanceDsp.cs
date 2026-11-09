@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Collections.Generic;
 using System;
 
 namespace Velivo
@@ -119,6 +121,46 @@ namespace Velivo
 
     // Inteligentna normalizacja (specyfikacja właściciela 2026-11-09, wzór AudioBalance): tryb Auto Level / Limit Only × intensywność Light / Normal / Strong.
     // Amount - jaką część odchylenia od celu korygujemy (Light zachowuje więcej naturalnej dynamiki); LimitOnly - nigdy nie podgłaśnia.
+    // 🧠 pamięć długoterminowa źródła (nauka Audio Balance): seans = mediana głośności (krótkoterminowej, co sekundę) z całego oglądania,
+    // dopisywana do historii z wagą = długość seansu (najwyżej 30 min - jeden długi film nie kasuje historii); seans nietypowy
+    // (ponad 8 dB od dobrze poznanej średniej) liczy się 4× słabiej; historia ograniczona: kanał TV 60 min (nadąża za zmianą programów), film 240 min
+    public static class AbLearnMath
+    {
+        public const double MinSessionMin = 0.5, MaxSessionW = 30, CapTv = 60, CapFilm = 240;
+        public static double Median(IList<float> v) { if (v.Count == 0) return double.NaN; var o = v.OrderBy(x => x).ToList(); return o.Count % 2 == 1 ? o[o.Count / 2] : (o[o.Count / 2 - 1] + o[o.Count / 2]) / 2.0; }
+        // zwraca nową średnią i wagę historii; seans za krótki albo bez pomiaru - bez zmian
+        public static (double avg, double w) Merge(double avg, double w, double sessMedian, double sessMin, bool tv)
+        {
+            if (double.IsNaN(sessMedian) || sessMin < MinSessionMin) return (avg, w);
+            if (w <= 0 || double.IsNaN(avg)) return (sessMedian, Math.Min(Math.Min(sessMin, MaxSessionW), tv ? CapTv : CapFilm));
+            double sw = Math.Min(sessMin, MaxSessionW);
+            if (w >= 10 && Math.Abs(sessMedian - avg) > 8) sw *= 0.25;
+            double na = (avg * w + sessMedian * sw) / (w + sw);
+            return (na, Math.Min(w + sw, tv ? CapTv : CapFilm));
+        }
+
+        // głośność: bazowa (Twój zwykły poziom, wspólny) ≠ korekta źródła (Adj, dB względem bazowej) ≠ reklamy (FastMul) - osobne wielkości
+        public const double MaxAdj = 6, CapBase = 600;
+        public static double VolDb(double vol, double baseVol) => vol > 0 && baseVol > 0 ? 20 * Math.Log10(vol / baseVol) : 0;
+        // przy starcie źródła stosujemy tylko tę część zapamiętanej korekty, której Twój obecny suwak jeszcze nie daje - bez podwójnego naliczania
+        public static double EffAdj(double adj, double curVolDb) => Math.Max(-MaxAdj, Math.Min(MaxAdj, adj - curVolDb));
+        // upodobanie w seansie = korekta automatyczna, która była zastosowana + Twoja głośność względem bazowej (średnia z seansu)
+        public static double SessionPref(double effApplied, double sessVolDb) => Math.Max(-MaxAdj, Math.Min(MaxAdj, effApplied + sessVolDb));
+        public static (double v, double w) MergeW(double v, double w, double x, double sessMin, double cap)
+        {
+            if (sessMin < MinSessionMin || double.IsNaN(x)) return (v, w);
+            double sw = Math.Min(sessMin, MaxSessionW);
+            if (w <= 0) return (x, Math.Min(sw, cap));
+            return ((v * w + x * sw) / (w + sw), Math.Min(w + sw, cap));
+        }
+    }
+
+    // wpis pamięci nauki jednego źródła (audio-nauka.json); stare pole Lev ze starszych wersji jest przy wczytaniu pomijane
+    public sealed class AbLearnEntry
+    {
+        public double Ad { get; set; } public double Adj { get; set; } public double AdjW { get; set; } public double Avg { get; set; } public double W { get; set; } public int N { get; set; } public DateTime T { get; set; }
+    }
+
     public sealed class AbProfile
     {
         public string Name; public double MaxBoost, MaxCut, UpDbS, DownDbS, Gate, ThrOff, Ratio, AttackMs, ReleaseMs, Amount = 1, Dead = 1.5, FastHead = 6; public bool LimitOnly;   // Dead - strefa komfortu ±dB wokół punktu odniesienia: tam bez zmian
@@ -201,8 +243,7 @@ namespace Velivo
         }
         volatile bool newReq;
         // 🧠 nauka (AbLearn): poziom startowy, mnoznik szybkiego sciszania i przesuniecie celu dla tego zrodla - ustawiane przed NewMedia
-        public volatile float SeedLevDb = float.NaN, FastMul = 1, TargetAdj = 0, SeedAvg = float.NaN;   // SeedAvg - zapamiętana średnia źródła (LUFS) dla trybu Auto
-        public double LevDb => levDb;               // nauka czyta poziom wyrownania
+        public volatile float SeedLevDb = float.NaN, FastMul = 1, TargetAdj = 0;
         public double FastMinDb;                    // najglebsze chwilowe sciszenie od ostatniego odczytu (reklamy)
         public void NewMedia() => newReq = true;   // z wątku okna - wykonane w wątku dźwięku przed kolejnym kawałkiem
 
@@ -301,6 +342,7 @@ namespace Velivo
                     }
                     else corrDb -= corrDb / (2.0 * Fs);   // materiał się zmienia (muzyka → dialog): drobna korekta wygasa w ok. 2 s, nie ciągnie poprzedniej sceny
                     g = levDb + fastDb + grDb + corrDb;
+                    if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
                 }
                 double lin = Math.Pow(10, g / 20) * vol;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami

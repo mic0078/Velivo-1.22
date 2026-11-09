@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using Velivo;
 using Xunit;
@@ -93,6 +94,76 @@ public class AudioBalanceTests
             p.Process(buf, 480); maxG = Math.Max(maxG, p.GainDb);
         }
         Assert.True(maxG <= 0.01, $"Limit Only podniósł o {maxG:0.00} dB");
+        // to samo przy stałym celu -14 (głośno) i bardzo cichym źródle: dalej żadnego podgłośnienia
+        var q = new AbProcessor { Profile = AbProfile.ByName("limit", sila), Target = -14, SeedLevDb = 20, TargetAdj = 6 }; q.NewMedia(); double mq = double.NegativeInfinity;
+        for (int b = 0; b < 3000; b++) { for (int k = 0; k < 480; k++) { double x = 0.005 * (rnd.NextDouble() * 2 - 1); buf[2 * k] = buf[2 * k + 1] = (float)x; } q.Process(buf, 480); mq = Math.Max(mq, q.GainDb); }
+        Assert.True(mq <= 0.01, $"Limit Only (cel -14) podniósł o {mq:0.00} dB");
+    }
+
+    [Fact]
+    public void NaukaKolejneSeanseUtrwalajaSredniaANietypowyNieDominuje()
+    {
+        // film: 5 seansów po 40 min na ok. -24 LUFS - średnia blisko -24; potem nietypowy seans (-10, np. sama głośna scena) prawie nic nie zmienia
+        double avg = double.NaN, w = 0;
+        foreach (var m in new[] { -24.5, -23.6, -24.2, -23.9, -24.1 }) (avg, w) = AbLearnMath.Merge(avg, w, m, 40, false);
+        Assert.InRange(avg, -24.3, -23.8);
+        var (a2, _) = AbLearnMath.Merge(avg, w, -10, 40, false);
+        Assert.InRange(a2 - avg, 0, 1.0);
+        // krótki seans (20 s) nie liczy się wcale
+        Assert.True(AbLearnMath.Merge(avg, w, -10, 0.3, false).avg == avg);
+        // waga rośnie z każdym seansem (jeden seans najwyżej 30 min), film do 240 min
+        Assert.True(w == 5 * AbLearnMath.MaxSessionW, $"waga {w}");   // każdy seans 40 min liczy się jako 30 (limit jednego seansu)
+    }
+
+    [Fact]
+    public void NaukaKanalTvNadazaZaZmianaProgramu()
+    {
+        // kanał TV: długo -20 LUFS, potem program na -26 przez 3 seanse po 30 min - pamięć przesuwa się wyraźnie (historia TV do 60 min)
+        double avg = double.NaN, w = 0;
+        for (int i = 0; i < 6; i++) (avg, w) = AbLearnMath.Merge(avg, w, -20, 30, true);
+        Assert.True(w == AbLearnMath.CapTv);
+        for (int i = 0; i < 3; i++) (avg, w) = AbLearnMath.Merge(avg, w, -26, 30, true);
+        Assert.InRange(avg, -25.5, -23.5);   // nadąża (film z tą samą historią zostałby przy -20)
+    }
+
+    [Fact]
+    public void NaukaKorektaGlosnosciBezPodwojnegoNaliczania()
+    {
+        // baza 50%; na kanale X podgłaśniasz do 71% (+3 dB) - upodobanie X = +3 dB
+        double adj = 0, aw = 0, eff = 0;
+        double pref = AbLearnMath.SessionPref(eff, AbLearnMath.VolDb(71, 50)); (adj, aw) = AbLearnMath.MergeW(adj, aw, pref, 30, AbLearnMath.CapTv);
+        Assert.InRange(adj, 2.9, 3.1);
+        // następny raz: suwak dalej na 71% (już +3 dB) - automatyczna korekta 0 (nie dolicza drugi raz)
+        Assert.InRange(AbLearnMath.EffAdj(adj, AbLearnMath.VolDb(71, 50)), -0.1, 0.1);
+        // suwak wrócił do bazy 50% - korekta daje całe +3 dB
+        Assert.InRange(AbLearnMath.EffAdj(adj, AbLearnMath.VolDb(50, 50)), 2.9, 3.1);
+        // 10 seansów bez ruszania suwaka (korekta zastosowana, suwak na bazie) - upodobanie stoi w miejscu (nie narasta)
+        for (int i = 0; i < 10; i++) { double e = AbLearnMath.EffAdj(adj, 0); (adj, aw) = AbLearnMath.MergeW(adj, aw, AbLearnMath.SessionPref(e, 0), 30, AbLearnMath.CapTv); }
+        Assert.InRange(adj, 2.9, 3.1);
+        // inny film: suwak podniesiony dla X nie jest jego korektą - film Y bez wpisu zaczyna od 0
+        Assert.True(AbLearnMath.EffAdj(0, 0) == 0);
+        // ściszanie: do 35% (-3,1 dB) na kanale Z
+        Assert.InRange(AbLearnMath.SessionPref(0, AbLearnMath.VolDb(35, 50)), -3.2, -3.0);
+    }
+
+    [Fact]
+    public void NaukaZapisIOdczytZgodnyZeStarymiDanymi()
+    {
+        // zapis ze starszej wersji (pole Lev, bez W/AdjW) wczytuje się; nowy zapis → odczyt bez strat
+        var old = "{\"Kanał A\":{\"Lev\":7.2,\"Ad\":-8,\"Adj\":1.5,\"Avg\":-17.2,\"N\":40,\"T\":\"2026-11-09T05:00:00\"}}";
+        var d = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, AbLearnEntry>>(old);
+        Assert.True(d["Kanał A"].Avg == -17.2 && d["Kanał A"].Ad == -8 && d["Kanał A"].W == 0);
+        d["Kanał A"].W = 60; d["Kanał A"].AdjW = 30;
+        var back = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, AbLearnEntry>>(System.Text.Json.JsonSerializer.Serialize(d));
+        Assert.True(back["Kanał A"].W == 60 && back["Kanał A"].AdjW == 30 && back["Kanał A"].Adj == 1.5 && !System.Text.Json.JsonSerializer.Serialize(d).Contains("Lev"));
+    }
+
+    [Fact]
+    public void NaukaMedianaSeansuOdpornaNaKrotkiHuk()
+    {
+        // seans 10 min co sekundę ~-24, w środku 20 s huku -8 - mediana zostaje przy dialogu
+        var v = new List<float>(); for (int i = 0; i < 600; i++) v.Add(i >= 300 && i < 320 ? -8f : -24f + (i % 5) * 0.2f);
+        Assert.InRange(AbLearnMath.Median(v), -24.1, -23.0);
     }
 
     [Fact]

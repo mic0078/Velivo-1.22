@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Głośność wyniku na żywo (100 ms), skala -40…0 LUFS", "Live output loudness (100 ms), scale -40…0 LUFS" },
             { " dB). Ściszać film podczas czytania z ", " dB). Lower the film while reading from " },
             { "% do ", "% to " },
             { "%, film podczas czytania ", "%, film while reading " },

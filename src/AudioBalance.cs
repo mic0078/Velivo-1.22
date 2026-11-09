@@ -305,7 +305,7 @@ namespace Velivo
             var brow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             brow.Children.Add(Mk(L.T("📌 Na pulpit"), () => { ShowAbDesk(); AbHideMonitor(); }));
             brow.Children.Add(Mk(L.T("⤵ Do zasobnika"), () => AbHideMonitor()));
-            brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), () => win.Close()));
+            brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), AbCloseMonitor));
             root.Children.Add(brow);
             root.Children.Add(T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim));
             win.Content = new Border { Background = bg, Child = root };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
@@ -370,7 +370,9 @@ namespace Velivo
             };
             win.StateChanged += (s, e) => { if (win.WindowState == WindowState.Minimized) AbHideMonitor(); };
             win.IsVisibleChanged += (s, e) => { if (win.IsVisible) _abTimer.Start(); else _abTimer.Stop(); };
-            win.Closed += (s, e) => { _abTimer.Stop(); _abTimer = null; _abWin = null; AbTrayRemove(); };
+            // ✕ na pasku okna = do zasobnika (jak minimalizacja); calkowite zamkniecie tylko przyciskiem „Zamknij widżet” albo z menu zasobnika
+            win.Closing += (s, e) => { if (!_abCloseReal && !_mainClosing && !_reallyExit) { e.Cancel = true; AbHideMonitor(); } };
+            win.Closed += (s, e) => { _abCloseReal = false; _abTimer.Stop(); _abTimer = null; _abWin = null; AbTrayRemove(); };
             win.Show(); _abTimer.Start();
         }
 
@@ -407,6 +409,9 @@ namespace Velivo
             });
         }
 
+        bool _abCloseReal;
+        void AbCloseMonitor() { if (_abWin == null) { AbTrayRemove(); return; } _abCloseReal = true; _abWin.Close(); }
+
         void AbHideMonitor()
         {
             if (_abWin == null) return;
@@ -440,7 +445,7 @@ namespace Velivo
                     byp.Click += (s, e) => Dispatcher.Invoke(() => AbSetBypass(!AbBypass));
                     m.Opening += (s, e) => byp.Checked = AbBypass;
                     m.Items.Add(byp);
-                    m.Items.Add(L.T("✕ Zamknij widżet"), null, (s, e) => Dispatcher.Invoke(() => _abWin?.Close()));
+                    m.Items.Add(L.T("✕ Zamknij widżet"), null, (s, e) => Dispatcher.Invoke(AbCloseMonitor));
                     _abTray.ContextMenuStrip = m;
                     _abTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(ShowAudioMonitor); };
                     _abTray.ShowBalloonTip(2500, "Audio Monitor", L.T("Widżet jest w zasobniku – kliknij ikonę, aby go przywrócić. Audio Balance działa dalej."), System.Windows.Forms.ToolTipIcon.Info);

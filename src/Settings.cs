@@ -780,7 +780,7 @@ namespace Velivo
             var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
             abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) ShowAbDesk(); else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
             root.Children.Add(abDeskBox);
-            var abDeskV = Check(L.T("📌 Samo „V” na pulpicie (najmniejszy widżet)"), L.T("Tylko znak V: prawe ramię – podgłośnione, lewe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu."), GetPref("ab-pulpitv") == "1");
+            var abDeskV = Check(L.T("📌 Samo „V” na pulpicie (najmniejszy widżet)"), L.T("Tylko znak V: lewe ramię – podgłośnione, prawe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu."), GetPref("ab-pulpitv") == "1");
             abDeskV.Click += (a, b) => { if (abDeskV.IsChecked == true) ShowAbDesk(true); else _abDeskV?.Close(); SetPref("ab-pulpitv", abDeskV.IsChecked == true ? "1" : "0"); };
             root.Children.Add(abDeskV);
             var abDlg = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2), ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian.") };
@@ -791,6 +791,9 @@ namespace Velivo
             var abByp = Check(L.T("⏻ Bez przetwarzania dźwięku (film gra bez zmian)"), L.T("Jednym kliknięciem wyłącza Audio Balance, korektor i dialogi. Ustawienia zostają."), AbBypass);
             abByp.Click += (a, b) => AbSetBypass(abByp.IsChecked == true);
             root.Children.Add(abByp);
+            var abLearn = Check(L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów."), AbLearnOn);
+            abLearn.Click += (a, b) => { SetPref("ab-nauka", abLearn.IsChecked == true ? "1" : "0"); if (abLearn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
+            root.Children.Add(abLearn);
             root.Children.Add(new TextBlock { Text = L.T("Włączanie i wyłączanie działa od razu, także w trakcie filmu (przy pierwszym włączeniu chwila ciszy). Dźwięk 5.1 jest wtedy miksowany do stereo."), FontSize = 11, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) });
 
             // ---------- torrenty: osobna strefa ----------

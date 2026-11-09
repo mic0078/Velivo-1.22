@@ -224,7 +224,7 @@ namespace Velivo
             { "🌙 Ekran włączony", "🌙 Screen on" },
             { "Ekran i wyłącznik czasowy – zgaś ekran (film gra dalej) albo zatrzymaj po czasie", "Screen and sleep timer – turn the screen off (film keeps playing) or stop after a time" },
             { "Źródło – jak głośny jest oryginał (ostatnie 10 s, bez ciszy – jak pomiar zintegrowany). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz; powinien być przy celu, który ustawiasz niżej.", "Source – how loud the original is (last 10 s, without silence – like the integrated measurement). Change – how much Velivo raised (▲) or lowered (▼). Result – what you hear; it should be at the target you set below." },
-            { "Tylko znak V: prawe ramię – podgłośnione, lewe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu.", "Only the V sign: right arm – raised, left – lowered. Drag to move; mouse wheel – transparency; right-click – menu." },
+            { "Tylko znak V: lewe ramię – podgłośnione, prawe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu.", "Just the V: left arm – raised, right – lowered. Drag to move; mouse wheel – transparency; right click – menu." },
             { "📌 Samo „V” na pulpicie (najmniejszy widżet)", "📌 Just the “V” on the desktop (smallest widget)" },
             { "📌 Pokaż drugi widżet: samo V", "📌 Show the second widget: just the V" },
             { "📌 Pokaż widżet z liczbami", "📌 Show the widget with numbers" },

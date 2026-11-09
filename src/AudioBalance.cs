@@ -322,7 +322,7 @@ namespace Velivo
             var lForget = Mk(L.T("🧹 Zapomnij, czego się nauczyłeś"), () => { });
             lForget.Click += (s2, e2) => { if (AskYes(win, L.T("Usunąć wszystko, czego Audio Balance nauczył się o kanałach i filmach (") + AbLearnCount + ")?", L.T("Usuń"), L.T("Anuluj"))) { AbLearnForget(); ShowToast(L.T("🧠 Pamięć Audio Balance wyczyszczona"), null); } };
             lForget.ToolTip = L.T("Kasuje plik audio-nauka.json – Velivo zacznie uczyć się od nowa.");
-            lrow.Children.Add(lForget); root.Children.Add(lrow);
+            lrow.Children.Add(lForget); root.Children.Insert(3, lrow);   // wysoko, pod przyciskiem ⏻ - widoczne od razu
             // najwazniejsze na gorze: ZRODLO (ile ma oryginal) → ZMIANA (ile podglosnil / sciszyl) → WYNIK (co slychac); glosnosc z 3 s, 4×/s
             var sum3 = new Grid { Margin = new Thickness(0, 8, 0, 4) }; var sumV = new TextBlock[3]; var sumL = new TextBlock[3];
             for (int i = 0; i < 3; i++)

@@ -400,7 +400,19 @@ namespace Velivo
             {
                 try
                 {
-                    _abTray = new System.Windows.Forms.NotifyIcon { Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath), Text = "Velivo – Audio Monitor", Visible = true };
+                    _abVFrames ??= Enumerable.Range(0, 9).Select(i => AbVIcon(i / 8.0)).ToArray();
+                    _abTray = new System.Windows.Forms.NotifyIcon { Icon = _abVFrames[0], Text = "Velivo – Audio Monitor", Visible = true };
+                    // animowane V: wypelnienie litery rosnie z glosnoscia tego, co slychac (10 kl./s, tylko gdy ikonka jest w zasobniku)
+                    _abTrayAnim = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                    int lastF = -1;
+                    _abTrayAnim.Tick += (s2, e2) =>
+                    {
+                        if (_abTray == null) { _abTrayAnim.Stop(); return; }
+                        double m = _abOut != null && AbProc.Active && !AbBypass ? AbProc.Out.Momentary : double.NegativeInfinity;
+                        int fr = double.IsNegativeInfinity(m) || double.IsNaN(m) ? 0 : 1 + (int)Math.Round(Math.Max(0, Math.Min(1, (m + 45) / 40)) * 7);
+                        if (fr != lastF) { lastF = fr; try { _abTray.Icon = _abVFrames[fr]; } catch (Exception) { } }
+                    };
+                    _abTrayAnim.Start();
                     var m = new System.Windows.Forms.ContextMenuStrip();
                     m.Items.Add(L.T("🎚 Otwórz Audio Monitor"), null, (s, e) => Dispatcher.Invoke(ShowAudioMonitor));
                     m.Items.Add(L.T("Ukryj widżet"), null, (s, e) => Dispatcher.Invoke(AbHideMonitor));
@@ -481,7 +493,34 @@ namespace Velivo
             w.Show(); tm.Start();
         }
 
-        void AbTrayRemove() { try { if (_abTray != null) { _abTray.Visible = false; _abTray.Dispose(); _abTray = null; } } catch (Exception) { } }
+        void AbTrayRemove() { _abTrayAnim?.Stop(); _abTrayAnim = null; try { if (_abTray != null) { _abTray.Visible = false; _abTray.Dispose(); _abTray = null; } } catch (Exception) { } }
+        DispatcherTimer _abTrayAnim; static System.Drawing.Icon[] _abVFrames;
+
+        // ikonka „V” Velivo: kontur litery, wnetrze wypelnione od dolu wg glosnosci (0 = przygaszona - cisza / wylaczone); klatki liczone raz
+        static System.Drawing.Icon AbVIcon(double fill)
+        {
+            using (var bmp = new System.Drawing.Bitmap(32, 32))
+            {
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; g.Clear(System.Drawing.Color.Transparent);
+                    var v = new[] { new System.Drawing.PointF(2, 4), new System.Drawing.PointF(10, 4), new System.Drawing.PointF(16, 21), new System.Drawing.PointF(22, 4), new System.Drawing.PointF(30, 4), new System.Drawing.PointF(19, 29), new System.Drawing.PointF(13, 29) };
+                    using (var path = new System.Drawing.Drawing2D.GraphicsPath()) {
+                        path.AddPolygon(v);
+                        using (var dimB = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(fill <= 0 ? 110 : 70, 0x7C, 0x5C, 0xFF))) g.FillPath(dimB, path);
+                        if (fill > 0)
+                        {
+                            float top = (float)(29 - 25 * fill);
+                            g.SetClip(new System.Drawing.RectangleF(0, top, 32, 32 - top));
+                            using (var lg = new System.Drawing.Drawing2D.LinearGradientBrush(new System.Drawing.PointF(0, 29), new System.Drawing.PointF(0, 4), System.Drawing.Color.FromArgb(0x7C, 0x5C, 0xFF), System.Drawing.Color.FromArgb(0x2E, 0xD3, 0xC6))) g.FillPath(lg, path);
+                            g.ResetClip();
+                        }
+                        using (var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(230, 0x2E, 0xD3, 0xC6), 1.5f)) g.DrawPath(pen, path);
+                    }
+                }
+                return System.Drawing.Icon.FromHandle(bmp.GetHicon());   // 9 klatek na cale dzialanie Velivo - bez wycieku uchwytow
+            }
+        }
 
         // FFT radix-2 w miejscu (n = potega 2)
         static void AbFft(double[] re, double[] im)

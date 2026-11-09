@@ -11,7 +11,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Sam szukasz przyczyny błędu i kompilujesz tylko poprawioną część. Pytasz (w pytaniach) tylko, gdy nie wiesz, czego chce użytkownik.
 * Poprawiasz istniejący kod, nie dopisujesz nowego i nie zwiększasz plików bez potrzeby – aplikacje mają być lekkie i nie rosnąć w nieskończoność.
 * NADPISUJĘ, NIE DOPISUJĘ (2026-11-09, właściciel): zmieniając funkcję, przerabiam istniejący kod w miejscu i usuwam to, co zastąpione (stare warianty, tłumaczenia w Lang.cs / strings.xml, pola, ustawienia) – nigdy nowa wersja obok starej. Po każdej przebudowie: szukanie nieużywanych tłumaczeń i kodu (także XAML), kompilacja Windows (obie edycje) i Android (kotlinc kontrolny), dopiero potem wysyłka.
-* Klawiatura bez zbędnego słownika: nie dodawaj dużych list słów – poprawiaj reguły i istniejący słownik.
+* Klawiatura bez zbędnego słownika: nie dodawaj dużych list słów – poprawiaj reguły i istniejący słownik. Wyjątek zgodą właściciela (2026-11-09: „klawiatura lepsza od Gboard”): pełny słownik Hunspell pl_PL (sjp.pl) – tylko on, zwarty, w tle.
 * Nie powtarzasz błędów: wyciągasz wnioski, pamiętasz je i uczysz się na innych aplikacjach dostępnych w sieci.
 * Użytkownik zawsze ma rację: gdy mówi, że coś nie działa, najpierw szukasz błędu w swoim kodzie i ostatnich zmianach – nie odsyłasz go do sprawdzania. Wyciągasz wnioski.
 * Logika i przewidywanie (2026-10-27, właściciel): zanim zaproponujesz rozwiązanie, przemyśl je do końca jak inżynier – co się stanie przy awarii, przy dwóch naraz, po ponownym uruchomieniu, w innej sieci. Zapasowy serwer musi przejmować pracę; dwa działające jednocześnie – bez podwójnych kontaktów i wiadomości. Nie czekaj, aż właściciel to wytknie.

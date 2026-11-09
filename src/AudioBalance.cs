@@ -389,7 +389,7 @@ namespace Velivo
                 var bx = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1F, 0x2B)), CornerRadius = new CornerRadius(6), Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 2 ? 0 : 3, 0), Padding = new Thickness(6, 4, 6, 4) };
                 var sp = new StackPanel(); sumL[i] = T(new[] { L.T("ŹRÓDŁO"), L.T("ZMIANA"), L.T("WYNIK") }[i], 10, dim); sumV[i] = T("–", 17, fg, FontWeights.Bold);
                 System.Windows.Documents.Typography.SetNumeralAlignment(sumV[i], FontNumeralAlignment.Tabular);
-                sp.Children.Add(sumL[i]); sp.Children.Add(new Viewbox { Child = sumV[i], StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Height = 24 }); bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);   // długa wartość się zmniejsza zamiast łamać (kafelek nie rośnie - nic pod nim nie skacze)
+                sumL[i].TextWrapping = TextWrapping.NoWrap; sp.Children.Add(new Viewbox { Child = sumL[i], StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Height = 14 }); sp.Children.Add(new Viewbox { Child = sumV[i], StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Height = 24 }); bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);   // długa wartość się zmniejsza zamiast łamać (kafelek nie rośnie - nic pod nim nie skacze)
             }
             sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 10 s, bez ciszy – jak pomiar zintegrowany). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz; powinien być przy celu, który ustawiasz niżej.");
             root.Children.Insert(3, sum3);

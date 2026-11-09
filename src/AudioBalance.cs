@@ -488,7 +488,7 @@ namespace Velivo
         {
             if (_abDesk != null) { _abDesk.Show(); _abDesk.Activate(); return; }
             var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
-            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 130, Height = 56, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
+            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 140, Height = 70, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;
             if (double.TryParse(GetPref("ab-pulpit-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref("ab-pulpit-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
             { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = l0; w.Top = t0; }
@@ -497,9 +497,19 @@ namespace Velivo
             g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var top = new DockPanel(); var st = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
             var lufs = new TextBlock { FontSize = 10, Foreground = fg, FontWeight = FontWeights.SemiBold }; top.Children.Add(lufs); g.Children.Add(top);
-            const int NB = 20; var cv = new Canvas { Margin = new Thickness(0, 2, 0, 0), ClipToBounds = true }; Grid.SetRow(cv, 1); g.Children.Add(cv);
+            // wersja C (wybor wlasciciela): widmo po lewej, po prawej dwa slupki glosnosci IN (oryginal, czerwony) i OUT (po poprawie, zielony) z kreska celu;
+            // na dole: oryginal w LUFS i ile Velivo dodalo (▲ zielone) albo odjelo (▼ pomaranczowe) decybeli
+            const int NB = 14; var cv = new Canvas { Margin = new Thickness(0, 2, 0, 0), ClipToBounds = true }; Grid.SetRow(cv, 1); g.Children.Add(cv);
             var grad = new LinearGradientBrush(Color.FromRgb(0x2E, 0xD3, 0xC6), Color.FromRgb(0x7C, 0x5C, 0xFF), 90);
             var bars = new Rectangle[NB]; for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1, RadiusY = 1 }; cv.Children.Add(bars[i]); }
+            var red = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53)); var green = new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A)); var orange = new SolidColorBrush(Color.FromRgb(0xFF, 0xA0, 0x40));
+            var inBar = new Rectangle { Fill = red }; var outBar = new Rectangle { Fill = green }; var tgtLine = new Line { Stroke = Brushes.White, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 1 } };
+            cv.Children.Add(inBar); cv.Children.Add(outBar); cv.Children.Add(tgtLine);
+            var bottom = new DockPanel(); Grid.SetRow(bottom, 2); g.Children.Add(bottom);
+            var delta = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(delta, Dock.Right); bottom.Children.Add(delta);
+            var orig = new TextBlock { FontSize = 10, Foreground = red }; bottom.Children.Add(orig);
+            System.Windows.Documents.Typography.SetNumeralAlignment(delta, FontNumeralAlignment.Tabular); System.Windows.Documents.Typography.SetNumeralAlignment(orig, FontNumeralAlignment.Tabular);
+            var numsAt = DateTime.MinValue;
             w.Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(10), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g,
 };
             w.MouseLeftButtonDown += (s, e) => { if (!(e.OriginalSource is Visual ov) || !w.IsAncestorOf(ov)) return;   // klik w menu (prawy przycisk) przychodzi tu z okienka menu - przeciaganie zabieralo mu klikniecie
@@ -524,7 +534,7 @@ namespace Velivo
                 int pos = AbProc.ScopePos;
                 for (int i = 0; i < 1024; i++) { re[i] = live ? AbProc.Scope[(pos - 1024 + i + 8192) & 8191] * hann[i] : 0; im[i] = 0; }
                 AbFft(re, im);
-                double cw = cv.ActualWidth, ch = cv.ActualHeight, bw = cw / NB;
+                double cw = cv.ActualWidth, ch = cv.ActualHeight, sw = cw - 26, bw = sw / NB;
                 for (int b = 0; b < NB; b++)
                 {
                     int k0 = Math.Max(1, (int)(edges[b] * 1024 / AbProcessor.Fs)), k1 = Math.Max(k0 + 1, (int)(edges[b + 1] * 1024 / AbProcessor.Fs));
@@ -533,10 +543,25 @@ namespace Velivo
                     sm[b] = v > sm[b] ? v : sm[b] * 0.85 + v * 0.15;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = sm[b] * ch; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], ch - sm[b] * ch);
                 }
+                // IN / OUT: skala -50..0 LUFS (glosnosc 3 s), kreska = cel
+                double Hh(double l) => double.IsNegativeInfinity(l) || double.IsNaN(l) || !live ? 0 : Math.Max(0, Math.Min(1, (l + 50) / 50)) * ch;
+                double hi = Hh(AbProc.In.ShortTerm), ho = Hh(AbProc.Out.ShortTerm);
+                inBar.Width = outBar.Width = 9; Canvas.SetLeft(inBar, sw + 3); Canvas.SetLeft(outBar, sw + 15);
+                inBar.Height = hi; Canvas.SetTop(inBar, ch - hi); outBar.Height = ho; Canvas.SetTop(outBar, ch - ho);
+                double ty = ch - Math.Max(0, Math.Min(1, (AbProc.Target + 50) / 50)) * ch; tgtLine.X1 = sw + 1; tgtLine.X2 = cw; tgtLine.Y1 = tgtLine.Y2 = ty;
                 string F(double x) => double.IsNegativeInfinity(x) || double.IsNaN(x) || x < -69 || !live ? "–" : x.ToString("0.0");
-                lufs.Text = F(AbProc.Out.ShortTerm) + " LUFS";
+                if ((DateTime.UtcNow - numsAt).TotalMilliseconds >= 250)
+                {   // liczby 4×/s - czytelne
+                    numsAt = DateTime.UtcNow;
+                    lufs.Text = F(AbProc.Out.ShortTerm) + " LUFS";
+                    orig.Text = L.T("oryginał ") + F(AbProc.In.ShortTerm);
+                    double d = AbProc.Out.ShortTerm - AbProc.In.ShortTerm;
+                    bool ok = live && !double.IsNaN(d) && !double.IsInfinity(d);
+                    delta.Text = !ok ? "" : Math.Abs(d) < 0.25 ? "±0 dB" : (d > 0 ? "▲ +" : "▼ ") + d.ToString("0.0") + " dB";
+                    delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;
+                }
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
-                w.ToolTip = "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
+                w.ToolTip = L.T("IN (czerwony) – oryginał, OUT (zielony) – po poprawie, kreska – cel. ▲ dodane / ▼ odjęte decybele.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
             w.Closed += (s, e) => { tm.Stop(); _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref("ab-pulpit", "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };

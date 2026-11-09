@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "oryginał ", "original " },
+            { "IN (czerwony) – oryginał, OUT (zielony) – po poprawie, kreska – cel. ▲ dodane / ▼ odjęte decybele.", "IN (red) – original, OUT (green) – after correction, line – target. ▲ added / ▼ removed decibels." },
             { "Wzmocnienie", "Gain" },
             { "Limiter", "Limiter" },
             { "Wejście (3 s)", "Input (3 s)" },

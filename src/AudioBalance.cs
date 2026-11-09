@@ -574,8 +574,8 @@ namespace Velivo
                     face.Children.Add(new Line { X1 = cx + Math.Sin(a) * rr, Y1 = cy - Math.Cos(a) * rr, X2 = cx + Math.Sin(a) * (rr - len), Y2 = cy - Math.Cos(a) * (rr - len), Stroke = k > 0 ? Brushes.Firebrick : new SolidColorBrush(Color.FromRgb(0x2A, 0x22, 0x14)), StrokeThickness = k > 0 ? 1.4 : 0.8 });
                 }
                 var lab = new TextBlock { Text = ch == 0 ? "LEFT" : "RIGHT", FontSize = 6.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x3A, 0x2E, 0x1A)) };
-                Canvas.SetLeft(lab, ch == 0 ? 20 : 18); Canvas.SetTop(lab, 25); face.Children.Add(lab);
-                var vu = new TextBlock { Text = "VU", FontSize = 6, Foreground = new SolidColorBrush(Color.FromRgb(0x3A, 0x2E, 0x1A)) }; Canvas.SetLeft(vu, 25); Canvas.SetTop(vu, 14); face.Children.Add(vu);
+                Canvas.SetLeft(lab, 3); Canvas.SetTop(lab, 28); face.Children.Add(lab);   // napisy w rogach - wskazowka ich nie zaslania
+                var vu = new TextBlock { Text = "VU", FontSize = 6, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x3A, 0x2E, 0x1A)) }; Canvas.SetLeft(vu, 46); Canvas.SetTop(vu, 28); face.Children.Add(vu);
                 // dwie wskazowki: cienka czerwona = oryginal, czarna = po poprawie (to, co slychac)
                 needlesIn[ch] = new Line { X1 = cx, Y1 = cy, Stroke = red, StrokeThickness = 0.9, Opacity = 0.9 };
                 needles[ch] = new Line { X1 = cx, Y1 = cy, Stroke = new SolidColorBrush(Color.FromRgb(0x1A, 0x14, 0x0A)), StrokeThickness = 1.3 };

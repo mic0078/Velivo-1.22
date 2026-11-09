@@ -291,6 +291,18 @@ namespace Velivo
             bypassBtn.Click += (s, e) => { AbSetBypass(!AbBypass); MarkBypass(); };
             bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
             MarkBypass(); root.Children.Insert(2, bypassBtn);
+            // najwazniejsze na gorze: ZRODLO (ile ma oryginal) → ZMIANA (ile podglosnil / sciszyl) → WYNIK (co slychac); glosnosc z 3 s, 4×/s
+            var sum3 = new Grid { Margin = new Thickness(0, 8, 0, 4) }; var sumV = new TextBlock[3]; var sumL = new TextBlock[3];
+            for (int i = 0; i < 3; i++)
+            {
+                sum3.ColumnDefinitions.Add(new ColumnDefinition());
+                var bx = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1F, 0x2B)), CornerRadius = new CornerRadius(6), Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 2 ? 0 : 3, 0), Padding = new Thickness(6, 4, 6, 4) };
+                var sp = new StackPanel(); sumL[i] = T(new[] { L.T("ŹRÓDŁO"), L.T("ZMIANA"), L.T("WYNIK") }[i], 10, dim); sumV[i] = T("–", 17, fg, FontWeights.Bold);
+                System.Windows.Documents.Typography.SetNumeralAlignment(sumV[i], FontNumeralAlignment.Tabular);
+                sp.Children.Add(sumL[i]); sp.Children.Add(sumV[i]); bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);
+            }
+            sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 3 s). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz. Cel ustawiasz niżej.");
+            root.Children.Insert(3, sum3);
             var tgt = new ComboBox { Width = 210, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
             tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? tgt.Items[2];
@@ -374,6 +386,14 @@ namespace Velivo
                 if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)
                 {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
                     numsLast = DateTime.UtcNow;
+                    {
+                        double si = AbProc.In.ShortTerm, so = AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
+                        sumV[0].Text = F(si) + " LUFS"; sumV[0].Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53));
+                        sumL[1].Text = !okd || Math.Abs(dd) < 0.25 ? L.T("ZMIANA") : dd > 0 ? L.T("PODGŁOŚNIONO") : L.T("ŚCISZONO");
+                        sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0 dB" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0") + " dB";
+                        sumV[1].Foreground = !okd || Math.Abs(dd) < 0.25 ? fg : dd > 0 ? new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A)) : new SolidColorBrush(Color.FromRgb(0xFF, 0xA0, 0x40));
+                        sumV[2].Text = F(so) + " LUFS"; sumV[2].Foreground = new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A));
+                    }
                     vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
                     vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;
                 }
@@ -496,7 +516,7 @@ namespace Velivo
         {
             if (_abDesk != null) { _abDesk.Show(); _abDesk.Activate(); return; }
             var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
-            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 140, Height = 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
+            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 156, Height = 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;
             if (double.TryParse(GetPref("ab-pulpit-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref("ab-pulpit-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
             { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = l0; w.Top = t0; }
@@ -539,10 +559,10 @@ namespace Velivo
                 {   // liczby 4×/s - czytelne
                     numsAt = DateTime.UtcNow;
                     lufs.Text = F(AbProc.Out.ShortTerm) + " LUFS";
-                    orig.Text = L.T("oryginał ") + F(AbProc.In.ShortTerm);
+                    orig.Text = L.T("źródło ") + F(AbProc.In.ShortTerm);
                     double d = AbProc.Out.ShortTerm - AbProc.In.ShortTerm;
                     bool ok = live && !double.IsNaN(d) && !double.IsInfinity(d);
-                    delta.Text = !ok ? "" : Math.Abs(d) < 0.25 ? "±0 dB" : (d > 0 ? "▲ +" : "▼ ") + d.ToString("0.0") + " dB";
+                    delta.Text = !ok ? "" : Math.Abs(d) < 0.25 ? "±0 dB" : (d > 0 ? L.T("▲ głośniej +") : L.T("▼ ciszej ")) + d.ToString("0.0");
                     delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;
                 }
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza

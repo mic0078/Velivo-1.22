@@ -441,7 +441,7 @@ class KlawiaturaVelivo : InputMethodService() {
         // wielka litera w środku zdania (nazwisko, miejsce, firma) - bez samej poprawki, tylko propozycje
         val name = w.isNotEmpty() && w[0].isUpperCase() && before(w.length + 3).dropLast(w.length).trimEnd().let { it.isNotEmpty() && it.last() !in ".!?\n" }
         if (w.isNotEmpty() && !secret) {
-            val fix0 = if (pref("klaw-korekta") && !name) Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) else null
+            val fix0 = if (pref("klaw-korekta") && !name) { Slownik.prev = prevWord; try { Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) } finally { Slownik.prev = null } } else null   // poprzednie słowo - kontekst poprawki
             // 🇬🇧/🇺🇸 wybrana pisownia angielska (colour / color)
             val en = prefs(this).getString("klaw-en", "").orEmpty()
             val fix = (if (en.isNotEmpty() && lang(this) == "en" && pref("klaw-korekta") && !name && (fix0 ?: w).lowercase() !in keep) Slownik.enVariant(fix0 ?: w, en == "uk") else null) ?: fix0

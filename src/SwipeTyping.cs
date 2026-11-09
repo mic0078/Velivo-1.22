@@ -144,7 +144,14 @@ namespace Velivo
         static readonly Dictionary<string, string> _ownFold = new Dictionary<string, string>();   // Moj slownik: bez polskich znakow -> slowo
         // nauka wyborow: ile razy uzytkownik napisal / wybral slowo (ustawia klawiatura) - czesciej uzywane slowa wyzej
         internal static Func<string, int> UseCount;
-        static double Score(Entry e) { int n = 0; try { n = UseCount?.Invoke(e.Word) ?? 0; } catch (Exception) { } return e.Rank / (1.0 + 3.0 * Math.Min(n, 50)); }
+        // kontekst zdania: poprzednie słowo (ustawia klawiatura przed poprawką) - para, którą piszesz („na stole”), wygrywa z samą częstością („na stile”)
+        [ThreadStatic] internal static string Prev;
+        static double Score(Entry e)
+        {
+            int n = 0; try { n = UseCount?.Invoke(e.Word) ?? 0; } catch (Exception) { }
+            int pr = 0; var p = Prev; if (!string.IsNullOrEmpty(p)) lock (_pairs) _pairs.TryGetValue(p.ToLowerInvariant() + " " + e.Word, out pr);
+            return e.Rank / (1.0 + 3.0 * Math.Min(n, 50)) / (1.0 + 10.0 * Math.Min(pr, 20));
+        }
         static string Fold(string w) { return new string(w.ToLowerInvariant().Select(BaseKey).ToArray()); }
         // sasiednie klawisze (QWERTY) - typowa pomylka palca
         static readonly string[] _rows = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };

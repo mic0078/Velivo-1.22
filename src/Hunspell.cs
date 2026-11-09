@@ -109,8 +109,8 @@ namespace Velivo
         static readonly Dictionary<char, string> Pl = new Dictionary<char, string> { ['a'] = "ą", ['c'] = "ć", ['e'] = "ę", ['l'] = "ł", ['n'] = "ń", ['o'] = "ó", ['s'] = "ś", ['z'] = "żź" };
         public string Suggest(string w, Func<string, int> rank)
         {
-            string best = null; int br = int.MaxValue, seen = 0;
-            void Try(string v, int cost) { if (seen++ > 200000) return; int r = rank(v) + cost; if (r < br && Check(v)) { br = r; best = v; } }   // małe litery (klawiatura podaje małe)
+            string best = null; int br = int.MaxValue, seen = 0; var t0 = System.Diagnostics.Stopwatch.StartNew();
+            void Try(string v, int cost) { if (seen++ > 200000 || (seen & 63) == 0 && t0.ElapsedMilliseconds > 120) { seen = 300000; return; } int r = rank(v) + cost; if (r < br && Check(v)) { br = r; best = v; } }   // spacja nie czeka: najwyżej 120 ms; małe litery (klawiatura podaje małe)
             foreach (var v in Diacritics(w)) if (v != w) Try(v, 0);
             if (best != null) return best;
             var edits = new HashSet<string>();

@@ -785,7 +785,7 @@ namespace Velivo
                 string fixedNow = null, origNow = cur; bool zeNowT = false;
                 if (sep && cur.Length >= 2 && autoOn && !SecretField())
                 {
-                    string fix; lock (noFix) fix = SwipeTyping.Complete(cur, noFix);
+                    string fix; lock (noFix) { SwipeTyping.Prev = tPrevSpace ? tPrevWord : null; fix = SwipeTyping.Complete(cur, noFix); SwipeTyping.Prev = null; }   // poprzednie słowo - kontekst poprawki
                     if (fix == null && vk == 0 && ch == ' ' && tPrevSpace) { fix = SwipeTyping.ZeNow(cur, tPrevWord); zeNowT = fix != null; }   // myślę ze -> myślę, że
                     if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
                 }
@@ -1087,7 +1087,7 @@ namespace Velivo
             // ✓ autokorekta pisowni (wl./wyl., domyslnie wlaczona) - takze polskie znaki: zolw -> żółw
             var fixB = key(ico("\uE8FB", "abc"), 58); fixB.Height = 28; fixB.FontSize = 12; DockPanel.SetDock(fixB, Dock.Right);
             Action fixShow = () => { bool on = GetPref("klawiatura-korekta") != "0"; fixB.Background = on ? accent : Brushes.Transparent; fixB.ToolTip = on ? L.T("Autokorekta pisowni: włączona – słowo spoza słownika poprawiane po spacji (też polskie znaki: zolw → żółw); ⌫ zaraz po poprawce cofa ją. Kliknij, aby wyłączyć") : L.T("Autokorekta pisowni: wyłączona (kliknij, aby włączyć)"); };
-            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Complete(wd, noFix) ?? SwipeTyping.ContextFix(_physPrev, wd, noFix); }) : null;
+            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) { SwipeTyping.Prev = _physPrev; try { return SwipeTyping.Complete(wd, noFix) ?? SwipeTyping.ContextFix(_physPrev, wd, noFix); } finally { SwipeTyping.Prev = null; } } }) : null;
             fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); physApply(); };
             head.Children.Add(fixB);
             // 🔈 klik przy pisaniu (wl./wyl., domyslnie wlaczony)

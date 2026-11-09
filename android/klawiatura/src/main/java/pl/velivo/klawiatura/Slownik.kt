@@ -90,7 +90,13 @@ object Slownik {
     fun noteRecent(w: String) = synchronized(recent) { recent.remove(w); recent.add(w); if (recent.size > 150) recent.remove(recent.first()) }
     private fun isRecent(w: String) = synchronized(recent) { w in recent }
     fun clearRecent() = synchronized(recent) { recent.clear() }
-    private fun score(e: Entry): Double { val n = runCatching { useCount?.invoke(e.word) ?: 0 }.getOrDefault(0); return e.rank / (1.0 + 3.0 * min(n, 50)) * (if (isRecent(e.word)) 0.6 else 1.0) }
+    // kontekst zdania: poprzednie słowo (ustawia klawiatura przed poprawką) - para, którą piszesz („na stole”), wygrywa z samą częstością („na stile”)
+    @Volatile var prev: String? = null
+    private fun score(e: Entry): Double {
+        val n = runCatching { useCount?.invoke(e.word) ?: 0 }.getOrDefault(0)
+        val pr = prev?.let { p -> synchronized(pairs) { pairs[p.lowercase() + " " + e.word] ?: 0 } } ?: 0
+        return e.rank / (1.0 + 3.0 * min(n, 50)) * (if (isRecent(e.word)) 0.6 else 1.0) / (1.0 + 10.0 * min(pr, 20))
+    }
     private fun fold(w: String) = w.lowercase().map(::baseKey).joinToString("")
     // sąsiednie klawisze (QWERTY) - typowa pomyłka palca
     private val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")

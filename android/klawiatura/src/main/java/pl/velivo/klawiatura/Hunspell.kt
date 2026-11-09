@@ -126,8 +126,8 @@ class Hunspell private constructor() {
 
     // poprawka spoza listy częstych słów: polskie znaki, jedna pomyłka, potem pomyłka palca + polskie znaki (wstwaialo -> wstawiało)
     fun suggest(w: String, rank: (String) -> Int): String? {
-        var best: String? = null; var br = Int.MAX_VALUE; var seen = 0
-        fun tryV(v: String, cost: Int) { if (seen++ > 200000) return; val r = rank(v) + cost; if (r < br && check(v)) { br = r; best = v } }
+        var best: String? = null; var br = Int.MAX_VALUE; var seen = 0; val t0 = System.nanoTime()
+        fun tryV(v: String, cost: Int) { if (seen++ > 200000 || ((seen and 63) == 0 && System.nanoTime() - t0 > 120_000_000L)) { seen = 300000; return }; val r = rank(v) + cost; if (r < br && check(v)) { br = r; best = v } }   // spacja nie czeka: najwyżej 120 ms
         for (v in diacritics(w)) if (v != w) tryV(v, 0)
         if (best != null) return best
         val edits = HashSet<String>()

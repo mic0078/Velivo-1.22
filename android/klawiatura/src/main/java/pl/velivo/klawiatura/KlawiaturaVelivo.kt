@@ -1008,7 +1008,19 @@ class KlawiaturaVelivo : InputMethodService() {
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(e: MotionEvent): Boolean {
-            val x = e.x; val y = e.y
+            // szybkie pisanie: następny palec dotyka, zanim poprzedni się podniesie - każdy palec osobno (jak AOSP LatinIME);
+            // wcześniej pozycja drugiego palca była brana za przeciąganie pierwszego (swipe) - litery ginęły, wstawiało się przypadkowe słowo
+            when (e.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN -> { pointerDown(e); return true }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    if (e.getPointerId(e.actionIndex) == activeId) { up(e.getX(e.actionIndex), e.getY(e.actionIndex)); activeId = -1 }   // palec, który teraz pisze; stary palec (już wpisany) - nic
+                    return true
+                }
+            }
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) activeId = e.getPointerId(0)
+            val pi = e.findPointerIndex(activeId)
+            if (pi < 0) { if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL) { activeId = -1; pressed = null; swiping = false; trace.clear(); invalidate() }; return true }   // ten palec już obsłużony
+            val x = e.getX(pi); val y = e.getY(pi)
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = x; downY = y; downAt = SystemClock.uptimeMillis(); longDone = false; swiping = false; cursorMode = false; trace.clear()
@@ -1042,30 +1054,52 @@ class KlawiaturaVelivo : InputMethodService() {
                     if (!swiping && !longDone && k.code.length == 1 && k.code[0] in 'a'..'z' && !secret && !pref("klaw-senior", false) && hypot(x - downX, y - downY) > kw * 0.6) { swiping = true; removeCallbacks(longPress) }
                     if (swiping) invalidate()
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP -> { up(x, y); activeId = -1 }
+                MotionEvent.ACTION_CANCEL -> { activeId = -1; popKeys = null; removeCallbacks(longPress); removeCallbacks(repeat); pressed = null; swiping = false; trace.clear(); invalidate() }
+            }
+            return true
+        }
+
+        private var activeId = -1   // palec, który teraz pisze (identyfikator wskaźnika Androida)
+
+        // nowy palec przy wciąż dotkniętym poprzednim: poprzedni klawisz wpisany od razu jako stuknięcie, nowy palec zaczyna swoje naciśnięcie
+        private fun pointerDown(e: MotionEvent) {
+            if (activeId < 0 || swiping || menuOpen || popKeys != null || cursorMode || downY < headH + sugH) return   // przeciąganie, menu, kursor, pasek - drugi palec bez znaczenia
+            removeCallbacks(longPress); removeCallbacks(repeat)
+            val k0 = pressed; pressed = null
+            if (k0 != null && !longDone) { if (k0.code.length == 1 && k0.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k0) }
+            val i = e.actionIndex; val x = e.getX(i); val y = e.getY(i)
+            if (y < headH + sugH) { activeId = -1; invalidate(); return }   // drugi palec na pasku - bez pisania
+            activeId = e.getPointerId(i)
+            downX = x; downY = y; downAt = SystemClock.uptimeMillis(); longDone = false; swiping = false; trace.clear()
+            pressed = keyAt(x, y); trace.add(Slownik.P(x.toDouble(), y.toDouble()))
+            click(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED)
+            waveX = pressed?.r?.centerX() ?: x; waveY = pressed?.r?.centerY() ?: y; waveAt = SystemClock.uptimeMillis()
+            postDelayed(longPress, longDelay())
+            invalidate()
+        }
+
+        // podniesienie palca, który pisze (zwykłe puszczenie albo puszczenie przy drugim palcu wciąż na ekranie)
+        private fun up(x: Float, y: Float) {
                     removeCallbacks(longPress); removeCallbacks(repeat)
                     popKeys?.let { l -> popKeys = null; pressed = null; val c = l[popSel]
                         if (c.isLetter()) { val was = alt; alt = false; type(c); alt = was } else { val was = shift; val wa = shiftAuto; shift = false; type(c); shift = was && !wa; shiftAuto = wa }
-                        invalidate(); return true }
+                        invalidate(); return }
                     val k = pressed; pressed = null
-                    if (cursorMode) { cursorMode = false; cur = ""; fixFrom = null; lastSwipe = null; autoShift(); refresh(); return true }   // kursor przesunięty - bez spacji
-                    if (downY < headH) { if (k != null && !longDone && k.r.contains(x, y)) headAction(k.code); invalidate(); return true }
-                    if (menuOpen) { if (k != null && !longDone && k.r.contains(x, y)) menuAction(k.code); invalidate(); return true }
-                    if (downY < headH + sugH) { if (kotlin.math.abs(x - downX) > 10 * dp) return true   // przesunięty pasek - bez wyboru
-                        sugR.firstOrNull { it.first.contains(x + sugX, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return true }
+                    if (cursorMode) { cursorMode = false; cur = ""; fixFrom = null; lastSwipe = null; autoShift(); refresh(); return }   // kursor przesunięty - bez spacji
+                    if (downY < headH) { if (k != null && !longDone && k.r.contains(x, y)) headAction(k.code); invalidate(); return }
+                    if (menuOpen) { if (k != null && !longDone && k.r.contains(x, y)) menuAction(k.code); invalidate(); return }
+                    if (downY < headH + sugH) { if (kotlin.math.abs(x - downX) > 10 * dp) return   // przesunięty pasek - bez wyboru
+                        sugR.firstOrNull { it.first.contains(x + sugX, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return }
                     if (swiping) {
                         swiping = false
                         val centers = HashMap<Char, Slownik.P>()
                         keys.filter { it.code.length == 1 && it.code[0] in 'a'..'z' }.forEach { centers[it.code[0]] = Slownik.P(it.r.centerX().toDouble(), it.r.centerY().toDouble()) }
                         val kw = (keys.first { it.code == "w" }.r.centerX() - keys.first { it.code == "q" }.r.centerX()).toDouble()
-                        swiped(ArrayList(trace), centers, kw); trace.clear(); invalidate(); return true
+                        swiped(ArrayList(trace), centers, kw); trace.clear(); invalidate(); return
                     }
                     if (k != null && !longDone) { if (k.code.length == 1 && k.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k) }
                     invalidate()
-                }
-                MotionEvent.ACTION_CANCEL -> { popKeys = null; removeCallbacks(longPress); removeCallbacks(repeat); pressed = null; swiping = false; trace.clear(); invalidate() }
-            }
-            return true
         }
 
         // --- menu pod logo V ---

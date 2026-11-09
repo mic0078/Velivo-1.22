@@ -264,12 +264,12 @@ namespace Velivo
             AbLoadSettings();
             var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
             var acc = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)); var acc2 = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6));
-            var win = new Window { Title = "Velivo – Audio Monitor", Width = 1080, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
+            var win = new Window { Title = "Velivo – Audio Monitor", Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
             var root = new StackPanel { Margin = new Thickness(12) };
             TextBlock T(string s, double size = 12, Brush c = null, FontWeight? w = null) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? fg, FontWeight = w ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap };
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
             var state = T("", 12, acc2, FontWeights.SemiBold); DockPanel.SetDock(state, Dock.Right); head.Children.Add(state);
-            head.Children.Add(T(L.T("🎚 Audio Monitor"), 15, fg, FontWeights.SemiBold));
+            head.Children.Add(T(L.T("Audio Monitor"), 15, fg, FontWeights.SemiBold));
             root.Children.Add(head);
             var src = T("", 11, dim); src.TextWrapping = TextWrapping.Wrap; src.TextTrimming = TextTrimming.CharacterEllipsis; src.Height = 30; root.Children.Add(src);   // stała wysokość (2 linie) - zmienny opis źródła nie przesuwa V i kafelków
             // 🗣 doradca lektora: wskaźnik słyszalności + propozycja do zatwierdzenia (sam niczego nie zmienia)
@@ -346,7 +346,7 @@ namespace Velivo
             MarkSila(); MarkSilaRef = MarkSila; root.Children.Add(srow);
             // 🗣 wyrazne dialogi (opcja dodatkowa) i ⏻ wylacz wszystko jednym przyciskiem
             var drow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-            drow.Children.Add(new TextBlock { Text = L.T("🗣 Wyraźne dialogi:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
+            drow.Children.Add(new TextBlock { Text = L.T("Wyraźne dialogi:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
             var dbtn = new Button[3]; var dnames = new[] { L.T("Wył."), L.T("Średnio"), L.T("Mocno") };
             void MarkDialog() { for (int i = 0; i < 3; i++) dbtn[i].Background = i == AbDialog ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
             for (int i = 0; i < 3; i++) { int di = i; dbtn[i] = Mk(dnames[i], () => { SetPref("ab-dialogi", di.ToString()); AbProc.Dialog = di; MarkDialog(); AbNeedsRestartHint(); }); dbtn[i].ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian."); drow.Children.Add(dbtn[i]); }
@@ -358,10 +358,10 @@ namespace Velivo
             MarkBypass(); root.Children.Insert(2, bypassBtn);
             // 🧠 nauka: włącz/wyłącz i „zapomnij”
             var lrow = new WrapPanel { Margin = new Thickness(0, 6, 0, 6) };
-            var lOn = new CheckBox { Content = L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), IsChecked = AbLearnOn, Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 6), ToolTip = L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów.") };
+            var lOn = new CheckBox { Content = L.T("Ucz się sam (każdy kanał i film osobno)"), IsChecked = AbLearnOn, Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 6), ToolTip = L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów.") };
             lOn.Click += (s2, e2) => { SetPref("ab-nauka", lOn.IsChecked == true ? "1" : "0"); if (lOn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
             lrow.Children.Add(lOn);
-            var lForget = Mk(L.T("🧹 Zapomnij, czego się nauczyłeś"), () => { });
+            var lForget = Mk(L.T("Zapomnij, czego się nauczyłeś"), () => { });
             lForget.Click += (s2, e2) => { if (AskYes(win, L.T("Usunąć wszystko, czego Audio Balance nauczył się o kanałach i filmach (") + AbLearnCount + ")?", L.T("Usuń"), L.T("Anuluj"))) { AbLearnForget(); ShowToast(L.T("🧠 Pamięć Audio Balance wyczyszczona"), null); } };
             lForget.ToolTip = L.T("Kasuje plik audio-nauka.json – Velivo zacznie uczyć się od nowa.");
             lrow.Children.Add(lForget); root.Children.Add(lrow);
@@ -410,27 +410,42 @@ namespace Velivo
             eqExp.Content = eqPanel; root.Children.Add(eqExp);
             // przyciski okna
             var brow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
-            brow.Children.Add(Mk(L.T("📌 Na pulpit"), () => { ShowAbDesk(); AbHideMonitor(); }));
-            brow.Children.Add(Mk(L.T("⤵ Do zasobnika"), () => AbHideMonitor()));
-            brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), AbCloseMonitor));
+            brow.Children.Add(Mk(L.T("Na pulpit"), () => { ShowAbDesk(); AbHideMonitor(); }));
+            brow.Children.Add(Mk(L.T("Do zasobnika"), () => AbHideMonitor()));
+            brow.Children.Add(Mk(L.T("Zamknij"), AbCloseMonitor));
             root.Children.Add(brow);
             var foot = T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim); root.Children.Add(foot);
-            // układ „Kokpit” (wybór właściciela, makieta A): 2 kolumny bez pustych miejsc - lewa: stan na żywo (V obok kafelków, lektor, wykres, liczby);
-            // prawa: ustawienia, korektor, widmo, przyciski; każdy element root musi trafić do kolumny (Move)
-            var cols = new Grid { Margin = new Thickness(12) };
-            cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) }); cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var c1 = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; var c3 = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+            // układ „Zakładki” (wybór właściciela, wariant 2): okno ok. 450 px - nagłówek, zakładki Podgląd / Ustawienia / Korektor;
+            // każdy element root musi trafić na którąś zakładkę (Move)
+            var cols = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
-            Move(c1, head, src);
-            var live = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            Move(cols, head, src);
+            var tabBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 8) };
+            var pages = new[] { new StackPanel(), new StackPanel(), new StackPanel() };
+            var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor") }; var tabBtn = new Button[3];
+            void ShowTab(int t)
+            {
+                for (int k = 0; k < 3; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+                SetPref("ab-zakladka", t.ToString());
+            }
+            for (int k = 0; k < 3; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(14, 4, 14, 4); tabBar.Children.Add(tabBtn[k]); }
+            cols.Children.Add(tabBar);
+            // Podgląd: V obok kafelków, lektor, wykres, widmo, wyłącznik
+            var live = new Grid();
             live.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); live.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var vCol = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 10, 0) }; var tCol = new StackPanel();
-            bigVu.Height = 130; bigVu.Margin = new Thickness(0);
-            Move(vCol, bigVu, vuLeg); Move(tCol, sum3, lekRow);
-            Grid.SetColumn(tCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); c1.Children.Add(live);
-            Move(c1, leg, hist, nums, info, bypassNote);   // paski LOW/MID/HIGH i głośności usunięte (właściciel) - zostaje widmo
-            Move(c3, prow, srow, drow, tgt, devBox, lrow, eqExp, spec, axis, bypassBtn, brow, foot);
-            Grid.SetColumn(c1, 0); Grid.SetColumn(c3, 1); cols.Children.Add(c1); cols.Children.Add(c3);
+            bigVu.Height = 105; bigVu.Margin = new Thickness(0); vuLeg.Visibility = Visibility.Collapsed;
+            Move(vCol, bigVu); sum3.Margin = new Thickness(0); Move(tCol, sum3, lekRow);
+            Grid.SetColumn(tCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); pages[0].Children.Add(live);
+            hist.Height = 70;
+            Move(pages[0], leg, hist, spec, axis, bypassBtn);
+            // Ustawienia: tryb, intensywność, dialogi, poziom, urządzenie, nauka, pomiary szczegółowe, przyciski okna
+            Move(pages[1], prow, srow, drow, tgt, devBox, lrow, nums, info, bypassNote, brow, foot);
+            tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 6);
+            // Korektor
+            eqExp.IsExpanded = true; Move(pages[2], eqExp);
+            foreach (var pg in pages) cols.Children.Add(pg);
+            ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 3 ? t0 : 0);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;
@@ -456,7 +471,7 @@ namespace Velivo
                 if ((AbLekSugText ?? "") != (string)(sugBox.Tag ?? ""))
                 {   // propozycja doradcy: Ty decydujesz (Zastosuj / Nie teraz)
                     sugBox.Tag = AbLekSugText ?? ""; sugBox.Visibility = AbLekSugText == null ? Visibility.Collapsed : Visibility.Visible;
-                    sugTxt.Text = "💡 " + (AbLekSugText ?? ""); sugBtns.Children.Clear();
+                    sugTxt.Text = AbLekSugText ?? ""; sugBtns.Children.Clear();
                     if (AbLekSugText != null)
                     {
                         bool canApply = AbLekSugApply != null;

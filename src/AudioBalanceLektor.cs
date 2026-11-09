@@ -62,7 +62,7 @@ namespace Velivo
             if (a == null) { if (k != null) AbLekDismissed.Add(k); return; }
             a(); try { _settings.Save(DataDir); } catch (Exception ex) { App.LogError(ex); }
             AbLektorUiRefresh?.Invoke(); _abLek.Reset();   // ocena od nowa - już z nowym ustawieniem
-            AbLekApplied = L.T("✔ Zastosowano: głośność lektora ") + (int)Math.Round(_settings.VlcLectorVolume * 100) + L.T("%, film podczas czytania ") + _settings.VlcLectorDuck + L.T("% – oceniam od nowa po kilku kwestiach");
+            AbLekApplied = L.T("Zastosowano: głośność lektora ") + (int)Math.Round(_settings.VlcLectorVolume * 100) + L.T("%, film podczas czytania ") + _settings.VlcLectorDuck + L.T("% – oceniam od nowa po kilku kwestiach");
             AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorDuck);   // zaakceptowane = Twoje ustawienie dla tego głosu
         }
         internal static void AbLektorSugDismiss() { if (AbLekSugKey != null) AbLekDismissed.Add(AbLekSugKey); AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; }
@@ -93,11 +93,11 @@ namespace Velivo
         internal static (string text, System.Windows.Media.Color color) AbLektorStatus()
         {
             if (_abLek.Status >= 0) AbLekApplied = null;
-            if (_abLek.Status < 0) return (AbLekApplied ?? (AbWanted && !AbBypass ? L.T("🗣 Lektor: czekam na kwestie lektora (ocena po pierwszych kwestiach)") : L.T("🗣 Lektor: ocena działa, gdy Audio Balance jest włączony")), AbLekApplied != null ? System.Windows.Media.Color.FromRgb(0x4A, 0xDE, 0x80) : System.Windows.Media.Color.FromRgb(0x8A, 0x90, 0xA6));
+            if (_abLek.Status < 0) return (AbLekApplied ?? (AbWanted && !AbBypass ? L.T("Lektor: czekam na kwestie lektora (ocena po pierwszych kwestiach)") : L.T("Lektor: ocena działa, gdy Audio Balance jest włączony")), AbLekApplied != null ? System.Windows.Media.Color.FromRgb(0x4A, 0xDE, 0x80) : System.Windows.Media.Color.FromRgb(0x8A, 0x90, 0xA6));
             string m = " (" + _abLek.Margin.ToString("+0.0;-0.0") + L.T(" dB nad filmem w paśmie mowy, ") + _abLek.Count + L.T(" kwestii)");
-            return _abLek.Status == 0 ? (L.T("🟢 Lektor dobrze słyszalny") + m, System.Windows.Media.Color.FromRgb(0x4A, 0xDE, 0x80))
-                 : _abLek.Status == 1 ? (L.T("🟡 Lektor częściowo zagłuszany") + m, System.Windows.Media.Color.FromRgb(0xFA, 0xCC, 0x15))
-                 : (L.T("🔴 Lektor zagłuszany przez film") + m, System.Windows.Media.Color.FromRgb(0xF8, 0x71, 0x71));
+            return _abLek.Status == 0 ? (L.T("● Lektor dobrze słyszalny") + m, System.Windows.Media.Color.FromRgb(0x4A, 0xDE, 0x80))
+                 : _abLek.Status == 1 ? (L.T("● Lektor częściowo zagłuszany") + m, System.Windows.Media.Color.FromRgb(0xFA, 0xCC, 0x15))
+                 : (L.T("● Lektor zagłuszany przez film") + m, System.Windows.Media.Color.FromRgb(0xF8, 0x71, 0x71));
         }
     }
 }

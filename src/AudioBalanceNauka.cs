@@ -156,8 +156,8 @@ namespace Velivo
         internal static string AbLearnInfo(string src)
         {
             if (string.IsNullOrWhiteSpace(src) || !AbLearnOn) return "";
-            AbLearnEntry e; lock (AbLearnLock) if (!AbLearnData().TryGetValue(src.Trim(), out e)) return L.T("🧠 Nowe źródło – uczę się");
-            return L.T("🧠 Znam to źródło: ") + (e.Avg < -5 && e.W > 0 ? L.T("średnia ") + e.Avg.ToString("0.0") + " LUFS (" + e.N + L.T(" seans.") + ")" : L.T("uczę się – średnia po pierwszym seansie")) + (e.Ad <= -6 ? L.T(", głośne reklamy – ściszam szybciej") : "") + (e.AdjW > 0 && Math.Abs(e.Adj) >= 0.5 ? L.T(", Twoja poprawka ") + (e.Adj >= 0 ? "+" : "") + e.Adj.ToString("0.0") + " dB" : "");
+            AbLearnEntry e; lock (AbLearnLock) if (!AbLearnData().TryGetValue(src.Trim(), out e)) return L.T("Nowe źródło – uczę się");
+            return L.T("Znam to źródło: ") + (e.Avg < -5 && e.W > 0 ? L.T("średnia ") + e.Avg.ToString("0.0") + " LUFS (" + e.N + L.T(" seans.") + ")" : L.T("uczę się – średnia po pierwszym seansie")) + (e.Ad <= -6 ? L.T(", głośne reklamy – ściszam szybciej") : "") + (e.AdjW > 0 && Math.Abs(e.Adj) >= 0.5 ? L.T(", Twoja poprawka ") + (e.Adj >= 0 ? "+" : "") + e.Adj.ToString("0.0") + " dB" : "");
         }
     }
 }

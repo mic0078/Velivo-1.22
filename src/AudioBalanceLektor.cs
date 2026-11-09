@@ -32,6 +32,7 @@ namespace Velivo
         // jedna kwestia lektora (wołane z lektora): pomiar → ocena → ewentualnie propozycja
         void AbLektorCue(double lekBandDb, double lekVol, double duck)
         {
+            if (AbProc.OutSpeechBandDb < -60 || !AbFlowing()) return;   // film akurat cichy / pauza - porównanie bez sensu (było: „+62 dB”)
             double m = AbLektorAdvisor.CueMargin(lekBandDb, lekVol, AbProc.OutSpeechBandDb, duck, AbProc.InDialogShare);
             _abLek.Add(m);
             int up = _abLek.SuggestOverUp(); if (up <= 0 || AbLekSugText != null) return;

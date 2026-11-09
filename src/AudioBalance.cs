@@ -42,6 +42,7 @@ namespace Velivo
         Thread _th; volatile bool _run, _paused; volatile int _flushReq;
         public volatile string Source = "";
         public long LateDrops, EarlyWaits;
+        public volatile int AheadFrames;   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać) - wskaźniki są o tyle opóźniane
 
         readonly LibVLCSharp.Shared.LibVLC _vlc;
         public AbOutput(AbProcessor p, LibVLCSharp.Shared.LibVLC vlc) { Proc = p; _vlc = vlc; }
@@ -124,6 +125,7 @@ namespace Velivo
                     }
                     Proc.Process(c.Data, c.Frames);
                     WriteFrames(c.Data, c.Frames, ref pcm);
+                    AheadFrames = QueuedFrames();
                     Proc.Active = true;
                 }
                 catch (Exception ex) { App.LogError(ex); Thread.Sleep(50); }
@@ -459,8 +461,8 @@ namespace Velivo
                     }
                 }
                 // FFT 2048 z ostatnich probek
-                int pos = AbProc.ScopePos;
-                for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 8192) & 8191] * hann[i] : 0; fftIm[i] = 0; }
+                int ahead = Math.Min(60000, _abOut?.AheadFrames ?? 0), pos = AbProc.ScopePos - ahead;   // fragment, który właśnie słychać (za kolejką karty)
+                for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 131072) & 65535] * hann[i] : 0; fftIm[i] = 0; }
                 AbFft(fftRe, fftIm);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
                 double lowE = 0, midE = 0, hiE = 0; double frameTop = -120;
@@ -483,7 +485,7 @@ namespace Velivo
                 double Rel(double e) { double d = 10 * Math.Log10(e / 1024 + 1e-12) + 3; return double.IsNaN(d) ? 0 : (d - (specTop - 48)) / 48; }   // ta sama skala co widmo (za głośnością)
                 lmhSet[0](Rel(lowE)); lmhSet[1](Rel(midE)); lmhSet[2](Rel(hiE));
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
-                double fm = AbProc.Out.Fast; lvlB.set(live && fm > -40 ? (fm + 40) / 40 : 0);   // 100 ms - reaguje na każde uderzenie
+                double fm = AbProc.Delayed(ahead).Fast; lvlB.set(live && fm > -40 ? (fm + 40) / 40 : 0);   // 100 ms - reaguje na każde uderzenie
                 if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)
                 {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
                     numsLast = DateTime.UtcNow;
@@ -502,7 +504,7 @@ namespace Velivo
                 {   // nowy punkt co 100 ms (blok pomiaru BS.1770)
                     hLast = DateTime.UtcNow;
                     Array.Copy(hIn, 1, hIn, 0, HN - 1); Array.Copy(hOut, 1, hOut, 0, HN - 1);
-                    hIn[HN - 1] = live ? Math.Max(-70, AbProc.Raw.Momentary) : -70; hOut[HN - 1] = live ? Math.Max(-70, AbProc.Out.Momentary) : -70;
+                    var hs = AbProc.Delayed(ahead); hIn[HN - 1] = live ? Math.Max(-70, hs.RawM) : -70; hOut[HN - 1] = live ? Math.Max(-70, hs.OutM) : -70;   // wykres też za kolejką karty - to, co słychać
                     double hw = hist.ActualWidth, hh = hist.ActualHeight;
                     double Y(double v) => hh - 4 - (Math.Max(-60, Math.Min(0, v)) + 60) / 60 * (hh - 8);
                     var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
@@ -742,8 +744,9 @@ namespace Velivo
             double np = 0; var dAt = DateTime.MinValue;
             upd = live =>
             {
-                double dl = AbProc.VuL - AbProc.VuInL, dr = AbProc.VuR - AbProc.VuInR;
-                double d = live && !AbBypass && AbProc.VuInL > -70 ? (dl + dr) / 2 : 0;
+                var sn = AbProc.Delayed(_abOut?.AheadFrames ?? 0);   // to, co słychać teraz (za kolejką karty)
+                double dl = sn.VuL - sn.VuInL, dr = sn.VuR - sn.VuInR;
+                double d = live && !AbBypass && sn.VuInL > -70 ? (dl + dr) / 2 : 0;
                 if (double.IsNaN(d) || double.IsInfinity(d)) d = 0;
                 np += (Math.Max(-15, Math.Min(15, d)) - np) * 0.7;   // szybka reakcja, bez skakania
                 var tip = np >= 0 ? tl : tr; double k = Math.Abs(np) / 15;   // podglosnione - lewe ramie, sciszone - prawe (wybor wlasciciela 2026-11-09)

@@ -245,7 +245,12 @@ namespace Velivo
         public double InDialogShare => sA < 1e-9 ? 0 : Math.Min(1, sS / sA); // udział pasma mowy w oryginale (0–1) - dialogi w filmie
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
-        public readonly float[] Scope = new float[8192]; public volatile int ScopePos; int pkN;
+        public readonly float[] Scope = new float[65536]; public volatile int ScopePos; int pkN;   // 1,4 s - wskaźniki czytają fragment, który właśnie słychać (za kolejką karty)
+        // migawki wskaźników co kawałek dźwięku (numer próbki) - wyświetlanie zsynchronizowane z tym, co słychać
+        public struct Snap { public long F; public double VuL, VuR, VuInL, VuInR, Fast, RawM, OutM; }
+        readonly Snap[] snaps = new Snap[512]; int snapI;
+        public Snap Delayed(long behind) { long target = Frames - behind; int n = snapI; for (int k = n - 1; k >= 0 && k >= n - 512; k--) { var x = snaps[k & 511]; if (x.F <= target) return x; } return n > 0 ? snaps[Math.Max(0, n - 512) & 511] : default; }
+        void SnapAdd() { snaps[snapI & 511] = new Snap { F = Frames, VuL = VuL, VuR = VuR, VuInL = VuInL, VuInR = VuInR, Fast = Out.Fast, RawM = Raw.Momentary, OutM = Out.Momentary }; snapI++; }
         public volatile bool Active; public long Frames;
         // wskazniki VU lewego i prawego kanalu wyjscia: moc RMS wygladzona ~80 ms, w dBFS
         public double VuL = double.NegativeInfinity, VuR = double.NegativeInfinity; double vuPL, vuPR; int vuN;
@@ -315,10 +320,10 @@ namespace Velivo
                     buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
                     In.Push(l, r); Out.Push(l, r); Vu(l, r);
                     double tpo = tpOut.Push(l, r); if (tpo > peakHold) peakHold = tpo;
-                    int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 8191;
+                    int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 65535;
                     if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }
                 }
-                GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; return;
+                GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; SnapAdd(); return;
             }
             for (int f = 0; f < frames; f++)
             {
@@ -409,11 +414,11 @@ namespace Velivo
                     double om = vS > 1e-3 ? (ol + or) * 0.5 / vS : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);
                 }
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
-                int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 8191;
+                int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 65535;
                 if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }   // szczyt True Peak z ostatniej sekundy
                 GainDb = g; LimitDb = 20 * Math.Log10(limG); sinceStart++;
             }
-            Frames += frames;
+            Frames += frames; SnapAdd();
         }
     }
 }

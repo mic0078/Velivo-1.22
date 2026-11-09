@@ -314,6 +314,31 @@ namespace Velivo
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
+            if (!Bypass && Vst3.Active)
+            {   // 🎛 łańcuch VST3 przejmuje przetwarzanie: oryginał → wtyczki → głośność odtwarzacza (bez korektora, dialogów i wyrównywania Velivo - bez podwójnego przetwarzania)
+                for (int f = 0; f < frames; f++)
+                {
+                    double il = buf[2 * f], ir = buf[2 * f + 1];
+                    Scope[(ScopePos + f) & 65535] = (float)((il + ir) * 0.5);   // widmo: oryginał (pozycję przesuwa druga pętla - razem z wyjściem)
+                    double vv = vS + (vol - vS) * kV; VuIn(il * vv, ir * vv); Raw.Push(il * vv, ir * vv); In.Push(il * vv, ir * vv);
+                }
+                if (Vst3.Run(buf, frames))
+                {
+                    for (int f = 0; f < frames; f++)
+                    {
+                        vS += (vol - vS) * kV;
+                        double l = buf[2 * f] * vS, r = buf[2 * f + 1] * vS;
+                        if (l > 1) l = 1; else if (l < -1) l = -1; if (r > 1) r = 1; else if (r < -1) r = -1;   // tylko bezpiecznik zakresu (o brzmieniu decydują Twoje wtyczki)
+                        buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
+                        { int sp = ScopePos; ScopeOut[sp] = vS > 1e-3 ? (float)((l + r) * 0.5 / vS) : 0f; ScopePos = (sp + 1) & 65535; }
+                        Out.Push(l, r); Vu(l, r);
+                        double tpo = tpOut.Push(l, r); if (tpo > peakHold) peakHold = tpo;
+                        if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }
+                    }
+                    GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; SnapAdd(); return;
+                }
+                In.ResetWindows(); Raw.ResetWindows();   // wszystkie wtyczki wyłączone - zwykła droga (pomiar od nowa, bez podwójnego liczenia tego kawałka)
+            }
             if (Bypass || (pr == null && !eqOn && dlg == 0))
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)

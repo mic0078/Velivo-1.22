@@ -8,6 +8,8 @@
     <!-- ikonka w zasobniku (NotifyIcon) -->
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>disable</Nullable>
+    <!-- 🎛 host VST3: wywołania wtyczek przez tablice funkcji (vtable), bez COM .NET -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Velivo</AssemblyName>
     <Product>Velivo</Product>
     <AssemblyTitle>Velivo Browser</AssemblyTitle>

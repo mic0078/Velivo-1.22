@@ -134,7 +134,7 @@ namespace Velivo
                     lock (_lk) { if (_q.Count == 0 || _paused) { Monitor.Wait(_lk, 20); c = null; } else c = _q.Dequeue(); }
                     if (c == null) { int q0 = QueuedFrames(); lock (_segs) { _posNow = _written - q0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); } continue; }   // pozycja karty także bez nowych kawałków
                     // kiedy zabrzmi pierwsza probka tego kawalka: po tym, co juz czeka w karcie, i po opoznieniu limitera (ok. 5 ms)
-                    long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + AbProcessor.LatencyFrames * 1_000_000L / AbProcessor.Fs;
+                    long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + (AbProcessor.LatencyFrames + Vst3.Latency) * 1_000_000L / AbProcessor.Fs;   // + opóźnienie wtyczek VST3 (obraz równo z dźwiękiem)
                     long gap = (c.Pts - Now) - playAt;   // > 0: VLC dal dzwiek wczesniej (zwykle) - cisza do jego chwili; < 0: spozniony
                     if (gap > 40000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs * 2L, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
                     else if (gap < -80000)
@@ -206,7 +206,7 @@ namespace Velivo
         static bool AbEqOn => GetPref("ab-eq") == "1";
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1";
-        internal static bool AbWanted => !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0);
+        internal static bool AbWanted => !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active);
 
         static void AbLoadSettings()
         {
@@ -219,6 +219,7 @@ namespace Velivo
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
             AbProc.SetEq(g.Take(10).ToArray());
+            VstLoad();   // 🎛 łańcuch VST3 (gdy aktywny - dźwięk musi iść przez procesor Velivo)
         }
 
         // przed Play: odtwarzacz oddaje dzwiek Velivo (tylko gdy Audio Balance albo korektor wlaczone); false = zwykle wyjscie VLC
@@ -257,7 +258,7 @@ namespace Velivo
         }
 
         // nowy film zawsze startuje bez pauzy: VLC nie woła „wznów” dla nowego materiału, a pauza z poprzedniego (koniec filmu, pytanie o wznowienie) zostawała - cisza
-        void AbDetach() { AbLearnEnd(); var o = _abOut; _abOut = null; o?.Dispose(); }
+        void AbDetach() { AbLearnEnd(); VstSave(); var o = _abOut; _abOut = null; o?.Dispose(); }
         internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Resume(); _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
@@ -458,14 +459,14 @@ namespace Velivo
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
             Move(cols, head, src);
             var tabBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 8) };
-            var pages = new[] { new StackPanel(), new StackPanel(), new StackPanel() };
-            var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor") }; var tabBtn = new Button[3];
+            var pages = new[] { new StackPanel(), new StackPanel(), new StackPanel(), new StackPanel() };
+            var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor"), "VST3" }; var tabBtn = new Button[4];
             void ShowTab(int t)
             {
-                for (int k = 0; k < 3; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : AbBtnBg; }
+                for (int k = 0; k < 4; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : AbBtnBg; }
                 SetPref("ab-zakladka", t.ToString());
             }
-            for (int k = 0; k < 3; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(14, 4, 14, 4); tabBar.Children.Add(tabBtn[k]); }
+            for (int k = 0; k < 4; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(14, 4, 14, 4); tabBar.Children.Add(tabBtn[k]); }
             cols.Children.Add(tabBar);
             // Podgląd: paski i V, lektor, wykres, widmo, wyłącznik
             var live = new Grid();
@@ -481,8 +482,9 @@ namespace Velivo
             tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 6);
             // Korektor
             eqExp.IsExpanded = true; Move(pages[2], eqExp);
+            pages[3].Children.Add(VstPanel(win, fg, dim, Mk));   // 🎛 Twoje wtyczki VST3
             foreach (var pg in pages) cols.Children.Add(pg);
-            ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 3 ? t0 : 0);
+            ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 4 ? t0 : 0);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;

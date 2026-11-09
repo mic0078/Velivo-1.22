@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "🎚 Wyrównywanie głośności wyłączone. Korektor / dialogi działają dalej – całość wyłączysz przyciskiem ⏻.", "🎚 Loudness levelling off. The equalizer / dialogue keep working – turn everything off with the ⏻ button." },
             { "Wskaźniki VU każdego kanału osobno (LEFT, RIGHT): zielona wskazówka – ten kanał po poprawie (słyszysz), czerwona – oryginał tego kanału; u góry tarczy ▲ dodane / ▼ odjęte dB w tym kanale.", "VU meters for each channel separately (LEFT, RIGHT): green needle – this channel after correction (what you hear), red – this channel's original; at the top of the dial ▲ added / ▼ removed dB in this channel." },
             { "━ oryginał", "━ original" },
             { "━ po poprawie (słyszysz)   ", "━ corrected (you hear)   " },

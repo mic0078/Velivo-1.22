@@ -424,6 +424,7 @@ namespace Velivo
         void AbSetProfile(string p)
         {
             SetPref("ab-profil", p); AbProc.Profile = AbProfile.ByName(p);
+            if (p == "off" && (AbEqOn || AbDialog > 0) && !AbBypass) ShowToast(L.T("🎚 Wyrównywanie głośności wyłączone. Korektor / dialogi działają dalej – całość wyłączysz przyciskiem ⏻."), null);   // Off = tylko profil; mylilo sie z wylaczeniem wszystkiego
             AbNeedsRestartHint();
         }
 

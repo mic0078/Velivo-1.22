@@ -2,7 +2,7 @@
 # Uzycie: PowerShell w folderze repozytorium ->  .\zbuduj.ps1        (z testami)
 #                                              .\zbuduj.ps1 -BezTestow
 # Wymagane raz: winget install Git.Git Microsoft.DotNet.SDK.10 JRSoftware.InnoSetup
-param([switch]$BezTestow)
+param([switch]$BezTestow, [switch]$Podstawowa)   # -Podstawowa: Velivo bezpłatne (bez Audio Balance, VST3, Supertonic i XTTS)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
@@ -23,7 +23,8 @@ Write-Host "3/4 Kompilacja programu..." -ForegroundColor Cyan
 dotnet build-server shutdown 2>$null | Out-Null   # zwalnia pliki trzymane przez poprzednia kompilacje / testy
 Remove-Item -Recurse -Force src\bin\Release\net10.0-windows10.0.19041.0\win-x64 -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
-dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo
+$edycja = if ($Podstawowa) { "-p:Podstawowa=true" } else { "-p:Podstawowa=false" }
+dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo $edycja
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -ForegroundColor Red; exit 1 }
 # Velivo Komunikator - samodzielny program (rozmowy i serwer) z tego samego kodu komunikatora
 Remove-Item -Recurse -Force build\komunikator -ErrorAction SilentlyContinue
@@ -37,19 +38,20 @@ if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSet
 # ze starym plikiem Instalator\Velivo-Setup-1.22.exe z repozytorium (strona pobierania)
 $outDir = Join-Path $PSScriptRoot 'build\instalator'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$old = Join-Path $outDir 'Velivo-Setup-1.22.exe'
+$nazwa = if ($Podstawowa) { 'Velivo-Podstawowa-Setup-1.22' } else { 'Velivo-Setup-1.22' }   # 💎 Premium: dotychczasowa nazwa; bezpłatne: osobny plik
+$old = Join-Path $outDir ($nazwa + '.exe')
 for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Force -ErrorAction Stop } catch { Start-Sleep 2 } }   # stary instalator (otwarty / sprawdzany przez antywirus) - kilka prob
 # nadal otwarty (instalator w tle / antywirus) - usunac sie nie da, ale zmienic nazwe tak: odkladamy go na bok
 if (Test-Path $old) { try { Rename-Item $old ("Velivo-Setup-stary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".exe") -ErrorAction Stop } catch { } }
 if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno instalacji Velivo i uruchom skrypt ponownie." -ForegroundColor Red; exit 1 }
 # antywirus skanuje nowy plik w chwili wstawiania ikony (EndUpdateResource failed) - do 6 prob, coraz dluzsza przerwa (dziala bez wykluczen w antywirusie)
-for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 $oldK = Join-Path $outDir 'Velivo-Komunikator-Setup-1.22.exe'
 for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
 for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 
-Write-Host "Gotowe: build\instalator\Velivo-Setup-1.22.exe (zamknij Velivo calkowicie przed instalacja)" -ForegroundColor Green
+Write-Host ("Gotowe: build\instalator\" + $nazwa + ".exe (" + $(if ($Podstawowa) { "Velivo bezplatne" } else { "Velivo Premium" }) + "; zamknij Velivo calkowicie przed instalacja)") -ForegroundColor Green
 Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-1.22.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green
 Start-Process $outDir

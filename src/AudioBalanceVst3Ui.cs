@@ -19,7 +19,7 @@ namespace Velivo
         // przy pierwszym uruchomieniu odtwarzacza z Audio Balance - wczytanie łańcucha (wtyczki z błędem pomijane, powód w Błędach Velivo)
         static void VstLoad()
         {
-            if (_vstLoaded) return; _vstLoaded = true;
+            if (_vstLoaded || !Edycja.Premium) return; _vstLoaded = true;   // 💎 VST3 - Premium (bezpłatne Velivo nie wczytuje wtyczek)
             VstConf c = null;
             try { if (System.IO.File.Exists(VstFile)) c = JsonSerializer.Deserialize<VstConf>(System.IO.File.ReadAllText(VstFile)); } catch (Exception ex) { App.LogError(ex); }
             if (c == null) return;

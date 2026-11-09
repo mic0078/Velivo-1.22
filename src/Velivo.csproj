@@ -10,6 +10,8 @@
     <Nullable>disable</Nullable>
     <!-- 🎛 host VST3: wywołania wtyczek przez tablice funkcji (vtable), bez COM .NET -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- 💎 edycja bezpłatna: dotnet publish -p:Podstawowa=true (bez Audio Balance, VST3, Supertonic i XTTS) -->
+    <DefineConstants Condition="'$(Podstawowa)' == 'true'">$(DefineConstants);PODSTAWOWA</DefineConstants>
     <AssemblyName>Velivo</AssemblyName>
     <Product>Velivo</Product>
     <AssemblyTitle>Velivo Browser</AssemblyTitle>

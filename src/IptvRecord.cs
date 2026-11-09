@@ -452,6 +452,7 @@ namespace Velivo
 
         void RecordNow(IptvChannel ch, Window owner)
         {
+            if (!PremiumOk(L.T("⏺ Nagrywanie TV"))) return;
             // do konca audycji, ktora teraz leci (z zapasem); bez programu TV - 4 godziny
             var p = EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now);
             AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p?.Title, Start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Stop = UnixMs(p != null ? p.Stop.AddMinutes(IptvSt.RecAfter) : DateTime.Now.AddHours(4)), Folder = IptvSt.RecDir });
@@ -528,6 +529,7 @@ namespace Velivo
 
         void RecordProgramme(IptvChannel ch, EpgItem p)
         {
+            if (!PremiumOk(L.T("⏺ Nagrywanie TV"))) return;
             AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p.Title, Start = UnixMs(p.Start.AddMinutes(-IptvSt.RecBefore)), Stop = UnixMs(p.Stop.AddMinutes(IptvSt.RecAfter)), Folder = IptvSt.RecDir });   // zapas na przesuniecia w programie (ustawienie)
             ShowToast(L.T("⏺ Zaplanowano nagranie: ") + p.Start.ToString("dd.MM HH:mm") + " " + p.Title, null);
         }

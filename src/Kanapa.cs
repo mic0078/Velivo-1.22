@@ -21,6 +21,7 @@ namespace Velivo
 
         internal void ShowKanapa()
         {
+            if (!PremiumOk(L.T("🛋 Kanapa"))) return;
             if (_kanapa != null) { _kanapa.Activate(); return; }
             var w = new Window
             {

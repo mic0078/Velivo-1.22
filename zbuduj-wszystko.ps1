@@ -7,7 +7,7 @@
 #   Windows - zmiany w src\, testy\ albo zbuduj.ps1
 #   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
-param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
+param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows, [switch]$Podstawowa)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
 $tylkoApk = $Przegladarka -or $Klawiatura -or $Komunikator
 if ($tylkoApk) { $Wszystko = $true; if (-not $TylkoWindows) { $TylkoAndroid = $true } }   # -TylkoWindows -Komunikator = Windows + ten APK
 $ErrorActionPreference = 'Stop'
@@ -38,7 +38,7 @@ if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od os
 Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan
 
 if ($needWin) {
-    & (Join-Path $PSScriptRoot 'zbuduj.ps1')   # testy, Velivo na Windows, instalator
+    & (Join-Path $PSScriptRoot 'zbuduj.ps1') -Podstawowa:$Podstawowa   # testy, Velivo na Windows, instalator
     if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane." -ForegroundColor Red; exit 1 }
     Set-Content (Join-Path $cfgDir 'ostatnio-windows.txt') $head
 } else { Write-Host "Windows bez zmian - pomijam (instalator z poprzedniej budowy jest aktualny)." -ForegroundColor DarkGray }

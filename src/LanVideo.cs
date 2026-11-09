@@ -271,6 +271,7 @@ namespace Velivo
         // "Odtworz na" / "Ogladaj razem" z biblioteki tego komputera
         void PlayFilmOn(LibraryVideo v, LanPeerInfo peer, bool together)
         {
+            if (together && !PremiumOk(L.T("👥 Oglądaj razem"))) return;
             // 🎞 film z serwera Jellyfin (pliku nie ma na tym komputerze) - drugi komputer bierze go z Jellyfin; wcześniej nic się nie działo
             var jf = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path);
             if (!File.Exists(v.Path) && jf == null) { ShowToast(L.T("🎬 Nie ma tego filmu na tym komputerze ani w Jellyfin"), null); return; }
@@ -392,6 +393,7 @@ namespace Velivo
         // wybrany film z biblioteki drugiego komputera: prosimy o strumien (klucz powstaje dopiero teraz, na ten jeden film)
         void WantRemoteFilm(LanPeerInfo peer, LanFilmItem item, bool together)
         {
+            if (together && !PremiumOk(L.T("👥 Oglądaj razem"))) return;
             if (!together && item.n != null && File.Exists(item.n))   // NAS widoczny tutaj - wprost z dysku sieciowego, z ustawieniami filmu
             {
                 _remoteFilms[item.n] = new RemoteFilm { PeerId = peer.Id, Id = item.i, Title = item.t, Pos = item.p, Len = item.l, Prefs = item.f };

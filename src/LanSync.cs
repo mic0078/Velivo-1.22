@@ -665,6 +665,7 @@ namespace Velivo
             }
             else if (pkt.t == "pilot")   // 🎮 Velivo Pilot z telefonu (Pilot.cs) - tylko sparowane, zaszyfrowane
             {
+                if (!Edycja.Premium) return;   // 💎 Pilot - Premium (telefon pokaże, że komputer nie odpowiada)
                 if (_lanLegacyNoKeyMode) return;
                 try { pilot = DecryptLanBlob<LanPilotCmd>(pkt); }
                 catch (Exception) { return; }

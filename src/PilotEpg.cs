@@ -200,7 +200,7 @@ namespace Velivo
         System.Net.Sockets.TcpListener _pilotTcp;
         void EnsurePilotTcp()
         {
-            if (_pilotTcp != null) return;
+            if (_pilotTcp != null || !Edycja.Premium) return;   // 💎 Pilot - Premium
             try
             {
                 var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, PilotTcpPort); l.Start(); _pilotTcp = l;

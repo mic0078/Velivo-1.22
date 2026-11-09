@@ -28,7 +28,7 @@ namespace Velivo
         }
 
         // Tag w ustawieniach: "piper:<Id>"
-        static readonly PiperVoice[] PiperVoices =
+        static readonly PiperVoice[] PiperVoicesAll =
         {
             new PiperVoice { Id = "pl_PL-gosia-medium",     Label = "Gosia (polski, naturalny offline)",      Lang = "pl", Path = "pl/pl_PL/gosia/medium/" },
             new PiperVoice { Id = "pl_PL-darkman-medium",   Label = "Darkman (polski, naturalny offline)",    Lang = "pl", Path = "pl/pl_PL/darkman/medium/" },
@@ -57,6 +57,8 @@ namespace Velivo
             new PiperVoice { Id = "xtts-own-pl", Label = "XTTS-v2 mój głos (polski, z nagrania – Ustawienia)", Lang = "pl", Xt = "@" },
             new PiperVoice { Id = "xtts-own-en", Label = "XTTS-v2 mój głos (angielski, z nagrania – Ustawienia)", Lang = "en", Xt = "@" },
         };
+        // 💎 Supertonic i XTTS (naturalne głosy) - Premium; w bezpłatnej Velivo lektor i czytnik mają Piper i głosy Windows
+        static readonly PiperVoice[] PiperVoices = Edycja.Premium ? PiperVoicesAll : PiperVoicesAll.Where(v => v.St == null && v.Xt == null).ToArray();
 
         const string PiperZipUrl = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip";
         static string PiperVoicesBase => "https://huggingface.co/rhasspy/piper-voices/resolve/" + VoiceRev("piper", "v1.0.0") + "/";   // wersja z aktualizacji glosow (GlosyAktualizacje.cs)

@@ -519,7 +519,7 @@ namespace Velivo
             ownBtn.HorizontalAlignment = HorizontalAlignment.Left; ownBtn.Margin = new Thickness(0, 0, 0, 4);
             ownBtn.ToolTip = L.T("Wybierz nagranie WAV 6–30 s czystej mowy (bez muzyki i szumu) – XTTS będzie czytać tym głosem. Tylko własny głos albo za zgodą osoby.");
             root.Children.Add(ownBtn);
-            var recBtn = SmallButton(L.T("🎤 Nagraj mój głos (mikrofon)…"), () => RecordXttsOwnVoice(win));
+            var recBtn = SmallButton(L.T("🎤 Nagraj mój głos (mikrofon)…"), () => { if (PremiumOk(L.T("🎤 Mój głos (XTTS)"))) RecordXttsOwnVoice(win); });
             recBtn.HorizontalAlignment = HorizontalAlignment.Left; recBtn.Margin = new Thickness(0, 0, 0, 4);
             recBtn.ToolTip = L.T("Nagraj 15–30 s swojego głosu prosto w Velivo – XTTS będzie nim czytać. Czytaj pokazany tekst spokojnie, w cichym pokoju.");
             root.Children.Add(recBtn);
@@ -765,49 +765,53 @@ namespace Velivo
             playerAssoc.HorizontalAlignment = HorizontalAlignment.Left; playerAssoc.Margin = new Thickness(0, 4, 0, 4);
             playerAssoc.ToolTip = L.T("Otwiera Aplikacje domyślne Windows na stronie Velivo – tam przy .mp4, .mkv, .pdf… wybierasz Velivo. Na jeden plik: prawy przycisk → Otwórz za pomocą → Velivo.");
             root.Children.Add(playerAssoc);
-            // 🎚 Dźwięk → Audio Balance (ITU-R BS.1770-4): profil, poziom docelowy, Audio Monitor
-            root.Children.Add(new TextBlock { Text = L.T("Dźwięk – Audio Balance (wyrównywanie głośności wg ITU-R BS.1770-4):"), Margin = new Thickness(0, 8, 0, 2) });
-            var abRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Tryb: Wył. – oryginalny dźwięk bez ingerencji; Auto Level – wyrównywanie odczuwalnej głośności; Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.") };
-            foreach (var p in AbProfiles) abBox.Items.Add(new ComboBoxItem { Content = AbProfileLabel(p), Tag = p, ToolTip = AbProfileTip(p) });
-            abBox.SelectedItem = abBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbProfileName) ?? abBox.Items[0];
-            ComboBox abSilaRef = null;
-            abBox.SelectionChanged += (a, b) => { if (abBox.SelectedItem is ComboBoxItem it) { AbSetProfile((string)it.Tag); if (abSilaRef != null) abSilaRef.IsEnabled = (string)it.Tag != "off"; } };
-            var abSila = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Intensywność: Light – delikatna korekta; Normal – standardowe wyrównywanie; Strong – mocniejsze wyrównywanie, np. nocą.") };
-            foreach (var sl in AbSilas) abSila.Items.Add(new ComboBoxItem { Content = AbSilaLabel(sl), Tag = sl, ToolTip = AbSilaTip(sl) });
-            abSila.SelectedItem = abSila.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbSilaName) ?? abSila.Items[1];
-            abSila.SelectionChanged += (a, b) => { if (abSila.SelectedItem is ComboBoxItem it) AbSetSila((string)it.Tag); };
-            abSila.IsEnabled = AbProfileName != "off"; abSilaRef = abSila;   // przy Wył. intensywność nieaktywna
-            var abTgt = new ComboBox { Width = 280, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
-            AbLoadSettings();
-            foreach (var v in AbTargets) abTgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
-            abTgt.SelectedItem = abTgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? abTgt.Items[0];
-            abTgt.SelectionChanged += (a, b) => { if (abTgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
-            abRow.Children.Add(abBox); abRow.Children.Add(abSila); abRow.Children.Add(abTgt);
-            var abMon = SmallButton(L.T("🎚 Audio Monitor…"), ShowAudioMonitor);
-            abMon.ToolTip = L.T("Widżet z widmem, LUFS i True Peak, korektor i wybór profilu. Można go schować do zasobnika.");
-            abRow.Children.Add(abMon);
-            root.Children.Add(abRow);
-            root.Children.Add(AbDeviceBox());
-            var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
-            CheckBox abDeskVRef = null;
-            abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) { ShowAbDesk(); if (abDeskVRef != null) abDeskVRef.IsChecked = false; } else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
-            root.Children.Add(abDeskBox);
-            var abDeskV = Check(L.T("📌 Samo „V” na pulpicie (najmniejszy widżet)"), L.T("Tylko znak V: lewe ramię – podgłośnione, prawe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu."), GetPref("ab-pulpitv") == "1");
-            abDeskV.Click += (a, b) => { if (abDeskV.IsChecked == true) { ShowAbDesk(true); abDeskBox.IsChecked = false; } else _abDeskV?.Close(); SetPref("ab-pulpitv", abDeskV.IsChecked == true ? "1" : "0"); };   // jeden widżet naraz
-            abDeskVRef = abDeskV; root.Children.Add(abDeskV);
-            var abDlg = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2), ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian.") };
-            foreach (var t in new[] { "🗣 Wyraźne dialogi: wyłączone", "🗣 Wyraźne dialogi: średnio", "🗣 Wyraźne dialogi: mocno" }) abDlg.Items.Add(L.T(t));
-            abDlg.SelectedIndex = Math.Max(0, Math.Min(2, AbDialog));
-            abDlg.SelectionChanged += (a, b) => { SetPref("ab-dialogi", abDlg.SelectedIndex.ToString()); AbProc.Dialog = abDlg.SelectedIndex; AbNeedsRestartHint(); };
-            root.Children.Add(abDlg);
-            var abByp = Check(L.T("⏻ Bez przetwarzania dźwięku (film gra bez zmian)"), L.T("Jednym kliknięciem wyłącza Audio Balance, korektor i dialogi. Ustawienia zostają."), AbBypass);
-            abByp.Click += (a, b) => AbSetBypass(abByp.IsChecked == true);
-            root.Children.Add(abByp);
-            var abLearn = Check(L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów."), AbLearnOn);
-            abLearn.Click += (a, b) => { SetPref("ab-nauka", abLearn.IsChecked == true ? "1" : "0"); if (abLearn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
-            root.Children.Add(abLearn);
-            root.Children.Add(new TextBlock { Text = L.T("Włączanie i wyłączanie działa od razu, także w trakcie filmu (przy pierwszym włączeniu chwila ciszy). Dźwięk 5.1 jest wtedy miksowany do stereo."), FontSize = 11, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) });
+            if (!Edycja.Premium) root.Children.Add(new TextBlock { Text = L.T("💎 Audio Balance (wyrównywanie głośności, Audio Monitor, korektor, VST3) jest w Velivo Premium."), Margin = new Thickness(0, 10, 0, 4), TextWrapping = TextWrapping.Wrap });
+            else
+            {
+                // 🎚 Dźwięk → Audio Balance (ITU-R BS.1770-4): profil, poziom docelowy, Audio Monitor
+                root.Children.Add(new TextBlock { Text = L.T("Dźwięk – Audio Balance (wyrównywanie głośności wg ITU-R BS.1770-4):"), Margin = new Thickness(0, 8, 0, 2) });
+                var abRow = new StackPanel { Orientation = Orientation.Horizontal };
+                var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Tryb: Wył. – oryginalny dźwięk bez ingerencji; Auto Level – wyrównywanie odczuwalnej głośności; Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.") };
+                foreach (var p in AbProfiles) abBox.Items.Add(new ComboBoxItem { Content = AbProfileLabel(p), Tag = p, ToolTip = AbProfileTip(p) });
+                abBox.SelectedItem = abBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbProfileName) ?? abBox.Items[0];
+                ComboBox abSilaRef = null;
+                abBox.SelectionChanged += (a, b) => { if (abBox.SelectedItem is ComboBoxItem it) { AbSetProfile((string)it.Tag); if (abSilaRef != null) abSilaRef.IsEnabled = (string)it.Tag != "off"; } };
+                var abSila = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Intensywność: Light – delikatna korekta; Normal – standardowe wyrównywanie; Strong – mocniejsze wyrównywanie, np. nocą.") };
+                foreach (var sl in AbSilas) abSila.Items.Add(new ComboBoxItem { Content = AbSilaLabel(sl), Tag = sl, ToolTip = AbSilaTip(sl) });
+                abSila.SelectedItem = abSila.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbSilaName) ?? abSila.Items[1];
+                abSila.SelectionChanged += (a, b) => { if (abSila.SelectedItem is ComboBoxItem it) AbSetSila((string)it.Tag); };
+                abSila.IsEnabled = AbProfileName != "off"; abSilaRef = abSila;   // przy Wył. intensywność nieaktywna
+                var abTgt = new ComboBox { Width = 280, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
+                AbLoadSettings();
+                foreach (var v in AbTargets) abTgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
+                abTgt.SelectedItem = abTgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? abTgt.Items[0];
+                abTgt.SelectionChanged += (a, b) => { if (abTgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
+                abRow.Children.Add(abBox); abRow.Children.Add(abSila); abRow.Children.Add(abTgt);
+                var abMon = SmallButton(L.T("🎚 Audio Monitor…"), ShowAudioMonitor);
+                abMon.ToolTip = L.T("Widżet z widmem, LUFS i True Peak, korektor i wybór profilu. Można go schować do zasobnika.");
+                abRow.Children.Add(abMon);
+                root.Children.Add(abRow);
+                root.Children.Add(AbDeviceBox());
+                var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
+                CheckBox abDeskVRef = null;
+                abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) { ShowAbDesk(); if (abDeskVRef != null) abDeskVRef.IsChecked = false; } else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
+                root.Children.Add(abDeskBox);
+                var abDeskV = Check(L.T("📌 Samo „V” na pulpicie (najmniejszy widżet)"), L.T("Tylko znak V: lewe ramię – podgłośnione, prawe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu."), GetPref("ab-pulpitv") == "1");
+                abDeskV.Click += (a, b) => { if (abDeskV.IsChecked == true) { ShowAbDesk(true); abDeskBox.IsChecked = false; } else _abDeskV?.Close(); SetPref("ab-pulpitv", abDeskV.IsChecked == true ? "1" : "0"); };   // jeden widżet naraz
+                abDeskVRef = abDeskV; root.Children.Add(abDeskV);
+                var abDlg = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2), ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian.") };
+                foreach (var t in new[] { "🗣 Wyraźne dialogi: wyłączone", "🗣 Wyraźne dialogi: średnio", "🗣 Wyraźne dialogi: mocno" }) abDlg.Items.Add(L.T(t));
+                abDlg.SelectedIndex = Math.Max(0, Math.Min(2, AbDialog));
+                abDlg.SelectionChanged += (a, b) => { SetPref("ab-dialogi", abDlg.SelectedIndex.ToString()); AbProc.Dialog = abDlg.SelectedIndex; AbNeedsRestartHint(); };
+                root.Children.Add(abDlg);
+                var abByp = Check(L.T("⏻ Bez przetwarzania dźwięku (film gra bez zmian)"), L.T("Jednym kliknięciem wyłącza Audio Balance, korektor i dialogi. Ustawienia zostają."), AbBypass);
+                abByp.Click += (a, b) => AbSetBypass(abByp.IsChecked == true);
+                root.Children.Add(abByp);
+                var abLearn = Check(L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów."), AbLearnOn);
+                abLearn.Click += (a, b) => { SetPref("ab-nauka", abLearn.IsChecked == true ? "1" : "0"); if (abLearn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
+                root.Children.Add(abLearn);
+                root.Children.Add(new TextBlock { Text = L.T("Włączanie i wyłączanie działa od razu, także w trakcie filmu (przy pierwszym włączeniu chwila ciszy). Dźwięk 5.1 jest wtedy miksowany do stereo."), FontSize = 11, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) });
+            }
 
             // ---------- torrenty: osobna strefa ----------
             root.Children.Add(Header(L.T("Torrenty")));

@@ -206,7 +206,7 @@ namespace Velivo
         static bool AbEqOn => GetPref("ab-eq") == "1";
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1";
-        internal static bool AbWanted => !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active);
+        internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active);
 
         static void AbLoadSettings()
         {
@@ -274,6 +274,7 @@ namespace Velivo
 
         internal void ShowAudioMonitor()
         {
+            if (!Edycja.Premium) { ShowToast(L.T("💎 Audio Balance i Audio Monitor są w Velivo Premium"), null); return; }
             if (_abWin != null) { _abWin.Show(); if (_abWin.WindowState == WindowState.Minimized) _abWin.WindowState = WindowState.Normal; _abWin.Activate(); _abTimer?.Start(); return; }
             AbLoadSettings();
             var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = AbFg; var dim = AbDim;
@@ -693,6 +694,7 @@ namespace Velivo
         // onlyV = drugi, najmniejszy widzet: samo „V” (bez napisow) - te same mozliwosci (menu, na wierzchu, przezroczystosc, przeciaganie)
         internal void ShowAbDesk(bool onlyV = false)
         {
+            if (!Edycja.Premium) return;   // 💎 widżety Audio Balance - Premium
             var cur0 = onlyV ? _abDeskV : _abDesk;
             if (cur0 != null) { cur0.Show(); cur0.Activate(); return; }
             // na pulpicie zawsze jeden widżet: pokazanie jednego zamienia drugi (miejsce przechodzi na nowy, jeśli nie ma własnego)

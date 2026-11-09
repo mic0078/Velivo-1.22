@@ -128,7 +128,7 @@ public class IntegrityTests
     [Fact]
     public async Task Piper_z_GitHuba_zgadza_sie_z_przypieta_suma()
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) }; http.DefaultRequestHeaders.UserAgent.ParseAdd("Velivo");   // jak Velivo i przeglądarka - bez nazwy część sieci odpowiada 504
         var f = Tool(await Get(http, "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"));
         Assert.True(Integrity.Matches(f, Integrity.PiperZipSha256));
         var b = File.ReadAllBytes(f); b[b.Length / 2] ^= 0xFF; File.WriteAllBytes(f, b);   // jeden zmieniony bajt
@@ -138,7 +138,7 @@ public class IntegrityTests
     [Fact]
     public async Task YtDlp_z_GitHuba_przechodzi_weryfikacje_z_SHA2_256SUMS()
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) }; http.DefaultRequestHeaders.UserAgent.ParseAdd("Velivo");   // jak Velivo i przeglądarka - bez nazwy część sieci odpowiada 504
         var f = Tool(await Get(http, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"));
         await Integrity.VerifyAgainstSumsAsync(http, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", "yt-dlp.exe", f);
     }

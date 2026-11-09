@@ -304,7 +304,8 @@ namespace Velivo
                 var sp = new StackPanel { ToolTip = tips[i] }; sp.Children.Add(T(names[i], 10, dim)); vals[i] = T("–", 15, fg, FontWeights.SemiBold); System.Windows.Documents.Typography.SetNumeralAlignment(vals[i], FontNumeralAlignment.Tabular); sp.Children.Add(vals[i]);
                 Grid.SetColumn(sp, i); nums.Children.Add(sp);
             }
-            root.Children.Add(nums);
+            var numsHead = T(L.T("GŁOŚNOŚĆ PO VELIVO (LUFS)"), 10, dim, FontWeights.SemiBold); numsHead.Margin = new Thickness(0, 10, 0, 2);   // nagłówek grupy - pomiary w trzech podpisanych grupach
+            root.Children.Add(numsHead); root.Children.Add(nums);
             // wykres glosnosci: ORIGINAL (wejscie) i AUDIOBALANCE (wyjscie), ostatnie 15 s, linia poziomu docelowego
             var leg = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
             var red = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53)); var green = new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A));
@@ -317,16 +318,18 @@ namespace Velivo
             root.Children.Add(hist);
             const int HN = 150; var hIn = new double[HN]; var hOut = new double[HN]; for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70; var hLast = DateTime.MinValue;
             // szczegóły pracy procesora: stała siatka 3×2 (podpis nad wartością), cyfry równej szerokości, odświeżanie 4×/s - nie skacze i nie mruga
-            var info = new Grid { Margin = new Thickness(0, 8, 0, 0) }; var infoV = new TextBlock[6]; var infoL = new TextBlock[6];
+            var info = new Grid { Margin = new Thickness(0, 10, 0, 0) }; var infoV = new TextBlock[6]; var infoL = new TextBlock[6];
             var infoNames = new[] { L.T("Wzmocnienie"), L.T("Dialogi"), L.T("Limiter"), L.T("Wejście (3 s)"), L.T("Zgrywanie: cisza"), L.T("Pominięte") };
-            for (int i = 0; i < 3; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
-            for (int i = 0; i < 2; i++) info.RowDefinitions.Add(new RowDefinition());
+            for (int i = 0; i < 4; i++) info.ColumnDefinitions.Add(new ColumnDefinition());
+            for (int i = 0; i < 4; i++) info.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            foreach (var (txt, row) in new[] { (L.T("PRACA VELIVO"), 0), (L.T("SYNCHRONIZACJA DŹWIĘKU"), 2) }) { var h = T(txt, 10, dim, FontWeights.SemiBold); h.Margin = new Thickness(0, row == 0 ? 0 : 6, 0, 2); Grid.SetRow(h, row); Grid.SetColumnSpan(h, 4); info.Children.Add(h); }
+            var infoPos = new[] { (1, 0), (1, 2), (1, 1), (1, 3), (3, 0), (3, 1) };   // wiersz, kolumna: wzmocnienie, limiter, dialogi, wejście | cisza, pominięte
             for (int i = 0; i < 6; i++)
             {
                 var sp = new StackPanel { Margin = new Thickness(0, 0, 6, 4) };
                 infoL[i] = T(infoNames[i], 10, dim); infoV[i] = T("–", 12, fg, FontWeights.SemiBold);
                 System.Windows.Documents.Typography.SetNumeralAlignment(infoV[i], FontNumeralAlignment.Tabular);
-                sp.Children.Add(infoL[i]); sp.Children.Add(infoV[i]); Grid.SetColumn(sp, i % 3); Grid.SetRow(sp, i / 3); info.Children.Add(sp);
+                sp.Children.Add(infoL[i]); sp.Children.Add(infoV[i]); Grid.SetRow(sp, infoPos[i].Item1); Grid.SetColumn(sp, infoPos[i].Item2); info.Children.Add(sp);
             }
             var bypassNote = T(L.T("Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)"), 11, dim); bypassNote.Margin = new Thickness(0, 8, 0, 0);
             root.Children.Add(info); root.Children.Add(bypassNote);
@@ -439,9 +442,9 @@ namespace Velivo
             Move(vCol, bigVu); sum3.Margin = new Thickness(0); Move(tCol, sum3, lekRow);
             Grid.SetColumn(tCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); pages[0].Children.Add(live);
             hist.Height = 70;
-            Move(pages[0], leg, hist, spec, axis, bypassBtn);
+            Move(pages[0], leg, hist, spec, axis, numsHead, nums, info, bypassNote, bypassBtn);
             // Ustawienia: tryb, intensywność, dialogi, poziom, urządzenie, nauka, pomiary szczegółowe, przyciski okna
-            Move(pages[1], prow, srow, drow, tgt, devBox, lrow, nums, info, bypassNote, brow, foot);
+            Move(pages[1], prow, srow, drow, tgt, devBox, lrow, brow, foot);
             tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 6);
             // Korektor
             eqExp.IsExpanded = true; Move(pages[2], eqExp);

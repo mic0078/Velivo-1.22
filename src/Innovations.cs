@@ -831,9 +831,7 @@ try { if (C.receipt) {
         {
             foreach (var k in KnownCompanies)
                 if (site == k.Domain || site.EndsWith("." + k.Domain)) return (k.Company, k.Country, k.Broker);
-            string country = null;
-            var tld = site.Substring(site.LastIndexOf('.') + 1);
-            CountryByTld.TryGetValue(tld, out country);
+            CountryByTld.TryGetValue(site.Substring(site.LastIndexOf('.') + 1), out var country);
             return (site, country, false);
         }
 

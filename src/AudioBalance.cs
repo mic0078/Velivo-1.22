@@ -222,6 +222,18 @@ namespace Velivo
         }
 
         // przed Play: odtwarzacz oddaje dzwiek Velivo (tylko gdy Audio Balance albo korektor wlaczone); false = zwykle wyjscie VLC
+        // kolory Audio Monitora - jedno miejsce, zamrożone (bez nowych obiektów przy każdym odświeżeniu)
+        static SolidColorBrush AbBrush(byte r, byte g, byte b) { var x = new SolidColorBrush(Color.FromRgb(r, g, b)); x.Freeze(); return x; }
+        static readonly SolidColorBrush AbBtnBg = AbBrush(0x24, 0x27, 0x33);
+        static readonly SolidColorBrush AbViolet = AbBrush(0x8B, 0x6B, 0xFF);
+        static readonly SolidColorBrush AbCyan = AbBrush(0x5F, 0xF2, 0xE4);
+        static readonly SolidColorBrush AbRed = AbBrush(0xE5, 0x53, 0x53);
+        static readonly SolidColorBrush AbDim = AbBrush(0x8A, 0x90, 0xA6);
+        static readonly SolidColorBrush AbFg = AbBrush(0xE8, 0xEA, 0xF2);
+        static readonly SolidColorBrush AbGreen = AbBrush(0x3D, 0xDC, 0x5A);
+        static readonly SolidColorBrush AbTeal = AbBrush(0x2E, 0xD3, 0xC6);
+        static readonly SolidColorBrush AbDark = AbBrush(0x0C, 0x0D, 0x14);
+
         bool AbAttach(LibVLCSharp.Shared.MediaPlayer mp)
         {
             AbLoadSettings();
@@ -263,8 +275,8 @@ namespace Velivo
         {
             if (_abWin != null) { _abWin.Show(); if (_abWin.WindowState == WindowState.Minimized) _abWin.WindowState = WindowState.Normal; _abWin.Activate(); _abTimer?.Start(); return; }
             AbLoadSettings();
-            var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
-            var acc = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)); var acc2 = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6));
+            var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = AbFg; var dim = AbDim;
+            var acc = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)); var acc2 = AbTeal;
             var win = new Window { Title = "Velivo – Audio Monitor", Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
             var root = new StackPanel { Margin = new Thickness(12) };
             TextBlock T(string s, double size = 12, Brush c = null, FontWeight? w = null) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? fg, FontWeight = w ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap };
@@ -278,11 +290,11 @@ namespace Velivo
             var lekTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, MinHeight = 34, ToolTip = L.T("Doradca lektora: porównuje lektora i film w paśmie zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu i dialogów w filmie. Ocena z 10 ostatnich kwestii. Sam niczego nie zmienia.") };
             var sugTxt = new TextBlock { FontSize = 11, Foreground = fg, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
             var sugBtns = new WrapPanel();
-            var sugBox = new Border { Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed, Child = new StackPanel { Children = { sugTxt, sugBtns } } };
+            var sugBox = new Border { Background = AbBtnBg, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed, Child = new StackPanel { Children = { sugTxt, sugBtns } } };
             lekRow.Children.Add(lekTxt); lekRow.Children.Add(sugBox); root.Children.Add(lekRow);
             // widmo (FFT z prawdziwych probek wyjscia)
             const int NB = 32;
-            var spec = new Canvas { Height = 56, Background = new SolidColorBrush(Color.FromRgb(0x0C, 0x0D, 0x14)), Margin = new Thickness(0, 8, 0, 4), ClipToBounds = true };
+            var spec = new Canvas { Height = 56, Background = AbDark, Margin = new Thickness(0, 8, 0, 4), ClipToBounds = true };
             var bars = new Rectangle[NB]; var peaks = new Rectangle[NB]; var hold = new double[NB];
             var grad = new LinearGradientBrush(Color.FromRgb(0x2E, 0xD3, 0xC6), Color.FromRgb(0x7C, 0x5C, 0xFF), 90);
             for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1.5, RadiusY = 1.5 }; peaks[i] = new Rectangle { Fill = fg, Height = 2, Opacity = 0.8 }; spec.Children.Add(bars[i]); spec.Children.Add(peaks[i]); }
@@ -293,7 +305,7 @@ namespace Velivo
             bigVu.ToolTip = L.T("Lewe ramię V (jasny turkus) – Velivo podgłośniło, prawe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.");
             root.Children.Add(bigVu);
             var vuLeg = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
-            vuLeg.Children.Add(T(L.T("◀ podgłośnione   "), 10, new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)))); vuLeg.Children.Add(T(L.T("puste V = bez zmiany   "), 10, dim)); vuLeg.Children.Add(T(L.T("ściszone ▶"), 10, new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF))));
+            vuLeg.Children.Add(T(L.T("◀ podgłośnione   "), 10, AbCyan)); vuLeg.Children.Add(T(L.T("puste V = bez zmiany   "), 10, dim)); vuLeg.Children.Add(T(L.T("ściszone ▶"), 10, AbViolet));
             root.Children.Add(vuLeg);
             var nums = new Grid { Margin = new Thickness(0, 4, 0, 0) }; var vals = new TextBlock[4];
             var names = new[] { L.T("Chwilowa"), L.T("3 s"), L.T("Całość"), "True Peak" };
@@ -308,10 +320,10 @@ namespace Velivo
             root.Children.Add(numsHead); root.Children.Add(nums);
             // wykres glosnosci: ORIGINAL (wejscie) i AUDIOBALANCE (wyjscie), ostatnie 15 s, linia poziomu docelowego
             var leg = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
-            var red = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53)); var green = new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A));
+            var red = AbRed; var green = AbGreen;
             leg.Children.Add(T("● ORIGINAL   ", 10, red, FontWeights.SemiBold)); leg.Children.Add(T("● AUDIOBALANCE", 10, green, FontWeights.SemiBold));
             root.Children.Add(leg);
-            var hist = new Canvas { Height = 90, Background = new SolidColorBrush(Color.FromRgb(0x0C, 0x0D, 0x14)), ClipToBounds = true, ToolTip = L.T("Głośność chwilowa z ostatnich 15 s: czerwona – oryginał, zielona – po Audio Balance. Przerywana linia – poziom docelowy.") };
+            var hist = new Canvas { Height = 90, Background = AbDark, ClipToBounds = true, ToolTip = L.T("Głośność chwilowa z ostatnich 15 s: czerwona – oryginał, zielona – po Audio Balance. Przerywana linia – poziom docelowy.") };
             var plIn = new Polyline { Stroke = red, StrokeThickness = 1.5 }; var plOut = new Polyline { Stroke = green, StrokeThickness = 2 };
             var tl = new Line { Stroke = green, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 4, 3 }, Opacity = 0.6 }; var tlTxt = T("", 9, green);
             hist.Children.Add(tl); hist.Children.Add(tlTxt); hist.Children.Add(plIn); hist.Children.Add(plOut);
@@ -337,26 +349,26 @@ namespace Velivo
             // profil i cel - zmiana od razu w glownym procesorze
             var prow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
             var pbtn = new Dictionary<string, Button>();
-            Button Mk(string text, Action a) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 3, 10, 3), Foreground = fg, Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3E, 0x52)), BorderThickness = new Thickness(1), Template = KomBtnTemplate }; b.Click += (s, e) => a(); return b; }   // własny szablon: zwykły przycisk Windows robił się biały po najechaniu (napis niewidoczny)
+            Button Mk(string text, Action a) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 3, 10, 3), Foreground = fg, Background = AbBtnBg, BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3E, 0x52)), BorderThickness = new Thickness(1), Template = KomBtnTemplate }; b.Click += (s, e) => a(); return b; }   // własny szablon: zwykły przycisk Windows robił się biały po najechaniu (napis niewidoczny)
             Action MarkSilaRef = null;
-            void MarkProfile() { foreach (var kv in pbtn) kv.Value.Background = kv.Key == AbProfileName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); MarkSilaRef?.Invoke(); }
+            void MarkProfile() { foreach (var kv in pbtn) kv.Value.Background = kv.Key == AbProfileName ? acc : AbBtnBg; MarkSilaRef?.Invoke(); }
             foreach (var p in AbProfiles) { var pp = p; var b = Mk(AbProfileLabel(p), () => { AbSetProfile(pp); MarkProfile(); }); b.ToolTip = AbProfileTip(p); pbtn[p] = b; prow.Children.Add(b); }
             MarkProfile();
             root.Children.Add(prow);
             var srow = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) }; var sbtn = new Dictionary<string, Button>();
             srow.Children.Add(new TextBlock { Text = L.T("Intensywność:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
-            void MarkSila() { bool on = AbProfileName != "off"; foreach (var kv in sbtn) { kv.Value.IsEnabled = on; kv.Value.Opacity = on ? 1 : 0.4; kv.Value.Background = on && kv.Key == AbSilaName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); } }   // przy Wył. intensywność nieaktywna
+            void MarkSila() { bool on = AbProfileName != "off"; foreach (var kv in sbtn) { kv.Value.IsEnabled = on; kv.Value.Opacity = on ? 1 : 0.4; kv.Value.Background = on && kv.Key == AbSilaName ? acc : AbBtnBg; } }   // przy Wył. intensywność nieaktywna
             foreach (var sl0 in AbSilas) { var ss = sl0; var b = Mk(AbSilaLabel(sl0), () => { AbSetSila(ss); MarkSila(); }); b.ToolTip = AbSilaTip(sl0); sbtn[sl0] = b; srow.Children.Add(b); }
             MarkSila(); MarkSilaRef = MarkSila; root.Children.Add(srow);
             // 🗣 wyrazne dialogi (opcja dodatkowa) i ⏻ wylacz wszystko jednym przyciskiem
             var drow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             drow.Children.Add(new TextBlock { Text = L.T("Wyraźne dialogi:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
             var dbtn = new Button[3]; var dnames = new[] { L.T("Wył."), L.T("Średnio"), L.T("Mocno") };
-            void MarkDialog() { for (int i = 0; i < 3; i++) dbtn[i].Background = i == AbDialog ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            void MarkDialog() { for (int i = 0; i < 3; i++) dbtn[i].Background = i == AbDialog ? acc : AbBtnBg; }
             for (int i = 0; i < 3; i++) { int di = i; dbtn[i] = Mk(dnames[i], () => { SetPref("ab-dialogi", di.ToString()); AbProc.Dialog = di; MarkDialog(); AbNeedsRestartHint(); }); dbtn[i].ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian."); drow.Children.Add(dbtn[i]); }
             MarkDialog(); root.Children.Add(drow);
             var bypassBtn = Mk("", () => { });
-            void MarkBypass() { bypassBtn.Content = AbBypass ? L.T("⏻ Przetwarzanie WYŁĄCZONE – kliknij, aby włączyć") : !AbWanted ? L.T("⏻ Nic nie jest włączone – kliknij, aby włączyć (Balanced)") : L.T("⏻ Wyłącz całe przetwarzanie"); bypassBtn.Background = AbBypass ? new SolidColorBrush(Color.FromRgb(0x8A, 0x2B, 0x2B)) : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            void MarkBypass() { bypassBtn.Content = AbBypass ? L.T("⏻ Przetwarzanie WYŁĄCZONE – kliknij, aby włączyć") : !AbWanted ? L.T("⏻ Nic nie jest włączone – kliknij, aby włączyć (Balanced)") : L.T("⏻ Wyłącz całe przetwarzanie"); bypassBtn.Background = AbBypass ? new SolidColorBrush(Color.FromRgb(0x8A, 0x2B, 0x2B)) : AbBtnBg; }
             bypassBtn.Click += (s, e) => { if (!AbBypass && !AbWanted) { AbSetProfile("auto"); MarkProfile(); } else AbSetBypass(!AbBypass); MarkBypass(); };
             bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
             MarkBypass(); root.Children.Insert(2, bypassBtn);
@@ -429,7 +441,7 @@ namespace Velivo
             var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor") }; var tabBtn = new Button[3];
             void ShowTab(int t)
             {
-                for (int k = 0; k < 3; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+                for (int k = 0; k < 3; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : AbBtnBg; }
                 SetPref("ab-zakladka", t.ToString());
             }
             for (int k = 0; k < 3; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(14, 4, 14, 4); tabBar.Children.Add(tabBtn[k]); }
@@ -508,11 +520,11 @@ namespace Velivo
                     numsLast = DateTime.UtcNow;
                     {
                         double si = AbProc.Raw.Gated10 > double.NegativeInfinity ? AbProc.Raw.Gated10 : AbProc.Raw.ShortTerm, so = AbProc.Out.Gated10 > double.NegativeInfinity ? AbProc.Out.Gated10 : AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
-                        sumV[0].Text = F(si) + " LUFS"; sumV[0].Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53));
+                        sumV[0].Text = F(si) + " LUFS"; sumV[0].Foreground = AbRed;
                         sumL[1].Text = !okd || Math.Abs(dd) < 0.25 ? L.T("ZMIANA") : dd > 0 ? L.T("PODGŁOŚNIONO") : L.T("ŚCISZONO");
                         sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0 dB" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0") + " dB";
-                        sumV[1].Foreground = !okd || Math.Abs(dd) < 0.25 ? fg : dd > 0 ? new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)) : new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF));
-                        sumV[2].Text = F(so) + " LUFS"; sumV[2].Foreground = new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A));
+                        sumV[1].Foreground = !okd || Math.Abs(dd) < 0.25 ? fg : dd > 0 ? AbCyan : AbViolet;
+                        sumV[2].Text = F(so) + " LUFS"; sumV[2].Foreground = AbGreen;
                     }
                     vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
                     vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;
@@ -664,7 +676,7 @@ namespace Velivo
             // na pulpicie zawsze jeden widżet: pokazanie jednego zamienia drugi (miejsce przechodzi na nowy, jeśli nie ma własnego)
             var other = onlyV ? _abDesk : _abDeskV; double? swapL = other?.Left, swapT = other?.Top; other?.Close();
             string key = onlyV ? "ab-pulpitv" : "ab-pulpit";
-            var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
+            var fg = AbFg; var dim = AbDim;
             var w = new Window { Title = onlyV ? "Velivo – V (pulpit)" : "Velivo – Audio Monitor (pulpit)", Width = onlyV ? 66 : 156, Height = onlyV ? 62 : 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;
             if (swapL.HasValue && swapT.HasValue) { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = swapL.Value; w.Top = swapT.Value; SetPref(key + "-x", swapL.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref(key + "-y", swapT.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); }   // zamiana - w tym samym miejscu
@@ -673,15 +685,15 @@ namespace Velivo
             else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - (onlyV ? 90 : 170); w.Top = SystemParameters.WorkArea.Top + 20; }
             var g = new Grid { Margin = new Thickness(8, 4, 8, 4) };
             g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var top = new DockPanel(); var st = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
+            var top = new DockPanel(); var st = new TextBlock { FontSize = 10, Foreground = AbTeal, FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
             var lufs = new TextBlock { FontSize = 10, Foreground = fg, FontWeight = FontWeights.SemiBold }; top.Children.Add(lufs); g.Children.Add(top);
             // dwa wskazniki wskazowkowe VU (jak w magnetofonie/wzmacniaczu): LEFT i RIGHT, skala -20..+3 VU (0 VU = -18 dBFS RMS), czerwone pole powyzej 0;
             // na dole: oryginal w LUFS i ile Velivo dodalo (▲ zielone) albo odjelo (▼ pomaranczowe) decybeli
-            var green = new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)); var orange = new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF));   // kolory Velivo: turkus = glosniej, fiolet = ciszej (napis - jasniejszy fiolet)
+            var green = AbCyan; var orange = AbViolet;   // kolory Velivo: turkus = glosniej, fiolet = ciszej (napis - jasniejszy fiolet)
             var vuPair = AbVuPair(out var vuUpd, !onlyV); vuPair.Margin = new Thickness(0, 2, 0, 2); Grid.SetRow(vuPair, 1); g.Children.Add(vuPair);
             var bottom = new DockPanel(); Grid.SetRow(bottom, 2); g.Children.Add(bottom);
             var delta = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(delta, Dock.Right); bottom.Children.Add(delta);
-            var orig = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53)) }; bottom.Children.Add(orig);
+            var orig = new TextBlock { FontSize = 10, Foreground = AbRed }; bottom.Children.Add(orig);
             System.Windows.Documents.Typography.SetNumeralAlignment(delta, FontNumeralAlignment.Tabular); System.Windows.Documents.Typography.SetNumeralAlignment(orig, FontNumeralAlignment.Tabular);
             var numsAt = DateTime.MinValue;
             if (onlyV) { top.Visibility = Visibility.Collapsed; bottom.Visibility = Visibility.Collapsed; g.Margin = new Thickness(4); }
@@ -746,11 +758,11 @@ namespace Velivo
         FrameworkElement AbVuPair(out Action<bool> upd, bool number = true)
         {
             var cv = new Canvas { Width = 90, Height = number ? 80 : 64 };
-            var G = new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)); var O = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD6)); var dimB = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));   // kolory Velivo
-            var OT = new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF));   // napis „ściszone” jaśniejszy - ciemny fiolet na ciemnym tle byłby nieczytelny
+            var G = AbCyan; var O = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD6)); var dimB = AbDim;   // kolory Velivo
+            var OT = AbViolet;   // napis „ściszone” jaśniejszy - ciemny fiolet na ciemnym tle byłby nieczytelny
             var logoBrush = new LinearGradientBrush(Color.FromRgb(0x7C, 0x5C, 0xFF), Color.FromRgb(0x2E, 0xD3, 0xC6), 90);
             Point bot = new Point(45, 58), tl = new Point(17, 8), tr = new Point(73, 8);
-            cv.Children.Add(new Polyline { Points = new PointCollection { tl, bot, tr }, Stroke = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), StrokeThickness = 11, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+            cv.Children.Add(new Polyline { Points = new PointCollection { tl, bot, tr }, Stroke = AbBtnBg, StrokeThickness = 11, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
             var arm = new Line { X1 = bot.X, Y1 = bot.Y, X2 = bot.X, Y2 = bot.Y, StrokeThickness = 11, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Stroke = G };
             cv.Children.Add(arm);
             cv.Children.Add(new Polyline { Points = new PointCollection { tl, bot, tr }, Stroke = logoBrush, StrokeThickness = 1.3, StrokeLineJoin = PenLineJoin.Round, Opacity = 0.9 });

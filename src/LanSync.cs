@@ -261,8 +261,6 @@ namespace Velivo
         {
             var settings = SharedLanSettings(ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt")));
             var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
-            var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
-            var sessionActive = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt.aktywna"));
             var privacy = ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt"));
             var profiles = ReadProfilesRegistry();
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);

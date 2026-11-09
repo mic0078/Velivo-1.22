@@ -563,16 +563,19 @@ namespace Velivo
 
         // 📌 maly widzet na pulpicie: widmo + LUFS + profil, bez ramki, pod innymi oknami (jak gadzet), przeciaganie mysza,
         // dwuklik = pelny Audio Monitor, prawy przycisk = menu; miejsce zapamietane
-        Window _abDesk;
-        internal void ShowAbDesk()
+        Window _abDesk, _abDeskV;
+        // onlyV = drugi, najmniejszy widzet: samo „V” (bez napisow) - te same mozliwosci (menu, na wierzchu, przezroczystosc, przeciaganie)
+        internal void ShowAbDesk(bool onlyV = false)
         {
-            if (_abDesk != null) { _abDesk.Show(); _abDesk.Activate(); return; }
+            var cur0 = onlyV ? _abDeskV : _abDesk;
+            if (cur0 != null) { cur0.Show(); cur0.Activate(); return; }
+            string key = onlyV ? "ab-pulpitv" : "ab-pulpit";
             var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
-            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 156, Height = 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
+            var w = new Window { Title = onlyV ? "Velivo – V (pulpit)" : "Velivo – Audio Monitor (pulpit)", Width = onlyV ? 66 : 156, Height = onlyV ? 62 : 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;
-            if (double.TryParse(GetPref("ab-pulpit-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref("ab-pulpit-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
+            if (double.TryParse(GetPref(key + "-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref(key + "-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
             { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = l0; w.Top = t0; }
-            else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - 150; w.Top = SystemParameters.WorkArea.Top + 20; }
+            else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - (onlyV ? 90 : 170); w.Top = SystemParameters.WorkArea.Top + 20; }
             var g = new Grid { Margin = new Thickness(8, 4, 8, 4) };
             g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var top = new DockPanel(); var st = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
@@ -580,16 +583,17 @@ namespace Velivo
             // dwa wskazniki wskazowkowe VU (jak w magnetofonie/wzmacniaczu): LEFT i RIGHT, skala -20..+3 VU (0 VU = -18 dBFS RMS), czerwone pole powyzej 0;
             // na dole: oryginal w LUFS i ile Velivo dodalo (▲ zielone) albo odjelo (▼ pomaranczowe) decybeli
             var green = new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)); var orange = new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF));   // kolory Velivo: turkus = glosniej, fiolet = ciszej (napis - jasniejszy fiolet)
-            var vuPair = AbVuPair(out var vuUpd); vuPair.Margin = new Thickness(0, 2, 0, 2); Grid.SetRow(vuPair, 1); g.Children.Add(vuPair);
+            var vuPair = AbVuPair(out var vuUpd, !onlyV); vuPair.Margin = new Thickness(0, 2, 0, 2); Grid.SetRow(vuPair, 1); g.Children.Add(vuPair);
             var bottom = new DockPanel(); Grid.SetRow(bottom, 2); g.Children.Add(bottom);
             var delta = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(delta, Dock.Right); bottom.Children.Add(delta);
             var orig = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53)) }; bottom.Children.Add(orig);
             System.Windows.Documents.Typography.SetNumeralAlignment(delta, FontNumeralAlignment.Tabular); System.Windows.Documents.Typography.SetNumeralAlignment(orig, FontNumeralAlignment.Tabular);
             var numsAt = DateTime.MinValue;
+            if (onlyV) { top.Visibility = Visibility.Collapsed; bottom.Visibility = Visibility.Collapsed; g.Margin = new Thickness(4); }
             w.Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(10), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g,
 };
             w.MouseLeftButtonDown += (s, e) => { if (!(e.OriginalSource is Visual ov) || !w.IsAncestorOf(ov)) return;   // klik w menu (prawy przycisk) przychodzi tu z okienka menu - przeciaganie zabieralo mu klikniecie
-                if (e.ClickCount == 2) ShowAudioMonitor(); else try { w.DragMove(); SetPref("ab-pulpit-x", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref("ab-pulpit-y", w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)); } catch (Exception) { } };
+                if (e.ClickCount == 2) ShowAudioMonitor(); else try { w.DragMove(); SetPref(key + "-x", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref(key + "-y", w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)); } catch (Exception) { } };
             var cm = new ContextMenu();
             MenuItem Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); return mi; }
             Item(L.T("🎚 Otwórz Audio Monitor"), ShowAudioMonitor);
@@ -598,16 +602,17 @@ namespace Velivo
             var bypItem = Item(L.T("⏻ Bez przetwarzania dźwięku (wł./wył.)"), () => AbSetBypass(!AbBypass));
             cm.Items.Add(new Separator());
             // 📌 zawsze na wierzchu i przezroczystosc (takze kolko myszy nad widzetem) - zapamietane
-            var topItem = Item(L.T("📌 Zawsze na wierzchu"), () => { w.Topmost = !w.Topmost; SetPref("ab-pulpit-top", w.Topmost ? "1" : "0"); });
+            var topItem = Item(L.T("📌 Zawsze na wierzchu"), () => { w.Topmost = !w.Topmost; SetPref(key + "-top", w.Topmost ? "1" : "0"); });
             var alphaMenu = new MenuItem { Header = L.T("◐ Przezroczystość") };
             foreach (var pc in new[] { 100, 85, 70, 55, 40 }) { var v = pc; var mi = new MenuItem { Header = v + " %" }; mi.Click += (s2, e2) => SetAlpha(v / 100.0); alphaMenu.Items.Add(mi); }
             alphaMenu.Items.Add(new MenuItem { Header = L.T("(albo kółko myszy nad widżetem)"), IsEnabled = false });
             cm.Items.Add(alphaMenu);
             cm.Items.Add(new Separator());
+            Item(onlyV ? L.T("📌 Pokaż widżet z liczbami") : L.T("📌 Pokaż drugi widżet: samo V"), () => ShowAbDesk(!onlyV));
             Item(L.T("✕ Zamknij widżet z pulpitu"), () => w.Close());
             // ten sam mechanizm przezroczystosci co reszta okien Velivo (zapamietany, przywracany przy starcie) - bez drugiego, sprzecznego
             void SetAlpha(double a) => SetWindowAlpha(w, Math.Round(Math.Max(0.25, Math.Min(1, a)), 2));
-            w.Topmost = GetPref("ab-pulpit-top") == "1";
+            w.Topmost = GetPref(key + "-top") == "1";
             w.MouseWheel += (s2, e2) => { if (Keyboard.Modifiers != ModifierKeys.Alt) { SetAlpha(WindowAlpha(w) + (e2.Delta > 0 ? 0.05 : -0.05)); e2.Handled = true; } };   // Alt+kolko obsluguje Velivo samo
             cm.Opened += (s, e) => { topItem.IsChecked = w.Topmost; foreach (MenuItem mi in alphaMenu.Items) if (mi.IsEnabled && int.TryParse(((string)mi.Header).Split(' ')[0], out var pv)) mi.IsChecked = Math.Abs(WindowAlpha(w) * 100 - pv) < 3; bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; };   // stan widac w menu
             w.ContextMenu = cm;
@@ -632,18 +637,18 @@ namespace Velivo
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
                 w.ToolTip = L.T("Prawe ramię V (jasny turkus) – Velivo podgłośniło, lewe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
-            w.Closed += (s, e) => { tm.Stop(); _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref("ab-pulpit", "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
+            w.Closed += (s, e) => { tm.Stop(); if (onlyV) _abDeskV = null; else _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref(key, "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };
-            _abDesk = w; SetPref("ab-pulpit", "1");
+            if (onlyV) _abDeskV = w; else _abDesk = w; SetPref(key, "1");
             w.Show(); tm.Start();
         }
 
         // 🎛 wskaznik „V” Velivo (wybor wlasciciela): jedno V dla obu kanalow. Prawe ramie wypelnia sie jasnym turkusem, gdy Velivo
         // podglosnilo, lewe ciemnym fioletem, gdy sciszylo; dlugosc = ile dB (pelne ramie = 15 dB). Puste V = bez zmiany wzgledem zrodla.
         // Wartosc = srednia zmiana L i R (Audio Balance zmienia oba kanaly tak samo). Viewbox - ten sam rysunek na pulpicie i w pelnym widzecie.
-        FrameworkElement AbVuPair(out Action<bool> upd)
+        FrameworkElement AbVuPair(out Action<bool> upd, bool number = true)
         {
-            var cv = new Canvas { Width = 90, Height = 80 };
+            var cv = new Canvas { Width = 90, Height = number ? 80 : 64 };
             var G = new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)); var O = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD6)); var dimB = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));   // kolory Velivo
             var OT = new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF));   // napis „ściszone” jaśniejszy - ciemny fiolet na ciemnym tle byłby nieczytelny
             var logoBrush = new LinearGradientBrush(Color.FromRgb(0x7C, 0x5C, 0xFF), Color.FromRgb(0x2E, 0xD3, 0xC6), 90);
@@ -654,7 +659,7 @@ namespace Velivo
             cv.Children.Add(new Polyline { Points = new PointCollection { tl, bot, tr }, Stroke = logoBrush, StrokeThickness = 1.3, StrokeLineJoin = PenLineJoin.Round, Opacity = 0.9 });
             var tx = new TextBlock { FontSize = 10, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Width = 90 };
             System.Windows.Documents.Typography.SetNumeralAlignment(tx, FontNumeralAlignment.Tabular);
-            Canvas.SetLeft(tx, 0); Canvas.SetTop(tx, 65); cv.Children.Add(tx);
+            Canvas.SetLeft(tx, 0); Canvas.SetTop(tx, 65); if (number) cv.Children.Add(tx);   // samo V na pulpicie - bez liczby
             var box = new Viewbox { Child = cv, Stretch = Stretch.Uniform };
             double np = 0; var dAt = DateTime.MinValue;
             upd = live =>

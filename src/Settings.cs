@@ -780,6 +780,9 @@ namespace Velivo
             var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
             abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) ShowAbDesk(); else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
             root.Children.Add(abDeskBox);
+            var abDeskV = Check(L.T("📌 Samo „V” na pulpicie (najmniejszy widżet)"), L.T("Tylko znak V: prawe ramię – podgłośnione, lewe – ściszone. Przeciągnij, aby przenieść; kółko myszy – przezroczystość; prawy przycisk – menu."), GetPref("ab-pulpitv") == "1");
+            abDeskV.Click += (a, b) => { if (abDeskV.IsChecked == true) ShowAbDesk(true); else _abDeskV?.Close(); SetPref("ab-pulpitv", abDeskV.IsChecked == true ? "1" : "0"); };
+            root.Children.Add(abDeskV);
             var abDlg = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2), ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian.") };
             foreach (var t in new[] { "🗣 Wyraźne dialogi: wyłączone", "🗣 Wyraźne dialogi: średnio", "🗣 Wyraźne dialogi: mocno" }) abDlg.Items.Add(L.T(t));
             abDlg.SelectedIndex = Math.Max(0, Math.Min(2, AbDialog));

@@ -382,6 +382,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Interfejs
 
+* AUTOMAT, NIE PYTANIA (2026-11-09, właściciel): to, co program może zrobić sam (synchronizacja, klucze między urządzeniami, nauka), robi w tle bez komunikatów i bez pytań – im więcej informacji i pytań, tym gorzej (użytkownik nie chce czytać). Pytanie tylko przy decyzji, której program nie może podjąć sam, a komunikat tylko przy błędzie, który użytkownik musi naprawić.
 * Przyciski, ikony i menu mają podpowiedzi PL i EN.
 * Wszystko jasne, czytelne, zrozumiałe i łatwe w obsłudze (2026-10-29, właściciel) – od pierwszej wersji, nie po uwagach: każde okno ma krótkie objaśnienie, co pokazuje i co robią przyciski; stan słowami (nie same ikony/emoji – w okienkach Windows są szare); kolory prawdziwe; najważniejsze na górze; pisz dla osoby, która widzi to pierwszy raz (np. mama, 68 lat).
 * Wygląd Velivo (bez szarych okien Androida), czytelny w jasnym i ciemnym motywie.

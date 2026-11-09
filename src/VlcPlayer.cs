@@ -2189,7 +2189,7 @@ namespace Velivo
                     if (!await EnsurePiperAsync(pv)) { settingVoice = true; selectVoice(_settings.VlcLectorVoice); settingVoice = false; return; }
                     it.Content = (pv.St != null || pv.Xt != null ? "" : "Piper: ") + L.T(pv.Label);
                 }
-                _settings.VlcLectorVoice = tag; LectorStopVoice(lc, mp); lc.Gen++; LectorDropPre(lc); filmPrefsChanged(); AbLektorVoiceChanged(tag);   // 🗣 doradca: Twoje zwykłe ustawienia dla tego głosu - propozycja
+                _settings.VlcLectorVoice = tag; LectorStopVoice(lc, mp); if (lc.CurIdx >= 0) lc.LastSpoken = Math.Min(lc.LastSpoken, lc.CurIdx - 1); lc.Gen++; LectorDropPre(lc); filmPrefsChanged(); AbLektorVoiceChanged(tag);   // 🗣 doradca: Twoje zwykłe ustawienia dla tego głosu - propozycja
             };
             lectorPanel.Children.Add(voiceBox);
             bool lekLoading = false;   // suwaki ustawiane przez program (wczytanie filmu, „Zastosuj”) - nie są Twoją korektą

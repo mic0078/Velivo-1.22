@@ -314,7 +314,7 @@ namespace Velivo
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
-            if (!Bypass && Vst3.Active)
+            if (!Bypass && Vst3.Ready)
             {   // 🎛 łańcuch VST3 przejmuje przetwarzanie: oryginał → wtyczki → głośność odtwarzacza (bez korektora, dialogów i wyrównywania Velivo - bez podwójnego przetwarzania)
                 for (int f = 0; f < frames; f++)
                 {
@@ -337,7 +337,6 @@ namespace Velivo
                     }
                     GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; SnapAdd(); return;
                 }
-                In.ResetWindows(); Raw.ResetWindows();   // wszystkie wtyczki wyłączone - zwykła droga (pomiar od nowa, bez podwójnego liczenia tego kawałka)
             }
             if (Bypass || (pr == null && !eqOn && dlg == 0))
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają

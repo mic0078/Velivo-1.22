@@ -219,7 +219,7 @@ namespace Velivo
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
             AbProc.SetEq(g.Take(10).ToArray());
-            VstLoad();   // 🎛 łańcuch VST3 (gdy aktywny - dźwięk musi iść przez procesor Velivo)
+            VstLoad(true);   // 🎛 łańcuch VST3 - tylko gdy aktywny (dźwięk musi iść przez procesor Velivo)
         }
 
         // przed Play: odtwarzacz oddaje dzwiek Velivo (tylko gdy Audio Balance albo korektor wlaczone); false = zwykle wyjscie VLC

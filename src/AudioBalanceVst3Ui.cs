@@ -17,24 +17,38 @@ namespace Velivo
         static bool _vstLoaded; static readonly List<string> _vstErrors = new List<string>();
 
         // przy pierwszym uruchomieniu odtwarzacza z Audio Balance - wczytanie łańcucha (wtyczki z błędem pomijane, powód w Błędach Velivo)
-        static void VstLoad()
+        // onlyIfActive: start odtwarzacza - wtyczki wczytywane tylko, gdy łańcuch jest aktywny (wyłączony VST3 nie ładuje obcych bibliotek)
+        static void VstLoad(bool onlyIfActive = false)
         {
-            if (_vstLoaded || !Edycja.Premium) return; _vstLoaded = true;   // 💎 VST3 - Premium (bezpłatne Velivo nie wczytuje wtyczek)
+            if (_vstLoaded || !Edycja.Premium) return;   // 💎 VST3 - Premium (bezpłatne Velivo nie wczytuje wtyczek)
             VstConf c = null;
             try { if (System.IO.File.Exists(VstFile)) c = JsonSerializer.Deserialize<VstConf>(System.IO.File.ReadAllText(VstFile)); } catch (Exception ex) { App.LogError(ex); }
-            if (c == null) return;
-            var list = new List<Vst3.Plugin>();
+            if (c == null) { _vstLoaded = true; return; }
+            if (onlyIfActive && !c.Active) return;
+            _vstLoaded = true;
+            // bezpiecznik: wtyczka, przy której Velivo padło w trakcie wczytywania, nie jest wczytywana ponownie (inaczej padałoby przy każdym starcie)
+            var mark = System.IO.Path.Combine(DataDir, "vst3-wczytuje.txt"); string crashed = null;
+            try { if (System.IO.File.Exists(mark)) { crashed = System.IO.File.ReadAllText(mark).Trim(); System.IO.File.Delete(mark); } } catch (Exception ex) { App.LogError(ex); }
+            var list = new List<Vst3.Plugin>(); bool dropped = false;
             foreach (var it in c.List)
             {
+                if (crashed != null && string.Equals(it.Path, crashed, StringComparison.OrdinalIgnoreCase))
+                {
+                    _vstErrors.Add(System.IO.Path.GetFileName(it.Path) + ": " + L.T("zamknęła Velivo przy wczytywaniu – usunięta z łańcucha"));
+                    App.LogError(new Exception("VST3: wtyczka zamknęła Velivo przy wczytywaniu - usunięta: " + it.Path)); dropped = true; continue;
+                }
                 try
                 {
+                    try { System.IO.File.WriteAllText(mark, it.Path); } catch (Exception) { }
                     var p = Vst3.Plugin.Load(it.Path, it.Cid); p.On = it.On;
                     if (!string.IsNullOrEmpty(it.State)) p.SetState(Convert.FromBase64String(it.State));
                     list.Add(p);
                 }
                 catch (Exception ex) { _vstErrors.Add(System.IO.Path.GetFileName(it.Path) + ": " + ex.Message); App.LogError(new Exception("VST3: " + it.Path, ex)); }
+                finally { try { System.IO.File.Delete(mark); } catch (Exception) { } }
             }
             Vst3.Chain = list.ToArray(); Vst3.Active = c.Active && list.Count > 0;
+            if (dropped) VstSave();
         }
 
         // zapis łańcucha i stanu każdej wtyczki (ustawienia gałek, presety)

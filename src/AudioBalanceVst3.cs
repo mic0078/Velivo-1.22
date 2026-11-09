@@ -337,12 +337,13 @@ namespace Velivo
         public static volatile bool Active;                 // łańcuch przejmuje przetwarzanie
         public static readonly object Lock = new object();  // blok dźwięku vs zmiana łańcucha w oknie
         public static int Latency { get { int s = 0; if (Active) foreach (var p in Chain) if (p.On) s += p.Latency; return s; } }
+        public static bool Ready { get { if (!Active) return false; foreach (var p in Chain) if (p.On) return true; return false; } }   // aktywne i choć jedna wtyczka włączona (bez LINQ - wątek dźwięku)
         static readonly float[] bl = new float[MaxBlock], br = new float[MaxBlock];
 
         // wątek dźwięku: buf przeplatany stereo; true = przetworzone przez wtyczki
         public static bool Run(float[] buf, int frames)
         {
-            if (!Active) return false; var ch = Chain; if (ch.Length == 0 || !ch.Any(p => p.On)) return false;
+            if (!Ready) return false;
             lock (Lock)
             {
                 for (int off = 0; off < frames; off += MaxBlock)

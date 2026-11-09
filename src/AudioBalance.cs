@@ -163,13 +163,13 @@ namespace Velivo
     {
         // jeden procesor na cale Velivo - widget i ustawienia steruja nim, nie tworza wlasnego
         internal static readonly AbProcessor AbProc = new AbProcessor();
-        // dźwięk naprawdę płynie (nowe próbki w ostatnich 0,5 s) - pauza / koniec / zatrzymanie = wskaźniki na zero, nie ostatnia chwila
+        // dźwięk naprawdę płynie (nowe próbki w ostatnich 2 s) - pauza / koniec / zatrzymanie = wskaźniki na zero, nie ostatnia chwila
         static long _abFramesSeen; static DateTime _abFramesAt;
         internal static bool AbFlowing()
         {
             long f = Interlocked.Read(ref AbProc.Frames);
             if (f != _abFramesSeen) { _abFramesSeen = f; _abFramesAt = DateTime.UtcNow; }
-            return (DateTime.UtcNow - _abFramesAt).TotalMilliseconds < 500;
+            return (DateTime.UtcNow - _abFramesAt).TotalMilliseconds < 2000;   // VLC wysyła dźwięk paczkami - krótsze przerwy to nie pauza (było 0,5 s: monitor co chwilę gasł)
         }
         AbOutput _abOut;
         LibVLCSharp.Shared.MediaPlayer.LibVLCAudioPlayCb _abPlay; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioPauseCb _abPause; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioResumeCb _abResume;
@@ -244,10 +244,10 @@ namespace Velivo
             var state = T("", 12, acc2, FontWeights.SemiBold); DockPanel.SetDock(state, Dock.Right); head.Children.Add(state);
             head.Children.Add(T(L.T("🎚 Audio Monitor"), 15, fg, FontWeights.SemiBold));
             root.Children.Add(head);
-            var src = T("", 11, dim); root.Children.Add(src);
+            var src = T("", 11, dim); src.TextWrapping = TextWrapping.Wrap; src.TextTrimming = TextTrimming.CharacterEllipsis; src.Height = 30; root.Children.Add(src);   // stała wysokość (2 linie) - zmienny opis źródła nie przesuwa V i kafelków
             // 🗣 doradca lektora: wskaźnik słyszalności + propozycja do zatwierdzenia (sam niczego nie zmienia)
             var lekRow = new StackPanel { Margin = new Thickness(0, 4, 0, 2) };
-            var lekTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, ToolTip = L.T("Doradca lektora: porównuje lektora i film w paśmie zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu i dialogów w filmie. Ocena z 10 ostatnich kwestii. Sam niczego nie zmienia.") };
+            var lekTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, MinHeight = 34, ToolTip = L.T("Doradca lektora: porównuje lektora i film w paśmie zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu i dialogów w filmie. Ocena z 10 ostatnich kwestii. Sam niczego nie zmienia.") };
             var sugTxt = new TextBlock { FontSize = 11, Foreground = fg, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
             var sugBtns = new WrapPanel();
             var sugBox = new Border { Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed, Child = new StackPanel { Children = { sugTxt, sugBtns } } };
@@ -359,7 +359,7 @@ namespace Velivo
                 var bx = new Border { Background = new SolidColorBrush(Color.FromRgb(0x1C, 0x1F, 0x2B)), CornerRadius = new CornerRadius(6), Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 2 ? 0 : 3, 0), Padding = new Thickness(6, 4, 6, 4) };
                 var sp = new StackPanel(); sumL[i] = T(new[] { L.T("ŹRÓDŁO"), L.T("ZMIANA"), L.T("WYNIK") }[i], 10, dim); sumV[i] = T("–", 17, fg, FontWeights.Bold);
                 System.Windows.Documents.Typography.SetNumeralAlignment(sumV[i], FontNumeralAlignment.Tabular);
-                sp.Children.Add(sumL[i]); sp.Children.Add(sumV[i]); bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);
+                sp.Children.Add(sumL[i]); sp.Children.Add(new Viewbox { Child = sumV[i], StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, Height = 24 });   // długa wartość się zmniejsza zamiast łamać (kafelek nie rośnie - nic pod nim nie skacze) bx.Child = sp; Grid.SetColumn(bx, i); sum3.Children.Add(bx);
             }
             sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 10 s, bez ciszy – jak pomiar zintegrowany). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz; powinien być przy celu, który ustawiasz niżej.");
             root.Children.Insert(3, sum3);
@@ -437,6 +437,7 @@ namespace Velivo
                 state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
+                if (src.ToolTip as string != src.Text) src.ToolTip = src.Text;   // pełny opis po najechaniu (w oknie najwyżej 2 linie)
                 { var (lt, lc0) = AbLektorStatus(); if (lekTxt.Text != lt) { lekTxt.Text = lt; lekTxt.Foreground = new SolidColorBrush(lc0); } }
                 if ((AbLekSugText ?? "") != (string)(sugBox.Tag ?? ""))
                 {   // propozycja doradcy: Ty decydujesz (Zastosuj / Nie teraz)

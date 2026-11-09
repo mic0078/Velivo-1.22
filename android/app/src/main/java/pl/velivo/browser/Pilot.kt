@@ -179,6 +179,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         playBtn = big("⏯", s(R.string.pilot_play)) { send("play") }
         root.addView(row(big("⏮", s(R.string.pilot_prev)) { send("prev") }, playBtn, big("⏭", s(R.string.pilot_next)) { send("next") }, big("⏹", s(R.string.pilot_stop)) { send("stop") }))
         root.addView(row(big("⏪", s(R.string.pilot_back10)) { send("jump", n = -10000.0) }, big("⏩", s(R.string.pilot_fwd10)) { send("jump", n = 10000.0) }))
+        root.addView(row(big("🌙", s(R.string.pilot_screen_off_short)) { send("screenoff", n = 0.0) }, big("☀", s(R.string.pilot_screen_on)) { send("screenon") }))   // film gra dalej, ekran komputera zgaszony
         // dół: postęp, czas, głośność, wyciszenie
         time = TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(0, dp(12), 0, 0) }
         root.addView(time)

@@ -121,9 +121,9 @@ namespace Velivo
     {
         public string Name; public double MaxBoost, MaxCut, UpDbS, DownDbS, Gate, ThrOff, Ratio, AttackMs, ReleaseMs;
         public double FastDownDbS;   // nagły skok w górę (reklama, głośna scena) - ściszanie prawie natychmiast (dB/s); podgłaśnianie zostaje powolne
-        public static readonly AbProfile Light = new AbProfile { FastDownDbS = 30, Name = "light", MaxBoost = 6, MaxCut = 8, UpDbS = 0.5, DownDbS = 1.0, Gate = -25, ThrOff = 8, Ratio = 2, AttackMs = 25, ReleaseMs = 400 };
-        public static readonly AbProfile Balanced = new AbProfile { FastDownDbS = 40, Name = "balanced", MaxBoost = 15, MaxCut = 12, UpDbS = 1.5, DownDbS = 2.0, Gate = -30, ThrOff = 4, Ratio = 3, AttackMs = 12, ReleaseMs = 300 };
-        public static readonly AbProfile Night = new AbProfile { FastDownDbS = 60, Name = "night", MaxBoost = 20, MaxCut = 18, UpDbS = 2.5, DownDbS = 3.0, Gate = -35, ThrOff = 0, Ratio = 6, AttackMs = 6, ReleaseMs = 200 };
+        public static readonly AbProfile Light = new AbProfile { FastDownDbS = 30, Name = "light", MaxBoost = 6, MaxCut = 8, UpDbS = 1.5, DownDbS = 1.5, Gate = -25, ThrOff = 8, Ratio = 2, AttackMs = 25, ReleaseMs = 400 };
+        public static readonly AbProfile Balanced = new AbProfile { FastDownDbS = 40, Name = "balanced", MaxBoost = 15, MaxCut = 12, UpDbS = 3, DownDbS = 3, Gate = -30, ThrOff = 4, Ratio = 3, AttackMs = 12, ReleaseMs = 300 };
+        public static readonly AbProfile Night = new AbProfile { FastDownDbS = 60, Name = "night", MaxBoost = 20, MaxCut = 18, UpDbS = 4, DownDbS = 4, Gate = -35, ThrOff = 0, Ratio = 6, AttackMs = 6, ReleaseMs = 200 };
         // tylko limiter: bez wyrownywania i kompresji - naturalny dzwiek, chroniony tylko przed nagłym hukiem (szczyty -1 dBTP)
         public static readonly AbProfile LimiterOnly = new AbProfile { Name = "limiter", MaxBoost = 0, MaxCut = 0, UpDbS = 0, DownDbS = 0, Gate = -99, ThrOff = 200, Ratio = 1, AttackMs = 10, ReleaseMs = 300 };
         public static AbProfile ByName(string n) => n == "light" ? Light : n == "balanced" ? Balanced : n == "night" ? Night : n == "limiter" ? LimiterOnly : null;
@@ -197,6 +197,7 @@ namespace Velivo
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target + TargetAdj; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
+            double vdb = vol > 1e-3 ? 20 * Math.Log10(vol) : -60;
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
             double aC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.AttackMs * Fs)), rC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.ReleaseMs * Fs)), detC = Math.Exp(-1000.0 / (10.0 * Fs));
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
@@ -268,8 +269,9 @@ namespace Velivo
                     grDb = want2 < grDb ? want2 + aC * (grDb - want2) : want2 + rC * (grDb - want2);
                     // 4) korekta wyniku (makeup): kompresor i chwilowe sciszenia zabieraja czesc glosnosci - mierzymy to, co naprawde wychodzi
                     //    (3 s, tylko gdy gra tresc), i powoli (1 dB/s) dociagamy do celu; limiter dalej pilnuje szczytow
-                    if (Out.Gated10 > double.NegativeInfinity && Out.Momentary > Tg - 15 && In.Momentary > Tg + pr.Gate)
-                        corrDb = Math.Max(-6, Math.Min(pr.MaxBoost > 0 ? 8 : 0, corrDb + Math.Max(-1, Math.Min(1, Tg - Out.Gated10)) * 1.0 / Fs));
+                    // wynik liczony BEZ glosnosci odtwarzacza (vdb): suwak glosnosci i sciszanie pod lektora nie moga byc "dociagane" z powrotem do celu
+                    if (vol > 1e-3 && Out.Gated10 > double.NegativeInfinity && Out.Momentary - vdb > Tg - 15 && In.Momentary > Tg + pr.Gate)
+                        corrDb = Math.Max(-6, Math.Min(pr.MaxBoost > 0 ? 8 : 0, corrDb + Math.Max(-1, Math.Min(1, Tg - (Out.Gated10 - vdb))) * 1.0 / Fs));
                     g = levDb + fastDb + grDb + corrDb;
                 }
                 double lin = Math.Pow(10, g / 20) * vol;

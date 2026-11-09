@@ -535,4 +535,5 @@
     <string name="pilot_sleep">Stop playback</string>
     <string name="pilot_sleep_end">After this film ends</string>
     <string name="pilot_cancel">Cancel</string>
+    <string name="pilot_screen_off_short">No screen</string>
 </resources>

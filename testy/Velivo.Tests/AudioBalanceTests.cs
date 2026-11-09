@@ -78,6 +78,24 @@ public class AudioBalanceTests
     }
 
     [Fact]
+    public void SciszeniePodLektoraNieJestCofane()
+    {
+        // 🗣 lektor ścisza film suwakiem odtwarzacza (Volume 0,3): wynik ma zostać ok. 10 dB ciszej, nie wracać do celu
+        double Run(float v)
+        {
+            var p = new AbProcessor { Profile = AbProfile.Balanced, Target = -18, Volume = v }; var buf = new float[960]; var rnd = new Random(1);
+            p.NewMedia();
+            for (int b = 0; b < 3000; b++)
+            {
+                for (int k = 0; k < 480; k++) { double x = 0.07 * (0.5 * Math.Sin(2 * Math.PI * 300 * (b * 480 + k) / 48000.0) + 0.4 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)x; }
+                p.Process(buf, 480);
+            }
+            return p.Out.Momentary;
+        }
+        Assert.InRange(Run(1f) - Run(0.3f), 9, 12);
+    }
+
+    [Fact]
     public void NaukaZnanyKanalOdRazuWCeluAPoprawkaPrzesuwaCel()
     {
         // 🧠 znany cichy kanał (-26): z zapamiętanym poziomem już po 1 s blisko celu; poprawka +3 dB przesuwa wynik o ok. 3 dB

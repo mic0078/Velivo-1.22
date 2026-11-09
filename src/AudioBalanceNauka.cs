@@ -11,7 +11,7 @@ namespace Velivo
     public partial class MainWindow
     {
         sealed class AbLearnEntry { public double Lev { get; set; } public double Ad { get; set; } public double Adj { get; set; } public int N { get; set; } public DateTime T { get; set; } }
-        static readonly string AbLearnFile = System.IO.Path.Combine(DataDir, "audio-nauka.json");
+        static string AbLearnFile => System.IO.Path.Combine(DataDir, "audio-nauka.json");   // właściwość: DataDir z innego pliku może nie być jeszcze ustawione przy inicjalizacji statycznej
         static Dictionary<string, AbLearnEntry> _abLearn;
         static readonly object AbLearnLock = new object();
         string _abLearnSrc; DateTime _abLearnStart; double _abLearnVol0 = -1, _abLearnVolNow = -1; int _abLearnSamples; double _abLearnAdMin;

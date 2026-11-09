@@ -236,6 +236,7 @@ namespace Velivo
                 var path = (readTask.Result ?? "").Trim();
                 return File.Exists(path) ? path : null;
             }
+            catch (System.ComponentModel.Win32Exception) when (!File.Exists(PiperExe)) { StopPiperProcess(slot); return null; }   // Piper właśnie odinstalowany - bez wpisu błędu
             catch (Exception ex) { App.LogError(ex); StopPiperProcess(slot); return null; }
             finally { plock.Release(); }
         }

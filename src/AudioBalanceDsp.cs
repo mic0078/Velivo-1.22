@@ -66,13 +66,14 @@ namespace Velivo
         readonly double[] mom = new double[100]; readonly double[] sortBuf = new double[100]; int momN, momI;
         public double MedianGate = -60, Median = double.NegativeInfinity;
         public double Gated10 = double.NegativeInfinity;   // jak „zintegrowana” (bramki -70 / -10 LU), ale z ostatnich 10 s - do dociagania wyniku do celu
+        public double Median15 = double.NegativeInfinity;  // mediana głośności chwilowej z 1,5 s (bez ciszy) - tylko wykrywanie zmiany sceny (regulator dalej spokojny)
         public AbMeter()
         {   // współczynniki K-weighting dla 48 kHz wprost z normy (etap 1: półka, etap 2: górnoprzepustowy RLB)
             shelf.Set(1.53512485958697, -2.69169618940638, 1.19839281085285, 1, -1.69065929318241, 0.73248077421585);
             hp.Set(1.0, -2.0, 1.0, 1, -1.99004745483398, 0.99007225036621);
         }
         public static double Lufs(double meanSq) => meanSq <= 1e-20 ? double.NegativeInfinity : -0.691 + 10 * Math.Log10(meanSq);
-        public void ResetWindows() { shelf.Reset(); hp.Reset(); Array.Clear(blocks, 0, 30); nBlocks = 0; bi = 0; acc = 0; accN = 0; momN = 0; momI = 0; Momentary = ShortTerm = Median = Fast = Gated10 = double.NegativeInfinity; }
+        public void ResetWindows() { shelf.Reset(); hp.Reset(); Array.Clear(blocks, 0, 30); nBlocks = 0; bi = 0; acc = 0; accN = 0; momN = 0; momI = 0; Momentary = ShortTerm = Median = Fast = Gated10 = Median15 = double.NegativeInfinity; }
         public void ResetIntegrated() { Array.Clear(hCnt, 0, hCnt.Length); Array.Clear(hSum, 0, hSum.Length); }
         // jedna ramka stereo; zwraca chwilową moc K (do detektora kompresora)
         public double Push(double l, double r)
@@ -99,6 +100,8 @@ namespace Velivo
                         for (int k = 0; k < momN; k++) if (mom[k] > gate) { e2 += Math.Pow(10, (mom[k] + 0.691) / 10); n2++; }
                         Gated10 = n2 > 0 ? Lufs(e2 / n2) : double.NegativeInfinity;
                     }
+                    { int c2 = 0; for (int k = 0; k < Math.Min(momN, 15); k++) { double v = mom[(momI - 1 - k + 200) % 100]; if (v > MedianGate) sortBuf[c2++] = v; }
+                      if (c2 >= 8) { Array.Sort(sortBuf, 0, c2); Median15 = sortBuf[c2 / 2]; } else Median15 = double.NegativeInfinity; }   // pauza dłuższa niż pół okna - bez wyniku (cisza nie przełącza sceny)
                 }
                 if (nBlocks >= 4 && Momentary > -70) { int b = (int)Math.Round((Math.Min(Momentary, 29.9) + 70) * 10); if (b >= 0 && b < 1000) { hCnt[b]++; hSum[b] += m / 4; } }   // bloki 400 ms co 100 ms (75% zakładki)
             }
@@ -271,7 +274,7 @@ namespace Velivo
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
+        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart; int sceneN;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -355,13 +358,19 @@ namespace Velivo
                     //    krótki huk nie ciągnie (mediana + 3 dB) - bez falowania między zdaniami (było: okno 3 s z przerwami → „roller coaster”)
                     double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
                     if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
+                    // zmiana sceny: mediana z 1,5 s różni się od podstawy o ponad 5 dB dłużej niż 1 s - nowy poziom w ok. 1–2 s zamiast gonienia przez 15 s
+                    //    (w obrębie sceny bez zmian: spokojna średnia 10 s - bez pompowania między zdaniami; pauzy i cisza nie przełączają - pomiar pomija ciszę)
+                    bool scene = false;
+                    double m15 = In.Median15 > double.NegativeInfinity && In.Median > double.NegativeInfinity ? Math.Min(In.Median15, In.Median + 3) : double.NegativeInfinity;   // głośniej - ta sama osłona co podstawa: krótki huk nie jest „sceną”
+                    if (sinceStart > Fs * 6 && m15 > double.NegativeInfinity && Math.Abs(m15 - basis) > 5) { if (++sceneN > 2 * Fs) scene = true; } else sceneN = 0;
+                    if (scene) basis = m15;
                     if (basis > double.NegativeInfinity && In.Momentary > bgGate)
                     {
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
                         if (pr.LimitOnly) want = Math.Min(0, want);
-                        wantS += (want - wantS) * (1.0 / (2.0 * Fs));
-                        double up = sinceStart < Fs * 6 ? upS * 6 : upS, dn = sinceStart < Fs * 6 ? dnS * 6 : dnS;   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
+                        wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
+                        double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,

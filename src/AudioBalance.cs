@@ -54,6 +54,7 @@ namespace Velivo
         {
             var c = new Chunk { Frames = (int)count, Pts = pts, Data = new float[count * 2] };
             Marshal.Copy(samples, c.Data, 0, (int)count * 2);
+            for (int i = 0; i < c.Data.Length; i++) { float v = c.Data[i]; if (float.IsNaN(v) || float.IsInfinity(v)) c.Data[i] = 0; else if (v > 4) c.Data[i] = 4; else if (v < -4) c.Data[i] = -4; }   // uszkodzone probki nie moga zepsuc procesora
             lock (_lk) { _q.Enqueue(c); while (_q.Count > 400) _q.Dequeue(); Monitor.Pulse(_lk); }
         }
         public void Pause() { _paused = true; if (_h != IntPtr.Zero) waveOutPause(_h); }
@@ -78,32 +79,43 @@ namespace Velivo
                         if (_paused) waveOutPause(_h);
                     }
                     Chunk c = null;
-                    lock (_lk) { if (_q.Count == 0 || _paused) { Monitor.Wait(_lk, 20); continue; } c = _q.Peek(); }
-                    long queuedUs = QueuedFrames() * 1_000_000L / AbProcessor.Fs;
-                    long latUs = queuedUs + 5000 + AbTruePeak.Delay * 1_000_000L / AbProcessor.Fs;   // + wyprzedzenie limitera
-                    long dueIn = c.Pts - Now;   // za ile ma zabrzmiec
-                    long durUs = c.Frames * 1_000_000L / AbProcessor.Fs;
-                    if (dueIn > latUs + 8000) { Interlocked.Increment(ref EarlyWaits); Thread.Sleep((int)Math.Min(20, Math.Max(1, (dueIn - latUs) / 1000 - 4))); continue; }   // za wczesnie - czekamy
-                    lock (_lk) { if (_q.Count > 0 && _q.Peek() == c) _q.Dequeue(); else continue; }
-                    if (dueIn + durUs < latUs - 60000) { Interlocked.Increment(ref LateDrops); continue; }   // spozniony o ponad 60 ms - pomijamy (obraz jest wazniejszy)
-                    Proc.Process(c.Data, c.Frames);
-                    if (pcm.Length < c.Frames * 2) pcm = new short[c.Frames * 2];
-                    for (int i = 0; i < c.Frames * 2; i++) { float v = c.Data[i] * 32767f; pcm[i] = (short)(v > 32767 ? 32767 : v < -32768 ? -32768 : v); }
-                    var b = _bufs.FirstOrDefault(x => !x.Busy && x.Cap >= c.Frames);
-                    if (b == null)
-                    {
-                        if (_bufs.Count > 200) { var old = _bufs.FirstOrDefault(x => !x.Busy); if (old != null) { Marshal.FreeHGlobal(old.Mem); Marshal.FreeHGlobal(old.Hdr); _bufs.Remove(old); } }
-                        b = new Buf { Cap = Math.Max(c.Frames, 2048), Hdr = Marshal.AllocHGlobal(HdrSize) }; b.Mem = Marshal.AllocHGlobal(b.Cap * 4); _bufs.Add(b);
+                    lock (_lk) { if (_q.Count == 0 || _paused) { Monitor.Wait(_lk, 20); continue; } c = _q.Dequeue(); }
+                    // kiedy zabrzmi pierwsza probka tego kawalka: po tym, co juz czeka w karcie, i po opoznieniu limitera (ok. 5 ms)
+                    long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + AbProcessor.LatencyFrames * 1_000_000L / AbProcessor.Fs;
+                    long gap = (c.Pts - Now) - playAt;   // > 0: VLC dal dzwiek wczesniej (zwykle) - cisza do jego chwili; < 0: spozniony
+                    if (gap > 20000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs * 2L, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
+                    else if (gap < -60000)
+                    {   // spozniony o ponad 60 ms - pomijamy poczatek kawalka (obraz jest wazniejszy)
+                        int skip = (int)Math.Min(c.Frames, -gap * AbProcessor.Fs / 1_000_000L); Interlocked.Increment(ref LateDrops);
+                        if (skip >= c.Frames) continue;
+                        var rest = new float[(c.Frames - skip) * 2]; Array.Copy(c.Data, skip * 2, rest, 0, rest.Length); c.Data = rest; c.Frames -= skip;
                     }
-                    Marshal.Copy(pcm, 0, b.Mem, c.Frames * 2);
-                    for (int o = 0; o < HdrSize; o += 8) Marshal.WriteInt64(b.Hdr, o, 0);
-                    Marshal.WriteIntPtr(b.Hdr, 0, b.Mem); Marshal.WriteInt32(b.Hdr, 8, c.Frames * 4);
-                    b.Frames = c.Frames; b.Busy = true;
-                    waveOutPrepareHeader(_h, b.Hdr, HdrSize); waveOutWrite(_h, b.Hdr, HdrSize);
+                    Proc.Process(c.Data, c.Frames);
+                    WriteFrames(c.Data, c.Frames, ref pcm);
                     Proc.Active = true;
                 }
                 catch (Exception ex) { App.LogError(ex); Thread.Sleep(50); }
             }
+        }
+
+        // jeden bufor karty: probki (albo cisza, gdy data == null); karta gra bufory po kolei bez przerw
+        void WriteFrames(float[] data, int frames, ref short[] pcm)
+        {
+            if (frames <= 0) return;
+            if (pcm.Length < frames * 2) pcm = new short[frames * 2];
+            if (data == null) Array.Clear(pcm, 0, frames * 2);
+            else for (int i = 0; i < frames * 2; i++) { float v = data[i] * 32767f; pcm[i] = (short)(v > 32767 ? 32767 : v < -32768 ? -32768 : v); }
+            var b = _bufs.FirstOrDefault(x => !x.Busy && x.Cap >= frames);
+            if (b == null)
+            {
+                if (_bufs.Count > 200) { var old = _bufs.FirstOrDefault(x => !x.Busy); if (old != null) { Marshal.FreeHGlobal(old.Mem); Marshal.FreeHGlobal(old.Hdr); _bufs.Remove(old); } }
+                b = new Buf { Cap = Math.Max(frames, 2048), Hdr = Marshal.AllocHGlobal(HdrSize) }; b.Mem = Marshal.AllocHGlobal(b.Cap * 4); _bufs.Add(b);
+            }
+            Marshal.Copy(pcm, 0, b.Mem, frames * 2);
+            for (int o = 0; o < HdrSize; o += 8) Marshal.WriteInt64(b.Hdr, o, 0);
+            Marshal.WriteIntPtr(b.Hdr, 0, b.Mem); Marshal.WriteInt32(b.Hdr, 8, frames * 4);
+            b.Frames = frames; b.Busy = true;
+            waveOutPrepareHeader(_h, b.Hdr, HdrSize); waveOutWrite(_h, b.Hdr, HdrSize);
         }
 
         public void Dispose()
@@ -296,16 +308,17 @@ namespace Velivo
                     double sum = 0; for (int k = k0; k < k1 && k < 1024; k++) sum += fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k];
                     double db = 10 * Math.Log10(sum / 1024.0 + 1e-12) + 3;
                     double f = (edges[b] + edges[b + 1]) / 2; if (f < 250) lowE += sum; else if (f < 4000) midE += sum; else hiE += sum;
-                    double v = Math.Max(0, Math.Min(1, (db + 70) / 70));
+                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db + 70) / 70));
                     smooth[b] = v > smooth[b] ? v : smooth[b] * 0.85 + v * 0.15;
                     hold[b] = Math.Max(smooth[b], hold[b] - 0.01);
                     double bh = smooth[b] * h;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = bh; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], h - bh);
                     peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - hold[b] * h - 2);
                 }
-                lmhBars[0].Value = Math.Max(-60, 10 * Math.Log10(lowE / 1024 + 1e-12)); lmhBars[1].Value = Math.Max(-60, 10 * Math.Log10(midE / 1024 + 1e-12)); lmhBars[2].Value = Math.Max(-60, 10 * Math.Log10(hiE / 1024 + 1e-12));
+                double Db(double e) { double d = 10 * Math.Log10(e / 1024 + 1e-12); return double.IsNaN(d) ? -60 : Math.Max(-60, Math.Min(0, d)); }
+                lmhBars[0].Value = Db(lowE); lmhBars[1].Value = Db(midE); lmhBars[2].Value = Db(hiE);
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
-                lvl.Value = live && AbProc.Out.Momentary > -40 ? AbProc.Out.Momentary : -40;
+                lvl.Value = live && AbProc.Out.Momentary > -40 && AbProc.Out.Momentary < 10 ? AbProc.Out.Momentary : -40;
                 vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
                 vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;
                 if ((DateTime.UtcNow - hLast).TotalMilliseconds >= 100)

@@ -132,7 +132,8 @@ namespace Velivo
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
         double levDb, detP, grDb;
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
-        const int La = 240, Dl = La + AbTruePeak.Delay;   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
+        const int La = 240, Dl = La + AbTruePeak.Delay;
+        public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
         readonly float[] dL = new float[Dl], dR = new float[Dl]; readonly double[] mins = new double[La]; int mPos;
         int dPos; double minRunSum, limG = 1; readonly int[] dq = new int[La + 1]; readonly double[] dqV = new double[La + 1]; int dqH, dqT; long n;
         public double GainDb, LimitDb, PeakOutDb = double.NegativeInfinity; double peakHold; int peakN;
@@ -145,13 +146,17 @@ namespace Velivo
             minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0;
             foreach (var b in eq) b?.Reset();
         }
-        public void NewMedia() { Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); levDb = 0; }
+        volatile bool newReq;
+        public void NewMedia() => newReq = true;   // z wątku okna - wykonane w wątku dźwięku przed kolejnym kawałkiem
 
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); levDb = 0; }
+            if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
+            if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
             double aC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.AttackMs * Fs)), rC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.ReleaseMs * Fs)), detC = Math.Exp(-1000.0 / (10.0 * Fs));
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));

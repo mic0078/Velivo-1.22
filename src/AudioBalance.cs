@@ -239,10 +239,10 @@ namespace Velivo
             var axis = new Grid(); foreach (var (t, al) in new[] { ("50 Hz", HorizontalAlignment.Left), ("1 kHz", HorizontalAlignment.Center), ("16 kHz", HorizontalAlignment.Right) }) { var a = T(t, 10, dim); a.HorizontalAlignment = al; axis.Children.Add(a); }
             root.Children.Add(axis);
             var bigVu = AbVuPair(out var bigVuUpd); bigVu.Height = 170; bigVu.HorizontalAlignment = HorizontalAlignment.Center; bigVu.Margin = new Thickness(0, 8, 0, 0);
-            bigVu.ToolTip = L.T("Prawe ramię V (jasny turkus) – Velivo podgłośniło, lewe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.");
+            bigVu.ToolTip = L.T("Lewe ramię V (jasny turkus) – Velivo podgłośniło, prawe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.");
             root.Children.Add(bigVu);
             var vuLeg = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
-            vuLeg.Children.Add(T(L.T("◀ ściszone   "), 10, new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF)))); vuLeg.Children.Add(T(L.T("puste V = bez zmiany   "), 10, dim)); vuLeg.Children.Add(T(L.T("podgłośnione ▶"), 10, new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4))));
+            vuLeg.Children.Add(T(L.T("◀ podgłośnione   "), 10, new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)))); vuLeg.Children.Add(T(L.T("puste V = bez zmiany   "), 10, dim)); vuLeg.Children.Add(T(L.T("ściszone ▶"), 10, new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF))));
             root.Children.Add(vuLeg);
             // LOW / MID / HIGH
             var lmh = new Grid { Margin = new Thickness(0, 8, 0, 0) }; var lmhBars = new ProgressBar[3]; var lmhTxt = new[] { "LOW", "MID", "HIGH" };
@@ -644,7 +644,7 @@ namespace Velivo
                     delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;
                 }
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
-                w.ToolTip = L.T("Prawe ramię V (jasny turkus) – Velivo podgłośniło, lewe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
+                w.ToolTip = L.T("Lewe ramię V (jasny turkus) – Velivo podgłośniło, prawe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
             w.Closed += (s, e) => { tm.Stop(); if (onlyV) _abDeskV = null; else _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref(key, "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };
@@ -653,7 +653,7 @@ namespace Velivo
         }
 
         // 🎛 wskaznik „V” Velivo (wybor wlasciciela): jedno V dla obu kanalow. Prawe ramie wypelnia sie jasnym turkusem, gdy Velivo
-        // podglosnilo, lewe ciemnym fioletem, gdy sciszylo; dlugosc = ile dB (pelne ramie = 15 dB). Puste V = bez zmiany wzgledem zrodla.
+        // podglosnilo, lewe ciemnym fioletem, gdy sciszylo (od 2026-11-09 odwrotnie: lewe = podglosnione, prawe = sciszone); dlugosc = ile dB (pelne ramie = 15 dB). Puste V = bez zmiany wzgledem zrodla.
         // Wartosc = srednia zmiana L i R (Audio Balance zmienia oba kanaly tak samo). Viewbox - ten sam rysunek na pulpicie i w pelnym widzecie.
         FrameworkElement AbVuPair(out Action<bool> upd, bool number = true)
         {
@@ -677,7 +677,7 @@ namespace Velivo
                 double d = live && !AbBypass && AbProc.VuInL > -70 ? (dl + dr) / 2 : 0;
                 if (double.IsNaN(d) || double.IsInfinity(d)) d = 0;
                 np += (Math.Max(-15, Math.Min(15, d)) - np) * 0.7;   // szybka reakcja, bez skakania
-                var tip = np >= 0 ? tr : tl; double k = Math.Abs(np) / 15;   // podglosnione - prawe ramie, sciszone - lewe
+                var tip = np >= 0 ? tl : tr; double k = Math.Abs(np) / 15;   // podglosnione - lewe ramie, sciszone - prawe (wybor wlasciciela 2026-11-09)
                 arm.X2 = bot.X + (tip.X - bot.X) * k; arm.Y2 = bot.Y + (tip.Y - bot.Y) * k; arm.Stroke = np >= 0 ? G : O;
                 arm.Visibility = k < 0.02 ? Visibility.Hidden : Visibility.Visible;
                 if ((DateTime.UtcNow - dAt).TotalMilliseconds >= 250)

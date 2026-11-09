@@ -762,11 +762,11 @@ namespace Velivo
             // 🎚 Dźwięk → Audio Balance (ITU-R BS.1770-4): profil, poziom docelowy, Audio Monitor
             root.Children.Add(new TextBlock { Text = L.T("Dźwięk – Audio Balance (wyrównywanie głośności wg ITU-R BS.1770-4):"), Margin = new Thickness(0, 8, 0, 2) });
             var abRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Tryb: Wył. – bez zmian; Auto Level – ciche w górę, głośne w dół; Limit Only – tylko ogranicza głośne.") };
+            var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Tryb: Wył. – oryginalny dźwięk bez ingerencji; Auto Level – wyrównywanie odczuwalnej głośności; Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.") };
             foreach (var p in AbProfiles) abBox.Items.Add(new ComboBoxItem { Content = AbProfileLabel(p), Tag = p, ToolTip = AbProfileTip(p) });
             abBox.SelectedItem = abBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbProfileName) ?? abBox.Items[0];
             abBox.SelectionChanged += (a, b) => { if (abBox.SelectedItem is ComboBoxItem it) AbSetProfile((string)it.Tag); };
-            var abSila = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Intensywność: Light – naturalnie, Normal – filmy na co dzień, Strong – noc i ciche słuchanie.") };
+            var abSila = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Intensywność: Light – delikatna korekta; Normal – standardowe wyrównywanie; Strong – mocniejsze wyrównywanie, np. nocą.") };
             foreach (var sl in AbSilas) abSila.Items.Add(new ComboBoxItem { Content = AbSilaLabel(sl), Tag = sl, ToolTip = AbSilaTip(sl) });
             abSila.SelectedItem = abSila.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbSilaName) ?? abSila.Items[1];
             abSila.SelectionChanged += (a, b) => { if (abSila.SelectedItem is ComboBoxItem it) AbSetSila((string)it.Tag); };

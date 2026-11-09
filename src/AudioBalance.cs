@@ -218,7 +218,7 @@ namespace Velivo
         static readonly string[] AbSilas = { "light", "normal", "strong" };   // intensywność
         static string AbSilaName => GetPref("ab-sila") is string x && AbSilas.Contains(x) ? x : "normal";
         static string AbSilaLabel(string s) => s == "light" ? "Light" : s == "strong" ? "Strong" : "Normal";
-        static string AbSilaTip(string s) => s == "light" ? L.T("Light – naturalny dźwięk, niewielka ingerencja (koryguje ok. 60% różnicy, strefa komfortu ±4 dB).") : s == "strong" ? L.T("Strong – nocne oglądanie i ciche słuchanie: wyrównuje najmocniej (100% różnicy, strefa ±2 dB).") : L.T("Normal – filmy i codzienne oglądanie (85% różnicy, strefa ±3 dB).");
+        static string AbSilaTip(string s) => s == "light" ? L.T("Light – delikatna korekta.") : s == "strong" ? L.T("Strong – mocniejsze wyrównywanie, np. nocą.") : L.T("Normal – standardowe wyrównywanie.");
         void AbSetSila(string sila) { SetPref("ab-sila", sila); AbProc.Profile = AbProfile.ByName(AbProfileName, sila); }
         static string AbProfileLabel(string p) => p == "auto" ? "Auto Level" : p == "limit" ? "Limit Only" : L.T("Wył.");
         static string AbProfileShort(string p) => p == "auto" ? "A" + AbSilaLabel(AbSilaName)[0] : p == "limit" ? "Lim" + AbSilaLabel(AbSilaName)[0] : "⏻";
@@ -486,7 +486,7 @@ namespace Velivo
 
         static readonly float[] AbTargets = { 0, -14, -16, -18, -20, -23, -24 };   // 0 = Auto (średnia źródła)
         static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
-        static string AbProfileTip(string p) => p == "auto" ? L.T("Auto Level – podnosi ciche fragmenty, kontroluje głośne, płynnie, bez gwałtownych zmian.") : p == "limit" ? L.T("Limit Only – nie podnosi cichych fragmentów, ogranicza tylko nadmiernie głośne; naturalna dynamika zostaje.") : L.T("Wył. – bez wyrównywania (sam korektor, gdy włączony).");
+        static string AbProfileTip(string p) => p == "auto" ? L.T("Auto Level – wyrównywanie odczuwalnej głośności.") : p == "limit" ? L.T("Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.") : L.T("Wył. – oryginalny dźwięk bez ingerencji.");
 
         internal void AbSetBypass(bool on)
         {

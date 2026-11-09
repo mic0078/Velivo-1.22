@@ -343,3 +343,5 @@ W Audio Monitorze pole „🧠 Ucz się sam” (domyślnie włączone). Velivo z
 2. **Reklamy** – gdy kanał ma głośne skoki (ponad 6 dB), nagłe zgłośnienia są ściszane 2× szybciej.
 3. **Twoje poprawki** – gdy na danym źródle podgłaśniasz albo ściszasz, jego cel przesuwa się o połowę Twojej zmiany (najwyżej ±6 dB).
 Przy źródle widać, co Velivo o nim wie („🧠 Znam to źródło…”). „🧹 Zapomnij, czego się nauczyłeś” czyści pamięć.
+
+**Lektor i Audio Balance:** gdy Audio Balance jest włączony, Velivo przy każdej kwestii mierzy głośność nagrania lektora (WAV) i filmu po wyrównaniu, i ścisza film tak, żeby lektor był ok. 8 dB głośniej – bez ręcznego ściszania filmu. Ustawione „ściszanie pod lektora” działa jako minimum (film nigdy głośniejszy niż ono pozwala), najmocniej do 10%.

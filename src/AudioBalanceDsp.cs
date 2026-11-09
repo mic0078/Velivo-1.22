@@ -223,6 +223,7 @@ namespace Velivo
             if (++vuN >= 480) { vuN = 0; VuL = 10 * Math.Log10(vuPL * 2 + 1e-12); VuR = 10 * Math.Log10(vuPR * 2 + 1e-12); }   // *2: sinus 0 dBFS = 0 dB
         }   // ostatnio przetworzony dźwięk (do wskaźnika „pracuje”)
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
+        readonly AbMeter OutPre = new AbMeter();   // wynik PRZED głośnością odtwarzacza - dla korekty wyniku (ściszanie pod lektora i suwak jej nie mylą)
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
         double levDb, detP, grDb, fastDb, corrDb, wantS; long sinceStart;
@@ -236,7 +237,7 @@ namespace Velivo
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
         public void Reset()
         {
-            In.ResetWindows(); Out.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
+            In.ResetWindows(); Out.ResetWindows(); OutPre.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
             minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0;
             foreach (var b in eq) b?.Reset();
@@ -250,7 +251,7 @@ namespace Velivo
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; corrDb = 0; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); OutPre.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; corrDb = 0; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
@@ -259,7 +260,6 @@ namespace Velivo
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
             double bgGate = pr == null ? -99 : Tg + pr.Gate, film = In.Integrated; if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
-            double vdb = vol > 1e-3 ? 20 * Math.Log10(vol) : -60;
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
             double aC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.AttackMs * Fs)), rC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.ReleaseMs * Fs)), detC = Math.Exp(-1000.0 / (10.0 * Fs));
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
@@ -332,13 +332,13 @@ namespace Velivo
                     grDb = want2 < grDb ? want2 + aC * (grDb - want2) : want2 + rC * (grDb - want2);
                     // 4) korekta wyniku (makeup): kompresor i chwilowe sciszenia zabieraja czesc glosnosci - mierzymy to, co naprawde wychodzi
                     //    (3 s, tylko gdy gra tresc), i powoli (1 dB/s) dociagamy do celu; limiter dalej pilnuje szczytow
-                    // wynik liczony BEZ glosnosci odtwarzacza (vdb): suwak glosnosci i sciszanie pod lektora nie moga byc "dociagane" z powrotem do celu
+                    // wynik mierzony PRZED głośnością odtwarzacza (OutPre): suwak i ściszanie pod lektora nie są ani dociągane, ani mylą okna 10 s
                     //    cel wyniku zgodny z intensywnością: źródło + Amount × odchylenie (Light nie jest dociągany do pełnego celu); Limit Only - tylko w dół
-                    if (vol > 1e-3 && Out.Gated10 > double.NegativeInfinity && In.Gated10 > double.NegativeInfinity && Math.Abs(In.ShortTerm - In.Gated10) < 3 && Out.Momentary - vdb > Tg - 15 && In.Momentary > Tg + pr.Gate)
+                    if (OutPre.Gated10 > double.NegativeInfinity && In.Gated10 > double.NegativeInfinity && Math.Abs(In.ShortTerm - In.Gated10) < 3 && OutPre.Momentary > Tg - 15 && In.Momentary > Tg + pr.Gate)
                     {
                         double dev = Tg - In.Gated10; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead); double goal = In.Gated10 + Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
                         if (pr.LimitOnly) goal = Math.Min(goal, In.Gated10);
-                        corrDb = Math.Max(-3, Math.Min(pr.MaxBoost > 0 ? 3 : 0, corrDb + Math.Max(-1, Math.Min(1, goal - (Out.Gated10 - vdb))) * 1.0 / Fs));
+                        corrDb = Math.Max(-3, Math.Min(pr.MaxBoost > 0 ? 3 : 0, corrDb + Math.Max(-1, Math.Min(1, goal - OutPre.Gated10)) * 1.0 / Fs));
                     }
                     else corrDb -= corrDb / (2.0 * Fs);   // materiał się zmienia (muzyka → dialog): drobna korekta wygasa w ok. 2 s, nie ciągnie poprzedniej sceny
                     g = levDb + fastDb + grDb + corrDb;
@@ -362,6 +362,7 @@ namespace Velivo
                 if (or > ceil) or = ceil; else if (or < -ceil) or = -ceil;
                 buf[2 * f] = (float)ol; buf[2 * f + 1] = (float)or;
                 Out.Push(ol, or); Vu(ol, or);
+                if (vol > 1e-3) OutPre.Push(ol / vol, or / vol);   // to samo bez głośności odtwarzacza
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
                 int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 8191;
                 if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }   // szczyt True Peak z ostatniej sekundy

@@ -185,6 +185,25 @@ public class AudioBalanceTests
     }
 
     [Fact]
+    public void LektorCzesteSciszanieNieZmieniaRegulacjiFilmu()
+    {
+        // lektor co 5 s przez 3 s ścisza film o 8 dB (Volume 0,4) - wzmocnienie filmu (Audio Balance) takie samo jak bez lektora
+        double Run(bool lektor)
+        {
+            var p = new AbProcessor { Profile = AbProfile.Balanced, Target = 0 }; var buf = new float[960]; var rnd = new Random(1); double sum = 0; int n = 0;
+            p.NewMedia();
+            for (int b = 0; b < 18000; b++)
+            {
+                double t = b * 0.01; p.Volume = lektor && t > 20 && (t % 5) < 3 ? 0.4f : 1f;
+                for (int k = 0; k < 480; k++) { double tt = (b * 480 + k) / 48000.0; buf[2 * k] = buf[2 * k + 1] = (float)(0.06 * Math.Max(0, Math.Sin(2 * Math.PI * 3 * tt)) * (Math.Sin(2 * Math.PI * 220 * tt) + 0.2 * (rnd.NextDouble() * 2 - 1)) + 0.02 * Math.Sin(2 * Math.PI * 110 * tt)); }
+                p.Process(buf, 480); if (b >= 6000) { sum += p.GainDb; n++; }
+            }
+            return sum / n;
+        }
+        Assert.InRange(Run(true) - Run(false), -0.3, 0.3);
+    }
+
+    [Fact]
     public void SciszeniePodLektoraNieJestCofane()
     {
         // 🗣 lektor ścisza film suwakiem odtwarzacza (Volume 0,3): wynik ma zostać ok. 10 dB ciszej, nie wracać do celu

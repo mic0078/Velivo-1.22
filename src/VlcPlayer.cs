@@ -3869,7 +3869,11 @@ namespace Velivo
                 var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
                 sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); restartPlayer(); };   // zmiana wyjscia dzwieku - odtwarzacz od nowa w tym samym miejscu
                 cm.Items.Add(sur);
-                var abm = new MenuItem { Header = L.T("🎚 Audio Balance i korektor…") + "   (" + AbProfileLabel(AbProfileName) + (AbEqOn ? " + EQ" : "") + ")" };
+                // stan od razu widac (ptaszek) i jednym kliknieciem wl./wyl. - ten sam przelacznik co ⏻ w widzecie
+                var abOn = new MenuItem { Header = L.T("🎚 Audio Balance włączony") + "   (" + AbProfileLabel(AbProfileName) + (AbEqOn ? " + EQ" : "") + (AbDialog > 0 ? L.T(" + dialogi") : "") + ")", IsCheckable = true, IsChecked = AbWanted };
+                abOn.Click += (a, b) => { if (!abOn.IsChecked && !AbBypass) AbSetBypass(true); else if (abOn.IsChecked) { if (AbBypass) AbSetBypass(false); if (!AbWanted) AbSetProfile("balanced"); } };
+                cm.Items.Add(abOn);
+                var abm = new MenuItem { Header = L.T("🎚 Audio Monitor i korektor…") };
                 abm.Click += (a, b) => ShowAudioMonitor();
                 cm.Items.Add(abm);
             });

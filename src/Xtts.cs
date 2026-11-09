@@ -219,7 +219,7 @@ for line in sys.stdin:
                 await _xtProc.StandardInput.WriteLineAsync(req);
                 await _xtProc.StandardInput.FlushAsync();
                 var res = await XttsReadLine("OK ", 180000);
-                if (res == null) { StopXttsProcess(); return null; }
+                if (res == null) { App.LogError(new Exception("XTTS: brak odpowiedzi w 3 min – proces uruchamiany od nowa")); StopXttsProcess(); return null; }
                 if (!res.StartsWith("OK ")) { App.LogError(new Exception("XTTS: " + res)); return null; }
                 return File.Exists(path) ? path : null;
             }

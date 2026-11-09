@@ -229,17 +229,25 @@ namespace Velivo
                 lc.Ready = found; lc.RenderKey = key;
                 if (loadOnly) { if (found.Count > 0) lc.Osd?.Invoke(L.T("🗣 Lektor: używam gotowych nagrań tego filmu – ") + found.Count + " / " + lc.Cues.Count); return; }
                 lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
+                int fails = 0; var lastOsd = DateTime.UtcNow;   // postep co 10% albo co minute (wolny glos - XTTS)
                 while (gen == lc.RenderGen)
                 {
                     int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
                     for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
                     if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
                     if (idx < 0) { lc.Osd?.Invoke(L.T("🗣 Lektor gotowy dla całego filmu")); break; }   // caly film gotowy
+                    while (gen == lc.RenderGen && lc.PreWav != null && !lc.PreWav.IsCompleted) await Task.Delay(100);   // kwestia liczona na biezaco ma pierwszenstwo (XTTS/Supertonic licza jedna naraz); samo granie lektora budowy nie wstrzymuje
+                    if (gen != lc.RenderGen) return;
                     var tmp = await LectorSynth(lc, lc.Cues[idx]);
                     if (gen != lc.RenderGen) { if (tmp != null) try { System.IO.File.Delete(tmp); } catch (Exception) { } return; }
-                    if (tmp == null) { await Task.Delay(2000); continue; }
+                    if (tmp == null)
+                    {
+                        if (++fails == 3) { App.LogError(new Exception("Lektor: budowa – głos nie zwrócił nagrania (kwestia " + idx + ", głos " + (_settings.VlcLectorVoice ?? "auto") + ")")); lc.Osd?.Invoke(L.T("🗣 Lektor: głos nie odpowiada przy budowie – szczegóły w Błędy Velivo")); }
+                        await Task.Delay(2000); continue;
+                    }
+                    fails = 0;
                     var dst = Path.Combine(dir, idx + ".wav");
-                    try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; int n = lc.Ready.Count, all = lc.Cues.Count; if (all > 0 && n * 10 / all != (n - 1) * 10 / all) lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + n + " / " + all); }   // postęp na ekranie co 10%
+                    try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; int n = lc.Ready.Count, all = lc.Cues.Count; if (all > 0 && (n * 10 / all != (n - 1) * 10 / all || (DateTime.UtcNow - lastOsd).TotalSeconds > 60)) lastOsd = DateTime.UtcNow; else continue; lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + n + " / " + all); }   // postęp na ekranie co 10%
                     catch (Exception ex)
                     {
                         if (File.Exists(dst) && new FileInfo(dst).Length > 44) { lc.Ready[idx] = dst; try { File.Delete(tmp); } catch (Exception) { } }   // nagranie juz jest (wlasnie grane) - zostaje

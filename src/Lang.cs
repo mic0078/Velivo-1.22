@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "🗣 Lektor: głos nie odpowiada przy budowie – szczegóły w Błędy Velivo", "🗣 Narrator: the voice does not respond while building – details in Velivo errors" },
             { "Osobne V dla kanału L i R: prawe ramię turkusowe – Velivo podgłośniło, lewe fioletowe – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.", "Separate V for the L and R channel: right arm teal – Velivo raised, left arm purple – lowered; length and number – how many dB. Empty V – unchanged from the source." },
             { "puste V = bez zmiany   ", "empty V = unchanged   " },
             { "⏻ Nic nie jest włączone – kliknij, aby włączyć (Balanced)", "⏻ Nothing is on – click to turn on (Balanced)" },

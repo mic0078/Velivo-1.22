@@ -138,13 +138,15 @@ namespace Velivo
 
         static string AbProfileName => GetPref("ab-profil") ?? "off";
         static bool AbEqOn => GetPref("ab-eq") == "1";
-        internal static bool AbWanted => AbProfileName != "off" || AbEqOn;
+        static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
+        static bool AbBypass => GetPref("ab-wylacz") == "1";
+        internal static bool AbWanted => !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0);
 
         static void AbLoadSettings()
         {
             AbProc.Profile = AbProfile.ByName(AbProfileName);
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : -18f;
-            AbProc.EqOn = AbEqOn;
+            AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
             AbProc.SetEq(g.Take(10).ToArray());
@@ -246,6 +248,18 @@ namespace Velivo
             foreach (var p in AbProfiles) { var pp = p; var b = Mk(AbProfileLabel(p), () => { AbSetProfile(pp); MarkProfile(); }); b.ToolTip = AbProfileTip(p); pbtn[p] = b; prow.Children.Add(b); }
             MarkProfile();
             root.Children.Add(prow);
+            // 🗣 wyrazne dialogi (opcja dodatkowa) i ⏻ wylacz wszystko jednym przyciskiem
+            var drow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            drow.Children.Add(new TextBlock { Text = L.T("🗣 Wyraźne dialogi:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
+            var dbtn = new Button[3]; var dnames = new[] { L.T("Wył."), L.T("Średnio"), L.T("Mocno") };
+            void MarkDialog() { for (int i = 0; i < 3; i++) dbtn[i].Background = i == AbDialog ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            for (int i = 0; i < 3; i++) { int di = i; dbtn[i] = Mk(dnames[i], () => { SetPref("ab-dialogi", di.ToString()); AbProc.Dialog = di; MarkDialog(); AbNeedsRestartHint(); }); dbtn[i].ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian."); drow.Children.Add(dbtn[i]); }
+            MarkDialog(); root.Children.Add(drow);
+            var bypassBtn = Mk("", () => { });
+            void MarkBypass() { bypassBtn.Content = AbBypass ? L.T("⏻ Przetwarzanie WYŁĄCZONE – kliknij, aby włączyć") : L.T("⏻ Wyłącz całe przetwarzanie"); bypassBtn.Background = AbBypass ? new SolidColorBrush(Color.FromRgb(0x8A, 0x2B, 0x2B)) : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            bypassBtn.Click += (s, e) => { AbSetBypass(!AbBypass); MarkBypass(); };
+            bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
+            MarkBypass(); root.Children.Insert(2, bypassBtn);
             var tgt = new ComboBox { Width = 210, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
             tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? tgt.Items[2];
@@ -278,6 +292,7 @@ namespace Velivo
             eqExp.Content = eqPanel; root.Children.Add(eqExp);
             // przyciski okna
             var brow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            brow.Children.Add(Mk(L.T("📌 Na pulpit"), () => { ShowAbDesk(); AbHideMonitor(); }));
             brow.Children.Add(Mk(L.T("⤵ Do zasobnika"), () => AbHideMonitor()));
             brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), () => win.Close()));
             root.Children.Add(brow);
@@ -295,7 +310,7 @@ namespace Velivo
             {
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
                 bool live = _abOut != null && AbProc.Active;
-                state.Text = !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProc.EqOn ? " + EQ" : "") : L.T("● czeka na odtwarzanie");
+                state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
                 // FFT 2048 z ostatnich probek
@@ -335,7 +350,7 @@ namespace Velivo
                     plIn.Points = a1; plOut.Points = a2;
                     double ty = Y(AbProc.Target); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = AbProc.Target.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
                 }
-                gainTxt.Text = !live ? "" : (AbProc.Profile != null ? L.T("Audio Balance: wzmocnienie ") + AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("Audio Balance: wyłączony (sam korektor)")) +
+                gainTxt.Text = !live ? "" : AbBypass ? L.T("Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)") : (AbProc.Dialog > 0 ? L.T("Dialogi +") + AbProc.DialogDb.ToString("0.0") + " dB · " : "") + (AbProc.Profile != null ? L.T("Audio Balance: wzmocnienie ") + AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("Audio Balance: wyłączony (sam korektor)")) +
                     L.T(" · limiter ") + AbProc.LimitDb.ToString("0.0") + " dB" + L.T(" · wejście (3 s) ") + F(AbProc.In.ShortTerm) + " LUFS";
             };
             win.StateChanged += (s, e) => { if (win.WindowState == WindowState.Minimized) AbHideMonitor(); };
@@ -347,6 +362,13 @@ namespace Velivo
         static readonly float[] AbTargets = { -14, -16, -18, -20, -23, -24 };
         static string AbTargetLabel(float v) => v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
         static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Balanced – wygodne oglądanie: cichsze dialogi wyżej, głośne sceny niżej.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
+
+        internal void AbSetBypass(bool on)
+        {
+            SetPref("ab-wylacz", on ? "1" : "0"); AbProc.Bypass = on;
+            ShowToast(on ? L.T("⏻ Przetwarzanie dźwięku wyłączone – film gra bez zmian") : L.T("🎚 Przetwarzanie dźwięku włączone"), null);
+            AbNeedsRestartHint();
+        }
 
         void AbSetProfile(string p)
         {
@@ -382,10 +404,15 @@ namespace Velivo
                     var m = new System.Windows.Forms.ContextMenuStrip();
                     m.Items.Add(L.T("🎚 Otwórz Audio Monitor"), null, (s, e) => Dispatcher.Invoke(ShowAudioMonitor));
                     m.Items.Add(L.T("Ukryj widżet"), null, (s, e) => Dispatcher.Invoke(AbHideMonitor));
+                    m.Items.Add(L.T("📌 Mały widżet na pulpicie"), null, (s, e) => Dispatcher.Invoke(ShowAbDesk));
                     var prof = new System.Windows.Forms.ToolStripMenuItem(L.T("Profil Audio Balance"));
                     foreach (var p in AbProfiles) { var pp = p; prof.DropDownItems.Add(AbProfileLabel(p), null, (s, e) => Dispatcher.Invoke(() => AbSetProfile(pp))); }
                     prof.DropDownOpening += (s, e) => { foreach (System.Windows.Forms.ToolStripMenuItem it in prof.DropDownItems) it.Checked = it.Text == AbProfileLabel(AbProfileName); };
                     m.Items.Add(prof);
+                    var byp = new System.Windows.Forms.ToolStripMenuItem(L.T("⏻ Bez przetwarzania dźwięku"));
+                    byp.Click += (s, e) => Dispatcher.Invoke(() => AbSetBypass(!AbBypass));
+                    m.Opening += (s, e) => byp.Checked = AbBypass;
+                    m.Items.Add(byp);
                     m.Items.Add(L.T("✕ Zamknij widżet"), null, (s, e) => Dispatcher.Invoke(() => _abWin?.Close()));
                     _abTray.ContextMenuStrip = m;
                     _abTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(ShowAudioMonitor); };
@@ -393,6 +420,65 @@ namespace Velivo
                 }
                 catch (Exception ex) { App.LogError(ex); }
             }
+        }
+
+        // 📌 maly widzet na pulpicie: widmo + LUFS + profil, bez ramki, pod innymi oknami (jak gadzet), przeciaganie mysza,
+        // dwuklik = pelny Audio Monitor, prawy przycisk = menu; miejsce zapamietane
+        Window _abDesk;
+        internal void ShowAbDesk()
+        {
+            if (_abDesk != null) { _abDesk.Show(); _abDesk.Activate(); return; }
+            var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
+            var w = new Window { Title = "Velivo – Audio Monitor (pulpit)", Width = 260, Height = 120, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
+            double l0, t0;
+            if (double.TryParse(GetPref("ab-pulpit-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref("ab-pulpit-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
+            { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = l0; w.Top = t0; }
+            else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - 280; w.Top = SystemParameters.WorkArea.Top + 20; }
+            var g = new Grid { Margin = new Thickness(10, 8, 10, 8) };
+            g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var top = new DockPanel(); var st = new TextBlock { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(st, Dock.Right); top.Children.Add(st);
+            top.Children.Add(new TextBlock { Text = "🎚 Velivo", FontSize = 11, Foreground = fg, FontWeight = FontWeights.SemiBold }); g.Children.Add(top);
+            const int NB = 24; var cv = new Canvas { Margin = new Thickness(0, 4, 0, 4), ClipToBounds = true }; Grid.SetRow(cv, 1); g.Children.Add(cv);
+            var grad = new LinearGradientBrush(Color.FromRgb(0x2E, 0xD3, 0xC6), Color.FromRgb(0x7C, 0x5C, 0xFF), 90);
+            var bars = new Rectangle[NB]; for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1, RadiusY = 1 }; cv.Children.Add(bars[i]); }
+            var nums = new TextBlock { FontSize = 11, Foreground = dim }; Grid.SetRow(nums, 2); g.Children.Add(nums);
+            w.Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(10), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g,
+                ToolTip = L.T("Audio Monitor na pulpicie: przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.") };
+            w.MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 2) ShowAudioMonitor(); else try { w.DragMove(); SetPref("ab-pulpit-x", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref("ab-pulpit-y", w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)); } catch (Exception) { } };
+            var cm = new ContextMenu();
+            void Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); }
+            Item(L.T("🎚 Otwórz Audio Monitor"), ShowAudioMonitor);
+            foreach (var p in AbProfiles) { var pp = p; Item(L.T("Profil: ") + AbProfileLabel(p), () => AbSetProfile(pp)); }
+            Item(L.T("⏻ Bez przetwarzania dźwięku (wł./wył.)"), () => AbSetBypass(!AbBypass));
+            Item(L.T("✕ Zamknij widżet z pulpitu"), () => w.Close());
+            w.ContextMenu = cm;
+            var re = new double[1024]; var im = new double[1024]; var hann = Enumerable.Range(0, 1024).Select(i => 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / 1023)).ToArray();
+            var edges = Enumerable.Range(0, NB + 1).Select(i => 60 * Math.Pow(16000.0 / 60, i / (double)NB)).ToArray(); var sm = new double[NB];
+            var tm = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(40) };   // 25 kl./s - lekko
+            tm.Tick += (s, e) =>
+            {
+                if (!w.IsVisible) return;
+                bool live = _abOut != null && AbProc.Active;
+                st.Text = AbBypass ? L.T("bez przetwarzania") : !AbWanted ? L.T("wyłączony") : AbProfileLabel(AbProfileName) + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "");
+                int pos = AbProc.ScopePos;
+                for (int i = 0; i < 1024; i++) { re[i] = live ? AbProc.Scope[(pos - 1024 + i + 8192) & 8191] * hann[i] : 0; im[i] = 0; }
+                AbFft(re, im);
+                double cw = cv.ActualWidth, ch = cv.ActualHeight, bw = cw / NB;
+                for (int b = 0; b < NB; b++)
+                {
+                    int k0 = Math.Max(1, (int)(edges[b] * 1024 / AbProcessor.Fs)), k1 = Math.Max(k0 + 1, (int)(edges[b + 1] * 1024 / AbProcessor.Fs));
+                    double sum = 0; for (int k = k0; k < k1 && k < 512; k++) sum += re[k] * re[k] + im[k] * im[k];
+                    double db = 10 * Math.Log10(sum / 512.0 + 1e-12) + 3, v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db + 70) / 70));
+                    sm[b] = v > sm[b] ? v : sm[b] * 0.85 + v * 0.15;
+                    bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = sm[b] * ch; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], ch - sm[b] * ch);
+                }
+                string F(double x) => double.IsNegativeInfinity(x) || double.IsNaN(x) || x < -69 || !live ? "–" : x.ToString("0.0");
+                nums.Text = "M " + F(AbProc.Out.Momentary) + "   S " + F(AbProc.Out.ShortTerm) + "   I " + F(AbProc.Out.Integrated) + " LUFS   TP " + F(AbProc.PeakOutDb);
+            };
+            w.Closed += (s, e) => { tm.Stop(); _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref("ab-pulpit", "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
+            w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };
+            _abDesk = w; SetPref("ab-pulpit", "1");
+            w.Show(); tm.Start();
         }
 
         void AbTrayRemove() { try { if (_abTray != null) { _abTray.Visible = false; _abTray.Dispose(); _abTray = null; } } catch (Exception) { } }

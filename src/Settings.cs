@@ -776,6 +776,17 @@ namespace Velivo
             abMon.ToolTip = L.T("Widżet z widmem, LUFS i True Peak, korektor i wybór profilu. Można go schować do zasobnika.");
             abRow.Children.Add(abMon);
             root.Children.Add(abRow);
+            var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
+            abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) ShowAbDesk(); else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
+            root.Children.Add(abDeskBox);
+            var abDlg = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2), ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian.") };
+            foreach (var t in new[] { "🗣 Wyraźne dialogi: wyłączone", "🗣 Wyraźne dialogi: średnio", "🗣 Wyraźne dialogi: mocno" }) abDlg.Items.Add(L.T(t));
+            abDlg.SelectedIndex = Math.Max(0, Math.Min(2, AbDialog));
+            abDlg.SelectionChanged += (a, b) => { SetPref("ab-dialogi", abDlg.SelectedIndex.ToString()); AbProc.Dialog = abDlg.SelectedIndex; AbNeedsRestartHint(); };
+            root.Children.Add(abDlg);
+            var abByp = Check(L.T("⏻ Bez przetwarzania dźwięku (film gra bez zmian)"), L.T("Jednym kliknięciem wyłącza Audio Balance, korektor i dialogi. Ustawienia zostają."), AbBypass);
+            abByp.Click += (a, b) => AbSetBypass(abByp.IsChecked == true);
+            root.Children.Add(abByp);
             root.Children.Add(new TextBlock { Text = L.T("Włączanie i wyłączanie działa od razu, także w trakcie filmu (przy pierwszym włączeniu chwila ciszy). Dźwięk 5.1 jest wtedy miksowany do stereo."), FontSize = 11, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) });
 
             // ---------- torrenty: osobna strefa ----------

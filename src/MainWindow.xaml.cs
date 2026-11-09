@@ -192,7 +192,8 @@ namespace Velivo
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
                     StartJellyfinAutoSync();
-                    _ = VoiceUpdateCheckAsync(null);   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
+                    _ = VoiceUpdateCheckAsync(null);
+                    if (GetPref("ab-pulpit") == "1") ShowAbDesk();   // 📌 maly Audio Monitor na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
                     LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
                     var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
                     foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }

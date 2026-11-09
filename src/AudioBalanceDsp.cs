@@ -14,6 +14,8 @@ namespace Velivo
         public void Reset() { z1L = z2L = z1R = z2R = 0; }
         public double L(double x) { double y = b0 * x + z1L; z1L = b1 * x - a1 * y + z2L; z2L = b2 * x - a2 * y; return y; }
         public double R(double x) { double y = b0 * x + z1R; z1R = b1 * x - a1 * y + z2R; z2R = b2 * x - a2 * y; return y; }
+        public static AbBiquad Hp(double fs, double f) { double w = 2 * Math.PI * f / fs, al = Math.Sin(w) / Math.Sqrt(2), c = Math.Cos(w); var b = new AbBiquad(); b.Set((1 + c) / 2, -(1 + c), (1 + c) / 2, 1 + al, -2 * c, 1 - al); return b; }
+        public static AbBiquad Lp(double fs, double f) { double w = 2 * Math.PI * f / fs, al = Math.Sin(w) / Math.Sqrt(2), c = Math.Cos(w); var b = new AbBiquad(); b.Set((1 - c) / 2, 1 - c, (1 - c) / 2, 1 + al, -2 * c, 1 - al); return b; }
         // RBJ: filtr szczytowy (korektor)
         public static AbBiquad Peak(double fs, double f, double q, double db)
         {
@@ -124,6 +126,12 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
+        public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
+        public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
+        public double DialogDb;               // bieżące podbicie mowy (widżet)
+        // dialogi: mowa jest zwykle w środku stereo (L+R) w paśmie 250–4000 Hz; gdy przykrywa ją reszta (muzyka, efekty, szerokie stereo),
+        // pasmo mowy ze środka jest równolegle podbijane - reszta dźwięku i jej dynamika zostają bez zmian
+        readonly AbBiquad dHp = AbBiquad.Hp(48000, 250), dLp = AbBiquad.Lp(48000, 4000); double dS, dM, dSide, dG;
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
         public readonly float[] Scope = new float[8192]; public volatile int ScopePos; int pkN;
@@ -143,7 +151,7 @@ namespace Velivo
         {
             In.ResetWindows(); Out.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
-            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0;
+            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0;
             foreach (var b in eq) b?.Reset();
         }
         volatile bool newReq;
@@ -160,7 +168,9 @@ namespace Velivo
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
             double aC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.AttackMs * Fs)), rC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.ReleaseMs * Fs)), detC = Math.Exp(-1000.0 / (10.0 * Fs));
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
-            if (pr == null && !eqOn)
+            int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
+            double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
+            if (Bypass || (pr == null && !eqOn && dlg == 0))
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
@@ -177,6 +187,16 @@ namespace Velivo
             {
                 double l = buf[2 * f], r = buf[2 * f + 1];
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
+                if (dlg > 0)
+                {
+                    double m = (l + r) * 0.5, sd = (l - r) * 0.5, spc = dLp.L(dHp.L(m));
+                    dS = spc * spc + eC * (dS - spc * spc); dM = m * m + eC * (dM - m * m); dSide = sd * sd + eC * (dSide - sd * sd);
+                    double all = dM + dSide, share = dS / (all + 1e-15);   // udział mowy (środek, pasmo mowy) w całym dźwięku
+                    double want = all < 1e-7 || share < 0.25 ? 0 : dMax * Math.Max(0, Math.Min(1, (0.8 - share) / 0.45));   // brak mowy / mowa wyraźna = 0, mowa przykryta = więcej
+                    dG = want > dG ? want + dAtt * (dG - want) : want + dRel * (dG - want);
+                    double add = Math.Pow(10, dG / 20) - 1; l += add * spc; r += add * spc; DialogDb = dG;
+                }
+                else DialogDb = 0;
                 double p = In.Push(l, r);
                 double g = 0;
                 if (pr != null)

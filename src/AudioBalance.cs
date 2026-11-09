@@ -334,7 +334,7 @@ namespace Velivo
             // profil i cel - zmiana od razu w glownym procesorze
             var prow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
             var pbtn = new Dictionary<string, Button>();
-            Button Mk(string text, Action a) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 3, 10, 3), Foreground = fg, Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3E, 0x52)) }; b.Click += (s, e) => a(); return b; }
+            Button Mk(string text, Action a) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 3, 10, 3), Foreground = fg, Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3E, 0x52)), BorderThickness = new Thickness(1), Template = KomBtnTemplate }; b.Click += (s, e) => a(); return b; }   // własny szablon: zwykły przycisk Windows robił się biały po najechaniu (napis niewidoczny)
             Action MarkSilaRef = null;
             void MarkProfile() { foreach (var kv in pbtn) kv.Value.Background = kv.Key == AbProfileName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); MarkSilaRef?.Invoke(); }
             foreach (var p in AbProfiles) { var pp = p; var b = Mk(AbProfileLabel(p), () => { AbSetProfile(pp); MarkProfile(); }); b.ToolTip = AbProfileTip(p); pbtn[p] = b; prow.Children.Add(b); }
@@ -715,7 +715,7 @@ namespace Velivo
             {
                 if (!w.IsVisible) return;
                 bool live = _abOut != null && AbProc.Active && AbFlowing();
-                st.Text = AbBypass || !AbWanted ? "⏻" : AbProfileShort(AbProfileName) + (AbProc.Dialog > 0 ? "+🗣" : "");   // krotko: Lim / L / B / N, ⏻ = bez przetwarzania
+                st.Text = AbBypass || !AbWanted ? "⏻" : string.Join("+", new[] { AbProfileName != "off" ? AbProfileShort(AbProfileName) : null, AbEqOn ? "EQ" : null, AbProc.Dialog > 0 ? "🗣" : null }.Where(x => x != null));   // krotko: Lim / L / B / N, ⏻ = bez przetwarzania
                 vuUpd(live);
                 string F(double x) => double.IsNegativeInfinity(x) || double.IsNaN(x) || x < -69 || !live ? "–" : x.ToString("0.0");
                 if ((DateTime.UtcNow - numsAt).TotalMilliseconds >= 250)

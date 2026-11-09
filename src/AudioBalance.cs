@@ -316,11 +316,14 @@ namespace Velivo
             var fftRe = new double[2048]; var fftIm = new double[2048]; var hann = Enumerable.Range(0, 2048).Select(i => 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / 2047)).ToArray();
             var edges = Enumerable.Range(0, NB + 1).Select(i => 50 * Math.Pow(16000.0 / 50, i / (double)NB)).ToArray();
             var smooth = new double[NB];
+            string uiSig = null;
             _abTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
             _abTimer.Tick += (s, e) =>
             {
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
                 bool live = _abOut != null && AbProc.Active;
+                string sig = AbBypass + AbProfileName + AbDialog;
+                if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkDialog(); }
                 state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
@@ -430,7 +433,7 @@ namespace Velivo
                     m.Items.Add(L.T("Ukryj widżet"), null, (s, e) => Dispatcher.Invoke(AbHideMonitor));
                     m.Items.Add(L.T("📌 Mały widżet na pulpicie"), null, (s, e) => Dispatcher.Invoke(ShowAbDesk));
                     var prof = new System.Windows.Forms.ToolStripMenuItem(L.T("Profil Audio Balance"));
-                    foreach (var p in AbProfiles) { var pp = p; prof.DropDownItems.Add(AbProfileLabel(p), null, (s, e) => Dispatcher.Invoke(() => AbSetProfile(pp))); }
+                    foreach (var p in AbProfiles) { var pp = p; prof.DropDownItems.Add(AbProfileLabel(p), null, (s, e) => Dispatcher.Invoke(() => { if (AbBypass) AbSetBypass(false); AbSetProfile(pp); })); }
                     prof.DropDownOpening += (s, e) => { foreach (System.Windows.Forms.ToolStripMenuItem it in prof.DropDownItems) it.Checked = it.Text == AbProfileLabel(AbProfileName); };
                     m.Items.Add(prof);
                     var byp = new System.Windows.Forms.ToolStripMenuItem(L.T("⏻ Bez przetwarzania dźwięku"));
@@ -467,13 +470,16 @@ namespace Velivo
             var bars = new Rectangle[NB]; for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1, RadiusY = 1 }; cv.Children.Add(bars[i]); }
             w.Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(10), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g,
 };
-            w.MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 2) ShowAudioMonitor(); else try { w.DragMove(); SetPref("ab-pulpit-x", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref("ab-pulpit-y", w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)); } catch (Exception) { } };
+            w.MouseLeftButtonDown += (s, e) => { if (!(e.OriginalSource is Visual ov) || !w.IsAncestorOf(ov)) return;   // klik w menu (prawy przycisk) przychodzi tu z okienka menu - przeciaganie zabieralo mu klikniecie
+                if (e.ClickCount == 2) ShowAudioMonitor(); else try { w.DragMove(); SetPref("ab-pulpit-x", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref("ab-pulpit-y", w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)); } catch (Exception) { } };
             var cm = new ContextMenu();
-            void Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); }
+            MenuItem Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); return mi; }
             Item(L.T("🎚 Otwórz Audio Monitor"), ShowAudioMonitor);
-            foreach (var p in AbProfiles) { var pp = p; Item(L.T("Profil: ") + AbProfileLabel(p), () => AbSetProfile(pp)); }
-            Item(L.T("⏻ Bez przetwarzania dźwięku (wł./wył.)"), () => AbSetBypass(!AbBypass));
+            var profItems = new Dictionary<string, MenuItem>();
+            foreach (var p in AbProfiles) { var pp = p; profItems[p] = Item(L.T("Profil: ") + AbProfileLabel(p), () => { if (AbBypass) AbSetBypass(false); AbSetProfile(pp); }); }   // wybor profilu = przetwarzanie wlaczone
+            var bypItem = Item(L.T("⏻ Bez przetwarzania dźwięku (wł./wył.)"), () => AbSetBypass(!AbBypass));
             Item(L.T("✕ Zamknij widżet z pulpitu"), () => w.Close());
+            cm.Opened += (s, e) => { bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; };   // stan widac w menu
             w.ContextMenu = cm;
             var re = new double[1024]; var im = new double[1024]; var hann = Enumerable.Range(0, 1024).Select(i => 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / 1023)).ToArray();
             var edges = Enumerable.Range(0, NB + 1).Select(i => 60 * Math.Pow(16000.0 / 60, i / (double)NB)).ToArray(); var sm = new double[NB];

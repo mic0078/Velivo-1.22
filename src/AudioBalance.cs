@@ -217,10 +217,10 @@ namespace Velivo
             var axis = new Grid(); foreach (var (t, al) in new[] { ("50 Hz", HorizontalAlignment.Left), ("1 kHz", HorizontalAlignment.Center), ("16 kHz", HorizontalAlignment.Right) }) { var a = T(t, 10, dim); a.HorizontalAlignment = al; axis.Children.Add(a); }
             root.Children.Add(axis);
             var bigVu = AbVuPair(out var bigVuUpd); bigVu.LayoutTransform = new ScaleTransform(2.6, 2.6); bigVu.HorizontalAlignment = HorizontalAlignment.Center; bigVu.Margin = new Thickness(0, 8, 0, 0);
-            bigVu.ToolTip = L.T("Wskaźniki każdego kanału osobno (LEFT, RIGHT): środek tarczy = poziom docelowy, w lewo ciszej, w prawo głośniej. Zielona wskazówka – po poprawie (słyszysz), czerwona – oryginał; u góry ▲ dodane / ▼ odjęte dB w tym kanale.");
+            bigVu.ToolTip = L.T("Wskaźniki każdego kanału osobno (LEFT, RIGHT): czerwona kreska na środku = źródło (0 dB, bez zmiany). Zielona wskazówka w prawo – Velivo podgłośniło, w lewo – ściszyło; u góry tarczy ile dB w tym kanale.");
             root.Children.Add(bigVu);
             var vuLeg = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
-            vuLeg.Children.Add(T(L.T("━ po poprawie (słyszysz)   "), 10, new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A)))); vuLeg.Children.Add(T(L.T("━ oryginał"), 10, new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53))));
+            vuLeg.Children.Add(T(L.T("◀ ściszone   "), 10, new SolidColorBrush(Color.FromRgb(0xFF, 0xA0, 0x40)))); vuLeg.Children.Add(T(L.T("┃ źródło (0 dB)   "), 10, new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x53)))); vuLeg.Children.Add(T(L.T("podgłośnione ▶"), 10, new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x5A))));
             root.Children.Add(vuLeg);
             // LOW / MID / HIGH
             var lmh = new Grid { Margin = new Thickness(0, 8, 0, 0) }; var lmhBars = new ProgressBar[3]; var lmhTxt = new[] { "LOW", "MID", "HIGH" };
@@ -562,11 +562,11 @@ namespace Velivo
                     orig.Text = L.T("źródło ") + F(AbProc.In.ShortTerm);
                     double d = AbProc.Out.ShortTerm - AbProc.In.ShortTerm;
                     bool ok = live && !double.IsNaN(d) && !double.IsInfinity(d);
-                    delta.Text = !ok ? "" : Math.Abs(d) < 0.25 ? "±0 dB" : (d > 0 ? L.T("▲ głośniej +") : L.T("▼ ciszej ")) + d.ToString("0.0");
+                    delta.Text = !ok ? "" : Math.Abs(d) < 0.25 ? "±0 dB" : (d > 0 ? "▲ +" : "▼ ") + d.ToString("0.0") + " dB";   // krotko - mieści się w wierszu
                     delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;
                 }
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
-                w.ToolTip = L.T("Wskaźniki każdego kanału osobno (LEFT, RIGHT): środek tarczy = poziom docelowy, w lewo ciszej, w prawo głośniej. Zielona wskazówka – po poprawie (słyszysz), czerwona – oryginał; u góry ▲ dodane / ▼ odjęte dB w tym kanale.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
+                w.ToolTip = L.T("Wskaźniki każdego kanału osobno (LEFT, RIGHT): czerwona kreska na środku = źródło (0 dB, bez zmiany). Zielona wskazówka w prawo – Velivo podgłośniło, w lewo – ściszyło; u góry tarczy ile dB w tym kanale.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
             w.Closed += (s, e) => { tm.Stop(); _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref("ab-pulpit", "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };
@@ -589,9 +589,9 @@ namespace Velivo
                     BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x2E, 0x1A)), BorderThickness = new Thickness(1), Child = face };
                 double cx = 29, cy = 40, rr = 30;
                 for (int k = -15; k <= 15; k += 3)
-                {   // podzialka co 3 dB wokol srodka: srodek (zielony) = poziom docelowy, w lewo ciszej, w prawo glosniej (powyzej +6 na czerwono)
+                {   // podzialka co 3 dB wokol srodka: srodek = zrodlo (0 dB, bez zmiany), w prawo podglosnione, w lewo sciszone
                     double a = AbVuAngle(k), len = k == 0 ? 7 : k % 6 == 0 ? 5 : 3;
-                    face.Children.Add(new Line { X1 = cx + Math.Sin(a) * rr, Y1 = cy - Math.Cos(a) * rr, X2 = cx + Math.Sin(a) * (rr - len), Y2 = cy - Math.Cos(a) * (rr - len), Stroke = k == 0 ? new SolidColorBrush(Color.FromRgb(0x1E, 0x8C, 0x30)) : k > 6 ? Brushes.Firebrick : new SolidColorBrush(Color.FromRgb(0x2A, 0x22, 0x14)), StrokeThickness = k == 0 ? 1.6 : k > 6 ? 1.4 : 0.8 });
+                    face.Children.Add(new Line { X1 = cx + Math.Sin(a) * rr, Y1 = cy - Math.Cos(a) * rr, X2 = cx + Math.Sin(a) * (rr - len), Y2 = cy - Math.Cos(a) * (rr - len), Stroke = k == 0 ? new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)) : new SolidColorBrush(Color.FromRgb(0x2A, 0x22, 0x14)), StrokeThickness = k == 0 ? 1.6 : 0.8 });
                 }
                 var lab = new TextBlock { Text = ch == 0 ? "LEFT" : "RIGHT", FontSize = 6.5, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x3A, 0x2E, 0x1A)) };
                 Canvas.SetLeft(lab, 3); Canvas.SetTop(lab, 28); face.Children.Add(lab);   // napisy w rogach - wskazowka ich nie zaslania
@@ -604,20 +604,21 @@ namespace Velivo
                 face.Children.Add(needlesIn[ch]); face.Children.Add(needles[ch]);
                 Grid.SetColumn(back, ch); cv.Children.Add(back);
             }
-            var np = new double[] { -16, -16 }; var ni = new double[] { -16, -16 };
+            var np = new double[] { 0, 0 }; var ni = new double[] { 0, 0 };
             upd = live =>
             {
             // wskazowki: VU = dBFS + 18; ruch wygladzony (bezwladnosc wskazowki)
             double[] vuv = { AbProc.VuL, AbProc.VuR }, vin = { AbProc.VuInL, AbProc.VuInR };
-            // polozenie wzgledem celu: srodek = poziom docelowy (Target LUFS), skala ±15 dB; kanal RMS ≈ LUFS + 0,7 dB
-            double Tg(double v) => live && !double.IsNaN(v) && !double.IsInfinity(v) ? Math.Max(-16, Math.Min(16, v - 0.69 - AbProc.Target)) : -16;
+            // wlasciciel: srodek = zrodlo (0 dB); zielona wskazowka = ile Velivo zmienilo w tym kanale (w prawo podglosnil, w lewo sciszyl), skala ±15 dB
+            double Tg(double v) => live && !double.IsNaN(v) && !double.IsInfinity(v) ? Math.Max(-16, Math.Min(16, v)) : 0;
             for (int ch = 0; ch < 2; ch++)
             {
-                np[ch] += (Tg(vuv[ch]) - np[ch]) * 0.7; ni[ch] += (Tg(vin[ch]) - ni[ch]) * 0.7;
+                double ch_d = vin[ch] > -70 && !AbBypass ? vuv[ch] - vin[ch] : 0;
+                np[ch] += (Tg(ch_d) - np[ch]) * 0.7; ni[ch] = 0;
                 double an = AbVuAngle(np[ch]), ai = AbVuAngle(ni[ch]);
                 needles[ch].X2 = 29 + Math.Sin(an) * 27; needles[ch].Y2 = 40 - Math.Cos(an) * 27;
                 needlesIn[ch].X2 = 29 + Math.Sin(ai) * 25; needlesIn[ch].Y2 = 40 - Math.Cos(ai) * 25;
-                needlesIn[ch].Visibility = live && !AbBypass ? Visibility.Visible : Visibility.Collapsed;   // bez przetwarzania obie wskazowki pokazalyby to samo
+                needlesIn[ch].Visibility = Visibility.Collapsed;   // zrodlo = kreska na srodku (czerwona) - osobna wskazowka niepotrzebna
             }
             if ((DateTime.UtcNow - dAt).TotalMilliseconds >= 250)
             {   // liczby 4×/s - czytelne

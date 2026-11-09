@@ -176,7 +176,8 @@ namespace Velivo
         static void AbLoadSettings()
         {
             AbProc.Profile = AbProfile.ByName(AbProfileName);
-            if (GetPref("ab-cel-auto") != "1") { SetPref("ab-cel-auto", "1"); SetPref("ab-cel", "0"); }   // 2026-11-09: domyślnie Auto (właściciel: wyrównanie, nie podgłaśnianie)
+            if (GetPref("ab-cel-auto") != "1") { SetPref("ab-cel-auto", "1"); SetPref("ab-cel", "0"); }   // 2026-11-09: domyślnie Auto (właściciel), stałe poziomy do wyboru
+            if (GetPref("ab-profil") is string op && op != "off" && op != "balanced") SetPref("ab-profil", "balanced");   // jeden tryb (właściciel: profile niepotrzebne)
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
@@ -212,9 +213,9 @@ namespace Velivo
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;
-        static readonly string[] AbProfiles = { "off", "limiter", "light", "balanced", "night" };
-        static string AbProfileLabel(string p) => p == "light" ? "Light" : p == "balanced" ? "Balanced" : p == "night" ? "Night" : p == "limiter" ? L.T("Tylko limiter") : "Off";
-        static string AbProfileShort(string p) => p == "light" ? "L" : p == "balanced" ? "B" : p == "night" ? "N" : p == "limiter" ? "Lim" : "⏻";
+        static readonly string[] AbProfiles = { "off", "balanced" };   // właściciel 2026-11-09: jeden tryb – włączone / wyłączone (light, night, limiter zostają tylko w kodzie)
+        static string AbProfileLabel(string p) => p == "light" ? "Light" : p == "balanced" ? L.T("Włączone") : p == "night" ? "Night" : p == "limiter" ? L.T("Tylko limiter") : "Off";
+        static string AbProfileShort(string p) => p == "light" ? "L" : p == "balanced" ? "✓" : p == "night" ? "N" : p == "limiter" ? "Lim" : "⏻";
 
         internal void ShowAudioMonitor()
         {
@@ -474,7 +475,7 @@ namespace Velivo
 
         static readonly float[] AbTargets = { 0, -14, -16, -18, -20, -23, -24 };   // 0 = Auto (średnia źródła)
         static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – wyrównuj do średniej filmu (zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
-        static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Balanced – wygodne oglądanie: cichsze dialogi wyżej, głośne sceny niżej.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : p == "limiter" ? L.T("Tylko limiter – dźwięk bez wyrównywania, tylko ochrona przed nagłym hukiem (szczyty nie wyżej niż -1 dBTP).") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
+        static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Włączone – Velivo pilnuje głośności: płynnie podgłaśnia ciche i ścisza głośne, żeby wynik był stale przy celu.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : p == "limiter" ? L.T("Tylko limiter – dźwięk bez wyrównywania, tylko ochrona przed nagłym hukiem (szczyty nie wyżej niż -1 dBTP).") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
 
         internal void AbSetBypass(bool on)
         {

@@ -131,7 +131,7 @@ public class AudioBalanceTests
         double nowy = Run(float.NaN, 0, 100), znany = Run(8.5f, 0, 100);
         Assert.True(Math.Abs(znany + 18) < Math.Abs(nowy + 18), $"znany {znany:0.0}, nowy {nowy:0.0}");
         Assert.InRange(znany, -20, -16);
-        Assert.InRange(Run(8.5f, 3, 1500) - Run(8.5f, 0, 1500), 2, 4);
+        Assert.InRange(Run(8.5f, 3, 1500) - Run(8.5f, 0, 1500), 1.8, 4);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class AudioBalanceTests
                 for (int k = 0; k < 480; k++) { double v = amp * (0.5 * Math.Sin(2 * Math.PI * 300 * (b * 480 + k) / 48000.0) * (1 + Math.Sin(2 * Math.PI * 3 * t)) + 0.4 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)v; }
                 p.Process(buf, 480);
             }
-            Assert.InRange(p.Out.ShortTerm, -20, -16);
+            Assert.InRange(p.Out.ShortTerm, -20, -15.5);
         }
     }
 

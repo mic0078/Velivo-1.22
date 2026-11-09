@@ -2195,7 +2195,7 @@ namespace Velivo
             bool lekLoading = false;   // suwaki ustawiane przez program (wczytanie filmu, „Zastosuj”) - nie są Twoją korektą
             var lvRow = sliderRow(L.T("Głośność lektora"), 10, 99, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = WpfVol(_settings.VlcLectorVolume); if (!lekLoading) AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorDuck); });
             var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 10) / 10);
-            var ldRow = sliderRow(L.T("Film podczas czytania"), 0, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => { _settings.VlcLectorDuck = (int)v; if (!lekLoading) AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorDuck); });
+            var ldRow = sliderRow(L.T("Film podczas czytania"), 10, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => { _settings.VlcLectorDuck = (int)v; if (!lekLoading) AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorDuck); });
             foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
             // 🗣 jakość głosu Supertonic (kroki): więcej = naturalniej, dłużej liczy; 0 = samo
             var stTxt = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Ile razy Supertonic dopracowuje głos: więcej – naturalniej, ale dłużej liczy. Samo: karta graficzna 8, procesor 5.") };

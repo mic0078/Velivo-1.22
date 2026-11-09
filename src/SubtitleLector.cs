@@ -374,7 +374,7 @@ namespace Velivo
                 long tn = mp.Time - mp.SpuDelay / 1000;
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
-                lc.Ducked = volume(); double duck = Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // film ciszej, jak lektor w TV
+                lc.Ducked = volume(); double duck = Math.Max(10, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // najmniej 10% - film nigdy nie znika pod lektorem   // film ciszej, jak lektor w TV
                 mp.Volume = (int)Math.Round(lc.Ducked * duck);
                 // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
                 if (AbProc.Active && !AbBypass)

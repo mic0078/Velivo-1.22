@@ -248,7 +248,7 @@ namespace Velivo
                         case "stSteps": { int n; if (int.TryParse(v, out n)) s.SupertonicSteps = n == 0 ? 0 : Math.Max(2, Math.Min(16, n)); } break;
                         case "vlcLectorVol": { double d; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) s.VlcLectorVolume = Math.Max(0.1, Math.Min(0.99, d)); } break;
                         case "vlcLectorRate": { double d; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) s.VlcLectorRate = Math.Max(0.8, Math.Min(2, d)); } break;
-                        case "vlcLectorDuck": { int d; if (int.TryParse(v, out d)) s.VlcLectorDuck = Math.Max(0, Math.Min(100, d)); } break;
+                        case "vlcLectorDuck": { int d; if (int.TryParse(v, out d)) s.VlcLectorDuck = Math.Max(10, Math.Min(100, d)); } break;
                         case "vlcSpu": s.VlcSpu = v; break;
                         case "vlcAudio": s.VlcAudio = v; break;
                         case "floatOpacity": { int fo; if (int.TryParse(v, out fo)) s.FloatOpacity = Math.Max(15, Math.Min(100, fo)); } break;

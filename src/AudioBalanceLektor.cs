@@ -12,7 +12,7 @@ namespace Velivo
         sealed class LektorVoicePref { public double Vol { get; set; } public int Duck { get; set; } public int N { get; set; } public DateTime T { get; set; } }
         static readonly AbLektorAdvisor _abLek = new AbLektorAdvisor();
         static Dictionary<string, LektorVoicePref> _abLekPrefs;
-        static string AbLekPrefsFile => System.IO.Path.Combine(DataDir, "lektor-glosy.json");
+        static string AbLekPrefsFile => System.IO.Path.Combine(DataDir, "lektor-glosy2.json");   // nowy plik: stary zapis nie miał „Film podczas czytania” (odczyt dawał 0% = film wyciszony przy każdej kwestii)
         internal static string AbLekSugText; static Action AbLekSugApply; static string AbLekSugKey;   // bieżąca propozycja (czeka na Twoją decyzję)
         static readonly HashSet<string> AbLekDismissed = new HashSet<string>();                         // „Nie teraz” - ta sama propozycja nie wraca w tym uruchomieniu
         internal static Action AbLektorUiRefresh;   // odtwarzacz: suwaki lektora z ustawień (po „Zastosuj”)
@@ -68,7 +68,7 @@ namespace Velivo
             if (!d.TryGetValue(k, out var p)) d[k] = p = new LektorVoicePref();
             if (Math.Abs(p.Vol - vol) < 0.005 && p.Duck == duck && p.N > 0) return;
             if (double.IsNaN(vol) || double.IsInfinity(vol)) return;
-            p.Vol = Math.Max(0.1, Math.Min(0.99, vol)); p.Duck = Math.Max(0, Math.Min(100, duck)); p.N++; p.T = DateTime.Now;
+            p.Vol = Math.Max(0.1, Math.Min(0.99, vol)); p.Duck = Math.Max(10, Math.Min(100, duck)); p.N++; p.T = DateTime.Now;
             string json = JsonSerializer.Serialize(d, AbLearnEntry.Json);
             System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLekPrefsFile, json); } catch (Exception ex) { App.LogError(ex); } });
         }
@@ -78,6 +78,7 @@ namespace Velivo
         {
             if (AbLekSugKey != null && AbLekSugKey.StartsWith("voice|")) { AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; }
             if (!AbLekPrefs().TryGetValue(voice ?? "", out var p) || p.N == 0) return;
+            if (p.Duck < 10) return;   // nigdy nie proponuj wyciszenia filmu
             if (Math.Abs(p.Vol - _settings.VlcLectorVolume) < 0.03 && p.Duck == _settings.VlcLectorDuck) return;
             Propose("voice|" + voice + "|" + p.Vol.ToString("0.00") + "|" + p.Duck, L.T("Dla głosu „") + AbLekVoiceName(voice) + L.T("” zwykle ustawiasz: głośność ") + (int)Math.Round(p.Vol * 100) + L.T("%, film podczas czytania ") + p.Duck + L.T("%. Zastosować?"), () => { _settings.VlcLectorVolume = p.Vol; _settings.VlcLectorDuck = p.Duck; });
         }

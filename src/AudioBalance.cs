@@ -206,8 +206,8 @@ namespace Velivo
             return true;
         }
 
-        void AbDetach() { var o = _abOut; _abOut = null; o?.Dispose(); }
-        internal void AbNewSource(string name) { if (_abOut != null) { _abOut.Source = name ?? ""; AbProc.NewMedia(); } }
+        void AbDetach() { AbLearnEnd(); var o = _abOut; _abOut = null; o?.Dispose(); }
+        internal void AbNewSource(string name) { if (_abOut != null) { _abOut.Source = name ?? ""; AbLearnBegin(name); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;
@@ -313,6 +313,15 @@ namespace Velivo
             bypassBtn.Click += (s, e) => { if (!AbBypass && !AbWanted) { AbSetProfile("balanced"); MarkProfile(); } else AbSetBypass(!AbBypass); MarkBypass(); };
             bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
             MarkBypass(); root.Children.Insert(2, bypassBtn);
+            // 🧠 nauka: włącz/wyłącz i „zapomnij”
+            var lrow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var lOn = new CheckBox { Content = L.T("🧠 Ucz się sam (każdy kanał i film osobno)"), IsChecked = AbLearnOn, Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 6), ToolTip = L.T("Velivo zapamiętuje dla każdego kanału TV i filmu: poziom wyrównania (start bez czekania), głośne reklamy (ściszanie szybsze) i Twoje poprawki głośności (cel tego źródła). Bez AI – sama pamięć pomiarów.") };
+            lOn.Click += (s2, e2) => { SetPref("ab-nauka", lOn.IsChecked == true ? "1" : "0"); if (lOn.IsChecked != true) { AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; } };
+            lrow.Children.Add(lOn);
+            var lForget = Mk(L.T("🧹 Zapomnij, czego się nauczyłeś"), () => { });
+            lForget.Click += (s2, e2) => { if (AskYes(win, L.T("Usunąć wszystko, czego Audio Balance nauczył się o kanałach i filmach (") + AbLearnCount + ")?", L.T("Usuń"), L.T("Anuluj"))) { AbLearnForget(); ShowToast(L.T("🧠 Pamięć Audio Balance wyczyszczona"), null); } };
+            lForget.ToolTip = L.T("Kasuje plik audio-nauka.json – Velivo zacznie uczyć się od nowa.");
+            lrow.Children.Add(lForget); root.Children.Add(lrow);
             // najwazniejsze na gorze: ZRODLO (ile ma oryginal) → ZMIANA (ile podglosnil / sciszyl) → WYNIK (co slychac); glosnosc z 3 s, 4×/s
             var sum3 = new Grid { Margin = new Thickness(0, 8, 0, 4) }; var sumV = new TextBlock[3]; var sumL = new TextBlock[3];
             for (int i = 0; i < 3; i++)
@@ -391,7 +400,7 @@ namespace Velivo
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkDialog(); }
                 state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
-                src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
+                src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
                 // FFT 2048 z ostatnich probek
                 int pos = AbProc.ScopePos;
                 for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 8192) & 8191] * hann[i] : 0; fftIm[i] = 0; }

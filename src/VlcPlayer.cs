@@ -2924,7 +2924,7 @@ namespace Velivo
                     await vlcRun(() => { var ps = mp.State; if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening) mp.Stop(); });
                     if (seq != loadSeq || vlcClosed) return;
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\nprzesuniecie dzwieku (J/K): " + aDelayMs + " ms, bufor: " + IptvSt.Buffer + " s\n"); _vlcDriftAt = DateTime.MinValue; } catch (Exception) { }   // dziennik od nowa dla tego filmu
-                    AbNewSource(tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path));   // 🎚 nowy pomiar zintegrowany dla nowego filmu/kanalu
+                    AbLearnUserVolume(vol.Value); AbNewSource(tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path));   // 🎚 nowy pomiar zintegrowany dla nowego filmu/kanalu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -3124,7 +3124,7 @@ namespace Velivo
             };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
             // wyciszenie pamietane tutaj: stan Mute w VLC zglasza sie z opoznieniem i kasuje przy zmianie filmu / glosnosci
-            vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); if (muted && vol.Value > 0) muted = false; mp.Volume = muted ? 0 : (int)vol.Value; volText.Text = (int)vol.Value + "%"; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
+            vol.ValueChanged += (s, e) => { AbLearnUserVolume(vol.Value); _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); if (muted && vol.Value > 0) muted = false; mp.Volume = muted ? 0 : (int)vol.Value; volText.Text = (int)vol.Value + "%"; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
             Action toggleMute = () =>
             {
                 muted = !muted; mp.Mute = false; mp.Volume = muted ? 0 : (int)vol.Value;   // wyciszenie = glosnosc 0 (przelacznik Mute w VLC bywa zawodny)

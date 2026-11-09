@@ -78,6 +78,27 @@ public class AudioBalanceTests
     }
 
     [Fact]
+    public void NaukaZnanyKanalOdRazuWCeluAPoprawkaPrzesuwaCel()
+    {
+        // 🧠 znany cichy kanał (-26): z zapamiętanym poziomem już po 1 s blisko celu; poprawka +3 dB przesuwa wynik o ok. 3 dB
+        double Run(float seed, float adj, int blocks)
+        {
+            var p = new AbProcessor { Profile = AbProfile.Balanced, Target = -18, SeedLevDb = seed, TargetAdj = adj }; var buf = new float[960]; var rnd = new Random(1);
+            p.NewMedia();
+            for (int b = 0; b < blocks; b++)
+            {
+                for (int k = 0; k < 480; k++) { double v = 0.07 * (0.5 * Math.Sin(2 * Math.PI * 300 * (b * 480 + k) / 48000.0) + 0.4 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)v; }
+                p.Process(buf, 480);
+            }
+            return p.Out.Momentary;
+        }
+        double nowy = Run(float.NaN, 0, 100), znany = Run(8.5f, 0, 100);
+        Assert.True(Math.Abs(znany + 18) < Math.Abs(nowy + 18), $"znany {znany:0.0}, nowy {nowy:0.0}");
+        Assert.InRange(znany, -20, -16);
+        Assert.InRange(Run(8.5f, 3, 1500) - Run(8.5f, 0, 1500), 2, 4);
+    }
+
+    [Fact]
     public void PrzelaczenieKanaluSzybkoDoCelu()
     {
         // kanały / filmy o różnej głośności: po 6 s od przełączenia wynik blisko celu (cichy -26, głośny -16)

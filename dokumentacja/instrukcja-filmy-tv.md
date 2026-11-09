@@ -335,3 +335,11 @@ Przycisk 🌙 na pasku odtwarzacza (albo prawy przycisk → „🌙 Ekran i wył
 * **Wyłącz ekran za…** – 5, 15, 30 albo 60 minut; „✖ Nie wyłączaj ekranu” anuluje.
 * **Zatrzymaj odtwarzanie…** – dotychczasowy wyłącznik czasowy (po czasie, po końcu filmu/programu, opcjonalnie wyłączenie komputera).
 Pilot w telefonie: ⚙ Sterowanie → „🌙 Ekran i wyłącznik” – te same czynności.
+
+## 🧠 Audio Balance uczy się sam
+
+W Audio Monitorze pole „🧠 Ucz się sam” (domyślnie włączone). Velivo zapamiętuje osobno dla każdego kanału TV i filmu (plik `audio-nauka.json`, do 400 źródeł; to nie jest AI, tylko zapamiętane pomiary):
+1. **Poziom wyrównania** – znany kanał od razu startuje z właściwą głośnością, bez kilku sekund dochodzenia.
+2. **Reklamy** – gdy kanał ma głośne skoki (ponad 6 dB), nagłe zgłośnienia są ściszane 2× szybciej.
+3. **Twoje poprawki** – gdy na danym źródle podgłaśniasz albo ściszasz, jego cel przesuwa się o połowę Twojej zmiany (najwyżej ±6 dB).
+Przy źródle widać, co Velivo o nim wie („🧠 Znam to źródło…”). „🧹 Zapomnij, czego się nauczyłeś” czyści pamięć.

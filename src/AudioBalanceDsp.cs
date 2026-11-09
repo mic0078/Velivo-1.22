@@ -183,15 +183,19 @@ namespace Velivo
             foreach (var b in eq) b?.Reset();
         }
         volatile bool newReq;
+        // 🧠 nauka (AbLearn): poziom startowy, mnoznik szybkiego sciszania i przesuniecie celu dla tego zrodla - ustawiane przed NewMedia
+        public volatile float SeedLevDb = float.NaN, FastMul = 1, TargetAdj = 0;
+        public double LevDb => levDb;               // nauka czyta poziom wyrownania
+        public double FastMinDb;                    // najglebsze chwilowe sciszenie od ostatniego odczytu (reklamy)
         public void NewMedia() => newReq = true;   // z wątku okna - wykonane w wątku dźwięku przed kolejnym kawałkiem
 
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = 0; corrDb = 0; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); corrDb = 0; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
-            var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
+            double Tg = Target + TargetAdj; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
             double aC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.AttackMs * Fs)), rC = pr == null ? 0 : Math.Exp(-1000.0 / (pr.ReleaseMs * Fs)), detC = Math.Exp(-1000.0 / (10.0 * Fs));
@@ -233,8 +237,8 @@ namespace Velivo
                 {
                     // 1) wyrównywacz: powoli (dB/s) do celu wg mediany głośności z 10 s (dialog; krótkie wybuchy obsługuje kompresor),
                     //    w ciszy wstrzymany (nie podnosi szumu)
-                    In.MedianGate = Target + pr.Gate;
-                    if ((In.Median > double.NegativeInfinity || (sinceStart < Fs * 6 && In.ShortTerm > double.NegativeInfinity)) && In.Momentary > Target + pr.Gate)
+                    In.MedianGate = Tg + pr.Gate;
+                    if ((In.Median > double.NegativeInfinity || (sinceStart < Fs * 6 && In.ShortTerm > double.NegativeInfinity)) && In.Momentary > Tg + pr.Gate)
                     {
                         // po glosnym fragmencie (reklama, scena akcji) mediana z 10 s jeszcze go pamieta - gdy ostatnie 3 s sa wyraznie ciszej,
                         // liczymy od nich i podglosniamy 3x szybciej, zeby program po reklamie nie byl za cichy
@@ -242,7 +246,7 @@ namespace Velivo
                         // pierwsze 6 s nowego filmu / kanalu (albo po przewinieciu): szybko do celu wg 3 s - kazdy kanal od razu podobnie glosny
                         bool start = sinceStart < Fs * 6;
                         if (back || start) basis = In.ShortTerm;
-                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, Target - basis));
+                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, Tg - basis));
                         double up = start ? Math.Max(upS * 4, 6.0 / Fs) : back ? upS * 3 : upS, dn = start ? Math.Max(dnS * 4, 6.0 / Fs) : dnS;
                         levDb += Math.Max(-dn, Math.Min(up, want - levDb));
                     }
@@ -251,20 +255,21 @@ namespace Velivo
                     // osobne, chwilowe sciszenie (fastDb): szybko w dol, a gdy zgloszenie minie - wraca w ok. 1–2 s; powolny poziom (levDb)
                     // zostaje nietkniety, wiec po wybuchu dialog od razu jest znowu glosny (nie czeka na powolne podglosnianie)
                     double fastIn = Math.Max(In.Fast, In.Momentary);   // 100 ms - reakcja w ok. 0,1 s
-                    double fastWant = pr.FastDownDbS > 0 && fastIn > double.NegativeInfinity ? Math.Min(0, Math.Max(-pr.MaxCut, Target + 1 - (fastIn + levDb))) : 0;
-                    fastDb = fastWant < fastDb ? Math.Max(fastWant, fastDb - pr.FastDownDbS / Fs) : Math.Min(fastWant, fastDb + pr.FastDownDbS / 5 / Fs);
+                    double fastWant = pr.FastDownDbS > 0 && fastIn > double.NegativeInfinity ? Math.Min(0, Math.Max(-pr.MaxCut, Tg + 1 - (fastIn + levDb))) : 0;
+                    fastDb = fastWant < fastDb ? Math.Max(fastWant, fastDb - pr.FastDownDbS * FastMul / Fs) : Math.Min(fastWant, fastDb + pr.FastDownDbS / 5 / Fs);
+                    if (fastDb < FastMinDb) FastMinDb = fastDb;
                     // 2) kompresor: szybki detektor mocy K (10 ms) po wyrównaniu, miękkie kolano 6 dB
                     double pl = p * Math.Pow(10, levDb / 10);
                     detP = pl + detC * (detP - pl);
-                    double lev = AbMeter.Lufs(detP), thr = Target + pr.ThrOff, over = lev - thr, want2 = 0;
+                    double lev = AbMeter.Lufs(detP), thr = Tg + pr.ThrOff, over = lev - thr, want2 = 0;
                     if (over > 3) want2 = -over * (1 - 1 / pr.Ratio);
                     else if (over > -3) want2 = -(1 - 1 / pr.Ratio) * (over + 3) * (over + 3) / 12;
                     if (over > 8) want2 -= (over - 8) * (1 / pr.Ratio - 0.05);   // powyżej progu + 8 dB prawie twarda granica (wybuchy nie przeskakują poziomu)
                     grDb = want2 < grDb ? want2 + aC * (grDb - want2) : want2 + rC * (grDb - want2);
                     // 4) korekta wyniku (makeup): kompresor i chwilowe sciszenia zabieraja czesc glosnosci - mierzymy to, co naprawde wychodzi
                     //    (3 s, tylko gdy gra tresc), i powoli (1 dB/s) dociagamy do celu; limiter dalej pilnuje szczytow
-                    if (Out.Gated10 > double.NegativeInfinity && Out.Momentary > Target - 15 && In.Momentary > Target + pr.Gate)
-                        corrDb = Math.Max(-6, Math.Min(pr.MaxBoost > 0 ? 8 : 0, corrDb + Math.Max(-1, Math.Min(1, Target - Out.Gated10)) * 1.0 / Fs));
+                    if (Out.Gated10 > double.NegativeInfinity && Out.Momentary > Tg - 15 && In.Momentary > Tg + pr.Gate)
+                        corrDb = Math.Max(-6, Math.Min(pr.MaxBoost > 0 ? 8 : 0, corrDb + Math.Max(-1, Math.Min(1, Tg - Out.Gated10)) * 1.0 / Fs));
                     g = levDb + fastDb + grDb + corrDb;
                 }
                 double lin = Math.Pow(10, g / 20) * vol;

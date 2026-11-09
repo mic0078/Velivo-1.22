@@ -220,6 +220,10 @@ public class AudioBalanceTests
         for (int i = 0; i < 10; i++) a.Add(AbLektorAdvisor.CueMargin(-20, 1, -18, 1, 0.7));
         Assert.True(a.Status == 2, $"status {a.Status}");
         Assert.InRange(a.SuggestOverUp(), 1, 10);
+        // „częściowo zagłuszany” (+5 dB) - sama ocena, bez propozycji
+        a.Reset();
+        for (int i = 0; i < 10; i++) a.Add(5);
+        Assert.True(a.Status == 1 && a.SuggestOverUp() == 0);
         // pojedyncza głośna scena (2 z 10 kwestii) nie zmienia oceny i nie daje propozycji
         a.Reset();
         for (int i = 0; i < 10; i++) a.Add(i < 2 ? -6 : 9);

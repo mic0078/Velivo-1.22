@@ -179,7 +179,8 @@ namespace Velivo
         public void Reset() { last.Clear(); Margin = double.NaN; Status = -1; }
         public int Count => last.Count;
         // propozycja: o ile podnieść „Lektor nad filmem” (0 = nie trzeba); tylko gdy 8 z 10 ostatnich kwestii nie było dobrze słyszalnych
-        public int SuggestOverUp() => last.Count >= 10 && last.Count(x => x < Good) >= 8 ? (int)Math.Max(1, Math.Min(10, Math.Ceiling(Good - Margin))) : 0;
+        // propozycja tylko, gdy lektor naprawdę ginie: 8 z 10 ostatnich kwestii poniżej 0 dB (🔴); „częściowo” (🟡) - sama ocena; krok co najmniej 3 dB
+        public int SuggestOverUp() => last.Count >= 10 && last.Count(x => x < Partial) >= 8 ? (int)Math.Max(3, Math.Min(10, Math.Ceiling(Good - Margin))) : 0;
     }
 
     // wpis pamięci nauki jednego źródła (audio-nauka.json); stare pole Lev ze starszych wersji jest przy wczytaniu pomijane

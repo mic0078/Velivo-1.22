@@ -44,9 +44,14 @@ namespace Velivo
             else { double nv = Math.Min(0.99, _settings.VlcLectorVolume + 0.15); Propose("vol|" + src, L.T("Lektor ginie, a filmu nie da się już bardziej ściszyć. Podnieść głośność lektora do ") + (int)Math.Round(nv * 100) + "%?", () => { _settings.VlcLectorVolume = nv; }); }
         }
 
+        static DateTime AbLekLastAsk = DateTime.MinValue; static readonly HashSet<string> AbLekAskedSrc = new HashSet<string>();
         static void Propose(string key, string text, Action apply)
         {
             if (AbLekDismissed.Contains(key)) return;
+            // bez nachalności: najwyżej jedna propozycja na film / kanał (nie dotyczy głosu) i co najmniej 10 min między propozycjami
+            var parts = key.Split('|'); string srcKey = parts.Length > 1 && parts[0] != "voice" ? parts[1] : null;
+            if ((DateTime.Now - AbLekLastAsk).TotalMinutes < 10 || srcKey != null && AbLekAskedSrc.Contains(srcKey)) return;
+            AbLekLastAsk = DateTime.Now; if (srcKey != null) AbLekAskedSrc.Add(srcKey);
             AbLekSugKey = key; AbLekSugText = text; AbLekSugApply = apply;
         }
 

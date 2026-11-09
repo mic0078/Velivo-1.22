@@ -246,7 +246,7 @@ namespace Velivo
         public double InDialogShare => sA < 1e-9 ? 0 : Math.Min(1, sS / sA); // udział pasma mowy w oryginale (0–1) - dialogi w filmie
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
-        public readonly float[] Scope = new float[65536]; public volatile int ScopePos; int pkN;   // 1,4 s - wskaźniki czytają fragment, który właśnie słychać (za kolejką karty)
+        public readonly float[] Scope = new float[65536]; public volatile int ScopePos; int pkN;   // 1,4 s surowego wejścia (widmo) - wskaźniki czytają fragment, który właśnie słychać (za kolejką karty)
         // migawki wskaźników co kawałek dźwięku (numer próbki) - wyświetlanie zsynchronizowane z tym, co słychać
         public struct Snap { public long F; public double VuL, VuR, VuInL, VuInR, Fast, RawM, OutM; }
         readonly Snap[] snaps = new Snap[512]; int snapI;
@@ -315,12 +315,12 @@ namespace Velivo
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
+                    { int sp = ScopePos; Scope[sp] = (float)((buf[2 * f] + buf[2 * f + 1]) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu
                     vS += (vol - vS) * kV; VuIn(buf[2 * f] * vS, buf[2 * f + 1] * vS); Raw.Push(buf[2 * f] * vS, buf[2 * f + 1] * vS);
                     double l = buf[2 * f] * vS, r = buf[2 * f + 1] * vS;
                     buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
                     In.Push(l, r); Out.Push(l, r); Vu(l, r);
                     double tpo = tpOut.Push(l, r); if (tpo > peakHold) peakHold = tpo;
-                    int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 65535;
                     if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }
                 }
                 GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; SnapAdd(); return;
@@ -328,6 +328,7 @@ namespace Velivo
             for (int f = 0; f < frames; f++)
             {
                 double l = buf[2 * f], r = buf[2 * f + 1];
+                { int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (przed korektorem, wyrównaniem i głośnością) - pracę Velivo pokazują V i paski
                 vS += (vol - vS) * kV; VuIn(l * vS, r * vS); Raw.Push(l * vS, r * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 { double dm0 = (l + r) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
@@ -405,7 +406,6 @@ namespace Velivo
                     double om = vS > 1e-3 ? (ol + or) * 0.5 / vS : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);
                 }
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
-                int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 65535;
                 if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }   // szczyt True Peak z ostatniej sekundy
                 GainDb = g; LimitDb = 20 * Math.Log10(limG); sinceStart++;
             }

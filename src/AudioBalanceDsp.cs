@@ -185,7 +185,7 @@ namespace Velivo
         }
         volatile bool newReq;
         // 🧠 nauka (AbLearn): poziom startowy, mnoznik szybkiego sciszania i przesuniecie celu dla tego zrodla - ustawiane przed NewMedia
-        public volatile float SeedLevDb = float.NaN, FastMul = 1, TargetAdj = 0;
+        public volatile float SeedLevDb = float.NaN, FastMul = 1, TargetAdj = 0, SeedAvg = float.NaN;   // SeedAvg - zapamiętana średnia źródła (LUFS) dla trybu Auto
         public double LevDb => levDb;               // nauka czyta poziom wyrownania
         public double FastMinDb;                    // najglebsze chwilowe sciszenie od ostatniego odczytu (reklamy)
         public void NewMedia() => newReq = true;   // z wątku okna - wykonane w wątku dźwięku przed kolejnym kawałkiem
@@ -202,6 +202,8 @@ namespace Velivo
                 //    całość nie jest podgłaśniana; na początku (brak średniej) - bieżące 3 s
                 double ig = In.Integrated;
                 Tg = ig > -70 ? ig : In.ShortTerm > -70 ? In.ShortTerm : -23;
+                //    🧠 znane źródło: przez pierwsze 60 s zapamiętana średnia (bez zgadywania z 3 s), potem płynnie własny pomiar
+                if (!float.IsNaN(SeedAvg)) { double w = Math.Min(1, sinceStart / (60.0 * Fs)); Tg = SeedAvg * (1 - w) + (ig > -70 ? ig : SeedAvg) * w; }
                 Tg = Math.Max(-32, Math.Min(-12, Tg));
             }
             Tg += TargetAdj; EffTarget = Tg; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;

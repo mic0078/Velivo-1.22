@@ -10,7 +10,7 @@ namespace Velivo
     // 3) Twoja głośność - gdy na tym źródle podgłaśniasz/ściszasz, cel tego źródła przesuwa się o połowę zmiany (do ±6 dB).
     public partial class MainWindow
     {
-        sealed class AbLearnEntry { public double Lev { get; set; } public double Ad { get; set; } public double Adj { get; set; } public int N { get; set; } public DateTime T { get; set; } }
+        sealed class AbLearnEntry { public double Lev { get; set; } public double Ad { get; set; } public double Adj { get; set; } public double Avg { get; set; } public int N { get; set; } public DateTime T { get; set; } }
         static string AbLearnFile => System.IO.Path.Combine(DataDir, "audio-nauka.json");   // właściwość: DataDir z innego pliku może nie być jeszcze ustawione przy inicjalizacji statycznej
         static Dictionary<string, AbLearnEntry> _abLearn;
         static readonly object AbLearnLock = new object();
@@ -40,7 +40,7 @@ namespace Velivo
             System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLearnFile, json); } catch (Exception ex) { App.LogError(ex); } });
         }
 
-        internal static void AbLearnForget() { lock (AbLearnLock) { _abLearn = new Dictionary<string, AbLearnEntry>(); } AbLearnSave(); AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; }
+        internal static void AbLearnForget() { lock (AbLearnLock) { _abLearn = new Dictionary<string, AbLearnEntry>(); } AbLearnSave(); AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; AbProc.SeedAvg = float.NaN; }
 
         internal static int AbLearnCount { get { lock (AbLearnLock) return AbLearnData().Count; } }
 
@@ -55,6 +55,7 @@ namespace Velivo
             AbProc.SeedLevDb = e != null && e.N > 0 ? (float)e.Lev : float.NaN;
             AbProc.FastMul = e != null && e.Ad <= -6 ? 2 : 1;
             AbProc.TargetAdj = e != null ? (float)e.Adj : 0;
+            AbProc.SeedAvg = e != null && e.Avg < -5 ? (float)e.Avg : float.NaN;
             if (_abLearnTimer == null)
             {
                 _abLearnTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -76,6 +77,7 @@ namespace Velivo
             {
                 var d = AbLearnData();
                 if (!d.TryGetValue(_abLearnSrc, out var e)) d[_abLearnSrc] = e = new AbLearnEntry { Lev = lev };
+                double ig = AbProc.In.Integrated; if (ig > -70) e.Avg = e.Avg >= -5 ? ig : e.Avg * 0.9 + ig * 0.1;   // średnia głośność źródła (Auto)
                 e.Lev = e.N == 0 ? lev : e.Lev * 0.9 + lev * 0.1; e.N++; e.T = DateTime.Now;   // ~10 s pamięci, od pierwszej próbki
                 // reklamy: głęboki skok zapamiętany od razu, bez skoków powoli zapominany (ok. 10 min)
                 e.Ad = ad < e.Ad ? e.Ad * 0.5 + ad * 0.5 : e.Ad * 0.998;
@@ -106,7 +108,7 @@ namespace Velivo
         {
             if (string.IsNullOrWhiteSpace(src) || !AbLearnOn) return "";
             AbLearnEntry e; lock (AbLearnLock) if (!AbLearnData().TryGetValue(src.Trim(), out e)) return L.T("🧠 Nowe źródło – uczę się");
-            return L.T("🧠 Znam to źródło: start ") + (e.Lev >= 0 ? "+" : "") + e.Lev.ToString("0.0") + " dB" + (e.Ad <= -6 ? L.T(", głośne reklamy – ściszam szybciej") : "") + (Math.Abs(e.Adj) >= 0.5 ? L.T(", Twoja poprawka ") + (e.Adj >= 0 ? "+" : "") + e.Adj.ToString("0.0") + " dB" : "");
+            return L.T("🧠 Znam to źródło: ") + (e.Avg < -5 ? L.T("średnia ") + e.Avg.ToString("0.0") + " LUFS, " : "") + L.T("start ") + (e.Lev >= 0 ? "+" : "") + e.Lev.ToString("0.0") + " dB" + (e.Ad <= -6 ? L.T(", głośne reklamy – ściszam szybciej") : "") + (Math.Abs(e.Adj) >= 0.5 ? L.T(", Twoja poprawka ") + (e.Adj >= 0 ? "+" : "") + e.Adj.ToString("0.0") + " dB" : "");
         }
     }
 }

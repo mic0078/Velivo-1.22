@@ -76,4 +76,22 @@ public class AudioBalanceTests
         Assert.InRange(hit, 0, 0.3);              // ściszone w ułamku sekundy
         Assert.InRange(after / na, -21, -15);     // kilka sekund po reklamie program znowu przy celu
     }
+
+    [Fact]
+    public void PrzelaczenieKanaluSzybkoDoCelu()
+    {
+        // kanały / filmy o różnej głośności: po 6 s od przełączenia wynik blisko celu (cichy -26, głośny -16)
+        var p = new AbProcessor { Profile = AbProfile.Balanced, Target = -18 }; var buf = new float[960]; var rnd = new Random(1);
+        foreach (var amp in new[] { 0.07, 0.22 })
+        {
+            p.NewMedia();
+            for (int b = 0; b < 600; b++)
+            {
+                double t = b * 0.01;
+                for (int k = 0; k < 480; k++) { double v = amp * (0.5 * Math.Sin(2 * Math.PI * 300 * (b * 480 + k) / 48000.0) * (1 + Math.Sin(2 * Math.PI * 3 * t)) + 0.4 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)v; }
+                p.Process(buf, 480);
+            }
+            Assert.InRange(p.Out.ShortTerm, -20, -16);
+        }
+    }
 }

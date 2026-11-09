@@ -237,8 +237,8 @@ namespace Velivo
             root.Children.Add(spec);
             var axis = new Grid(); foreach (var (t, al) in new[] { ("50 Hz", HorizontalAlignment.Left), ("1 kHz", HorizontalAlignment.Center), ("16 kHz", HorizontalAlignment.Right) }) { var a = T(t, 10, dim); a.HorizontalAlignment = al; axis.Children.Add(a); }
             root.Children.Add(axis);
-            var bigVu = AbVuPair(out var bigVuUpd); bigVu.Height = 150; bigVu.HorizontalAlignment = HorizontalAlignment.Center; bigVu.Margin = new Thickness(0, 8, 0, 0);
-            bigVu.ToolTip = L.T("Osobne V dla kanału L i R: prawe ramię turkusowe – Velivo podgłośniło, lewe fioletowe – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.");
+            var bigVu = AbVuPair(out var bigVuUpd); bigVu.Height = 170; bigVu.HorizontalAlignment = HorizontalAlignment.Center; bigVu.Margin = new Thickness(0, 8, 0, 0);
+            bigVu.ToolTip = L.T("Prawe ramię V (jasny turkus) – Velivo podgłośniło, lewe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.");
             root.Children.Add(bigVu);
             var vuLeg = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
             vuLeg.Children.Add(T(L.T("◀ ściszone   "), 10, new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF)))); vuLeg.Children.Add(T(L.T("puste V = bez zmiany   "), 10, dim)); vuLeg.Children.Add(T(L.T("podgłośnione ▶"), 10, new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4))));
@@ -617,7 +617,7 @@ namespace Velivo
                     delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;
                 }
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
-                w.ToolTip = L.T("Osobne V dla kanału L i R: prawe ramię turkusowe – Velivo podgłośniło, lewe fioletowe – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
+                w.ToolTip = L.T("Prawe ramię V (jasny turkus) – Velivo podgłośniło, lewe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
             w.Closed += (s, e) => { tm.Stop(); _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref("ab-pulpit", "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };
@@ -625,51 +625,39 @@ namespace Velivo
             w.Show(); tm.Start();
         }
 
-        // 🎛 wskaznik „V” Velivo (wybor wlasciciela): osobne V dla kanalu L i R. W kazdym V: prawe ramie wypelnia sie na zielono, gdy Velivo
-        // podglosnilo, lewe na pomaranczowo, gdy sciszylo; dlugosc = ile dB (pelne ramie = 15 dB). Puste V = bez zmiany wzgledem zrodla.
-        // Viewbox - ten sam rysunek na pulpicie i w pelnym widzecie.
+        // 🎛 wskaznik „V” Velivo (wybor wlasciciela): jedno V dla obu kanalow. Prawe ramie wypelnia sie jasnym turkusem, gdy Velivo
+        // podglosnilo, lewe ciemnym fioletem, gdy sciszylo; dlugosc = ile dB (pelne ramie = 15 dB). Puste V = bez zmiany wzgledem zrodla.
+        // Wartosc = srednia zmiana L i R (Audio Balance zmienia oba kanaly tak samo). Viewbox - ten sam rysunek na pulpicie i w pelnym widzecie.
         FrameworkElement AbVuPair(out Action<bool> upd)
         {
-            var cv = new Canvas { Width = 150, Height = 80 };
-            var G = new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)); var O = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD6)); var dimB = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));   // kolory Velivo: turkus = podglosnione, fiolet = sciszone
+            var cv = new Canvas { Width = 90, Height = 80 };
+            var G = new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)); var O = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD6)); var dimB = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));   // kolory Velivo
             var OT = new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF));   // napis „ściszone” jaśniejszy - ciemny fiolet na ciemnym tle byłby nieczytelny
             var logoBrush = new LinearGradientBrush(Color.FromRgb(0x7C, 0x5C, 0xFF), Color.FromRgb(0x2E, 0xD3, 0xC6), 90);
-            var arms = new Line[2]; var bots = new Point[2]; var tls = new Point[2]; var trs = new Point[2]; var tx = new TextBlock[2];
-            for (int ch = 0; ch < 2; ch++)
-            {
-                double ox = ch * 78;
-                bots[ch] = new Point(ox + 36, 58); tls[ch] = new Point(ox + 12, 8); trs[ch] = new Point(ox + 60, 8);
-                cv.Children.Add(new Polyline { Points = new PointCollection { tls[ch], bots[ch], trs[ch] }, Stroke = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), StrokeThickness = 10, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
-                arms[ch] = new Line { X1 = bots[ch].X, Y1 = bots[ch].Y, X2 = bots[ch].X, Y2 = bots[ch].Y, StrokeThickness = 10, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Stroke = G };
-                cv.Children.Add(arms[ch]);
-                cv.Children.Add(new Polyline { Points = new PointCollection { tls[ch], bots[ch], trs[ch] }, Stroke = logoBrush, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, Opacity = 0.9 });
-                tx[ch] = new TextBlock { FontSize = 9, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Width = 72 };
-                System.Windows.Documents.Typography.SetNumeralAlignment(tx[ch], FontNumeralAlignment.Tabular);
-                Canvas.SetLeft(tx[ch], ox); Canvas.SetTop(tx[ch], 66); cv.Children.Add(tx[ch]);
-            }
+            Point bot = new Point(45, 58), tl = new Point(17, 8), tr = new Point(73, 8);
+            cv.Children.Add(new Polyline { Points = new PointCollection { tl, bot, tr }, Stroke = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), StrokeThickness = 11, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+            var arm = new Line { X1 = bot.X, Y1 = bot.Y, X2 = bot.X, Y2 = bot.Y, StrokeThickness = 11, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Stroke = G };
+            cv.Children.Add(arm);
+            cv.Children.Add(new Polyline { Points = new PointCollection { tl, bot, tr }, Stroke = logoBrush, StrokeThickness = 1.3, StrokeLineJoin = PenLineJoin.Round, Opacity = 0.9 });
+            var tx = new TextBlock { FontSize = 10, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Width = 90 };
+            System.Windows.Documents.Typography.SetNumeralAlignment(tx, FontNumeralAlignment.Tabular);
+            Canvas.SetLeft(tx, 0); Canvas.SetTop(tx, 65); cv.Children.Add(tx);
             var box = new Viewbox { Child = cv, Stretch = Stretch.Uniform };
-            var np = new double[2]; var dAt = DateTime.MinValue;
+            double np = 0; var dAt = DateTime.MinValue;
             upd = live =>
             {
-                double[] vuv = { AbProc.VuL, AbProc.VuR }, vin = { AbProc.VuInL, AbProc.VuInR };
-                for (int ch = 0; ch < 2; ch++)
-                {
-                    double d = live && !AbBypass && vin[ch] > -70 ? vuv[ch] - vin[ch] : 0;
-                    if (double.IsNaN(d) || double.IsInfinity(d)) d = 0;
-                    np[ch] += (Math.Max(-15, Math.Min(15, d)) - np[ch]) * 0.7;   // szybka reakcja, bez skakania
-                    var tip = np[ch] >= 0 ? trs[ch] : tls[ch]; double k = Math.Abs(np[ch]) / 15;   // podglosnione - prawe ramie, sciszone - lewe
-                    arms[ch].X2 = bots[ch].X + (tip.X - bots[ch].X) * k; arms[ch].Y2 = bots[ch].Y + (tip.Y - bots[ch].Y) * k; arms[ch].Stroke = np[ch] >= 0 ? G : O;
-                    arms[ch].Visibility = k < 0.02 ? Visibility.Hidden : Visibility.Visible;
-                }
+                double dl = AbProc.VuL - AbProc.VuInL, dr = AbProc.VuR - AbProc.VuInR;
+                double d = live && !AbBypass && AbProc.VuInL > -70 ? (dl + dr) / 2 : 0;
+                if (double.IsNaN(d) || double.IsInfinity(d)) d = 0;
+                np += (Math.Max(-15, Math.Min(15, d)) - np) * 0.7;   // szybka reakcja, bez skakania
+                var tip = np >= 0 ? tr : tl; double k = Math.Abs(np) / 15;   // podglosnione - prawe ramie, sciszone - lewe
+                arm.X2 = bot.X + (tip.X - bot.X) * k; arm.Y2 = bot.Y + (tip.Y - bot.Y) * k; arm.Stroke = np >= 0 ? G : O;
+                arm.Visibility = k < 0.02 ? Visibility.Hidden : Visibility.Visible;
                 if ((DateTime.UtcNow - dAt).TotalMilliseconds >= 250)
-                {   // liczby 4×/s - czytelne
+                {   // liczba 4×/s - czytelna
                     dAt = DateTime.UtcNow;
-                    for (int ch = 0; ch < 2; ch++)
-                    {
-                        double v = np[ch];
-                        tx[ch].Text = (ch == 0 ? "L " : "R ") + (Math.Abs(v) < 0.25 ? "±0" : (v > 0 ? "+" : "") + v.ToString("0.0")) + " dB";
-                        tx[ch].Foreground = Math.Abs(v) < 0.25 ? dimB : v > 0 ? G : OT;
-                    }
+                    tx.Text = Math.Abs(np) < 0.25 ? "±0 dB" : (np > 0 ? "+" : "") + np.ToString("0.0") + " dB";
+                    tx.Foreground = Math.Abs(np) < 0.25 ? dimB : np > 0 ? G : OT;
                 }
             };
             return box;

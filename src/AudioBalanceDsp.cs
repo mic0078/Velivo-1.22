@@ -114,8 +114,8 @@ namespace Velivo
         public string Name; public double MaxBoost, MaxCut, UpDbS, DownDbS, Gate, ThrOff, Ratio, AttackMs, ReleaseMs;
         public double FastDownDbS;   // nagły skok w górę (reklama, głośna scena) - ściszanie prawie natychmiast (dB/s); podgłaśnianie zostaje powolne
         public static readonly AbProfile Light = new AbProfile { FastDownDbS = 30, Name = "light", MaxBoost = 6, MaxCut = 8, UpDbS = 0.5, DownDbS = 1.0, Gate = -25, ThrOff = 8, Ratio = 2, AttackMs = 25, ReleaseMs = 400 };
-        public static readonly AbProfile Balanced = new AbProfile { FastDownDbS = 40, Name = "balanced", MaxBoost = 12, MaxCut = 12, UpDbS = 1.5, DownDbS = 2.0, Gate = -30, ThrOff = 4, Ratio = 3, AttackMs = 12, ReleaseMs = 300 };
-        public static readonly AbProfile Night = new AbProfile { FastDownDbS = 60, Name = "night", MaxBoost = 18, MaxCut = 18, UpDbS = 2.5, DownDbS = 3.0, Gate = -35, ThrOff = 0, Ratio = 6, AttackMs = 6, ReleaseMs = 200 };
+        public static readonly AbProfile Balanced = new AbProfile { FastDownDbS = 40, Name = "balanced", MaxBoost = 15, MaxCut = 12, UpDbS = 1.5, DownDbS = 2.0, Gate = -30, ThrOff = 4, Ratio = 3, AttackMs = 12, ReleaseMs = 300 };
+        public static readonly AbProfile Night = new AbProfile { FastDownDbS = 60, Name = "night", MaxBoost = 20, MaxCut = 18, UpDbS = 2.5, DownDbS = 3.0, Gate = -35, ThrOff = 0, Ratio = 6, AttackMs = 6, ReleaseMs = 200 };
         // tylko limiter: bez wyrownywania i kompresji - naturalny dzwiek, chroniony tylko przed nagłym hukiem (szczyty -1 dBTP)
         public static readonly AbProfile LimiterOnly = new AbProfile { Name = "limiter", MaxBoost = 0, MaxCut = 0, UpDbS = 0, DownDbS = 0, Gate = -99, ThrOff = 200, Ratio = 1, AttackMs = 10, ReleaseMs = 300 };
         public static AbProfile ByName(string n) => n == "light" ? Light : n == "balanced" ? Balanced : n == "night" ? Night : n == "limiter" ? LimiterOnly : null;
@@ -158,7 +158,7 @@ namespace Velivo
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb;
+        double levDb, detP, grDb, fastDb; long sinceStart;
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -180,7 +180,7 @@ namespace Velivo
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
         public void Process(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = 0; }
+            if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = 0; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
@@ -226,14 +226,17 @@ namespace Velivo
                     // 1) wyrównywacz: powoli (dB/s) do celu wg mediany głośności z 10 s (dialog; krótkie wybuchy obsługuje kompresor),
                     //    w ciszy wstrzymany (nie podnosi szumu)
                     In.MedianGate = Target + pr.Gate;
-                    if (In.Median > double.NegativeInfinity && In.Momentary > Target + pr.Gate)
+                    if ((In.Median > double.NegativeInfinity || (sinceStart < Fs * 6 && In.ShortTerm > double.NegativeInfinity)) && In.Momentary > Target + pr.Gate)
                     {
                         // po glosnym fragmencie (reklama, scena akcji) mediana z 10 s jeszcze go pamieta - gdy ostatnie 3 s sa wyraznie ciszej,
                         // liczymy od nich i podglosniamy 3x szybciej, zeby program po reklamie nie byl za cichy
-                        double basis = In.Median; bool back = In.ShortTerm > double.NegativeInfinity && In.ShortTerm < In.Median - 4;
-                        if (back) basis = In.ShortTerm;
+                        double basis = In.Median > double.NegativeInfinity ? In.Median : In.ShortTerm; bool back = In.ShortTerm > double.NegativeInfinity && In.ShortTerm < basis - 4;
+                        // pierwsze 6 s nowego filmu / kanalu (albo po przewinieciu): szybko do celu wg 3 s - kazdy kanal od razu podobnie glosny
+                        bool start = sinceStart < Fs * 6;
+                        if (back || start) basis = In.ShortTerm;
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, Target - basis));
-                        levDb += Math.Max(-dnS, Math.Min(back ? upS * 3 : upS, want - levDb));
+                        double up = start ? Math.Max(upS * 4, 6.0 / Fs) : back ? upS * 3 : upS, dn = start ? Math.Max(dnS * 4, 6.0 / Fs) : dnS;
+                        levDb += Math.Max(-dn, Math.Min(up, want - levDb));
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,
                     // ściszamy szybko (30–60 dB/s, czyli kilka dB w ok. 0,1 s) - bez czekania na powolne wyrównanie z 10 s
@@ -273,7 +276,7 @@ namespace Velivo
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
                 int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 8191;
                 if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }   // szczyt True Peak z ostatniej sekundy
-                GainDb = g; LimitDb = 20 * Math.Log10(limG);
+                GainDb = g; LimitDb = 20 * Math.Log10(limG); sinceStart++;
             }
             Frames += frames;
         }

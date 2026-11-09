@@ -624,11 +624,14 @@ namespace Velivo
         {
             var cur0 = onlyV ? _abDeskV : _abDesk;
             if (cur0 != null) { cur0.Show(); cur0.Activate(); return; }
+            // na pulpicie zawsze jeden widżet: pokazanie jednego zamienia drugi (miejsce przechodzi na nowy, jeśli nie ma własnego)
+            var other = onlyV ? _abDesk : _abDeskV; double? swapL = other?.Left, swapT = other?.Top; other?.Close();
             string key = onlyV ? "ab-pulpitv" : "ab-pulpit";
             var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
             var w = new Window { Title = onlyV ? "Velivo – V (pulpit)" : "Velivo – Audio Monitor (pulpit)", Width = onlyV ? 66 : 156, Height = onlyV ? 62 : 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;
-            if (double.TryParse(GetPref(key + "-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref(key + "-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
+            if (swapL.HasValue && swapT.HasValue) { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = swapL.Value; w.Top = swapT.Value; SetPref(key + "-x", swapL.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); SetPref(key + "-y", swapT.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); }   // zamiana - w tym samym miejscu
+            else if (double.TryParse(GetPref(key + "-x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out l0) && double.TryParse(GetPref(key + "-y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out t0))
             { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = l0; w.Top = t0; }
             else { w.WindowStartupLocation = WindowStartupLocation.Manual; w.Left = SystemParameters.WorkArea.Right - (onlyV ? 90 : 170); w.Top = SystemParameters.WorkArea.Top + 20; }
             var g = new Grid { Margin = new Thickness(8, 4, 8, 4) };
@@ -665,7 +668,7 @@ namespace Velivo
             alphaMenu.Items.Add(new MenuItem { Header = L.T("(albo kółko myszy nad widżetem)"), IsEnabled = false });
             cm.Items.Add(alphaMenu);
             cm.Items.Add(new Separator());
-            Item(onlyV ? L.T("📌 Pokaż widżet z liczbami") : L.T("📌 Pokaż drugi widżet: samo V"), () => ShowAbDesk(!onlyV));
+            Item(onlyV ? L.T("🔄 Zamień na widżet z liczbami") : L.T("🔄 Zamień na samo V"), () => ShowAbDesk(!onlyV));
             Item(L.T("✕ Zamknij widżet z pulpitu"), () => w.Close());
             // ten sam mechanizm przezroczystosci co reszta okien Velivo (zapamietany, przywracany przy starcie) - bez drugiego, sprzecznego
             void SetAlpha(double a) => SetWindowAlpha(w, Math.Round(Math.Max(0.25, Math.Min(1, a)), 2));

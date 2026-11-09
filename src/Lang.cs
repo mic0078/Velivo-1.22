@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "🔄 Zamień na widżet z liczbami", "🔄 Switch to the widget with numbers" },
+            { "🔄 Zamień na samo V", "🔄 Switch to the V only" },
             { "automatyczny", "automatic" },
             { "Lektor ginie, choć film jest już maksymalnie ściszony. Spróbuj wyraźniejszego głosu (panel lektora).", "The narrator gets lost although the film is already lowered as far as possible. Try a clearer voice (narrator panel)." },
             { "Lektor ginie, a filmu nie da się już bardziej ściszyć. Podnieść głośność lektora do ", "The narrator gets lost and the film cannot be lowered any further. Raise the narrator volume to " },

@@ -99,7 +99,7 @@
     <string name="kb_privacy">🔒 Learning and privacy</string>
     <string name="kb_p_learn">Learn from my typing (words, pairs, corrections)</string>
     <string name="kb_p_phrases">Phrases: remember and suggest</string>
-    <string name="kb_p_rhythm">Adapt key hold time to my typing pace</string>
+    <string name="kb_p_rhythm">Adapt the keyboard to me: typing pace and where my finger lands</string>
     <string name="kb_p_velivo">Learn only in Velivo apps</string>
     <string name="kb_p_reset">↺ Typing profile</string>
     <string name="kb_p_reset_done">Typing profile (pace and press) reset</string>

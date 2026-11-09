@@ -99,7 +99,7 @@
     <string name="kb_privacy">🔒 Nauka i prywatność</string>
     <string name="kb_p_learn">Ucz się z mojego pisania (słowa, pary, poprawki)</string>
     <string name="kb_p_phrases">Frazy: zapamiętuj i podpowiadaj</string>
-    <string name="kb_p_rhythm">Dopasuj przytrzymanie klawiszy do mojego tempa</string>
+    <string name="kb_p_rhythm">Dopasuj klawiaturę do mnie: tempo pisania i miejsce, w które trafiam palcem</string>
     <string name="kb_p_velivo">Ucz się tylko w aplikacjach Velivo</string>
     <string name="kb_p_reset">↺ Profil pisania</string>
     <string name="kb_p_reset_done">Profil pisania (tempo i nacisk) od nowa</string>

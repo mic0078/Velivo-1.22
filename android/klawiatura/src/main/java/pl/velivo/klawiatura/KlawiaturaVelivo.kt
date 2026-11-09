@@ -136,17 +136,17 @@ class KlawiaturaVelivo : InputMethodService() {
         fun saveNow(ctx: Context) { if (saveDue) { saveDue = false; val c = ctx.applicationContext; saver.execute { save(c) } } }
 
         fun ownWords(): List<String> = synchronized(learned) { own.sorted() }
-        // 🧹 wyuczone dane (częstość, pary słów, poprawki, kształty pisania przeciągnięciem, cofnięte poprawki) - Moje słowa zostają
+        // 🧹 wyuczone dane (częstość, pary słów, poprawki, kształty pisania przeciągnięciem, cofnięte poprawki, gdzie trafiasz palcem) - Moje słowa zostają
         @Volatile private var clearedAt = 0L   // działająca klawiatura czyści swoje cofnięte poprawki przy następnym polu
         fun clearLearned(ctx: Context) {
             synchronized(learned) { learned.clear(); Slownik.clearLearned() }
-            prefs(ctx).edit().remove("bez-korekty").apply(); clearedAt = System.currentTimeMillis(); save(ctx)
+            prefs(ctx).edit().remove("bez-korekty").remove("klaw-dotyk-pion").remove("klaw-dotyk-poz").apply(); clearedAt = System.currentTimeMillis(); save(ctx)   // także nauka dotyku
         }
         // 💬 Moje frazy: przegląd, edycja, usuwanie (jedna w linii, „skrót = fraza”)
         fun phrases(): List<String> = Slownik.phraseLines()
         fun setPhrases(ctx: Context, list: List<String>) { Slownik.setPhrases(list); save(ctx) }
         // ↺ profil pisania (tempo i czas nacisku) od nowa - same liczby, bez treści
-        fun resetRhythm(ctx: Context) = prefs(ctx).edit().remove("rytm-nacisk").remove("rytm-tempo").remove("rytm-n").apply()
+        fun resetRhythm(ctx: Context) { prefs(ctx).edit().remove("rytm-nacisk").remove("rytm-tempo").remove("rytm-n").remove("klaw-dotyk-pion").remove("klaw-dotyk-poz").apply(); clearedAt = System.currentTimeMillis() }   // tempo i gdzie trafiasz palcem
         // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
         fun setOwnWords(ctx: Context, list: List<String>) {
             synchronized(learned) {
@@ -987,7 +987,31 @@ class KlawiaturaVelivo : InputMethodService() {
         }
         private fun blend(a: Int, b: Int, t: Float) = Color.rgb((Color.red(a) + (Color.red(b) - Color.red(a)) * t).toInt(), (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt(), (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt())
 
-        private fun keyAt(x: Float, y: Float): K? = keys.firstOrNull { it.r.contains(x, y) } ?: keys.minByOrNull { hypot(it.r.centerX() - x, it.r.centerY() - y) }?.takeIf { y > headH + sugH }
+        // 👆 nauka dotyku (jak model dotyku Gboard): gdzie naprawdę trafiasz w każdą literę - przesunięcie od środka klawisza
+        //    (kciuk prawej ręki zwykle niżej i w prawo), osobno pion i poziom; ten sam włącznik co nauka rytmu, tylko liczby, bez treści
+        private val tOff = HashMap<Char, FloatArray>(); private var tN = 0; private var tKey = ""; private var tAt = 0L
+        private fun touchLoad() {
+            val k = "klaw-dotyk-" + (if (width > height * 2.2f) "poz" else "pion"); if (k == tKey && tAt > clearedAt) return   // po „Wyczyść naukę” - od nowa
+            tKey = k; tAt = System.currentTimeMillis(); tOff.clear(); tN = 0
+            prefs(context).getString(k, null)?.split(';')?.forEach { e -> val p = e.split(','); if (p.size == 3) runCatching { tOff[p[0][0]] = floatArrayOf(p[1].toFloat(), p[2].toFloat()) } }
+            if (tOff.size >= 15) tN = 200   // zapisany model - od razu w użyciu
+        }
+        private fun touchLearn(k: K, x: Float, y: Float) {
+            if (noLearn || secret || !pref("klaw-rytm") || k.code.length != 1 || k.code[0] !in 'a'..'z' || k.r.width() <= 0f) return
+            touchLoad()
+            val dx = ((x - k.r.centerX()) / k.r.width()).coerceIn(-0.6f, 0.6f); val dy = ((y - k.r.centerY()) / k.r.height()).coerceIn(-0.6f, 0.6f)
+            val o = tOff.getOrPut(k.code[0]) { floatArrayOf(0f, 0f) }; o[0] = o[0] * 0.92f + dx * 0.08f; o[1] = o[1] * 0.92f + dy * 0.08f; tN++
+            if (tN % 40 == 0) prefs(context).edit().putString(tKey, tOff.entries.joinToString(";") { "${it.key},${it.value[0]},${it.value[1]}" }).apply()
+        }
+        private fun keyAt(x: Float, y: Float): K? {
+            val hit = keys.firstOrNull { it.r.contains(x, y) }
+            touchLoad()
+            if (tN >= 150 && y > headH + sugH && (hit == null || hit.code.length == 1 && hit.code[0] in 'a'..'z')) {   // model gotowy (ok. 150 stuknięć): najbliższa litera wg Twojego trafiania
+                val near = keys.filter { it.code.length == 1 && it.code[0] in 'a'..'z' && kotlin.math.abs(it.r.centerX() - x) < it.r.width() * 1.2f && kotlin.math.abs(it.r.centerY() - y) < it.r.height() * 1.2f }
+                near.minByOrNull { k -> val o = tOff[k.code[0]]; hypot(k.r.centerX() + (o?.get(0) ?: 0f) * k.r.width() - x, k.r.centerY() + (o?.get(1) ?: 0f) * k.r.height() - y) }?.let { return it }
+            }
+            return hit ?: keys.minByOrNull { hypot(it.r.centerX() - x, it.r.centerY() - y) }?.takeIf { y > headH + sugH }
+        }
 
         // przytrzymanie ⌫: najpierw litery, po chwili całe słowa (jak w Gboard)
         private var reps = 0
@@ -1073,7 +1097,7 @@ class KlawiaturaVelivo : InputMethodService() {
             if (activeId < 0 || swiping || menuOpen || popKeys != null || cursorMode || downY < headH + sugH) return   // przeciąganie, menu, kursor, pasek - drugi palec bez znaczenia
             removeCallbacks(longPress); removeCallbacks(repeat)
             val k0 = pressed; pressed = null
-            if (k0 != null && !longDone) { if (k0.code.length == 1 && k0.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k0) }
+            if (k0 != null && !longDone) { if (k0.code.length == 1 && k0.code[0].isLetter()) { rhythm(SystemClock.uptimeMillis() - downAt, downAt); touchLearn(k0, downX, downY) }; keyAction(k0) }
             val i = e.actionIndex; val x = e.getX(i); val y = e.getY(i)
             if (y < headH + sugH) { activeId = -1; invalidate(); return }   // drugi palec na pasku - bez pisania
             activeId = e.getPointerId(i)
@@ -1104,7 +1128,7 @@ class KlawiaturaVelivo : InputMethodService() {
                         val kw = (keys.first { it.code == "w" }.r.centerX() - keys.first { it.code == "q" }.r.centerX()).toDouble()
                         swiped(ArrayList(trace), centers, kw); trace.clear(); invalidate(); return
                     }
-                    if (k != null && !longDone) { if (k.code.length == 1 && k.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k) }
+                    if (k != null && !longDone) { if (k.code.length == 1 && k.code[0].isLetter()) { rhythm(SystemClock.uptimeMillis() - downAt, downAt); touchLearn(k, downX, downY) }; keyAction(k) }
                     invalidate()
         }
 

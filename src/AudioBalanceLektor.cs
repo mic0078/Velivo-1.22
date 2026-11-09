@@ -76,7 +76,7 @@ namespace Velivo
             if (double.IsNaN(vol) || double.IsInfinity(vol)) return;
             p.Vol = Math.Max(0.1, Math.Min(0.99, vol)); p.Duck = Math.Max(10, Math.Min(100, duck)); p.N++; p.T = DateTime.Now;
             string json = JsonSerializer.Serialize(d, AbLearnEntry.Json);
-            System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLekPrefsFile, json); } catch (Exception ex) { App.LogError(ex); } });
+            AbWriteLatest(AbLekPrefsFile, json);   // zapisy po kolei, tylko najnowszy (było: kilka naraz → „plik .tmp zajęty”)
         }
 
         // zmiana głosu lektora: jeśli dla tego głosu ustawiasz zwykle co innego - propozycja (bez zmiany)

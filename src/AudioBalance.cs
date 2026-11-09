@@ -167,6 +167,20 @@ namespace Velivo
         internal static readonly AbProcessor AbProc = new AbProcessor();
         // dźwięk naprawdę płynie (nowe próbki w ostatnich 2 s) - pauza / koniec / zatrzymanie = wskaźniki na zero, nie ostatnia chwila
         static long _abFramesSeen; static DateTime _abFramesAt;
+        // „co teraz słychać” (numer próbki): płynie według zegara w każdej klatce, przy każdej paczce z VLC delikatnie korygowane
+        // do (przetworzone − czekające w karcie). Wcześniej czytane tylko przy paczce (co 0,1–0,2 s) - widmo stało i skakało.
+        static double _abHead; static long _abHeadAt;
+        internal long AbPlayHead()
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp(), frames = Interlocked.Read(ref AbProc.Frames), target = frames - (_abOut?.AheadFrames ?? 0);
+            double dt = _abHeadAt == 0 ? 0 : (now - _abHeadAt) / (double)System.Diagnostics.Stopwatch.Frequency; _abHeadAt = now;
+            if (AbFlowing()) _abHead += Math.Min(0.2, dt) * AbProcessor.Fs;
+            double err = target - _abHead;
+            if (Math.Abs(err) > AbProcessor.Fs / 5) _abHead = target; else _abHead += err * 0.05;   // duży rozjazd (przewinięcie) - od razu; mały - łagodnie
+            if (_abHead > frames) _abHead = frames;
+            return (long)_abHead;
+        }
+
         internal static bool AbFlowing()
         {
             long f = Interlocked.Read(ref AbProc.Frames);
@@ -441,7 +455,7 @@ namespace Velivo
                     }
                 }
                 // FFT 2048 z ostatnich probek
-                int ahead = Math.Min(60000, _abOut?.AheadFrames ?? 0), pos = AbProc.ScopePos - ahead;   // fragment, który właśnie słychać (za kolejką karty)
+                long head = AbPlayHead(); int ahead = (int)Math.Max(0, Math.Min(60000, Interlocked.Read(ref AbProc.Frames) - head)), pos = (int)(head & 65535);   // fragment, który właśnie słychać (płynnie, za kolejką karty)
                 for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 131072) & 65535] * hann[i] : 0; fftIm[i] = 0; }
                 AbFft(fftRe, fftIm);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
@@ -717,7 +731,7 @@ namespace Velivo
             double np = 0; var dAt = DateTime.MinValue;
             upd = live =>
             {
-                var sn = AbProc.Delayed(_abOut?.AheadFrames ?? 0);   // to, co słychać teraz (za kolejką karty)
+                var sn = AbProc.Delayed(Math.Max(0, Interlocked.Read(ref AbProc.Frames) - AbPlayHead()));   // to, co słychać teraz (płynnie, za kolejką karty)
                 double dl = sn.VuL - sn.VuInL, dr = sn.VuR - sn.VuInR;
                 double d = live && !AbBypass && sn.VuInL > -70 ? (dl + dr) / 2 : 0;
                 if (double.IsNaN(d) || double.IsInfinity(d)) d = 0;

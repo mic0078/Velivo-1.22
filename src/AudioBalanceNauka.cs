@@ -37,7 +37,23 @@ namespace Velivo
                 foreach (var e in d.Values) e.Sanitize();   // ∞ / NaN nigdy do pliku
                 json = JsonSerializer.Serialize(d, AbLearnEntry.Json);
             }
-            System.Threading.Tasks.Task.Run(() => { try { VelivoData.SafeWrite(AbLearnFile, json); } catch (Exception ex) { App.LogError(ex); } });
+            AbWriteLatest(AbLearnFile, json);   // zapisy po kolei, tylko najnowszy (było: kilka naraz → „plik .tmp zajęty”)
+        }
+
+        // zapis w tle: jeden naraz dla pliku, a gdy w międzyczasie przyszedł nowszy stan - zapisany zostaje tylko najnowszy
+        static readonly Dictionary<string, string> AbWritePending = new Dictionary<string, string>();
+        static void AbWriteLatest(string path, string json)
+        {
+            lock (AbWritePending) { bool running = AbWritePending.ContainsKey(path); AbWritePending[path] = json; if (running) return; }
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                while (true)
+                {
+                    string j; lock (AbWritePending) { j = AbWritePending[path]; AbWritePending[path] = null; }
+                    try { VelivoData.SafeWrite(path, j); } catch (Exception ex) { App.LogError(ex); }
+                    lock (AbWritePending) { if (AbWritePending[path] == null) { AbWritePending.Remove(path); return; } }
+                }
+            });
         }
 
         internal static void AbLearnForget() { lock (AbLearnLock) { _abLearn = new Dictionary<string, AbLearnEntry>(); } AbLearnSave(); SetPref("ab-vol-baza", ""); SetPref("ab-vol-bazaw", "0"); AbProc.SeedLevDb = float.NaN; AbProc.FastMul = 1; AbProc.TargetAdj = 0; }

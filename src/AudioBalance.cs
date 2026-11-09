@@ -424,7 +424,7 @@ namespace Velivo
             // odswiezanie ~30 kl./s tylko, gdy widzet widoczny (FFT w watku okna, nie dzwieku)
             var fftRe = new double[2048]; var fftIm = new double[2048]; var hann = Enumerable.Range(0, 2048).Select(i => 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / 2047)).ToArray();
             var edges = Enumerable.Range(0, NB + 1).Select(i => 50 * Math.Pow(16000.0 / 50, i / (double)NB)).ToArray();
-            var smooth = new double[NB];
+            var smooth = new double[NB]; double specTop = -30;
             string uiSig = null;
             _abTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
             _abTimer.Tick += (s, e) =>
@@ -456,20 +456,22 @@ namespace Velivo
                 for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 8192) & 8191] * hann[i] : 0; fftIm[i] = 0; }
                 AbFft(fftRe, fftIm);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
-                double lowE = 0, midE = 0, hiE = 0;
+                double lowE = 0, midE = 0, hiE = 0; double frameTop = -120;
                 for (int b = 0; b < NB; b++)
                 {
                     int k0 = Math.Max(1, (int)(edges[b] * 2048 / AbProcessor.Fs)), k1 = Math.Max(k0 + 1, (int)(edges[b + 1] * 2048 / AbProcessor.Fs));
                     double sum = 0; for (int k = k0; k < k1 && k < 1024; k++) sum += fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k];
                     double db = 10 * Math.Log10(sum / 1024.0 + 1e-12) + 3;
                     double f = (edges[b] + edges[b + 1]) / 2; if (f < 250) lowE += sum; else if (f < 4000) midE += sum; else hiE += sum;
-                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db + 70) / 70));
+                    if (!double.IsNaN(db) && db > frameTop) frameTop = db;
+                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db - (specTop - 48)) / 48));   // skala za głośnością (48 dB pod szczytem): rytm i barwa widoczne także przy głośnej, wyrównanej muzyce
                     smooth[b] = v > smooth[b] ? v : smooth[b] * 0.85 + v * 0.15;
                     hold[b] = Math.Max(smooth[b], hold[b] - 0.01);
                     double bh = smooth[b] * h;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = bh; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], h - bh);
                     peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - hold[b] * h - 2);
                 }
+                specTop = frameTop > specTop ? frameTop : Math.Max(-60, specTop - 0.15);   // szczyt: od razu w górę, powoli w dół (ok. 4,5 dB/s)
                 double Db(double e) { double d = 10 * Math.Log10(e / 1024 + 1e-12); return double.IsNaN(d) ? -60 : Math.Max(-60, Math.Min(0, d)); }
                 lmhBars[0].Value = Db(lowE); lmhBars[1].Value = Db(midE); lmhBars[2].Value = Db(hiE);
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");

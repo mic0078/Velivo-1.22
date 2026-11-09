@@ -595,7 +595,7 @@ namespace Velivo
         bool? AskResume(Window owner, long at)
         {
             bool? res = null;
-            var dlg = new Window { Title = L.T("Wznowić oglądanie?"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var dlg = new Window { Title = L.T("Wznowić oglądanie?"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             var p = new StackPanel { Margin = new Thickness(18) };
             p.Children.Add(new TextBlock { Text = L.T("Ten film był oglądany do ") + FormatTime(at) + ".", FontSize = 14, Margin = new Thickness(0, 0, 0, 12) });
             var remember = new CheckBox { Content = L.T("Zapamiętaj wybór i nie pytaj (zmiana: Ustawienia → Odtwarzacz filmów)"), Margin = new Thickness(0, 0, 0, 12) };
@@ -607,7 +607,7 @@ namespace Velivo
             btns.Children.Add(resume); btns.Children.Add(start);
             p.Children.Add(remember); p.Children.Add(btns);
             dlg.Content = p;
-            dlg.ShowDialog();
+            dlg.Loaded += (q, w) => dlg.Activate(); ShowAboveAll(() => dlg.ShowDialog());   // pytanie zawsze na samej górze i aktywne - Audio Monitor ani inne okna „na wierzchu” go nie zasłaniają
             if (res != null && remember.IsChecked == true) SetPref("wznawianie", res.Value ? "wznow" : "poczatek");
             return res;
         }

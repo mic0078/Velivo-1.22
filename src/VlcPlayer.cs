@@ -3909,9 +3909,28 @@ namespace Velivo
                 sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); restartPlayer(); };   // zmiana wyjscia dzwieku - odtwarzacz od nowa w tym samym miejscu
                 cm.Items.Add(sur);
                 // stan od razu widac (ptaszek) i jednym kliknieciem wl./wyl. - ten sam przelacznik co ⏻ w widzecie
-                var abOn = new MenuItem { Header = L.T("🎚 Audio Balance włączony") + "   (" + AbProfileLabel(AbProfileName) + (AbEqOn ? " + EQ" : "") + (AbDialog > 0 ? L.T(" + dialogi") : "") + ")", IsCheckable = true, IsChecked = AbWanted };
-                abOn.Click += (a, b) => { if (!abOn.IsChecked && !AbBypass) AbSetBypass(true); else if (abOn.IsChecked) { if (AbBypass) AbSetBypass(false); if (!AbWanted) AbSetProfile("balanced"); } };
+                // 🎚 INTELIGENTNA NORMALIZACJA: włącz/wyłącz, tryb, intensywność i stan na żywo (wszystko działa od razu na dźwięk)
+                cm.Items.Add(new MenuItem { Header = L.T("INTELIGENTNA NORMALIZACJA"), IsEnabled = false, FontWeight = FontWeights.Bold });
+                {
+                    bool live = AbProc.Active && !AbBypass && AbWanted;
+                    string F(double v) => double.IsNaN(v) || double.IsInfinity(v) || v < -70 ? "–" : v.ToString("0.0");
+                    cm.Items.Add(new MenuItem { Header = live ? L.T("Teraz: ") + F(AbProc.Out.ShortTerm) + L.T(" LUFS · zmiana ") + (AbProc.GainDb >= 0 ? "+" : "") + F(AbProc.GainDb) + L.T(" dB · procesor: pracuje") : L.T("Procesor: nie pracuje (wyłączony albo nic nie gra)"), IsEnabled = false });
+                }
+                var abOn = new MenuItem { Header = L.T("Włączona"), IsCheckable = true, IsChecked = AbWanted && AbProfileName != "off" };
+                abOn.Click += (a, b) => { if (!abOn.IsChecked) AbSetProfile("off"); else { if (AbBypass) AbSetBypass(false); if (AbProfileName == "off") AbSetProfile("auto"); } };
                 cm.Items.Add(abOn);
+                foreach (var pm in new[] { "auto", "limit" })
+                {
+                    var mi = new MenuItem { Header = L.T("Tryb: ") + AbProfileLabel(pm), IsCheckable = true, IsChecked = !AbBypass && AbProfileName == pm, ToolTip = AbProfileTip(pm) };
+                    mi.Click += (a, b) => { if (AbBypass) AbSetBypass(false); AbSetProfile(pm); };
+                    cm.Items.Add(mi);
+                }
+                foreach (var sl in AbSilas)
+                {
+                    var mi = new MenuItem { Header = L.T("Intensywność: ") + AbSilaLabel(sl), IsCheckable = true, IsChecked = AbSilaName == sl, ToolTip = AbSilaTip(sl) };
+                    mi.Click += (a, b) => AbSetSila(sl);
+                    cm.Items.Add(mi);
+                }
                 var abm = new MenuItem { Header = L.T("🎚 Audio Monitor i korektor…") };
                 abm.Click += (a, b) => ShowAudioMonitor();
                 cm.Items.Add(abm);

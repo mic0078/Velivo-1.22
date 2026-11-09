@@ -175,9 +175,10 @@ namespace Velivo
 
         static void AbLoadSettings()
         {
-            AbProc.Profile = AbProfile.ByName(AbProfileName);
+            AbProc.Profile = AbProfile.ByName(AbProfileName, AbSilaName);
             if (GetPref("ab-cel-auto") != "1") { SetPref("ab-cel-auto", "1"); SetPref("ab-cel", "0"); }   // 2026-11-09: domyślnie Auto (właściciel), stałe poziomy do wyboru
-            if (GetPref("ab-profil") is string op && op != "off" && op != "balanced") SetPref("ab-profil", "balanced");   // jeden tryb (właściciel: profile niepotrzebne)
+            if (GetPref("ab-profil") is string op && op != "off" && op != "auto" && op != "limit")   // stare nazwy profili → tryb + intensywność
+            { SetPref("ab-profil", op == "limiter" ? "limit" : "auto"); SetPref("ab-sila", op == "light" ? "light" : op == "night" ? "strong" : "normal"); }
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
@@ -213,9 +214,14 @@ namespace Velivo
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;
-        static readonly string[] AbProfiles = { "off", "balanced" };   // właściciel 2026-11-09: jeden tryb – włączone / wyłączone (light, night, limiter zostają tylko w kodzie)
-        static string AbProfileLabel(string p) => p == "light" ? "Light" : p == "balanced" ? L.T("Włączone") : p == "night" ? "Night" : p == "limiter" ? L.T("Tylko limiter") : "Off";
-        static string AbProfileShort(string p) => p == "light" ? "L" : p == "balanced" ? "✓" : p == "night" ? "N" : p == "limiter" ? "Lim" : "⏻";
+        static readonly string[] AbProfiles = { "off", "auto", "limit" };   // tryb: Wył. / Auto Level / Limit Only
+        static readonly string[] AbSilas = { "light", "normal", "strong" };   // intensywność
+        static string AbSilaName => GetPref("ab-sila") is string x && AbSilas.Contains(x) ? x : "normal";
+        static string AbSilaLabel(string s) => s == "light" ? "Light" : s == "strong" ? "Strong" : "Normal";
+        static string AbSilaTip(string s) => s == "light" ? L.T("Light – naturalny dźwięk, niewielka ingerencja (koryguje ok. 60% różnicy, strefa komfortu ±4 dB).") : s == "strong" ? L.T("Strong – nocne oglądanie i ciche słuchanie: wyrównuje najmocniej (100% różnicy, strefa ±2 dB).") : L.T("Normal – filmy i codzienne oglądanie (85% różnicy, strefa ±3 dB).");
+        void AbSetSila(string sila) { SetPref("ab-sila", sila); AbProc.Profile = AbProfile.ByName(AbProfileName, sila); }
+        static string AbProfileLabel(string p) => p == "auto" ? "Auto Level" : p == "limit" ? "Limit Only" : L.T("Wył.");
+        static string AbProfileShort(string p) => p == "auto" ? "A" + AbSilaLabel(AbSilaName)[0] : p == "limit" ? "Lim" + AbSilaLabel(AbSilaName)[0] : "⏻";
 
         internal void ShowAudioMonitor()
         {
@@ -303,6 +309,11 @@ namespace Velivo
             foreach (var p in AbProfiles) { var pp = p; var b = Mk(AbProfileLabel(p), () => { AbSetProfile(pp); MarkProfile(); }); b.ToolTip = AbProfileTip(p); pbtn[p] = b; prow.Children.Add(b); }
             MarkProfile();
             root.Children.Add(prow);
+            var srow = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) }; var sbtn = new Dictionary<string, Button>();
+            srow.Children.Add(new TextBlock { Text = L.T("Intensywność:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
+            void MarkSila() { foreach (var kv in sbtn) kv.Value.Background = kv.Key == AbSilaName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            foreach (var sl0 in AbSilas) { var ss = sl0; var b = Mk(AbSilaLabel(sl0), () => { AbSetSila(ss); MarkSila(); }); b.ToolTip = AbSilaTip(sl0); sbtn[sl0] = b; srow.Children.Add(b); }
+            MarkSila(); root.Children.Add(srow);
             // 🗣 wyrazne dialogi (opcja dodatkowa) i ⏻ wylacz wszystko jednym przyciskiem
             var drow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             drow.Children.Add(new TextBlock { Text = L.T("🗣 Wyraźne dialogi:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
@@ -312,7 +323,7 @@ namespace Velivo
             MarkDialog(); root.Children.Add(drow);
             var bypassBtn = Mk("", () => { });
             void MarkBypass() { bypassBtn.Content = AbBypass ? L.T("⏻ Przetwarzanie WYŁĄCZONE – kliknij, aby włączyć") : !AbWanted ? L.T("⏻ Nic nie jest włączone – kliknij, aby włączyć (Balanced)") : L.T("⏻ Wyłącz całe przetwarzanie"); bypassBtn.Background = AbBypass ? new SolidColorBrush(Color.FromRgb(0x8A, 0x2B, 0x2B)) : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
-            bypassBtn.Click += (s, e) => { if (!AbBypass && !AbWanted) { AbSetProfile("balanced"); MarkProfile(); } else AbSetBypass(!AbBypass); MarkBypass(); };
+            bypassBtn.Click += (s, e) => { if (!AbBypass && !AbWanted) { AbSetProfile("auto"); MarkProfile(); } else AbSetBypass(!AbBypass); MarkBypass(); };
             bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
             MarkBypass(); root.Children.Insert(2, bypassBtn);
             // 🧠 nauka: włącz/wyłącz i „zapomnij”
@@ -381,7 +392,7 @@ namespace Velivo
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
             Move(c1, head, src, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
             Move(c2, lmh, lvl, nums, leg, hist, info, bypassNote);
-            Move(c3, prow, drow, tgt, lrow, devBox, eqExp, brow, foot);   // 🧠 nauka pod celem - każdy element root musi trafić do kolumny
+            Move(c3, prow, srow, drow, tgt, lrow, devBox, eqExp, brow, foot);   // 🧠 nauka pod celem - każdy element root musi trafić do kolumny
             Grid.SetColumn(c1, 0); Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
@@ -398,9 +409,9 @@ namespace Velivo
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
                 bool live = _abOut != null && AbProc.Active;
                 bigVuUpd(live);
-                string sig = AbBypass + AbProfileName + AbDialog + AbEqOn;
-                if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkDialog(); }
-                state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
+                string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
+                if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
+                state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
                 // FFT 2048 z ostatnich probek
@@ -475,7 +486,7 @@ namespace Velivo
 
         static readonly float[] AbTargets = { 0, -14, -16, -18, -20, -23, -24 };   // 0 = Auto (średnia źródła)
         static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
-        static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Włączone – Velivo pilnuje głośności: płynnie podgłaśnia ciche i ścisza głośne, żeby wynik był stale przy celu.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : p == "limiter" ? L.T("Tylko limiter – dźwięk bez wyrównywania, tylko ochrona przed nagłym hukiem (szczyty nie wyżej niż -1 dBTP).") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
+        static string AbProfileTip(string p) => p == "auto" ? L.T("Auto Level – podnosi ciche fragmenty, kontroluje głośne, płynnie, bez gwałtownych zmian.") : p == "limit" ? L.T("Limit Only – nie podnosi cichych fragmentów, ogranicza tylko nadmiernie głośne; naturalna dynamika zostaje.") : L.T("Wył. – bez wyrównywania (sam korektor, gdy włączony).");
 
         internal void AbSetBypass(bool on)
         {
@@ -506,7 +517,7 @@ namespace Velivo
 
         void AbSetProfile(string p)
         {
-            SetPref("ab-profil", p); AbProc.Profile = AbProfile.ByName(p);
+            SetPref("ab-profil", p); AbProc.Profile = AbProfile.ByName(p, AbSilaName);
             if (p == "off" && (AbEqOn || AbDialog > 0) && !AbBypass) ShowToast(L.T("🎚 Wyrównywanie głośności wyłączone. Korektor / dialogi działają dalej – całość wyłączysz przyciskiem ⏻."), null);   // Off = tylko profil; mylilo sie z wylaczeniem wszystkiego
             AbNeedsRestartHint();
         }
@@ -555,10 +566,14 @@ namespace Velivo
                     m.Items.Add(L.T("🎚 Otwórz Audio Monitor"), null, (s, e) => Dispatcher.Invoke(ShowAudioMonitor));
                     m.Items.Add(L.T("Ukryj widżet"), null, (s, e) => Dispatcher.Invoke(AbHideMonitor));
                     m.Items.Add(L.T("📌 Mały widżet na pulpicie"), null, (s, e) => Dispatcher.Invoke(ShowAbDesk));
-                    var prof = new System.Windows.Forms.ToolStripMenuItem(L.T("Profil Audio Balance"));
+                    var prof = new System.Windows.Forms.ToolStripMenuItem(L.T("Tryb Audio Balance"));
                     foreach (var p in AbProfiles) { var pp = p; prof.DropDownItems.Add(AbProfileLabel(p), null, (s, e) => Dispatcher.Invoke(() => { if (AbBypass) AbSetBypass(false); AbSetProfile(pp); })); }
                     prof.DropDownOpening += (s, e) => { foreach (System.Windows.Forms.ToolStripMenuItem it in prof.DropDownItems) it.Checked = it.Text == AbProfileLabel(AbProfileName); };
                     m.Items.Add(prof);
+                    var silM = new System.Windows.Forms.ToolStripMenuItem(L.T("Intensywność"));
+                    foreach (var sl in AbSilas) { var ss = sl; silM.DropDownItems.Add(AbSilaLabel(sl), null, (s, e) => Dispatcher.Invoke(() => AbSetSila(ss))); }
+                    silM.DropDownOpening += (s, e) => { foreach (System.Windows.Forms.ToolStripMenuItem it in silM.DropDownItems) it.Checked = it.Text == AbSilaLabel(AbSilaName); };
+                    m.Items.Add(silM);
                     var byp = new System.Windows.Forms.ToolStripMenuItem(L.T("⏻ Bez przetwarzania dźwięku"));
                     byp.Click += (s, e) => Dispatcher.Invoke(() => AbSetBypass(!AbBypass));
                     m.Opening += (s, e) => byp.Checked = AbBypass;
@@ -609,7 +624,9 @@ namespace Velivo
             MenuItem Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); return mi; }
             Item(L.T("🎚 Otwórz Audio Monitor"), ShowAudioMonitor);
             var profItems = new Dictionary<string, MenuItem>();
-            foreach (var p in AbProfiles) { var pp = p; profItems[p] = Item(L.T("Profil: ") + AbProfileLabel(p), () => { if (AbBypass) AbSetBypass(false); AbSetProfile(pp); }); }   // wybor profilu = przetwarzanie wlaczone
+            foreach (var p in AbProfiles) { var pp = p; profItems[p] = Item(L.T("Tryb: ") + AbProfileLabel(p), () => { if (AbBypass) AbSetBypass(false); AbSetProfile(pp); }); }   // wybor profilu = przetwarzanie wlaczone
+            var silItems = new Dictionary<string, MenuItem>();
+            foreach (var sl in AbSilas) { var ss = sl; silItems[sl] = Item(L.T("Intensywność: ") + AbSilaLabel(sl), () => AbSetSila(ss)); }
             var bypItem = Item(L.T("⏻ Bez przetwarzania dźwięku (wł./wył.)"), () => AbSetBypass(!AbBypass));
             cm.Items.Add(new Separator());
             // 📌 zawsze na wierzchu i przezroczystosc (takze kolko myszy nad widzetem) - zapamietane
@@ -625,7 +642,7 @@ namespace Velivo
             void SetAlpha(double a) => SetWindowAlpha(w, Math.Round(Math.Max(0.25, Math.Min(1, a)), 2));
             w.Topmost = GetPref(key + "-top") == "1";
             w.MouseWheel += (s2, e2) => { if (Keyboard.Modifiers != ModifierKeys.Alt) { SetAlpha(WindowAlpha(w) + (e2.Delta > 0 ? 0.05 : -0.05)); e2.Handled = true; } };   // Alt+kolko obsluguje Velivo samo
-            cm.Opened += (s, e) => { topItem.IsChecked = w.Topmost; foreach (MenuItem mi in alphaMenu.Items) if (mi.IsEnabled && int.TryParse(((string)mi.Header).Split(' ')[0], out var pv)) mi.IsChecked = Math.Abs(WindowAlpha(w) * 100 - pv) < 3; bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; };   // stan widac w menu
+            cm.Opened += (s, e) => { topItem.IsChecked = w.Topmost; foreach (MenuItem mi in alphaMenu.Items) if (mi.IsEnabled && int.TryParse(((string)mi.Header).Split(' ')[0], out var pv)) mi.IsChecked = Math.Abs(WindowAlpha(w) * 100 - pv) < 3; bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; foreach (var kv in silItems) kv.Value.IsChecked = kv.Key == AbSilaName; };   // stan widac w menu
             w.ContextMenu = cm;
             var tm = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };   // 30 kl./s - wskazowki reaguja szybko
             tm.Tick += (s, e) =>
@@ -646,7 +663,7 @@ namespace Velivo
                     delta.Foreground = !ok || Math.Abs(d) < 0.25 ? dim : d > 0 ? green : orange;
                 }
                 if (!w.IsMouseOver) return;   // podpowiedz liczona tylko pod mysza
-                w.ToolTip = L.T("Lewe ramię V (jasny turkus) – Velivo podgłośniło, prawe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Profil: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName)) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
+                w.ToolTip = L.T("Lewe ramię V (jasny turkus) – Velivo podgłośniło, prawe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.") + "\n" + "M " + F(AbProc.Out.Momentary) + "  S " + F(AbProc.Out.ShortTerm) + "  I " + F(AbProc.Out.Integrated) + " LUFS  TP " + F(AbProc.PeakOutDb) + " dBTP\n" + L.T("Tryb: ") + (AbBypass ? L.T("bez przetwarzania") : AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "")) + "\n" + L.T("Przeciągnij, aby przenieść; dwuklik – pełny widżet; prawy przycisk – menu.");
             };
             w.Closed += (s, e) => { tm.Stop(); if (onlyV) _abDeskV = null; else _abDesk = null; if (!_mainClosing && !_reallyExit) SetPref(key, "0"); };   // zamkniety recznie - nie wraca; przy zamykaniu Velivo wraca po starcie
             w.IsVisibleChanged += (s, e) => { if (w.IsVisible) tm.Start(); else tm.Stop(); };

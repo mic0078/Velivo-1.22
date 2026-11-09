@@ -762,16 +762,20 @@ namespace Velivo
             // 🎚 Dźwięk → Audio Balance (ITU-R BS.1770-4): profil, poziom docelowy, Audio Monitor
             root.Children.Add(new TextBlock { Text = L.T("Dźwięk – Audio Balance (wyrównywanie głośności wg ITU-R BS.1770-4):"), Margin = new Thickness(0, 8, 0, 2) });
             var abRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Off – bez zmian. Light – lekko, naturalna dynamika. Balanced – wygodne oglądanie. Night – mocno wyrównane, do cichego słuchania.") };
+            var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Tryb: Wył. – bez zmian; Auto Level – ciche w górę, głośne w dół; Limit Only – tylko ogranicza głośne.") };
             foreach (var p in AbProfiles) abBox.Items.Add(new ComboBoxItem { Content = AbProfileLabel(p), Tag = p, ToolTip = AbProfileTip(p) });
             abBox.SelectedItem = abBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbProfileName) ?? abBox.Items[0];
             abBox.SelectionChanged += (a, b) => { if (abBox.SelectedItem is ComboBoxItem it) AbSetProfile((string)it.Tag); };
+            var abSila = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Intensywność: Light – naturalnie, Normal – filmy na co dzień, Strong – noc i ciche słuchanie.") };
+            foreach (var sl in AbSilas) abSila.Items.Add(new ComboBoxItem { Content = AbSilaLabel(sl), Tag = sl, ToolTip = AbSilaTip(sl) });
+            abSila.SelectedItem = abSila.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbSilaName) ?? abSila.Items[1];
+            abSila.SelectionChanged += (a, b) => { if (abSila.SelectedItem is ComboBoxItem it) AbSetSila((string)it.Tag); };
             var abTgt = new ComboBox { Width = 280, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             AbLoadSettings();
             foreach (var v in AbTargets) abTgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
             abTgt.SelectedItem = abTgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? abTgt.Items[0];
             abTgt.SelectionChanged += (a, b) => { if (abTgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
-            abRow.Children.Add(abBox); abRow.Children.Add(abTgt);
+            abRow.Children.Add(abBox); abRow.Children.Add(abSila); abRow.Children.Add(abTgt);
             var abMon = SmallButton(L.T("🎚 Audio Monitor…"), ShowAudioMonitor);
             abMon.ToolTip = L.T("Widżet z widmem, LUFS i True Peak, korektor i wybór profilu. Można go schować do zasobnika.");
             abRow.Children.Add(abMon);

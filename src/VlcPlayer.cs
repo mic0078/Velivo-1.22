@@ -2195,7 +2195,10 @@ namespace Velivo
             var lvRow = sliderRow(L.T("Głośność lektora"), 10, 99, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = WpfVol(_settings.VlcLectorVolume); });
             var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 10) / 10);
             var ldRow = sliderRow(L.T("Film podczas czytania"), 0, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v);
-            foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
+            var loRow = sliderRow(L.T("Lektor nad filmem"), 0, 20, v => "+" + (int)v + " dB", v => _settings.VlcLectorOver = (int)Math.Round(v));   // z Audio Balance: film ściszany tak, by lektor był o tyle głośniej
+            loRow.Item2.Value = _settings.VlcLectorOver;   // jedna proporcja dla wszystkich filmów i kanałów (zapisana w ustawieniach)
+            loRow.Item1.ToolTip = L.T("Działa z Audio Balance: przy każdej kwestii Velivo mierzy lektora i film i ścisza film tak, żeby lektor był o tyle dB głośniej. Więcej = film ciszej pod lektorem.");
+            foreach (var r in new[] { lvRow, lrRow, ldRow, loRow }) lectorPanel.Children.Add(r.Item1);
             // 🗣 jakość głosu Supertonic (kroki): więcej = naturalniej, dłużej liczy; 0 = samo
             var stTxt = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Ile razy Supertonic dopracowuje głos: więcej – naturalniej, ale dłużej liczy. Samo: karta graficzna 8, procesor 5.") };
             var stSl = new Slider { Minimum = 0, Maximum = 16, Width = 240, IsMoveToPointEnabled = true, IsSnapToTickEnabled = true, TickFrequency = 1, Value = _settings.VlcLectorSteps };

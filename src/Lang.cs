@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Lektor nad filmem", "Narrator above film" },
+            { "Działa z Audio Balance: przy każdej kwestii Velivo mierzy lektora i film i ścisza film tak, żeby lektor był o tyle dB głośniej. Więcej = film ciszej pod lektorem.", "Works with Audio Balance: for every line Velivo measures the narrator and the film and lowers the film so the narrator is this many dB louder. More = film quieter under the narrator." },
             { " seans.", " sess." },
             { "uczę się – średnia po pierwszym seansie", "learning – average after the first session" },
             { "📌 Tylko konkrety", "📌 Key points only" },

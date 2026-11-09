@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "uczę się", "learning" },
             { "Auto Level – wyrównywanie odczuwalnej głośności.", "Auto Level – levels the perceived loudness." },
             { "Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.", "Limit Only – limits loud peaks without raising quiet parts." },
             { "Wył. – oryginalny dźwięk bez ingerencji.", "Off – original sound, untouched." },

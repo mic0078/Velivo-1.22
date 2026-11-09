@@ -214,7 +214,9 @@ namespace Velivo
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
             if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
-            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
+            Tg += TargetAdj; EffTarget = Tg; var pr = Profile;
+            // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
+            double bgGate = pr == null ? -99 : Tg + pr.Gate, film = In.Integrated; if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double vdb = vol > 1e-3 ? 20 * Math.Log10(vol) : -60;
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
@@ -262,7 +264,7 @@ namespace Velivo
                     //    a cichnięcie widać od razu (3 s) - po wybuchu poziom dialogu wraca bez czekania na okno pomiarowe
                     double basis = In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
                     if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
-                    if (basis > double.NegativeInfinity && In.Momentary > Tg + pr.Gate)
+                    if (basis > double.NegativeInfinity && In.Momentary > bgGate)
                     {
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));

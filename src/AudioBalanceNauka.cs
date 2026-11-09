@@ -52,7 +52,13 @@ namespace Velivo
             _abLearnStart = DateTime.Now; _abLearnVol0 = _abLearnVolNow; _abLearnSamples = 0; AbProc.FastMinDb = 0;
             AbLearnEntry e = null;
             if (AbLearnOn && _abLearnSrc != null) lock (AbLearnLock) AbLearnData().TryGetValue(_abLearnSrc, out e);
-            AbProc.SeedLevDb = e != null && e.N > 0 ? (float)e.Lev : float.NaN;
+            // start ze ŚREDNIEJ filmu (punkt odniesienia - średnia, ze strefą komfortu i intensywnością), nie ze średniej chwilowych podbić
+            AbProc.SeedLevDb = float.NaN;
+            if (e != null && e.Avg < -5 && AbProc.Profile is AbProfile pr)
+            {
+                double tg = (AbProc.Target >= -0.5 ? -23 : AbProc.Target) + e.Adj, dv = tg - e.Avg; dv = Math.Sign(dv) * Math.Max(0, Math.Abs(dv) - pr.Dead);
+                AbProc.SeedLevDb = (float)Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dv));
+            }
             AbProc.FastMul = e != null && e.Ad <= -6 ? 2 : 1;
             AbProc.TargetAdj = e != null ? (float)e.Adj : 0;
             AbProc.SeedAvg = e != null && e.Avg < -5 ? (float)e.Avg : float.NaN;
@@ -108,7 +114,7 @@ namespace Velivo
         {
             if (string.IsNullOrWhiteSpace(src) || !AbLearnOn) return "";
             AbLearnEntry e; lock (AbLearnLock) if (!AbLearnData().TryGetValue(src.Trim(), out e)) return L.T("🧠 Nowe źródło – uczę się");
-            return L.T("🧠 Znam to źródło: ") + (e.Avg < -5 ? L.T("średnia ") + e.Avg.ToString("0.0") + " LUFS, " : "") + L.T("start ") + (e.Lev >= 0 ? "+" : "") + e.Lev.ToString("0.0") + " dB" + (e.Ad <= -6 ? L.T(", głośne reklamy – ściszam szybciej") : "") + (Math.Abs(e.Adj) >= 0.5 ? L.T(", Twoja poprawka ") + (e.Adj >= 0 ? "+" : "") + e.Adj.ToString("0.0") + " dB" : "");
+            return L.T("🧠 Znam to źródło: ") + (e.Avg < -5 ? L.T("średnia ") + e.Avg.ToString("0.0") + " LUFS" : L.T("uczę się")) + (e.Ad <= -6 ? L.T(", głośne reklamy – ściszam szybciej") : "") + (Math.Abs(e.Adj) >= 0.5 ? L.T(", Twoja poprawka ") + (e.Adj >= 0 ? "+" : "") + e.Adj.ToString("0.0") + " dB" : "");
         }
     }
 }

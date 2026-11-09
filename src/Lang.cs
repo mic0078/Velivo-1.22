@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "⏻ Nic nie jest włączone – kliknij, aby włączyć (Balanced)", "⏻ Nothing is on – click to turn on (Balanced)" },
             { "Wskaźniki każdego kanału osobno (LEFT, RIGHT): czerwona kreska na środku = źródło (0 dB, bez zmiany). Zielona wskazówka w prawo – Velivo podgłośniło, w lewo – ściszyło; u góry tarczy ile dB w tym kanale.", "Meters for each channel (LEFT, RIGHT): red mark in the centre = source (0 dB, unchanged). Green needle to the right – Velivo raised, to the left – lowered; at the top of the dial how many dB in this channel." },
             { "◀ ściszone   ", "◀ lowered   " },
             { "┃ źródło (0 dB)   ", "┃ source (0 dB)   " },

@@ -199,7 +199,7 @@ namespace Velivo
             AbLoadSettings();
             var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xF2)); var dim = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA6));
             var acc = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)); var acc2 = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6));
-            var win = new Window { Title = "Velivo – Audio Monitor", Width = 420, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
+            var win = new Window { Title = "Velivo – Audio Monitor", Width = 1080, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
             var root = new StackPanel { Margin = new Thickness(12) };
             TextBlock T(string s, double size = 12, Brush c = null, FontWeight? w = null) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? fg, FontWeight = w ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap };
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
@@ -216,7 +216,7 @@ namespace Velivo
             root.Children.Add(spec);
             var axis = new Grid(); foreach (var (t, al) in new[] { ("50 Hz", HorizontalAlignment.Left), ("1 kHz", HorizontalAlignment.Center), ("16 kHz", HorizontalAlignment.Right) }) { var a = T(t, 10, dim); a.HorizontalAlignment = al; axis.Children.Add(a); }
             root.Children.Add(axis);
-            var bigVu = AbVuPair(out var bigVuUpd); bigVu.LayoutTransform = new ScaleTransform(2.6, 2.6); bigVu.HorizontalAlignment = HorizontalAlignment.Center; bigVu.Margin = new Thickness(0, 8, 0, 0);
+            var bigVu = AbVuPair(out var bigVuUpd); bigVu.LayoutTransform = new ScaleTransform(2.3, 2.3); bigVu.HorizontalAlignment = HorizontalAlignment.Center; bigVu.Margin = new Thickness(0, 8, 0, 0);
             bigVu.ToolTip = L.T("Wskaźniki każdego kanału osobno (LEFT, RIGHT): czerwona kreska na środku = źródło (0 dB, bez zmiany). Zielona wskazówka w prawo – Velivo podgłośniło, w lewo – ściszyło; u góry tarczy ile dB w tym kanale.");
             root.Children.Add(bigVu);
             var vuLeg = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
@@ -287,8 +287,8 @@ namespace Velivo
             for (int i = 0; i < 3; i++) { int di = i; dbtn[i] = Mk(dnames[i], () => { SetPref("ab-dialogi", di.ToString()); AbProc.Dialog = di; MarkDialog(); AbNeedsRestartHint(); }); dbtn[i].ToolTip = L.T("Podbija mowę tylko wtedy, gdy przykrywa ją muzyka lub efekty. Reszta dźwięku i jej dynamika zostają bez zmian."); drow.Children.Add(dbtn[i]); }
             MarkDialog(); root.Children.Add(drow);
             var bypassBtn = Mk("", () => { });
-            void MarkBypass() { bypassBtn.Content = AbBypass ? L.T("⏻ Przetwarzanie WYŁĄCZONE – kliknij, aby włączyć") : L.T("⏻ Wyłącz całe przetwarzanie"); bypassBtn.Background = AbBypass ? new SolidColorBrush(Color.FromRgb(0x8A, 0x2B, 0x2B)) : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
-            bypassBtn.Click += (s, e) => { AbSetBypass(!AbBypass); MarkBypass(); };
+            void MarkBypass() { bypassBtn.Content = AbBypass ? L.T("⏻ Przetwarzanie WYŁĄCZONE – kliknij, aby włączyć") : !AbWanted ? L.T("⏻ Nic nie jest włączone – kliknij, aby włączyć (Balanced)") : L.T("⏻ Wyłącz całe przetwarzanie"); bypassBtn.Background = AbBypass ? new SolidColorBrush(Color.FromRgb(0x8A, 0x2B, 0x2B)) : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            bypassBtn.Click += (s, e) => { if (!AbBypass && !AbWanted) { AbSetProfile("balanced"); MarkProfile(); } else AbSetBypass(!AbBypass); MarkBypass(); };
             bypassBtn.ToolTip = L.T("Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.");
             MarkBypass(); root.Children.Insert(2, bypassBtn);
             // najwazniejsze na gorze: ZRODLO (ile ma oryginal) → ZMIANA (ile podglosnil / sciszyl) → WYNIK (co slychac); glosnosc z 3 s, 4×/s
@@ -339,8 +339,17 @@ namespace Velivo
             brow.Children.Add(Mk(L.T("⤵ Do zasobnika"), () => AbHideMonitor()));
             brow.Children.Add(Mk(L.T("✕ Zamknij widżet"), AbCloseMonitor));
             root.Children.Add(brow);
-            root.Children.Add(T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim));
-            win.Content = new Border { Background = bg, Child = root };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
+            var foot = T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim); root.Children.Add(foot);
+            // uklad poziomy (prostokat): 3 kolumny - stan i wskazniki | pomiar i wykres | sterowanie (wlasciciel: pionowo „masakra”)
+            var cols = new Grid { Margin = new Thickness(12) };
+            for (int i = 0; i < 3; i++) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var c1 = new StackPanel { Margin = new Thickness(0, 0, 8, 0) }; var c2 = new StackPanel { Margin = new Thickness(8, 0, 8, 0) }; var c3 = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+            void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
+            Move(c1, head, src, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
+            Move(c2, lmh, lvl, nums, leg, hist, info, bypassNote);
+            Move(c3, prow, drow, tgt, eqExp, brow, foot);
+            Grid.SetColumn(c1, 0); Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
+            win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;
 
@@ -355,7 +364,7 @@ namespace Velivo
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
                 bool live = _abOut != null && AbProc.Active;
                 bigVuUpd(live);
-                string sig = AbBypass + AbProfileName + AbDialog;
+                string sig = AbBypass + AbProfileName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkDialog(); }
                 state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;

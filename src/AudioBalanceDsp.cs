@@ -134,6 +134,7 @@ namespace Velivo
         public const int Fs = AbMeter.Fs;
         public static readonly double[] EqFreq = { 31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000 };
         public volatile AbProfile Profile;      // null = bez wyrównywania (sam korektor / przejście)
+        public double EffTarget = -18;          // cel w tej chwili (Auto: średnia źródła) - do wyświetlania
         public volatile float Target = -18;     // poziom docelowy LUFS - wybór użytkownika
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
@@ -195,7 +196,15 @@ namespace Velivo
             if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); corrDb = 0; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
-            double Tg = Target + TargetAdj; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
+            double Tg = Target;
+            if (Tg >= -0.5)
+            {   // Auto (Target = 0): wyrównanie do WŁASNEJ średniej źródła (od włączenia filmu/kanału) - głośne sceny i reklamy w dół, ciche dialogi w górę,
+                //    całość nie jest podgłaśniana; na początku (brak średniej) - bieżące 3 s
+                double ig = In.Integrated;
+                Tg = ig > -70 ? ig : In.ShortTerm > -70 ? In.ShortTerm : -23;
+                Tg = Math.Max(-32, Math.Min(-12, Tg));
+            }
+            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double vdb = vol > 1e-3 ? 20 * Math.Log10(vol) : -60;
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;

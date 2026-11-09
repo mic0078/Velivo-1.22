@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Auto – wyrównuj do średniej filmu (zalecane)", "Auto – level to the film's own average (recommended)" },
+            { "Auto ", "Auto " },
             { "Lewe ramię V (jasny turkus) – Velivo podgłośniło, prawe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.", "Left arm of the V (bright teal) – Velivo raised the level, right (dark purple) – lowered it; length and number – how many dB. Empty V – no change from the source." },
             { "◀ podgłośnione   ", "◀ raised   " },
             { "ściszone ▶", "lowered ▶" },

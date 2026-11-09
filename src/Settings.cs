@@ -769,7 +769,7 @@ namespace Velivo
             var abTgt = new ComboBox { Width = 280, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             AbLoadSettings();
             foreach (var v in AbTargets) abTgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
-            abTgt.SelectedItem = abTgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? abTgt.Items[2];
+            abTgt.SelectedItem = abTgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? abTgt.Items[0];
             abTgt.SelectionChanged += (a, b) => { if (abTgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
             abRow.Children.Add(abBox); abRow.Children.Add(abTgt);
             var abMon = SmallButton(L.T("🎚 Audio Monitor…"), ShowAudioMonitor);

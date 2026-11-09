@@ -176,7 +176,8 @@ namespace Velivo
         static void AbLoadSettings()
         {
             AbProc.Profile = AbProfile.ByName(AbProfileName);
-            AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : -18f;
+            if (GetPref("ab-cel-auto") != "1") { SetPref("ab-cel-auto", "1"); SetPref("ab-cel", "0"); }   // 2026-11-09: domyślnie Auto (właściciel: wyrównanie, nie podgłaśnianie)
+            AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
@@ -336,7 +337,7 @@ namespace Velivo
             root.Children.Insert(3, sum3);
             var tgt = new ComboBox { Width = 210, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
-            tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? tgt.Items[2];
+            tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
             root.Children.Add(tgt);
             var devBox = AbDeviceBox(); root.Children.Add(devBox);
@@ -448,7 +449,7 @@ namespace Velivo
                     var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
                     for (int i = 0; i < HN; i++) { double x = i * hw / (HN - 1); a1.Add(new Point(x, Y(hIn[i]))); a2.Add(new Point(x, Y(hOut[i]))); }
                     plIn.Points = a1; plOut.Points = a2;
-                    double ty = Y(AbProc.Target); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = AbProc.Target.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
+                    double ty = Y(AbProc.EffTarget); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = (AbProc.Target == 0 ? L.T("Auto ") : "") + AbProc.EffTarget.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
                 }
                 bool byp = live && AbBypass;
                 info.Visibility = live && !byp ? Visibility.Visible : Visibility.Collapsed; bypassNote.Visibility = byp ? Visibility.Visible : Visibility.Collapsed;
@@ -471,8 +472,8 @@ namespace Velivo
             win.Show(); _abTimer.Start();
         }
 
-        static readonly float[] AbTargets = { -14, -16, -18, -20, -23, -24 };
-        static string AbTargetLabel(float v) => v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
+        static readonly float[] AbTargets = { 0, -14, -16, -18, -20, -23, -24 };   // 0 = Auto (średnia źródła)
+        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – wyrównuj do średniej filmu (zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
         static string AbProfileTip(string p) => p == "light" ? L.T("Light – lekkie wyrównanie, zachowuje naturalną dynamikę filmu.") : p == "balanced" ? L.T("Balanced – wygodne oglądanie: cichsze dialogi wyżej, głośne sceny niżej.") : p == "night" ? L.T("Night – mocne ograniczenie dynamiki do cichego słuchania wieczorem.") : p == "limiter" ? L.T("Tylko limiter – dźwięk bez wyrównywania, tylko ochrona przed nagłym hukiem (szczyty nie wyżej niż -1 dBTP).") : L.T("Off – bez wyrównywania (sam korektor, gdy włączony).");
 
         internal void AbSetBypass(bool on)

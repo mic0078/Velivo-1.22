@@ -78,6 +78,24 @@ public class AudioBalanceTests
     }
 
     [Fact]
+    public void AutoWyrownujeANiePodglasnia()
+    {
+        // Auto: film na zmianę cichy i głośny (różnica ~12 dB, co 4 s) - różnica maleje, a średnia zostaje przy średniej filmu (bez podgłaśniania całości)
+        var p = new AbProcessor { Profile = AbProfile.Balanced, Target = 0 }; var buf = new float[960]; var rnd = new Random(1);
+        p.NewMedia(); double q = 0, g = 0; int nq = 0, ng = 0;
+        for (int b = 0; b < 12000; b++)
+        {
+            bool loud = (b / 400) % 2 == 1; double amp = loud ? 0.2 : 0.05;
+            for (int k = 0; k < 480; k++) { double x = amp * (0.5 * Math.Sin(2 * Math.PI * 300 * (b * 480 + k) / 48000.0) + 0.4 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)x; }
+            p.Process(buf, 480);
+            if (b > 6000 && b % 400 == 350) { if (loud) { g += p.Out.Momentary; ng++; } else { q += p.Out.Momentary; nq++; } }
+        }
+        double diff = g / ng - q / nq;
+        Assert.True(diff < 8, $"różnica {diff:0.0} dB");
+        Assert.InRange(p.Out.Integrated - p.In.Integrated, -3, 3);
+    }
+
+    [Fact]
     public void SciszeniePodLektoraNieJestCofane()
     {
         // 🗣 lektor ścisza film suwakiem odtwarzacza (Volume 0,3): wynik ma zostać ok. 10 dB ciszej, nie wracać do celu

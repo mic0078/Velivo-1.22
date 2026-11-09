@@ -269,26 +269,6 @@ namespace Velivo
             var vuLeg = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
             vuLeg.Children.Add(T(L.T("◀ podgłośnione   "), 10, new SolidColorBrush(Color.FromRgb(0x5F, 0xF2, 0xE4)))); vuLeg.Children.Add(T(L.T("puste V = bez zmiany   "), 10, dim)); vuLeg.Children.Add(T(L.T("ściszone ▶"), 10, new SolidColorBrush(Color.FromRgb(0x8B, 0x6B, 0xFF))));
             root.Children.Add(vuLeg);
-            // pasek rysowany wprost (bez kontrolki Windows - bez wygładzania i animacji): ustaw(0–1) = od razu
-            (FrameworkElement el, Action<double> set) Bar(double hgt, Brush fill)
-            {
-                var back = new Border { Height = hgt, CornerRadius = new CornerRadius(hgt / 2), Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), ClipToBounds = true };
-                var fl = new Border { Background = fill, CornerRadius = new CornerRadius(hgt / 2), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
-                back.Child = fl; return (back, f => { double w = back.ActualWidth * Math.Max(0, Math.Min(1, double.IsNaN(f) ? 0 : f)); if (Math.Abs(fl.Width - w) > 0.5) fl.Width = w; });
-            }
-            // LOW / MID / HIGH
-            var lmh = new Grid { Margin = new Thickness(0, 8, 0, 0) }; var lmhSet = new Action<double>[3]; var lmhTxt = new[] { "LOW", "MID", "HIGH" };
-            for (int i = 0; i < 3; i++)
-            {
-                lmh.ColumnDefinitions.Add(new ColumnDefinition());
-                var sp = new StackPanel { Margin = new Thickness(i == 0 ? 0 : 4, 0, i == 2 ? 0 : 4, 0) };
-                sp.Children.Add(T(lmhTxt[i], 10, dim)); var lb = Bar(8, i == 0 ? (Brush)acc : i == 1 ? acc2 : Brushes.Gold); lmhSet[i] = lb.set;
-                sp.Children.Add(lb.el); Grid.SetColumn(sp, i); lmh.Children.Add(sp);
-            }
-            root.Children.Add(lmh);
-            // poziom glosnosci (momentary, skala -40..0 LUFS) i liczby
-            var lvlB = Bar(10, acc2); var lvl = lvlB.el; lvl.Margin = new Thickness(0, 10, 0, 2); lvl.ToolTip = L.T("Głośność wyniku na żywo (100 ms), skala -40…0 LUFS");
-            root.Children.Add(lvl);
             var nums = new Grid { Margin = new Thickness(0, 4, 0, 0) }; var vals = new TextBlock[4];
             var names = new[] { L.T("Chwilowa"), L.T("3 s"), L.T("Całość"), "True Peak" };
             var tips = new[] { L.T("Momentary LUFS – ostatnie 400 ms"), L.T("Short-term LUFS – ostatnie 3 s"), L.T("Integrated LUFS – od początku filmu/kanału (z bramkami BS.1770)"), L.T("Najwyższy szczyt między próbkami z ostatniej sekundy (dBTP)") };
@@ -423,7 +403,7 @@ namespace Velivo
             bigVu.Height = 130; bigVu.Margin = new Thickness(0);
             Move(vCol, bigVu, vuLeg); Move(tCol, sum3, lekRow);
             Grid.SetColumn(tCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); c1.Children.Add(live);
-            Move(c1, leg, hist, lmh, lvl, nums, info, bypassNote);
+            Move(c1, leg, hist, nums, info, bypassNote);   // paski LOW/MID/HIGH i głośności usunięte (właściciel) - zostaje widmo
             Move(c3, prow, srow, drow, tgt, devBox, lrow, eqExp, spec, axis, bypassBtn, brow, foot);
             Grid.SetColumn(c1, 0); Grid.SetColumn(c3, 1); cols.Children.Add(c1); cols.Children.Add(c3);
             win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
@@ -433,7 +413,7 @@ namespace Velivo
             // odswiezanie ~30 kl./s tylko, gdy widzet widoczny (FFT w watku okna, nie dzwieku)
             var fftRe = new double[2048]; var fftIm = new double[2048]; var hann = Enumerable.Range(0, 2048).Select(i => 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / 2047)).ToArray();
             var edges = Enumerable.Range(0, NB + 1).Select(i => 50 * Math.Pow(16000.0 / 50, i / (double)NB)).ToArray();
-            var smooth = new double[NB]; var holdT = new int[NB]; double specTop = -30;
+            var smooth = new double[NB]; var holdT = new int[NB];
             string uiSig = null;
             _abTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(20) };   // 50 kl./s - słupki reagują płynnie
             _abTimer.Tick += (s, e) =>
@@ -465,27 +445,20 @@ namespace Velivo
                 for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 131072) & 65535] * hann[i] : 0; fftIm[i] = 0; }
                 AbFft(fftRe, fftIm);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
-                double lowE = 0, midE = 0, hiE = 0; int nL = 0, nM = 0, nH = 0; double frameTop = -120;
                 for (int b = 0; b < NB; b++)
                 {
                     int k0 = Math.Max(1, (int)(edges[b] * 2048 / AbProcessor.Fs)), k1 = Math.Max(k0 + 1, (int)(edges[b + 1] * 2048 / AbProcessor.Fs));
-                    double sum = 0; for (int k = k0; k < k1 && k < 1024; k++) sum += fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k];
-                    int nk = Math.Max(1, Math.Min(k1, 1024) - k0); double db = 10 * Math.Log10(sum / nk / 1024.0 + 1e-12) + 3;   // średnia moc pasma (szerokie pasma wysokich tonów nie są sztucznie wyżej)
-                    double f = (edges[b] + edges[b + 1]) / 2; if (f < 250) { lowE += sum / nk; nL++; } else if (f < 4000) { midE += sum / nk; nM++; } else { hiE += sum / nk; nH++; }
-                    if (!double.IsNaN(db) && db > frameTop) frameTop = db;
-                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db - (specTop - 36)) / 36));   // skala za głośnością (36 dB pod szczytem - sprawdzone na nagraniu właściciela: żywszy ruch niż 48): rytm i barwa widoczne także przy głośnej, wyrównanej muzyce
-                    // jak analizator: w górę od razu, w dół szybko i równo (ok. 60 dB/s), szczyt trzymany 0,5 s, potem opada
-                    smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.04);
+                    double mx = 0; for (int k = k0; k < k1 && k < 1024; k++) mx = Math.Max(mx, fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k]);   // najsilniejszy ton w paśmie (jak Winamp / foobar2000)
+                    double db = 20 * Math.Log10(2 * Math.Sqrt(mx) / 1024.0 + 1e-9);   // dBFS (pełny sinus = 0 dB; okno Hanna)
+                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db + 72) / 60));   // stała skala -72…-12 dBFS (sprawdzone na dźwięku z nagrania właściciela) - ten sam dźwięk zawsze wygląda tak samo
+                    // jak analizator: w górę od razu, w dół szybko i równo (3 dB na klatkę), szczyt trzymany 0,5 s, potem opada
+                    smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.05);
                     if (smooth[b] >= hold[b]) { hold[b] = smooth[b]; holdT[b] = 25; } else if (holdT[b] > 0) holdT[b]--; else hold[b] = Math.Max(smooth[b], hold[b] - 0.015);
                     double bh = smooth[b] * h;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = bh; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], h - bh);
                     peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - hold[b] * h - 2);
                 }
-                specTop = frameTop > specTop ? frameTop : Math.Max(-60, specTop - 0.1);   // szczyt skali: od razu w górę, powoli w dół (ok. 5 dB/s)
-                double Rel(double e, int n) { double d = 10 * Math.Log10(e / Math.Max(1, n) / 1024 + 1e-12) + 3; return double.IsNaN(d) ? 0 : (d - (specTop - 36)) / 36; }   // średnia pasma w tej samej skali co słupki widma
-                lmhSet[0](Rel(lowE, nL)); lmhSet[1](Rel(midE, nM)); lmhSet[2](Rel(hiE, nH));
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
-                double fm = AbProc.Delayed(ahead).Fast; lvlB.set(live && fm > -40 ? (fm + 40) / 40 : 0);   // 100 ms - reaguje na każde uderzenie
                 if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)
                 {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
                     numsLast = DateTime.UtcNow;

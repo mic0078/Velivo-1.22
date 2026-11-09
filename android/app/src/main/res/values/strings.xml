@@ -14,7 +14,6 @@
     <string name="history">History</string>
     <string name="clear_history">Clear history</string>
     <string name="close_tab">Close tab</string>
-    <string name="private_label">Private</string>
     <string name="blocked">Blocked ads: %d</string>
     <string name="added">Added</string>
     <string name="empty">Empty</string>
@@ -28,7 +27,6 @@
     <string name="never">Never</string>
     <string name="not_now">Not now</string>
     <string name="delete">Delete</string>
-    <string name="delete_q">Delete the saved password for %1$s?</string>
     <string name="theme">Theme</string>
     <string name="theme_system">Like the phone</string>
     <string name="theme_light">Light</string>
@@ -117,7 +115,6 @@
     <string name="hide_restore">Restore removed elements on this site</string>
     <string name="hidden_saved">Removed – it will stay hidden on this site</string>
     <string name="hide_restored">Removed elements restored</string>
-    <string name="send_tab">Send to computer</string>
     <string name="send_tab_done">📺 Sent to %1$s</string>
     <string name="send_tab_wait">Waiting for the computer – open Velivo on the computer and try again in a moment</string>
     <string name="send_tab_bad">This tab can\'t be sent (it isn\'t a normal web page)</string>
@@ -262,8 +259,6 @@
     <string name="jf_sort_last">Last watched</string>
     <string name="jf_sort_oldest">Watched longest ago</string>
     <string name="jf_settings">Jellyfin server</string>
-    <string name="jf_key">API key</string>
-    <string name="jf_help">Create an API key in Jellyfin: Dashboard → API Keys → +. The address and key are stored encrypted on the phone.</string>
     <string name="jf_error">Couldn\'t connect to Jellyfin – check the address and key</string>
     <string name="jf_user">Who\'s watching?</string>
     <string name="jf_forget">Remove server</string>
@@ -271,7 +266,6 @@
     <string name="my_films_add">Add films or music from the phone</string>
     <string name="my_films_empty">Tap ＋ and choose films from the phone – Velivo only gets access to what you choose</string>
     <string name="my_films_remove">Remove “%1$s” from the list? (The file stays on the phone)</string>
-    <string name="media_conf_title">Films and TV from the computer</string>
     <string name="media_pick_title">What to save from “%1$s”?</string>
     <string name="media_home">🏠 home network</string>
     <string name="media_net">🌍 internet</string>
@@ -394,7 +388,6 @@
     <string name="subs_no_plugin">The Jellyfin server cannot search for subtitles – install a subtitle plugin (e.g. OpenSubtitles) in Jellyfin</string>
     <string name="subs_done">Subtitles downloaded to the server</string>
     <string name="subs_fail">Could not download the subtitles</string>
-    <string name="jf_info">Full description</string>
     <string name="jf_play">Play</string>
     <string name="jf_lektor">Play with lector</string>
     <string name="lektor_levels">Film and lector volume</string>
@@ -512,7 +505,6 @@
     <string name="pilot_genre">Genre</string>
     <string name="pilot_any">all</string>
     <string name="pilot_search">Search…</string>
-    <string name="pilot_more">Show more…</string>
     <string name="pilot_loading">Loading the list from the computer…</string>
     <string name="pilot_empty_tv">No channels here. Add a TV channel list in Velivo on the computer (TV), or add favourites.</string>
     <string name="pilot_empty_films">No films here.</string>

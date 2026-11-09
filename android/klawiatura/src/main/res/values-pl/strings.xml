@@ -57,11 +57,9 @@
     <string name="kb_gif_no">Ta aplikacja nie przyjmuje GIF-ów</string>
     <string name="kb_gif_ok">GIF-y z telefonu włączone: 😀 → GIF</string>
     <string name="kb_preview">🔍 Powiększona litera nad palcem</string>
-    <string name="kb_preview_tip">Przy naciśnięciu nad klawiszem pokazuje dużą literę – widać, co się wciska</string>
     <string name="kb_on">wł.</string>
     <string name="kb_off">wył.</string>
     <string name="kb_senior">👵 Tryb Senior</string>
-    <string name="kb_senior_tip">Wysokie klawisze i duże litery, litera nad palcem, słowa czytane na głos, bez pisania przeciągnięciem, dłuższe przytrzymanie</string>
     <string name="kb_braille">⠿ Brajl</string>
     <string name="kb_braille_field">Pole brajla: punkty 1, 2, 3 po lewej, 4, 5, 6 po prawej</string>
     <string name="kb_braille_hint">1-2-3 lewa · 4-5-6 prawa · → spacja · ← usuń · ↓ nowa linia · 2 palce ↓ wyjście</string>
@@ -74,7 +72,6 @@
     <string name="kb_braille_deleted">Usunięto</string>
     <string name="kb_braille_empty">Pusto</string>
     <string name="kb_braille_learn">⠿ Nauka brajla</string>
-    <string name="kb_braille_learn_tip">Litery brajla z wymową i ćwiczenia na polu 6 punktów; postępy tylko w telefonie</string>
     <string name="kb_braille_settings">⠿ Brajl i ·− Morse – ustawienia</string>
     <string name="kb_braille_opt_speech">Mów znaki</string>
     <string name="kb_braille_opt_vibe">Wibracje przy punktach</string>
@@ -100,7 +97,6 @@
     <string name="kb_phrases">💬 Moje frazy</string>
     <string name="kb_phrases_help">Jedna fraza w linii. Skrót: „adr = ul. Długa 5, Glasgow” – napisz adr, a fraza pojawi się na pasku. Zdania napisane co najmniej 2 razy klawiatura dopisuje sama (za pierwszym razem zapamiętuje tylko skrót, bez treści). Skasuj linię, by zapomnieć frazę.</string>
     <string name="kb_privacy">🔒 Nauka i prywatność</string>
-    <string name="kb_privacy_tip">Co klawiatura może zapamiętywać – wszystko tylko w tym telefonie, zaszyfrowane. Nigdy w polach haseł i w trybie incognito.</string>
     <string name="kb_p_learn">Ucz się z mojego pisania (słowa, pary, poprawki)</string>
     <string name="kb_p_phrases">Frazy: zapamiętuj i podpowiadaj</string>
     <string name="kb_p_rhythm">Dopasuj przytrzymanie klawiszy do mojego tempa</string>
@@ -125,7 +121,6 @@
     <string name="kb_sound_del">🗣 usunięto słowo</string>
     <string name="kb_sound_enter">🗣 zatwierdzono</string>
     <string name="kb_en_variant">🇬🇧/🇺🇸 Pisownia angielska</string>
-    <string name="kb_en_variant_tip">Gdy piszesz po angielsku: brytyjska (colour, realise, centre) albo amerykańska (color, realize, center) – klawiatura poprawia na wybraną.</string>
     <string name="kb_en_any">Obie (bez zmian)</string>
     <string name="kb_tr_title">🌍 Tłumacz</string>
     <string name="kb_tr_where">Zaznaczony tekst (albo cały napisany) trafi do wybranej aplikacji tłumacza w tym telefonie. Velivo go nie zapisuje ani nie wysyła nigdzie indziej.</string>

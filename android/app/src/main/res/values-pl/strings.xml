@@ -14,7 +14,6 @@
     <string name="history">Historia</string>
     <string name="clear_history">Wyczyść historię</string>
     <string name="close_tab">Zamknij kartę</string>
-    <string name="private_label">Prywatna</string>
     <string name="blocked">Zablokowane reklamy: %d</string>
     <string name="added">Dodano</string>
     <string name="empty">Pusto</string>
@@ -28,7 +27,6 @@
     <string name="never">Nigdy</string>
     <string name="not_now">Nie teraz</string>
     <string name="delete">Usuń</string>
-    <string name="delete_q">Usunąć zapisane hasło dla %1$s?</string>
     <string name="theme">Motyw</string>
     <string name="theme_system">Jak w telefonie</string>
     <string name="theme_light">Jasny</string>
@@ -117,7 +115,6 @@
     <string name="hide_restore">Przywróć usunięte elementy na tej stronie</string>
     <string name="hidden_saved">Usunięto – na tej stronie zostanie ukryte</string>
     <string name="hide_restored">Przywrócono usunięte elementy</string>
-    <string name="send_tab">Wyślij na komputer</string>
     <string name="send_tab_done">📺 Wysłano do: %1$s</string>
     <string name="send_tab_wait">Czekam na komputer – otwórz Velivo na komputerze i spróbuj za chwilę</string>
     <string name="send_tab_bad">Tej karty nie da się wysłać (to nie jest zwykła strona)</string>
@@ -262,8 +259,6 @@
     <string name="jf_sort_last">Ostatnio oglądane</string>
     <string name="jf_sort_oldest">Najdawniej oglądane</string>
     <string name="jf_settings">Serwer Jellyfin</string>
-    <string name="jf_key">Klucz API</string>
-    <string name="jf_help">Klucz API utworzysz w Jellyfin: Panel → Klucze API → +. Adres i klucz są zapisane zaszyfrowane w telefonie.</string>
     <string name="jf_error">Nie udało się połączyć z Jellyfin – sprawdź adres i klucz</string>
     <string name="jf_user">Kto ogląda?</string>
     <string name="jf_forget">Usuń serwer</string>
@@ -271,7 +266,6 @@
     <string name="my_films_add">Dodaj filmy lub muzykę z telefonu</string>
     <string name="my_films_empty">Stuknij ＋ i wybierz filmy z telefonu – Velivo ma dostęp tylko do tego, co wybierzesz</string>
     <string name="my_films_remove">Usunąć z listy „%1$s”? (Plik zostaje w telefonie)</string>
-    <string name="media_conf_title">Filmy i TV z komputera</string>
     <string name="media_pick_title">Co zapisać z „%1$s”?</string>
     <string name="media_home">🏠 sieć domowa</string>
     <string name="media_net">🌍 internet</string>
@@ -394,7 +388,6 @@
     <string name="subs_no_plugin">Serwer Jellyfin nie umie szukać napisów – zainstaluj w Jellyfin wtyczkę napisów (np. OpenSubtitles)</string>
     <string name="subs_done">Napisy pobrane na serwer</string>
     <string name="subs_fail">Nie udało się pobrać napisów</string>
-    <string name="jf_info">Pełny opis</string>
     <string name="jf_play">Odtwórz</string>
     <string name="jf_lektor">Odtwórz z lektorem</string>
     <string name="lektor_levels">Głośność filmu i lektora</string>
@@ -512,7 +505,6 @@
     <string name="pilot_genre">Gatunek</string>
     <string name="pilot_any">wszystkie</string>
     <string name="pilot_search">Szukaj…</string>
-    <string name="pilot_more">Pokaż więcej…</string>
     <string name="pilot_loading">Wczytuję listę z komputera…</string>
     <string name="pilot_empty_tv">Brak kanałów. Dodaj listę kanałów TV w Velivo na komputerze (Telewizja) albo ulubione.</string>
     <string name="pilot_empty_films">Brak filmów.</string>

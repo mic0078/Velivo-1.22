@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "(albo kółko myszy nad widżetem)", "(or the mouse wheel over the widget)" },
+            { "◐ Przezroczystość", "◐ Transparency" },
             { "Prawe ramię V (jasny turkus) – Velivo podgłośniło, lewe (ciemny fiolet) – ściszyło; długość i liczba – ile dB. Puste V – bez zmiany względem źródła.", "Right arm of the V (bright teal) – Velivo raised, left (dark purple) – lowered; length and number – how many dB. Empty V – unchanged from the source." },
             { " (odłączone)", " (disconnected)" },
             { "🔈 Domyślne urządzenie Windows", "🔈 Windows default device" },

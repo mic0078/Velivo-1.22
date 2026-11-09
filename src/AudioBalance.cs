@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -595,8 +596,20 @@ namespace Velivo
             var profItems = new Dictionary<string, MenuItem>();
             foreach (var p in AbProfiles) { var pp = p; profItems[p] = Item(L.T("Profil: ") + AbProfileLabel(p), () => { if (AbBypass) AbSetBypass(false); AbSetProfile(pp); }); }   // wybor profilu = przetwarzanie wlaczone
             var bypItem = Item(L.T("⏻ Bez przetwarzania dźwięku (wł./wył.)"), () => AbSetBypass(!AbBypass));
+            cm.Items.Add(new Separator());
+            // 📌 zawsze na wierzchu i przezroczystosc (takze kolko myszy nad widzetem) - zapamietane
+            var topItem = Item(L.T("📌 Zawsze na wierzchu"), () => { w.Topmost = !w.Topmost; SetPref("ab-pulpit-top", w.Topmost ? "1" : "0"); });
+            var alphaMenu = new MenuItem { Header = L.T("◐ Przezroczystość") };
+            foreach (var pc in new[] { 100, 85, 70, 55, 40 }) { var v = pc; var mi = new MenuItem { Header = v + " %" }; mi.Click += (s2, e2) => SetAlpha(v / 100.0); alphaMenu.Items.Add(mi); }
+            alphaMenu.Items.Add(new MenuItem { Header = L.T("(albo kółko myszy nad widżetem)"), IsEnabled = false });
+            cm.Items.Add(alphaMenu);
+            cm.Items.Add(new Separator());
             Item(L.T("✕ Zamknij widżet z pulpitu"), () => w.Close());
-            cm.Opened += (s, e) => { bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; };   // stan widac w menu
+            // ten sam mechanizm przezroczystosci co reszta okien Velivo (zapamietany, przywracany przy starcie) - bez drugiego, sprzecznego
+            void SetAlpha(double a) => SetWindowAlpha(w, Math.Round(Math.Max(0.25, Math.Min(1, a)), 2));
+            w.Topmost = GetPref("ab-pulpit-top") == "1";
+            w.MouseWheel += (s2, e2) => { if (Keyboard.Modifiers != ModifierKeys.Alt) { SetAlpha(WindowAlpha(w) + (e2.Delta > 0 ? 0.05 : -0.05)); e2.Handled = true; } };   // Alt+kolko obsluguje Velivo samo
+            cm.Opened += (s, e) => { topItem.IsChecked = w.Topmost; foreach (MenuItem mi in alphaMenu.Items) if (mi.IsEnabled && int.TryParse(((string)mi.Header).Split(' ')[0], out var pv)) mi.IsChecked = Math.Abs(WindowAlpha(w) * 100 - pv) < 3; bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; };   // stan widac w menu
             w.ContextMenu = cm;
             var tm = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };   // 30 kl./s - wskazowki reaguja szybko
             tm.Tick += (s, e) =>

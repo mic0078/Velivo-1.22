@@ -528,4 +528,11 @@
     <string name="pilot_sort_last">Recently watched</string>
     <string name="pilot_fav_added">Added to favourites: %1$s</string>
     <string name="pilot_fav_removed">Removed from favourites: %1$s</string>
+    <string name="pilot_night">🌙 SCREEN AND SLEEP TIMER</string>
+    <string name="pilot_screen_off_now">Screen off now (film keeps playing)</string>
+    <string name="pilot_screen_off_in">Screen off in…</string>
+    <string name="pilot_screen_on">Screen on</string>
+    <string name="pilot_sleep">Stop playback</string>
+    <string name="pilot_sleep_end">After this film ends</string>
+    <string name="pilot_cancel">Cancel</string>
 </resources>

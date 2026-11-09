@@ -528,4 +528,11 @@
     <string name="pilot_sort_last">Ostatnio oglądane</string>
     <string name="pilot_fav_added">Dodano do ulubionych: %1$s</string>
     <string name="pilot_fav_removed">Usunięto z ulubionych: %1$s</string>
+    <string name="pilot_night">🌙 EKRAN I WYŁĄCZNIK</string>
+    <string name="pilot_screen_off_now">Wyłącz ekran teraz (film gra dalej)</string>
+    <string name="pilot_screen_off_in">Wyłącz ekran za…</string>
+    <string name="pilot_screen_on">Włącz ekran</string>
+    <string name="pilot_sleep">Zatrzymaj odtwarzanie</string>
+    <string name="pilot_sleep_end">Po końcu filmu</string>
+    <string name="pilot_cancel">Anuluj</string>
 </resources>

@@ -914,6 +914,18 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         head(R.string.pilot_playback)
         box.addView(row(big("⏪", s(R.string.pilot_back10)) { send("jump", n = -10000.0) }, big(if (st.optString("st") == "play") "⏸" else "▶", s(R.string.pilot_play)) { send("play") }, big("⏩", s(R.string.pilot_fwd10)) { send("jump", n = 10000.0) }))
         box.addView(row(big("⏮", s(R.string.pilot_prev)) { send("prev") }, big("⏹", s(R.string.pilot_stop)) { send("stop") }, big("⏭", s(R.string.pilot_next)) { send("next") }))
+        head(R.string.pilot_night)
+        val mins = listOf(5, 15, 30, 60, 90, 120)
+        val scr = st.optInt("scr", 0)
+        item("🌙  " + s(R.string.pilot_screen_off_now)) { send("screenoff", n = 0.0); d.dismiss() }
+        item("🌙  " + s(R.string.pilot_screen_off_in) + (if (scr > 0) ": " + scr + " min" else "")) {
+            pick(R.string.pilot_screen_off_in, mins.take(4).map { "$it min" } + (if (scr > 0) listOf(s(R.string.pilot_cancel)) else listOf())) { send("screenoff", n = if (it < 4) mins[it].toDouble() else -1.0) }
+        }
+        item("☀  " + s(R.string.pilot_screen_on)) { send("screenon"); d.dismiss() }
+        val sl = st.optInt("sleep", 0)
+        item("⏾  " + s(R.string.pilot_sleep) + ": " + when { sl < 0 -> s(R.string.pilot_sleep_end); sl > 0 -> "$sl min"; else -> s(R.string.off) }) {
+            pick(R.string.pilot_sleep, mins.map { "$it min" } + s(R.string.pilot_sleep_end) + s(R.string.pilot_cancel)) { send("sleep", n = when { it < mins.size -> mins[it].toDouble(); it == mins.size -> -1.0; else -> 0.0 }) }
+        }
         d = AlertDialog.Builder(act).setTitle("⚙ " + s(R.string.pilot_controls)).setView(ScrollView(act).apply { addView(box) })
             .setPositiveButton(android.R.string.ok, null).create()
         d.show()

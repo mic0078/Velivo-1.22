@@ -21,6 +21,18 @@ namespace Velivo
     // dzwieku, proporcje obrazu, zrzut klatki, glosnosc do 125%, pelny ekran. Biblioteka i miejsca wznowienia - lokalnie (filmy.json).
     public partial class MainWindow
     {
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern void mouse_event(uint f, int dx, int dy, uint d, UIntPtr e);
+        // 🌙 monitor: false = zgas (SC_MONITORPOWER 2, PostMessage - nie czeka na zawieszone okna), true = obudz (drobny ruch myszy)
+        static void ScreenPower(bool on)
+        {
+            try
+            {
+                if (on) { mouse_event(1, 1, 0, 0, UIntPtr.Zero); mouse_event(1, -1, 0, 0, UIntPtr.Zero); }
+                else PostMessage((IntPtr)0xFFFF, 0x0112, (IntPtr)0xF170, (IntPtr)2);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
         // formaty, ktore dochodza z dodatkiem (MP4/WebM/MKV/MOV/OGV obsluguje tez zwykly odtwarzacz w karcie)
         internal static readonly string[] VlcExtraExts = { ".avi", ".wmv", ".flv", ".mpg", ".mpeg", ".ts", ".m2ts", ".mts", ".3gp", ".vob", ".divx", ".asf", ".rm", ".rmvb", ".f4v", ".m2v" };
         static readonly string[] SubtitleExts = { ".srt", ".ass", ".ssa", ".sub", ".vtt", ".smi" };
@@ -1560,7 +1572,7 @@ namespace Velivo
             var hist = glyphBtn("history", L.T("Historia – ostatnio oglądane filmy (A–Z)"));
             var mini = glyphBtn("mini", L.T("Tryb mini – małe okienko na wierzchu (jak dla YouTube)"));
             var fav = glyphBtn("star", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
-            var sleep = glyphBtn("moon", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu")); sleep.Width = double.NaN; sleep.MinWidth = 40; sleep.Padding = new Thickness(8, 0, 8, 0);
+            var sleep = glyphBtn("moon", L.T("Ekran i wyłącznik czasowy – zgaś ekran (film gra dalej) albo zatrzymaj po czasie")); sleep.Width = double.NaN; sleep.MinWidth = 40; sleep.Padding = new Thickness(8, 0, 8, 0);
             var pipBtn = glyphBtn("pip", L.T("Obraz w obrazie (PiP) – podgląd drugiego kanału TV"));
             var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, Style = ModernSliderStyle("#22C55E"), Cursor = Cursors.Hand, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };   // zielona - inna niż pasek postępu
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
@@ -3263,7 +3275,34 @@ namespace Velivo
                     cm.Items.Add(off);
                 }
             };
-            sleep.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = sleep, Placement = PlacementMode.Top }; sleepItems(cm); cm.IsOpen = true; };
+            // 🌙 wylaczenie ekranu (monitor gasnie, film gra dalej) - teraz albo po czasie; wybudzenie: mysz, klawisz albo Pilot
+            DateTime? scrAt = null;
+            var scrTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            Action scrOffNow = () => { scrAt = null; scrTimer.Stop(); showOsd(L.T("🌙 Ekran gaśnie – film gra dalej")); Dispatcher.BeginInvoke(new Action(() => ScreenPower(false)), DispatcherPriority.Background); };
+            scrTimer.Tick += (s, e) => { if (scrAt.HasValue && DateTime.Now >= scrAt.Value) scrOffNow(); };
+            win.Closed += (s, e) => scrTimer.Stop();
+            Action<double> scrSet = m =>
+            {
+                if (m == 0) { scrOffNow(); return; }
+                if (m < 0) { scrAt = null; scrTimer.Stop(); showOsd(L.T("🌙 Wyłączenie ekranu anulowane")); return; }
+                scrAt = DateTime.Now.AddMinutes(m); scrTimer.Start(); showOsd(L.T("🌙 Ekran zgaśnie za ") + m + L.T(" min"));
+            };
+            Action<ItemsControl> screenItems = cm =>
+            {
+                var now = new MenuItem { Header = L.T("🌙 Wyłącz ekran teraz (film gra dalej)"), ToolTip = L.T("Monitor gaśnie, dźwięk gra. Ruch myszy, klawisz albo Pilot – ekran wraca.") };
+                now.Click += (a, b) => scrSet(0); cm.Items.Add(now);
+                var later = new MenuItem { Header = L.T("🌙 Wyłącz ekran za…") + (scrAt.HasValue ? " (" + Math.Max(1, (int)Math.Ceiling((scrAt.Value - DateTime.Now).TotalMinutes)) + L.T(" min") + ")" : "") };
+                foreach (var m0 in new[] { 5, 15, 30, 60 }) { var m = m0; var mi = new MenuItem { Header = m + L.T(" min") }; mi.Click += (a, b) => scrSet(m); later.Items.Add(mi); }
+                cm.Items.Add(later);
+                if (scrAt.HasValue) { var c = new MenuItem { Header = L.T("✖ Nie wyłączaj ekranu") }; c.Click += (a, b) => scrSet(-1); cm.Items.Add(c); }
+            };
+            sleep.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = sleep, Placement = PlacementMode.Top };
+                screenItems(cm); cm.Items.Add(new Separator());
+                var sl = new MenuItem { Header = L.T("⏾ Zatrzymaj odtwarzanie…") }; sleepItems(sl); cm.Items.Add(sl);
+                cm.IsOpen = true;
+            };
 
             // PiP (obraz w obrazie): drugi kanal TV w malym okienku nad obrazem, wyciszony; przeciaganie mysza = pozycja, krawedzie = wielkosc,
             // klik = zamiana z glownym; pozycja i wielkosc zapamietane wzgledem okna odtwarzacza (domyslnie prawy dolny rog)
@@ -3961,8 +4000,10 @@ namespace Velivo
                 }
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
                 add(isFav() ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => fav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)), true);
-                var slM = new MenuItem { Header = L.T("⏾ Wyłącznik czasowy") + (sleepEnd ? L.T(" (po końcu filmu)") : sleepAt.HasValue ? " (" + Math.Max(1, (int)Math.Ceiling((sleepAt.Value - DateTime.Now).TotalMinutes)) + " min)" : "") };
-                sleepItems(slM); cm.Items.Add(slM);
+                var scM = new MenuItem { Header = L.T("🌙 Ekran i wyłącznik czasowy") };
+                screenItems(scM); scM.Items.Add(new Separator());
+                var slM = new MenuItem { Header = L.T("⏾ Zatrzymaj odtwarzanie…") + (sleepEnd ? L.T(" (po końcu filmu)") : sleepAt.HasValue ? " (" + Math.Max(1, (int)Math.Ceiling((sleepAt.Value - DateTime.Now).TotalMinutes)) + " min)" : "") };
+                sleepItems(slM); scM.Items.Add(slM); cm.Items.Add(scM);
                 { var pipM = new MenuItem { Header = L.T("⧉ Obraz w obrazie (PiP)") }; pipItems(pipM); cm.Items.Add(pipM); }
                 add(L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(Window.GetWindow(overlay) ?? win), true);
                 {   // playlisty i moja kolejka - wlaczenie jednym klikiem
@@ -4204,6 +4245,9 @@ namespace Velivo
                     case "sub": { int id = (int)n; mp.SetSpu(id); var t = mp.SpuDescription.FirstOrDefault(x => x.Id == id); rememberTrack(true, id < 0 ? "-" : t.Name ?? ""); } break;
                     case "audio": { int id = (int)n; mp.SetAudioTrack(id); var t = mp.AudioTrackDescription.FirstOrDefault(x => x.Id == id); if (id >= 0) rememberTrack(false, t.Name ?? ""); } break;
                     case "kanapa": ShowKanapa(); break;
+                    case "screenoff": scrSet(n); break;
+                    case "screenon": scrAt = null; scrTimer.Stop(); ScreenPower(true); showOsd(L.T("🌙 Ekran włączony")); break;
+                    case "sleep": if (n > 0) { sleepEnd = false; sleepAt = DateTime.Now.AddMinutes(n); showOsd(L.T("⏾ Zatrzymanie za ") + (int)n + " min"); } else if (n < 0) { sleepAt = null; sleepEnd = true; showOsd(L.T("⏾ Zatrzymanie po końcu filmu")); } else { sleepAt = null; sleepEnd = false; mp.Volume = muted ? 0 : (int)vol.Value; showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); } updSleep(); break;
                 }
             };
             _vlcPilotState = () => new Dictionary<string, object>
@@ -4214,6 +4258,8 @@ namespace Velivo
                 ["aud"] = mp.AudioTrack, ["auds"] = mp.AudioTrackDescription.Where(t => t.Id >= 0).Select(t => new object[] { t.Id, t.Name }).ToList(),
                 ["asp"] = mp.AspectRatio ?? "", ["zoom"] = mp.Scale,
                 ["now"] = PilotNowOnTv(),   // 📺 co teraz leci na włączonym kanale
+                ["sleep"] = sleepEnd ? -1 : sleepAt.HasValue ? Math.Max(1, (int)Math.Ceiling((sleepAt.Value - DateTime.Now).TotalMinutes)) : 0,
+                ["scr"] = scrAt.HasValue ? Math.Max(1, (int)Math.Ceiling((scrAt.Value - DateTime.Now).TotalMinutes)) : 0,
                 ["kind"] = PilotNowName().Kind, ["name"] = PilotNowName().Name,   // tv / film i czysty tytuł
             };
             win.Closed += (s, e) => { _vlcPilotCmd = null; _vlcPilotState = null; };

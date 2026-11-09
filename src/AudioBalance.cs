@@ -244,8 +244,9 @@ namespace Velivo
             return true;
         }
 
+        // nowy film zawsze startuje bez pauzy: VLC nie woła „wznów” dla nowego materiału, a pauza z poprzedniego (koniec filmu, pytanie o wznowienie) zostawała - cisza
         void AbDetach() { AbLearnEnd(); var o = _abOut; _abOut = null; o?.Dispose(); }
-        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
+        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Resume(); _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;

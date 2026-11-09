@@ -163,6 +163,14 @@ namespace Velivo
     {
         // jeden procesor na cale Velivo - widget i ustawienia steruja nim, nie tworza wlasnego
         internal static readonly AbProcessor AbProc = new AbProcessor();
+        // dźwięk naprawdę płynie (nowe próbki w ostatnich 0,5 s) - pauza / koniec / zatrzymanie = wskaźniki na zero, nie ostatnia chwila
+        static long _abFramesSeen; static DateTime _abFramesAt;
+        internal static bool AbFlowing()
+        {
+            long f = Interlocked.Read(ref AbProc.Frames);
+            if (f != _abFramesSeen) { _abFramesSeen = f; _abFramesAt = DateTime.UtcNow; }
+            return (DateTime.UtcNow - _abFramesAt).TotalMilliseconds < 500;
+        }
         AbOutput _abOut;
         LibVLCSharp.Shared.MediaPlayer.LibVLCAudioPlayCb _abPlay; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioPauseCb _abPause; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioResumeCb _abResume;
         LibVLCSharp.Shared.MediaPlayer.LibVLCAudioFlushCb _abFlush; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioDrainCb _abDrain; LibVLCSharp.Shared.MediaPlayer.LibVLCVolumeCb _abVol;
@@ -415,7 +423,7 @@ namespace Velivo
             _abTimer.Tick += (s, e) =>
             {
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
-                bool live = _abOut != null && AbProc.Active;
+                bool live = _abOut != null && AbProc.Active && AbFlowing();
                 bigVuUpd(live);
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
@@ -578,7 +586,7 @@ namespace Velivo
                     _abTrayAnim.Tick += (s2, e2) =>
                     {
                         if (_abTray == null) { _abTrayAnim.Stop(); return; }
-                        double m = _abOut != null && AbProc.Active && !AbBypass ? AbProc.Out.Momentary : double.NegativeInfinity;
+                        double m = _abOut != null && AbProc.Active && AbFlowing() && !AbBypass ? AbProc.Out.Momentary : double.NegativeInfinity;
                         int fr = double.IsNegativeInfinity(m) || double.IsNaN(m) ? 0 : 1 + (int)Math.Round(Math.Max(0, Math.Min(1, (m + 45) / 40)) * 7);
                         if (fr != lastF) { lastF = fr; try { _abTray.Icon = _abVFrames[fr]; } catch (Exception) { } }
                     };
@@ -669,7 +677,7 @@ namespace Velivo
             tm.Tick += (s, e) =>
             {
                 if (!w.IsVisible) return;
-                bool live = _abOut != null && AbProc.Active;
+                bool live = _abOut != null && AbProc.Active && AbFlowing();
                 st.Text = AbBypass || !AbWanted ? "⏻" : AbProfileShort(AbProfileName) + (AbProc.Dialog > 0 ? "+🗣" : "");   // krotko: Lim / L / B / N, ⏻ = bez przetwarzania
                 vuUpd(live);
                 string F(double x) => double.IsNegativeInfinity(x) || double.IsNaN(x) || x < -69 || !live ? "–" : x.ToString("0.0");

@@ -77,6 +77,24 @@ public class AudioBalanceTests
         Assert.InRange(after / na, -23, -15);     // kilka sekund po reklamie program znowu w strefie celu (strefa komfortu ±3 dB)
     }
 
+    [Theory]
+    [InlineData("light")]
+    [InlineData("normal")]
+    [InlineData("strong")]
+    public void LimitOnlyNigdyNiePodnosi(string sila)
+    {
+        // Limit Only: bardzo cichy dialog (-46 LUFS), potem głośna muzyka i znów cichy - wzmocnienie nigdy powyżej 0 dB (także z nauką i poprawką celu)
+        var p = new AbProcessor { Profile = AbProfile.ByName("limit", sila), Target = 0, SeedLevDb = 8, TargetAdj = 3 }; var buf = new float[960]; var rnd = new Random(4); double maxG = double.NegativeInfinity;
+        p.NewMedia();
+        for (int b = 0; b < 6000; b++)
+        {
+            double amp = b < 2000 || b >= 4000 ? 0.01 : 0.4;
+            for (int k = 0; k < 480; k++) { double x = amp * (0.5 * Math.Sin(2 * Math.PI * 300 * (b * 480 + k) / 48000.0) + 0.3 * (rnd.NextDouble() * 2 - 1)); buf[2 * k] = buf[2 * k + 1] = (float)x; }
+            p.Process(buf, 480); maxG = Math.Max(maxG, p.GainDb);
+        }
+        Assert.True(maxG <= 0.01, $"Limit Only podniósł o {maxG:0.00} dB");
+    }
+
     [Fact]
     public void AutoWyrownujeANiePodglasnia()
     {

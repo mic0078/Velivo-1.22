@@ -3927,7 +3927,7 @@ namespace Velivo
                 }
                 foreach (var sl in AbSilas)
                 {
-                    var mi = new MenuItem { Header = L.T("Intensywność: ") + AbSilaLabel(sl), IsCheckable = true, IsChecked = AbSilaName == sl, ToolTip = AbSilaTip(sl) };
+                    var mi = new MenuItem { Header = L.T("Intensywność: ") + AbSilaLabel(sl), IsCheckable = true, IsChecked = AbSilaName == sl, ToolTip = AbSilaTip(sl), IsEnabled = AbProfileName != "off" };   // przy Wył. nieaktywna
                     mi.Click += (a, b) => AbSetSila(sl);
                     cm.Items.Add(mi);
                 }

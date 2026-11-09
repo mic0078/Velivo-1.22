@@ -305,15 +305,16 @@ namespace Velivo
             var prow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
             var pbtn = new Dictionary<string, Button>();
             Button Mk(string text, Action a) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 3, 10, 3), Foreground = fg, Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3E, 0x52)) }; b.Click += (s, e) => a(); return b; }
-            void MarkProfile() { foreach (var kv in pbtn) kv.Value.Background = kv.Key == AbProfileName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            Action MarkSilaRef = null;
+            void MarkProfile() { foreach (var kv in pbtn) kv.Value.Background = kv.Key == AbProfileName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); MarkSilaRef?.Invoke(); }
             foreach (var p in AbProfiles) { var pp = p; var b = Mk(AbProfileLabel(p), () => { AbSetProfile(pp); MarkProfile(); }); b.ToolTip = AbProfileTip(p); pbtn[p] = b; prow.Children.Add(b); }
             MarkProfile();
             root.Children.Add(prow);
             var srow = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) }; var sbtn = new Dictionary<string, Button>();
             srow.Children.Add(new TextBlock { Text = L.T("Intensywność:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
-            void MarkSila() { foreach (var kv in sbtn) kv.Value.Background = kv.Key == AbSilaName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); }
+            void MarkSila() { bool on = AbProfileName != "off"; foreach (var kv in sbtn) { kv.Value.IsEnabled = on; kv.Value.Opacity = on ? 1 : 0.4; kv.Value.Background = on && kv.Key == AbSilaName ? acc : new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)); } }   // przy Wył. intensywność nieaktywna
             foreach (var sl0 in AbSilas) { var ss = sl0; var b = Mk(AbSilaLabel(sl0), () => { AbSetSila(ss); MarkSila(); }); b.ToolTip = AbSilaTip(sl0); sbtn[sl0] = b; srow.Children.Add(b); }
-            MarkSila(); root.Children.Add(srow);
+            MarkSila(); MarkSilaRef = MarkSila; root.Children.Add(srow);
             // 🗣 wyrazne dialogi (opcja dodatkowa) i ⏻ wylacz wszystko jednym przyciskiem
             var drow = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             drow.Children.Add(new TextBlock { Text = L.T("🗣 Wyraźne dialogi:"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 6) });
@@ -572,7 +573,7 @@ namespace Velivo
                     m.Items.Add(prof);
                     var silM = new System.Windows.Forms.ToolStripMenuItem(L.T("Intensywność"));
                     foreach (var sl in AbSilas) { var ss = sl; silM.DropDownItems.Add(AbSilaLabel(sl), null, (s, e) => Dispatcher.Invoke(() => AbSetSila(ss))); }
-                    silM.DropDownOpening += (s, e) => { foreach (System.Windows.Forms.ToolStripMenuItem it in silM.DropDownItems) it.Checked = it.Text == AbSilaLabel(AbSilaName); };
+                    silM.DropDownOpening += (s, e) => { foreach (System.Windows.Forms.ToolStripMenuItem it in silM.DropDownItems) { it.Checked = it.Text == AbSilaLabel(AbSilaName); it.Enabled = AbProfileName != "off"; } };
                     m.Items.Add(silM);
                     var byp = new System.Windows.Forms.ToolStripMenuItem(L.T("⏻ Bez przetwarzania dźwięku"));
                     byp.Click += (s, e) => Dispatcher.Invoke(() => AbSetBypass(!AbBypass));
@@ -642,7 +643,7 @@ namespace Velivo
             void SetAlpha(double a) => SetWindowAlpha(w, Math.Round(Math.Max(0.25, Math.Min(1, a)), 2));
             w.Topmost = GetPref(key + "-top") == "1";
             w.MouseWheel += (s2, e2) => { if (Keyboard.Modifiers != ModifierKeys.Alt) { SetAlpha(WindowAlpha(w) + (e2.Delta > 0 ? 0.05 : -0.05)); e2.Handled = true; } };   // Alt+kolko obsluguje Velivo samo
-            cm.Opened += (s, e) => { topItem.IsChecked = w.Topmost; foreach (MenuItem mi in alphaMenu.Items) if (mi.IsEnabled && int.TryParse(((string)mi.Header).Split(' ')[0], out var pv)) mi.IsChecked = Math.Abs(WindowAlpha(w) * 100 - pv) < 3; bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; foreach (var kv in silItems) kv.Value.IsChecked = kv.Key == AbSilaName; };   // stan widac w menu
+            cm.Opened += (s, e) => { topItem.IsChecked = w.Topmost; foreach (MenuItem mi in alphaMenu.Items) if (mi.IsEnabled && int.TryParse(((string)mi.Header).Split(' ')[0], out var pv)) mi.IsChecked = Math.Abs(WindowAlpha(w) * 100 - pv) < 3; bypItem.IsChecked = AbBypass; foreach (var kv in profItems) kv.Value.IsChecked = !AbBypass && kv.Key == AbProfileName; foreach (var kv in silItems) { kv.Value.IsChecked = kv.Key == AbSilaName; kv.Value.IsEnabled = AbProfileName != "off"; } };   // stan widac w menu
             w.ContextMenu = cm;
             var tm = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };   // 30 kl./s - wskazowki reaguja szybko
             tm.Tick += (s, e) =>

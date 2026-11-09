@@ -765,11 +765,13 @@ namespace Velivo
             var abBox = new ComboBox { Width = 160, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Tryb: Wył. – oryginalny dźwięk bez ingerencji; Auto Level – wyrównywanie odczuwalnej głośności; Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.") };
             foreach (var p in AbProfiles) abBox.Items.Add(new ComboBoxItem { Content = AbProfileLabel(p), Tag = p, ToolTip = AbProfileTip(p) });
             abBox.SelectedItem = abBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbProfileName) ?? abBox.Items[0];
-            abBox.SelectionChanged += (a, b) => { if (abBox.SelectedItem is ComboBoxItem it) AbSetProfile((string)it.Tag); };
+            ComboBox abSilaRef = null;
+            abBox.SelectionChanged += (a, b) => { if (abBox.SelectedItem is ComboBoxItem it) { AbSetProfile((string)it.Tag); if (abSilaRef != null) abSilaRef.IsEnabled = (string)it.Tag != "off"; } };
             var abSila = new ComboBox { Width = 120, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Intensywność: Light – delikatna korekta; Normal – standardowe wyrównywanie; Strong – mocniejsze wyrównywanie, np. nocą.") };
             foreach (var sl in AbSilas) abSila.Items.Add(new ComboBoxItem { Content = AbSilaLabel(sl), Tag = sl, ToolTip = AbSilaTip(sl) });
             abSila.SelectedItem = abSila.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == AbSilaName) ?? abSila.Items[1];
             abSila.SelectionChanged += (a, b) => { if (abSila.SelectedItem is ComboBoxItem it) AbSetSila((string)it.Tag); };
+            abSila.IsEnabled = AbProfileName != "off"; abSilaRef = abSila;   // przy Wył. intensywność nieaktywna
             var abTgt = new ComboBox { Width = 280, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             AbLoadSettings();
             foreach (var v in AbTargets) abTgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });

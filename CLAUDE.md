@@ -388,7 +388,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Menu czytelne i łatwe (2026-10-27, właściciel): pogrupowane (kilka grup z podmenu zamiast długiej listy), krótkie nazwy (opis w podpowiedzi albo po stuknięciu), okienka dopasowane do zawartości – bez przewijania, gdy się mieści.
 * Zmiany Filmów i TV opisz w `dokumentacja/instrukcja-filmy-tv.md` i `instrukcja-filmy-tv-notatki.md`; telefonu – w `instrukcja-telefon.md` (PL i EN).
 
-## Budowa u właściciela (Windows, PowerShell, nie jako administrator)
+## Budowa u właściciela (Windows, PowerShell jako administrator – 2026-11-09, właściciel; bez -Sklep, dopóki nie powie)
 
 Claude zawsze podaje kod kompilacji do PowerShell (cały blok poniżej, ostatnia linia z przełącznikami tylko dla zmienionych aplikacji). Na końcu odpowiedzi napisz, co zbudować:
 

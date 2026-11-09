@@ -465,25 +465,25 @@ namespace Velivo
                 for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 131072) & 65535] * hann[i] : 0; fftIm[i] = 0; }
                 AbFft(fftRe, fftIm);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
-                double lowE = 0, midE = 0, hiE = 0; double frameTop = -120;
+                double lowE = 0, midE = 0, hiE = 0; int nL = 0, nM = 0, nH = 0; double frameTop = -120;
                 for (int b = 0; b < NB; b++)
                 {
                     int k0 = Math.Max(1, (int)(edges[b] * 2048 / AbProcessor.Fs)), k1 = Math.Max(k0 + 1, (int)(edges[b + 1] * 2048 / AbProcessor.Fs));
                     double sum = 0; for (int k = k0; k < k1 && k < 1024; k++) sum += fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k];
-                    double db = 10 * Math.Log10(sum / 1024.0 + 1e-12) + 3;
-                    double f = (edges[b] + edges[b + 1]) / 2; if (f < 250) lowE += sum; else if (f < 4000) midE += sum; else hiE += sum;
+                    int nk = Math.Max(1, Math.Min(k1, 1024) - k0); double db = 10 * Math.Log10(sum / nk / 1024.0 + 1e-12) + 3;   // średnia moc pasma (szerokie pasma wysokich tonów nie są sztucznie wyżej)
+                    double f = (edges[b] + edges[b + 1]) / 2; if (f < 250) { lowE += sum / nk; nL++; } else if (f < 4000) { midE += sum / nk; nM++; } else { hiE += sum / nk; nH++; }
                     if (!double.IsNaN(db) && db > frameTop) frameTop = db;
-                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db - (specTop - 48)) / 48));   // skala za głośnością (48 dB pod szczytem): rytm i barwa widoczne także przy głośnej, wyrównanej muzyce
+                    double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db - (specTop - 36)) / 36));   // skala za głośnością (36 dB pod szczytem - sprawdzone na nagraniu właściciela: żywszy ruch niż 48): rytm i barwa widoczne także przy głośnej, wyrównanej muzyce
                     // jak analizator: w górę od razu, w dół szybko i równo (ok. 60 dB/s), szczyt trzymany 0,5 s, potem opada
-                    smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.025);
+                    smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.04);
                     if (smooth[b] >= hold[b]) { hold[b] = smooth[b]; holdT[b] = 25; } else if (holdT[b] > 0) holdT[b]--; else hold[b] = Math.Max(smooth[b], hold[b] - 0.015);
                     double bh = smooth[b] * h;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = bh; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], h - bh);
                     peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - hold[b] * h - 2);
                 }
                 specTop = frameTop > specTop ? frameTop : Math.Max(-60, specTop - 0.1);   // szczyt skali: od razu w górę, powoli w dół (ok. 5 dB/s)
-                double Rel(double e) { double d = 10 * Math.Log10(e / 1024 + 1e-12) + 3; return double.IsNaN(d) ? 0 : (d - (specTop - 48)) / 48; }   // ta sama skala co widmo (za głośnością)
-                lmhSet[0](Rel(lowE)); lmhSet[1](Rel(midE)); lmhSet[2](Rel(hiE));
+                double Rel(double e, int n) { double d = 10 * Math.Log10(e / Math.Max(1, n) / 1024 + 1e-12) + 3; return double.IsNaN(d) ? 0 : (d - (specTop - 36)) / 36; }   // średnia pasma w tej samej skali co słupki widma
+                lmhSet[0](Rel(lowE, nL)); lmhSet[1](Rel(midE, nM)); lmhSet[2](Rel(hiE, nH));
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
                 double fm = AbProc.Delayed(ahead).Fast; lvlB.set(live && fm > -40 ? (fm + 40) / 40 : 0);   // 100 ms - reaguje na każde uderzenie
                 if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)

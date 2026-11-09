@@ -239,7 +239,7 @@ namespace Velivo
                     for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
                     if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
                     if (idx < 0) { lc.Osd?.Invoke(L.T("🗣 Lektor gotowy dla całego filmu")); break; }   // caly film gotowy
-                    while (gen == lc.RenderGen && lc.PreWav != null && !lc.PreWav.IsCompleted) await Task.Delay(100);   // kwestia liczona na biezaco ma pierwszenstwo (XTTS/Supertonic licza jedna naraz); samo granie lektora budowy nie wstrzymuje
+                    var preSw = System.Diagnostics.Stopwatch.StartNew(); while (gen == lc.RenderGen && lc.PreWav != null && !lc.PreWav.IsCompleted && preSw.ElapsedMilliseconds < 120000) await Task.Delay(100);   // kwestia liczona na biezaco ma pierwszenstwo (XTTS/Supertonic licza jedna naraz); samo granie lektora budowy nie wstrzymuje
                     if (gen != lc.RenderGen) return;
                     var tmp = await LectorSynth(lc, lc.Cues[idx]);
                     if (gen != lc.RenderGen) { if (tmp != null) try { System.IO.File.Delete(tmp); } catch (Exception) { } return; }
@@ -369,7 +369,8 @@ namespace Velivo
                 if (cached) { if (lc.PreIdx == i) LectorDropPre(lc); }
                 else if (wavTask == null) { LectorDropPre(lc); wavTask = LectorSynthLive(lc, cue); } else { lc.PreIdx = -1; lc.PreWav = null; }
                 if (i + 1 < lc.Cues.Count && !lc.Ready.ContainsKey(i + 1)) { lc.PreIdx = i + 1; lc.PreWav = LectorSynthLive(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
-                var wav = await wavTask;
+                if (await Task.WhenAny(wavTask, Task.Delay(120000)) != wavTask) { App.LogError(new Exception("Lektor: głos nie oddał nagrania kwestii " + i + " w 2 min (" + (_settings.VlcLectorVoice ?? "auto") + ") - pomijam ją")); if (lc.PreIdx == i) LectorDropPre(lc); return; }   // zawieszona synteza nie zatrzymuje lektora na stałe
+                var wav = wavTask.Result;
                 if (wav == null || gen != lc.Gen || !mp.IsPlaying && !(queue && ended)) { if (wav != null && !cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
                 long tn = mp.Time - mp.SpuDelay / 1000;
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie

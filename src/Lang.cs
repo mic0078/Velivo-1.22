@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Słupki – dźwięk filmu. Zielone kreski – dźwięk po korekcie Velivo.", "Bars – the film sound. Green marks – the sound after Velivo's correction." },
             { "Źródło – dźwięk filmu. Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz.", "Source – the film sound. Change – how much Velivo raised (▲) or lowered (▼) it. Result – what you hear." },
             { "GŁOŚNOŚĆ PO VELIVO (LUFS)", "LOUDNESS AFTER VELIVO (LUFS)" },
             { "PRACA VELIVO", "VELIVO PROCESSING" },

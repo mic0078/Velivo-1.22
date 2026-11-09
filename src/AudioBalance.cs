@@ -292,12 +292,12 @@ namespace Velivo
             var sugBtns = new WrapPanel();
             var sugBox = new Border { Background = AbBtnBg, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed, Child = new StackPanel { Children = { sugTxt, sugBtns } } };
             lekRow.Children.Add(lekTxt); lekRow.Children.Add(sugBox); root.Children.Add(lekRow);
-            // widmo (FFT z prawdziwych probek wyjscia)
+            // widmo: słupki - surowy dźwięk filmu (wejście), zielone kreski - po korekcie Velivo (wyjście)
             const int NB = 32;
-            var spec = new Canvas { Height = 56, Background = AbDark, Margin = new Thickness(0, 8, 0, 4), ClipToBounds = true };
-            var bars = new Rectangle[NB]; var peaks = new Rectangle[NB]; var hold = new double[NB];
+            var spec = new Canvas { Height = 56, Background = AbDark, Margin = new Thickness(0, 8, 0, 4), ClipToBounds = true }; spec.ToolTip = L.T("Słupki – dźwięk filmu. Zielone kreski – dźwięk po korekcie Velivo.");
+            var bars = new Rectangle[NB]; var peaks = new Rectangle[NB];
             var grad = new LinearGradientBrush(Color.FromRgb(0x2E, 0xD3, 0xC6), Color.FromRgb(0x7C, 0x5C, 0xFF), 90);
-            for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1.5, RadiusY = 1.5 }; peaks[i] = new Rectangle { Fill = fg, Height = 2, Opacity = 0.8 }; spec.Children.Add(bars[i]); spec.Children.Add(peaks[i]); }
+            for (int i = 0; i < NB; i++) { bars[i] = new Rectangle { Fill = grad, RadiusX = 1.5, RadiusY = 1.5 }; peaks[i] = new Rectangle { Fill = AbGreen, Height = 3 }; spec.Children.Add(bars[i]); spec.Children.Add(peaks[i]); }
             root.Children.Add(spec);
             var axis = new Grid(); foreach (var (t, al) in new[] { ("50 Hz", HorizontalAlignment.Left), ("1 kHz", HorizontalAlignment.Center), ("16 kHz", HorizontalAlignment.Right) }) { var a = T(t, 10, dim); a.HorizontalAlignment = al; axis.Children.Add(a); }
             root.Children.Add(axis);
@@ -490,7 +490,7 @@ namespace Velivo
             // odswiezanie ~30 kl./s tylko, gdy widzet widoczny (FFT w watku okna, nie dzwieku)
             var fftRe = new double[2048]; var fftIm = new double[2048]; var hann = Enumerable.Range(0, 2048).Select(i => 0.5 - 0.5 * Math.Cos(2 * Math.PI * i / 2047)).ToArray();
             var edges = Enumerable.Range(0, NB + 1).Select(i => 50 * Math.Pow(16000.0 / 50, i / (double)NB)).ToArray();
-            var smooth = new double[NB]; var holdT = new int[NB];
+            var smooth = new double[NB]; var smoothO = new double[NB]; var fftRe2 = new double[2048]; var fftIm2 = new double[2048];
             string uiSig = null;
             _abTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(20) };   // 50 kl./s - słupki reagują płynnie
             _abTimer.Tick += (s, e) =>
@@ -519,21 +519,21 @@ namespace Velivo
                 }
                 // FFT 2048 z ostatnich probek
                 long head = AbPlayHead(); int ahead = (int)Math.Max(0, Math.Min(60000, Interlocked.Read(ref AbProc.Frames) - head)), pos = (int)(head & 65535);   // fragment, który właśnie słychać (płynnie, za kolejką karty)
-                for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 131072) & 65535] * hann[i] : 0; fftIm[i] = 0; }
-                AbFft(fftRe, fftIm);
+                for (int i = 0; i < 2048; i++) { int si = (pos - 2048 + i + 131072) & 65535; fftRe[i] = live ? AbProc.Scope[si] * hann[i] : 0; fftIm[i] = 0; fftRe2[i] = live ? AbProc.ScopeOut[si] * hann[i] : 0; fftIm2[i] = 0; }
+                AbFft(fftRe, fftIm); AbFft(fftRe2, fftIm2);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
                 for (int b = 0; b < NB; b++)
                 {
                     int k0 = Math.Max(1, (int)(edges[b] * 2048 / AbProcessor.Fs)), k1 = Math.Max(k0 + 1, (int)(edges[b + 1] * 2048 / AbProcessor.Fs));
-                    double mx = 0; for (int k = k0; k < k1 && k < 1024; k++) mx = Math.Max(mx, fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k]);   // najsilniejszy ton w paśmie (jak Winamp / foobar2000)
+                    double mx = 0, mo = 0; for (int k = k0; k < k1 && k < 1024; k++) { mx = Math.Max(mx, fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k]); mo = Math.Max(mo, fftRe2[k] * fftRe2[k] + fftIm2[k] * fftIm2[k]); }   // najsilniejszy ton w paśmie (jak Winamp / foobar2000)
                     double db = 20 * Math.Log10(2 * Math.Sqrt(mx) / 1024.0 + 1e-9);   // dBFS (pełny sinus = 0 dB; okno Hanna)
                     double v = double.IsNaN(db) ? 0 : Math.Max(0, Math.Min(1, (db + 72) / 60));   // stała skala -72…-12 dBFS (sprawdzone na dźwięku z nagrania właściciela) - ten sam dźwięk zawsze wygląda tak samo
-                    // jak analizator: w górę od razu, w dół szybko i równo (3 dB na klatkę), szczyt trzymany 0,5 s, potem opada
-                    smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.05);
-                    if (smooth[b] >= hold[b]) { hold[b] = smooth[b]; holdT[b] = 25; } else if (holdT[b] > 0) holdT[b]--; else hold[b] = Math.Max(smooth[b], hold[b] - 0.015);
+                    double vo = Math.Max(0, Math.Min(1, (20 * Math.Log10(2 * Math.Sqrt(mo) / 1024.0 + 1e-9) + 72) / 60)); if (double.IsNaN(vo)) vo = 0;
+                    // jak analizator: w górę od razu, w dół szybko i równo (3 dB na klatkę) - słupki i kreski tak samo
+                    smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.05); smoothO[b] = vo > smoothO[b] ? vo : Math.Max(vo, smoothO[b] - 0.05);
                     double bh = smooth[b] * h;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = bh; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], h - bh);
-                    peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - hold[b] * h - 2);
+                    peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - smoothO[b] * h - 1.5); peaks[b].Visibility = live && !AbBypass && smoothO[b] > 0.01 ? Visibility.Visible : Visibility.Collapsed;
                 }
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
                 if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)

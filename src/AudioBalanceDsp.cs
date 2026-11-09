@@ -246,7 +246,7 @@ namespace Velivo
         public double InDialogShare => sA < 1e-9 ? 0 : Math.Min(1, sS / sA); // udział pasma mowy w oryginale (0–1) - dialogi w filmie
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
-        public readonly float[] Scope = new float[65536]; public volatile int ScopePos; int pkN;   // 1,4 s surowego wejścia (widmo) - wskaźniki czytają fragment, który właśnie słychać (za kolejką karty)
+        public readonly float[] Scope = new float[65536], ScopeOut = new float[65536]; public volatile int ScopePos; int pkN;   // 1,4 s surowego wejścia (widmo) - wskaźniki czytają fragment, który właśnie słychać (za kolejką karty)
         // migawki wskaźników co kawałek dźwięku (numer próbki) - wyświetlanie zsynchronizowane z tym, co słychać
         public struct Snap { public long F; public double VuL, VuR, VuInL, VuInR, Fast, RawM, OutM; }
         readonly Snap[] snaps = new Snap[512]; int snapI;
@@ -315,7 +315,7 @@ namespace Velivo
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
-                    { int sp = ScopePos; Scope[sp] = (float)((buf[2 * f] + buf[2 * f + 1]) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu
+                    { int sp = ScopePos; Scope[sp] = ScopeOut[sp] = (float)((buf[2 * f] + buf[2 * f + 1]) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (bez przetwarzania wyjście = wejście)
                     vS += (vol - vS) * kV; VuIn(buf[2 * f] * vS, buf[2 * f + 1] * vS); Raw.Push(buf[2 * f] * vS, buf[2 * f + 1] * vS);
                     double l = buf[2 * f] * vS, r = buf[2 * f + 1] * vS;
                     buf[2 * f] = (float)l; buf[2 * f + 1] = (float)r;
@@ -401,6 +401,7 @@ namespace Velivo
                 if (ol > ceil) ol = ceil; else if (ol < -ceil) ol = -ceil;   // bezpiecznik
                 if (or > ceil) or = ceil; else if (or < -ceil) or = -ceil;
                 buf[2 * f] = (float)ol; buf[2 * f + 1] = (float)or;
+                ScopeOut[(ScopePos - 1) & 65535] = vS > 1e-3 ? (float)((ol + or) * 0.5 / vS) : 0f;   // widmo „po korekcie” (bez głośności odtwarzacza - porównanie z surowym wejściem)
                 Out.Push(ol, or); Vu(ol, or);
                 {   // pomiar dla doradcy lektora: wynik w paśmie 1–4 kHz (przed głośnością odtwarzacza), stała czasu 3 s
                     double om = vS > 1e-3 ? (ol + or) * 0.5 / vS : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);

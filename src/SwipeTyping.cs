@@ -182,9 +182,9 @@ namespace Velivo
             if (_phraseFix.TryGetValue(Fold(w), out var ph) && ph != w)
                 return char.IsUpper(typed[0]) ? char.ToUpperInvariant(ph[0]) + ph.Substring(1) : ph;
             // "nie" z czasownikiem osobno: niewiem -> nie wiem (sklejonego nie ma w slowniku, reszta to czeste slowo); tez bez polskich znakow (niemoge -> nie mogę)
-            if (w.Length >= 5 && w.StartsWith("nie", StringComparison.Ordinal))
+            if (w.Length >= 5 && w.StartsWith("ni", StringComparison.Ordinal) && (w.StartsWith("nie", StringComparison.Ordinal) || _foldAll != null && !_foldAll.ContainsKey(Fold(w))))   // też bez „e” (tylko nieznane słowo - nikogo, nigdy zostają): niwiem -> nie wiem (nie „ni wiem”)
             {
-                var rest = w.Substring(3); string restOk = null;
+                var rest = w.Substring(w.StartsWith("nie", StringComparison.Ordinal) ? 3 : 2); string restOk = null;
                 if (_foldAll != null && _foldAll.TryGetValue(Fold(rest), out var rl))   // tylko bardzo czeste slowo (wiem, mam, mogę) - rzadkie "niezaplanowany" zostaje razem
                     restOk = rl.Where(e => e.Rank < 4000).OrderBy(e => e.Word == rest ? -1 : Score(e)).Select(e => e.Word).FirstOrDefault();
                 if (restOk != null && (IsVerbish(restOk) || !_foldAll.ContainsKey(Fold(w))))   // czasownik - osobno, nawet gdy blad "niewiem" jest w slowniku z tekstow
@@ -208,9 +208,14 @@ namespace Velivo
                     if (le.Rank + re.Rank < sk) { sk = le.Rank + re.Rank; sp = le.Word + " " + re.Word; }
                 }
                 // jedna literowka w czestym slowie wygrywa z rozdzieleniem (wlanie -> właśnie, nie "w lanie")
+                // brakująca albo zmieniona litera - także na końcu słowa (zadział -> zadziała, nie „za dział”); bez usuwania litery (jakto -> jak to, nie „jako”)
                 var fw1 = new string(w.Select(BaseKey).ToArray()); bool one = false;
-                for (int i = 0; i < fw1.Length && !one; i++) foreach (var c in "abcdefghijklmnopqrstuvwxyz")
-                    if (fold.TryGetValue(fw1.Insert(i, c.ToString()), out var e1) && e1.Rank < 20000 || fold.TryGetValue(fw1.Substring(0, i) + c + fw1.Substring(i + 1), out var e2) && e2.Rank < 20000) { one = true; break; }
+                bool F1(string v) => fold.TryGetValue(v, out var e1) && e1.Rank < 20000;
+                for (int i = 0; i < fw1.Length && !one; i++)
+                {
+                    foreach (var c in "abcdefghijklmnopqrstuvwxyz") if (F1(fw1.Insert(i, c.ToString())) || c != fw1[i] && F1(fw1.Substring(0, i) + c + fw1.Substring(i + 1))) { one = true; break; }
+                }
+                if (!one) foreach (var c in "abcdefghijklmnopqrstuvwxyz") if (F1(fw1 + c)) { one = true; break; }
                 if (sp != null && !one) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
             }
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)

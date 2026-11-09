@@ -169,8 +169,8 @@ object Slownik {
         if (w == "ze") return null
         if (w in polite) return if (typed[0] == typed[0].uppercaseChar()) null else polite(w)
         phraseFix[fold(w)]?.let { if (it != w) return cap(typed, it) }
-        if (w.length >= 5 && w.startsWith("nie")) {
-            val rest = w.substring(3)
+        if (w.length >= 5 && w.startsWith("ni") && (w.startsWith("nie") || foldAll?.containsKey(fold(w)) == false)) {   // też bez „e” (tylko nieznane słowo - nikogo, nigdy zostają): niwiem -> nie wiem (nie „ni wiem”)
+            val rest = w.substring(if (w.startsWith("nie")) 3 else 2)
             val restOk = foldAll?.get(fold(rest))?.filter { it.rank < 4000 }?.minByOrNull { if (it.word == rest) -1.0 else score(it) }?.word
             if (restOk != null && (isVerbish(restOk) || foldAll?.containsKey(fold(w)) != true)) return (if (typed[0].isUpperCase()) "Nie " else "nie ") + restOk
         }

@@ -348,7 +348,7 @@ namespace Velivo
             }
             sum3.ToolTip = L.T("Źródło – jak głośny jest oryginał (ostatnie 10 s, bez ciszy – jak pomiar zintegrowany). Zmiana – ile Velivo podgłośniło (▲) albo ściszyło (▼). Wynik – co słyszysz; powinien być przy celu, który ustawiasz niżej.");
             root.Children.Insert(3, sum3);
-            var tgt = new ComboBox { Width = 210, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
+            var tgt = new ComboBox { Width = 330, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Poziom docelowy – do jakiej głośności Velivo wyrównuje dźwięk. Wybierz sam: głośniej (-14) albo ciszej (-23).") };
             foreach (var v in AbTargets) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });
             tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Math.Abs((float)i.Tag - AbProc.Target) < 0.1) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { AbProc.Target = (float)it.Tag; SetPref("ab-cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); } };
@@ -469,8 +469,8 @@ namespace Velivo
                 if (live && !byp && (DateTime.UtcNow - infoLast).TotalMilliseconds >= 250)
                 {
                     infoLast = DateTime.UtcNow;
-                    infoV[0].Text = AbProc.Profile != null ? AbProc.GainDb.ToString("+0.0;-0.0") + " dB" : L.T("wył.");
-                    infoV[1].Text = AbProc.Dialog > 0 ? AbProc.DialogDb.ToString("+0.0;-0.0") + " dB" : L.T("wył.");
+                    infoV[0].Text = AbProc.Profile != null ? (Math.Abs(AbProc.GainDb) < 0.05 ? "±0,0" : AbProc.GainDb.ToString("+0.0;-0.0")) + " dB" : L.T("wył.");
+                    infoV[1].Text = AbProc.Dialog > 0 ? (Math.Abs(AbProc.DialogDb) < 0.05 ? "±0,0" : AbProc.DialogDb.ToString("+0.0;-0.0")) + " dB" : L.T("wył.");
                     infoV[2].Text = AbProc.LimitDb.ToString("0.0") + " dB";
                     infoV[3].Text = F(AbProc.Raw.ShortTerm) + " LUFS";
                     infoV[4].Text = Interlocked.Read(ref _abOut.EarlyWaits).ToString();

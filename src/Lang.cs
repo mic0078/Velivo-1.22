@@ -197,8 +197,6 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
-            { "Na urządzeniu ", "The device " },
-            { " jest klucz sprzętowy – możesz dodać go też tutaj (🎨 → 🔒 Bezpieczeństwo → 🔑), dodatkowe zabezpieczenie.", " has a security key – you can add it here too (🎨 → 🔒 Security → 🔑) for extra protection." },
             { "zamknęła Velivo przy wczytywaniu – usunięta z łańcucha", "closed Velivo while loading – removed from the chain" },
             { "🎤 Mój głos (XTTS)", "🎤 My voice (XTTS)" },
             { " – w Velivo Premium", " – in Velivo Premium" },

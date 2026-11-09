@@ -3090,14 +3090,13 @@ namespace Velivo
         bool _komUnlocked;
         // 🔑 klucze sprzętowe komunikatora (WebAuthn, jak w trybie bankowym): tylko klucz publiczny w ustawieniach, podpis sprawdzany przy otwarciu
         List<BankKey> KomHwKeys() => (_komOpt["klucze"] as JsonArray)?.Select(x => new BankKey { Id = (string)x["id"], X = (string)x["x"], Y = (string)x["y"], Name = (string)x["n"] }).Where(k => k.Id != null).ToList() ?? new List<BankKey>();
-        // 🔑 klucze na moich telefonach (same nazwy, z synchronizacji w sieci domowej): widać, gdzie klucz jest dodany; raz podpowiedź „dodaj też tutaj”
+        // 🔑 klucze na moich telefonach (same nazwy, z synchronizacji w sieci domowej) - zapis w tle, pod rozpoznawanie klucza między urządzeniami
         void KomHwKeysOther(string dev, List<string> names)
         {
             if (_komOpt["kluczeInne"] is not JsonObject o) _komOpt["kluczeInne"] = o = new JsonObject();
             var was = o[dev]?.ToJsonString(); if (names.Count == 0) o.Remove(dev); else o[dev] = new JsonArray(names.Select(n => (JsonNode)n).ToArray());
             if (o[dev]?.ToJsonString() == was) return;
-            KomSave();
-            if (names.Count > 0 && KomHwKeys().Count == 0) KomInfo("🔑 " + L.T("Na urządzeniu ") + dev + L.T(" jest klucz sprzętowy – możesz dodać go też tutaj (🎨 → 🔒 Bezpieczeństwo → 🔑), dodatkowe zabezpieczenie."));
+            KomSave();   // w tle, bez komunikatów (właściciel: im mniej informacji, tym lepiej)
         }
         // 🔑 menu kluczy: dodaj (pierwszy / zapasowy), usuń jeden (wymiana zepsutego albo zgubionego) - zawsze po Windows Hello / PIN-ie
         void KomHwKeySetup(Window owner)
@@ -3109,11 +3108,6 @@ namespace Velivo
             cm.Items.Add(add);
             if (keys.Count == 1) cm.Items.Add(new MenuItem { Header = "⚠ " + L.T("Dodaj zapasowy klucz"), IsEnabled = false });
             if (keys.Count > 0) { var tst = new MenuItem { Header = L.T("🧪 Sprawdź klucze"), ToolTip = L.T("Dotknij po kolei każdego klucza – Velivo pokaże, który działa") }; tst.Click += (a, b) => KomHwKeyTest(owner); cm.Items.Add(tst); }
-            if (_komOpt["kluczeInne"] is JsonObject other && other.Count > 0)
-            {   // klucze na moich telefonach - informacja
-                cm.Items.Add(new Separator());
-                foreach (var kv in other) cm.Items.Add(new MenuItem { Header = "📱 " + kv.Key + ": " + string.Join(", ", (kv.Value as JsonArray)?.Select(x => (string)x) ?? Enumerable.Empty<string>()), IsEnabled = false });
-            }
             if (keys.Count > 0) cm.Items.Add(new Separator());
             foreach (var k in keys)
             {

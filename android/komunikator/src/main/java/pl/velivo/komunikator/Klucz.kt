@@ -31,15 +31,13 @@ object Klucz {
     // zapisane klucze (wspólne dla Velivo i komunikatora w tej aplikacji): klucz publiczny i uchwyt - bez tajemnic
     fun keys(p: android.content.SharedPreferences): List<JSONObject> = runCatching { org.json.JSONArray(p.getString("klucze", "[]")).let { a -> (0 until a.length()).map { a.getJSONObject(it) } } }.getOrDefault(emptyList())
     private fun save(p: android.content.SharedPreferences, l: List<JSONObject>) = p.edit().putString("klucze", org.json.JSONArray(l).toString()).apply()
-    // 🔑 klucze na moich innych urządzeniach (same nazwy, z synchronizacji w sieci domowej) - widać, gdzie klucz jest dodany, a gdzie jeszcze nie
+    // 🔑 klucze na moich innych urządzeniach (same nazwy, z synchronizacji w sieci domowej) - zapis w tle, bez komunikatów
     fun names(p: android.content.SharedPreferences) = keys(p).map { it.optString("n", "?") }
     fun storeOthers(p: android.content.SharedPreferences, dev: String, names: List<String>) {
         val o = runCatching { JSONObject(p.getString("klucze-inne", "{}")) }.getOrDefault(JSONObject())
         if (names.isEmpty()) o.remove(dev) else o.put(dev, org.json.JSONArray(names.take(10).map { it.take(60) }))
         p.edit().putString("klucze-inne", o.toString()).apply()
     }
-    private fun others(p: android.content.SharedPreferences): String = runCatching { JSONObject(p.getString("klucze-inne", "{}")).let { o ->
-        o.keys().asSequence().joinToString("\n") { d -> "💻 $d: " + o.getJSONArray(d).let { a -> (0 until a.length()).joinToString(", ") { a.getString(it) } } } } }.getOrDefault("")
 
     // najpierw hasło / PIN telefonu - nikt przy odblokowanym telefonie nie doda swojego klucza ani nie usunie Twojego
     fun confirm(a: Activity, then: () -> Unit) {
@@ -75,8 +73,7 @@ object Klucz {
         android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🔑 " + t("Klucz sprzętowy (YubiKey, Titan)", "Security key (YubiKey, Titan)"))
             .setMessage(t("Opcjonalnie: Velivo i komunikator odblokujesz dotknięciem klucza (USB albo NFC). Odcisk palca / PIN telefonu dalej działa jako zapas.",
                 "Optional: unlock Velivo and the messenger by touching the key (USB or NFC). Phone fingerprint / PIN still works as a backup.") +
-                (if (l.isEmpty()) "" else "\n\n" + l.joinToString("\n") { "✓ " + it.optString("n", "?") } + if (l.size == 1) "\n\n⚠ " + t("Dodaj zapasowy klucz.", "Add a backup key.") else "") +
-                others(p).let { o -> if (o.isEmpty()) "" else "\n\n" + t("Na moich komputerach:", "On my computers:") + "\n" + o + if (l.isEmpty()) "\n\n" + t("Dodaj ten klucz też tutaj – dodatkowe zabezpieczenie.", "Add the key here too – extra protection.") else "" })
+                if (l.isEmpty()) "" else "\n\n" + l.joinToString("\n") { "✓ " + it.optString("n", "?") } + if (l.size == 1) "\n\n⚠ " + t("Dodaj zapasowy klucz.", "Add a backup key.") else "")
             .setPositiveButton(if (l.isEmpty()) "➕ " + t("Dodaj klucz", "Add key") else "➕ " + t("Dodaj zapasowy", "Add backup")) { _, _ -> add() }
             .apply { if (l.isNotEmpty()) setNeutralButton("🗑 " + t("Usuń klucz…", "Remove key…")) { _, _ -> remove() } }
             .apply { if (l.isNotEmpty()) setNegativeButton("🧪 " + t("Sprawdź", "Check")) { _, _ -> test(a, p) } else setNegativeButton(android.R.string.cancel, null) }.show()   // zamknięcie: ✕ / wstecz

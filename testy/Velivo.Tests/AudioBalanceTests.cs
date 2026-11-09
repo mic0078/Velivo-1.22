@@ -204,6 +204,40 @@ public class AudioBalanceTests
     }
 
     [Fact]
+    public void DoradcaLektoraOcenaIPropozycja()
+    {
+        // lektor w paśmie mowy -20 dBFS (głośność 1), film -24 ściszony do 40% (-8 dB) → przewaga +12 dB = dobrze słyszalny
+        var a = new AbLektorAdvisor();
+        for (int i = 0; i < 10; i++) a.Add(AbLektorAdvisor.CueMargin(-20, 1, -24, 0.4, 0.1));
+        Assert.True(a.Status == 0 && a.SuggestOverUp() == 0, $"status {a.Status}, margines {a.Margin:0.0}");
+        // film głośny w paśmie mowy (-18), bez ściszenia, w filmie trwa dialog → zagłuszany i propozycja podniesienia przewagi
+        a.Reset();
+        for (int i = 0; i < 10; i++) a.Add(AbLektorAdvisor.CueMargin(-20, 1, -18, 1, 0.7));
+        Assert.True(a.Status == 2, $"status {a.Status}");
+        Assert.InRange(a.SuggestOverUp(), 1, 10);
+        // pojedyncza głośna scena (2 z 10 kwestii) nie zmienia oceny i nie daje propozycji
+        a.Reset();
+        for (int i = 0; i < 10; i++) a.Add(i < 2 ? -6 : 9);
+        Assert.True(a.Status == 0 && a.SuggestOverUp() == 0);
+    }
+
+    [Fact]
+    public void ProcesorRozpoznajeDialogiIMierzyPasmoMowy()
+    {
+        // mowa (sylaby, 220–1300 Hz) vs bas muzyki (60 Hz): udział pasma mowy wysoki dla mowy, niski dla basu; pasmo 1–4 kHz mierzone
+        double Share(Func<double, double> f, out double band)
+        {
+            var p = new AbProcessor { Profile = AbProfile.Balanced, Target = 0 }; var buf = new float[960]; p.NewMedia();
+            for (int b = 0; b < 500; b++) { for (int k = 0; k < 480; k++) { double t = (b * 480 + k) / 48000.0; buf[2 * k] = buf[2 * k + 1] = (float)f(t); } p.Process(buf, 480); }
+            band = p.OutSpeechBandDb; return p.InDialogShare;
+        }
+        double mowa = Share(t => 0.1 * Math.Max(0, Math.Sin(2 * Math.PI * 3 * t)) * (Math.Sin(2 * Math.PI * 400 * t) + 0.6 * Math.Sin(2 * Math.PI * 1300 * t)), out var bm);
+        double bas = Share(t => 0.3 * Math.Sin(2 * Math.PI * 60 * t), out var bb);
+        Assert.True(mowa > 0.5 && bas < 0.2, $"mowa {mowa:0.00}, bas {bas:0.00}");
+        Assert.True(bm > bb + 10, $"pasmo mowy: mowa {bm:0.0} dB, bas {bb:0.0} dB");
+    }
+
+    [Fact]
     public void SciszeniePodLektoraNieJestCofane()
     {
         // 🗣 lektor ścisza film suwakiem odtwarzacza (Volume 0,3): wynik ma zostać ok. 10 dB ciszej, nie wracać do celu

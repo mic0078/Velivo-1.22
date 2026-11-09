@@ -269,18 +269,29 @@ namespace Velivo
         }
 
         // głośność nagrania lektora (dBFS, średnia mowy bez ciszy - bloki 100 ms powyżej -50 dBFS); NaN = nie wiadomo
-        static double LectorWavDb(string wav)
+        static double LectorWavDb(string wav) => LectorWavDb(wav, out _);
+        // + pasmo zrozumiałości mowy 1–4 kHz (dla doradcy lektora): ten sam filtr co w pomiarze filmu, przy częstotliwości pliku
+        static double LectorWavDb(string wav, out double bandDb)
         {
+            bandDb = double.NaN;
             try
             {
                 var b = System.IO.File.ReadAllBytes(wav); if (b.Length < 1000 || BitConverter.ToInt16(b, 34) != 16) return double.NaN;
-                int sr = BitConverter.ToInt32(b, 24), ch = Math.Max(1, (int)BitConverter.ToInt16(b, 22)), blk = Math.Max(1, sr / 10) * ch; double sum = 0; int nb = 0;
-                for (int o = 44; o + blk * 2 <= b.Length; o += blk * 2)
+                int sr = BitConverter.ToInt32(b, 24), ch = Math.Max(1, (int)BitConverter.ToInt16(b, 22)), blk = Math.Max(1, sr / 10); double sum = 0, bsum = 0; int nb = 0;
+                var hp = AbBiquad.Hp(sr, 1000); var lp = AbBiquad.Lp(sr, 4000);
+                for (int o = 44; o + blk * ch * 2 <= b.Length; o += blk * ch * 2)
                 {
-                    double e = 0; for (int k = 0; k < blk; k++) { double v = BitConverter.ToInt16(b, o + k * 2) / 32768.0; e += v * v; }
-                    e /= blk; if (e > 1e-5) { sum += e; nb++; }
+                    double e = 0, eb = 0;
+                    for (int k = 0; k < blk; k++)
+                    {
+                        double v = 0; for (int c = 0; c < ch; c++) v += BitConverter.ToInt16(b, o + (k * ch + c) * 2) / 32768.0; v /= ch;
+                        double f = lp.L(hp.L(v)); e += v * v; eb += f * f;
+                    }
+                    e /= blk; eb /= blk; if (e > 1e-5) { sum += e; bsum += eb; nb++; }   // tylko bloki z mową (bez ciszy)
                 }
-                return nb == 0 ? double.NaN : 10 * Math.Log10(sum / nb);
+                if (nb == 0) return double.NaN;
+                bandDb = 10 * Math.Log10(bsum / nb + 1e-12);
+                return 10 * Math.Log10(sum / nb);
             }
             catch (Exception) { return double.NaN; }
         }
@@ -366,12 +377,15 @@ namespace Velivo
                 lc.Ducked = volume(); double duck = Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // film ciszej, jak lektor w TV
                 // 🎚 z Audio Balance: lektor (osobny tor - WAV przez Windows, stała głośność) zawsze VlcLectorOver dB nad filmem po wyrównaniu - film ściszany tyle, ile trzeba
                 //    (nigdy mniej niż ustawione ściszanie, najwyżej do 10%); bez Audio Balance - jak dotąd
+                double lekAll = LectorWavDb(wav, out var lekBand);   // jeden odczyt pliku: całość i pasmo mowy
                 if (AbProc.Active && !AbBypass && lc.Ducked > 0)
                 {
-                    double lekt = LectorWavDb(wav) + 20 * Math.Log10(WpfVol(Math.Max(0.1, _settings.VlcLectorVolume))), film = AbProc.In.ShortTerm + AbProc.GainDb + 20 * Math.Log10(lc.Ducked / 100.0);   // film po wyrównaniu przy zwykłej głośności (bez ściszenia z poprzedniej kwestii)
+                    double lekt = lekAll + 20 * Math.Log10(WpfVol(Math.Max(0.1, _settings.VlcLectorVolume))), film = AbProc.In.ShortTerm + AbProc.GainDb + 20 * Math.Log10(lc.Ducked / 100.0);   // film po wyrównaniu przy zwykłej głośności (bez ściszenia z poprzedniej kwestii)
                     if (!double.IsNaN(lekt) && film > -70) duck = Math.Max(0.1, Math.Min(duck, Math.Pow(10, (lekt - _settings.VlcLectorOver - film) / 20)));   // Twoja proporcja lektor/film (panel lektora)
                 }
                 mp.Volume = (int)Math.Round(lc.Ducked * duck);
+                // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
+                if (AbProc.Active && !AbBypass && !double.IsNaN(lekBand)) AbLektorCue(lekBand, WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)), duck);
                 var done = new TaskCompletionSource<bool>();
                 var voice = new System.Windows.Media.MediaPlayer { Volume = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)) };
                 lc.Voice = voice; lc.VoiceDone = done;

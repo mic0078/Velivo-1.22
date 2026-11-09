@@ -155,6 +155,33 @@ namespace Velivo
         }
     }
 
+    // 🗣 Doradca lektora (AI bez sieci neuronowych - pomiary i statystyka): ocenia słyszalność lektora względem filmu w paśmie
+    // zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu pod lektora i dialogów w filmie; NICZEGO nie zmienia - tylko proponuje
+    public sealed class AbLektorAdvisor
+    {
+        public const double Good = 6, Partial = 0;   // przewaga lektora w paśmie mowy: ≥6 dB dobrze, 0–6 częściowo, <0 zagłuszany
+        readonly List<double> last = new List<double>();
+        public double Margin = double.NaN; public int Status = -1;   // -1 brak danych, 0 dobrze, 1 częściowo, 2 zagłuszany
+        // jedna kwestia: lektor (dBFS całość i pasmo 1–4 kHz, głośność odtwarzacza lektora 0–1), film (pasmo 1–4 kHz po wyrównaniu, ściszenie 0–1, udział dialogów)
+        public static double CueMargin(double lekBandDb, double lekVol, double filmBandDb, double duck, double dialogShare)
+        {
+            double m = lekBandDb + 20 * Math.Log10(Math.Max(1e-3, lekVol)) - (filmBandDb + 20 * Math.Log10(Math.Max(1e-3, duck)));
+            if (dialogShare > 0.5) m -= 2;   // w filmie trwa dialog - druga mowa w tym samym paśmie przeszkadza bardziej niż muzyka
+            return m;
+        }
+        public void Add(double margin)
+        {
+            if (double.IsNaN(margin) || double.IsInfinity(margin)) return;
+            last.Add(margin); if (last.Count > 10) last.RemoveAt(0);
+            var o = last.OrderBy(x => x).ToList(); Margin = o[o.Count / 2];   // mediana 10 ostatnich kwestii - jedna głośna scena nie zmienia oceny
+            Status = Margin >= Good ? 0 : Margin >= Partial ? 1 : 2;
+        }
+        public void Reset() { last.Clear(); Margin = double.NaN; Status = -1; }
+        public int Count => last.Count;
+        // propozycja: o ile podnieść „Lektor nad filmem” (0 = nie trzeba); tylko gdy 8 z 10 ostatnich kwestii nie było dobrze słyszalnych
+        public int SuggestOverUp() => last.Count >= 10 && last.Count(x => x < Good) >= 8 ? (int)Math.Max(1, Math.Min(10, Math.Ceiling(Good - Margin))) : 0;
+    }
+
     // wpis pamięci nauki jednego źródła (audio-nauka.json); stare pole Lev ze starszych wersji jest przy wczytaniu pomijane
     public sealed class AbLearnEntry
     {
@@ -203,6 +230,11 @@ namespace Velivo
         // dialogi: mowa jest zwykle w środku stereo (L+R) w paśmie 250–4000 Hz; gdy przykrywa ją reszta (muzyka, efekty, szerokie stereo),
         // pasmo mowy ze środka jest równolegle podbijane - reszta dźwięku i jej dynamika zostają bez zmian
         readonly AbBiquad dHp = AbBiquad.Hp(48000, 250), dLp = AbBiquad.Lp(48000, 4000); double dS, dM, dSide, dG;
+        // 🗣 doradca lektora: pasmo zrozumiałości mowy 1–4 kHz wyniku filmu (przed głośnością odtwarzacza) i aktywność dialogów w oryginale
+        readonly AbBiquad aHp = AbBiquad.Hp(48000, 1000), aLp = AbBiquad.Lp(48000, 4000), sHp = AbBiquad.Hp(48000, 250), sLp = AbBiquad.Lp(48000, 4000);
+        double aP, sS, sA;
+        public double OutSpeechBandDb => 10 * Math.Log10(aP + 1e-12);        // film w paśmie 1–4 kHz (dBFS, średnio ok. 3 s)
+        public double InDialogShare => sA < 1e-9 ? 0 : Math.Min(1, sS / sA); // udział pasma mowy w oryginale (0–1) - dialogi w filmie
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
         // próbki wyjścia (mono) dla widżetu - widmo (FFT) liczy wątek okna widżetu, nie wątek dźwięku
         public readonly float[] Scope = new float[8192]; public volatile int ScopePos; int pkN;
@@ -239,7 +271,7 @@ namespace Velivo
         {
             In.ResetWindows(); Out.ResetWindows(); OutPre.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
-            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0;
+            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0; aHp.Reset(); aLp.Reset(); sHp.Reset(); sLp.Reset(); aP = sS = sA = 0;
             foreach (var b in eq) b?.Reset();
         }
         volatile bool newReq;
@@ -283,6 +315,7 @@ namespace Velivo
             {
                 double l = buf[2 * f], r = buf[2 * f + 1];
                 VuIn(l * vol, r * vol); Raw.Push(l * vol, r * vol);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
+                { double dm0 = (l + r) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
                 {
@@ -363,6 +396,9 @@ namespace Velivo
                 buf[2 * f] = (float)ol; buf[2 * f + 1] = (float)or;
                 Out.Push(ol, or); Vu(ol, or);
                 if (vol > 1e-3) OutPre.Push(ol / vol, or / vol);   // to samo bez głośności odtwarzacza
+                {   // pomiar dla doradcy lektora: wynik w paśmie 1–4 kHz (przed głośnością odtwarzacza), stała czasu 3 s
+                    double om = vol > 1e-3 ? (ol + or) * 0.5 / vol : 0, ab = aLp.L(aHp.L(om)); aP += (ab * ab - aP) / (3.0 * Fs);
+                }
                 double tpo = tpOut.Push(ol, or); if (tpo > peakHold) peakHold = tpo;
                 int sp = ScopePos; Scope[sp] = (float)((ol + or) * 0.5); ScopePos = (sp + 1) & 8191;
                 if (++pkN == 2400) { pkN = 0; if (++peakN >= 20) { PeakOutDb = 20 * Math.Log10(peakHold + 1e-12); peakHold = 0; peakN = 0; } }   // szczyt True Peak z ostatniej sekundy

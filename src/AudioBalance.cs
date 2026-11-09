@@ -210,7 +210,7 @@ namespace Velivo
         }
 
         void AbDetach() { AbLearnEnd(); var o = _abOut; _abOut = null; o?.Dispose(); }
-        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbProc.NewMedia(); } }
+        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;
@@ -237,6 +237,13 @@ namespace Velivo
             head.Children.Add(T(L.T("🎚 Audio Monitor"), 15, fg, FontWeights.SemiBold));
             root.Children.Add(head);
             var src = T("", 11, dim); root.Children.Add(src);
+            // 🗣 doradca lektora: wskaźnik słyszalności + propozycja do zatwierdzenia (sam niczego nie zmienia)
+            var lekRow = new StackPanel { Margin = new Thickness(0, 4, 0, 2) };
+            var lekTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, ToolTip = L.T("Doradca lektora: porównuje lektora i film w paśmie zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu i dialogów w filmie. Ocena z 10 ostatnich kwestii. Sam niczego nie zmienia.") };
+            var sugTxt = new TextBlock { FontSize = 11, Foreground = fg, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
+            var sugBtns = new WrapPanel();
+            var sugBox = new Border { Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x33)), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed, Child = new StackPanel { Children = { sugTxt, sugBtns } } };
+            lekRow.Children.Add(lekTxt); lekRow.Children.Add(sugBox); root.Children.Add(lekRow);
             // widmo (FFT z prawdziwych probek wyjscia)
             const int NB = 32;
             var spec = new Canvas { Height = 56, Background = new SolidColorBrush(Color.FromRgb(0x0C, 0x0D, 0x14)), Margin = new Thickness(0, 8, 0, 4), ClipToBounds = true };
@@ -391,7 +398,7 @@ namespace Velivo
             for (int i = 0; i < 3; i++) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var c1 = new StackPanel { Margin = new Thickness(0, 0, 8, 0) }; var c2 = new StackPanel { Margin = new Thickness(8, 0, 8, 0) }; var c3 = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
-            Move(c1, head, src, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
+            Move(c1, head, src, lekRow, bypassBtn, sum3, bigVu, vuLeg, spec, axis);
             Move(c2, lmh, lvl, nums, leg, hist, info, bypassNote);
             Move(c3, prow, srow, drow, tgt, lrow, devBox, eqExp, brow, foot);   // 🧠 nauka pod celem - każdy element root musi trafić do kolumny
             Grid.SetColumn(c1, 0); Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
@@ -415,6 +422,19 @@ namespace Velivo
                 state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
+                { var (lt, lc0) = AbLektorStatus(); if (lekTxt.Text != lt) { lekTxt.Text = lt; lekTxt.Foreground = new SolidColorBrush(lc0); } }
+                if ((AbLekSugText ?? "") != (string)(sugBox.Tag ?? ""))
+                {   // propozycja doradcy: Ty decydujesz (Zastosuj / Nie teraz)
+                    sugBox.Tag = AbLekSugText ?? ""; sugBox.Visibility = AbLekSugText == null ? Visibility.Collapsed : Visibility.Visible;
+                    sugTxt.Text = "💡 " + (AbLekSugText ?? ""); sugBtns.Children.Clear();
+                    if (AbLekSugText != null)
+                    {
+                        bool canApply = AbLekSugApply != null;
+                        var ok = Mk(canApply ? L.T("✔ Zastosuj") : L.T("OK"), () => AbLektorSugAccept()); ok.ToolTip = canApply ? L.T("Zmienia ustawienie lektora tak, jak proponuje doradca. Zawsze możesz wrócić suwakiem w panelu lektora.") : null;
+                        sugBtns.Children.Add(ok);
+                        if (canApply) { var no = Mk(L.T("Nie teraz"), AbLektorSugDismiss); no.ToolTip = L.T("Ta propozycja nie wróci do końca tego uruchomienia Velivo."); sugBtns.Children.Add(no); }
+                    }
+                }
                 // FFT 2048 z ostatnich probek
                 int pos = AbProc.ScopePos;
                 for (int i = 0; i < 2048; i++) { fftRe[i] = live ? AbProc.Scope[(pos - 2048 + i + 8192) & 8191] * hann[i] : 0; fftIm[i] = 0; }

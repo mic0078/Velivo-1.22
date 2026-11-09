@@ -216,7 +216,7 @@ namespace Velivo
             foreach (var b in new[] { open, dock, pin, paint, add, del }) btns.Children.Add(b);
             var head = new DockPanel { Height = 30, Background = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0)), Cursor = Cursors.SizeAll };
             // 🔁 powtarzanie terminu (obok ikony karteczki): jednorazowo, co tydzien, co 2 tygodnie, co miesiac, co rok albo wlasny odstep
-            var rep = headBtn("", ""); rep.Content = new TextBlock { Text = "\uE8EE", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)) };   // ikona powtarzania jak w Windows (emoji 🔁 bylo nieczytelne) rep.HorizontalAlignment = HorizontalAlignment.Left; rep.Margin = new Thickness(6, 0, 0, 0);
+            var rep = headBtn("", ""); rep.Content = new TextBlock { Text = "\uE8EE", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)) }; rep.HorizontalAlignment = HorizontalAlignment.Left; rep.Margin = new Thickness(6, 0, 0, 0);   // ikona powtarzania jak w Windows (emoji 🔁 bylo nieczytelne)
             Func<string, string> repName = r => string.IsNullOrEmpty(r) ? L.T("jednorazowo") : r == "7d" ? L.T("co tydzień") : r == "14d" ? L.T("co 2 tygodnie") : r == "1m" ? L.T("co miesiąc") : r == "1y" ? L.T("co rok")
                 : r.EndsWith("d") ? string.Format(L.T("co {0} dni"), r.TrimEnd('d')) : r.EndsWith("m") ? string.Format(L.T("co {0} mies."), r.TrimEnd('m')) : string.Format(L.T("co {0} lat(a)"), r.TrimEnd('y'));
             Action repInfoUpd = () => { };   // napis "powtarza sie… nastepny termin" na dole karteczki (ustawiany nizej)

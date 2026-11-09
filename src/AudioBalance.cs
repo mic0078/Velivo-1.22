@@ -49,7 +49,7 @@ namespace Velivo
         readonly Seg[] _segs = new Seg[512]; int _segI; long _posNow; long _posAt;
         public long PlayedProcFrame()
         {
-            long pos, at, pAt; lock (_segs) { pos = _posNow; at = _posAt; }
+            long pos, at; lock (_segs) { pos = _posNow; at = _posAt; }
             pos += (long)((System.Diagnostics.Stopwatch.GetTimestamp() - at) / (double)System.Diagnostics.Stopwatch.Frequency * AbProcessor.Fs * (_paused ? 0 : 1));
             lock (_segs)
             {

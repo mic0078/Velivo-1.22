@@ -973,7 +973,7 @@ namespace Velivo
                     if (predDone && !predNext) foreach (var _ in predWord.Split(' ')) _sent.RemoveLast();   // podmienione slowo (slowa) juz w zdaniu
                     { int wi = 0; foreach (var cw in choice.Split(' ')) _sent.Word(cw, wi++ == 0 && comma, false); }
                     var lastW = choice.Split(' ').Last(); tPrevWord = lastW; tPrevSpace = true; lastSent = ' '; capNext = false; PhysAfterInsert(lastW, before);   // kontekst dla nastepnego slowa
-                    foreach (var pw in choice.Split(' ')) learn(pw); cur = "";   // caly zwrot - kazde slowo lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
+                    foreach (var pw in choice.Split(' ')) learn(pw); cur = ""; lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';   // caly zwrot - kazde slowo
                     predShow(null, false);
                 };
                 preds.Add(pb); predRow.Children.Add(pb);

@@ -147,7 +147,7 @@ namespace Velivo
                     }
                 }
                 {
-                    var summary = LocalSummary(text, 4, title);
+                    var summary = LocalSummary(text, Math.Max(4, Math.Min(10, (text ?? "").Length / 1500)), title);   // 📌 konkrety: 4 zdania krótki tekst, do 10 przy długim artykule
 
                     var win = new Window
                     {
@@ -177,7 +177,12 @@ namespace Velivo
                     };
 
                     var view = new WebView2();
-                    var readSummaryBtn = SmallButton(L.T("Czytaj podsumowanie"), null);
+                    var readSummaryBtn = SmallButton(L.T("📌 Tylko konkrety"), null);
+                    readSummaryBtn.ToolTip = L.T("Czyta tylko najważniejsze zdania artykułu (ramka „W skrócie”) – bez wstępów i powtórzeń.");
+                    // 🗣 głos czytania - ten sam wybór co w Ustawieniach, zmiana od razu (zapamiętana)
+                    var voiceBox = new ComboBox { Width = 220, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Głos czytania") };
+                    AddReadVoiceItems(voiceBox);
+                    voiceBox.SelectedItem = voiceBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (_settings.ReadVoice ?? "")) ?? voiceBox.Items[0];
                     if (summary.Length == 0) readSummaryBtn.Visibility = Visibility.Collapsed;   // bez streszczenia nie ma czego czytac
                     var readAllBtn = SmallButton(L.T("Czytaj całość"), null);
                     var stopBtn = SmallButton(L.T("Zatrzymaj"), null);
@@ -230,6 +235,7 @@ namespace Velivo
                     bar.Children.Add(volLabel);
                     bar.Children.Add(volume);
                     bar.Children.Add(volValue);
+                    bar.Children.Add(voiceBox);
                     bar.Children.Add(readSummaryBtn);
                     bar.Children.Add(readAllBtn);
                     bar.Children.Add(stopBtn);
@@ -245,7 +251,7 @@ namespace Velivo
                         view.Dispose();
                     };
 
-                    var readAllJs = "window.getSelection().removeAllRanges();window.__velivoRead && window.__velivoRead.start(false," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(ReadVoiceTag()) + ")";
+                    Func<string> readAllJs = () => "window.getSelection().removeAllRanges();window.__velivoRead && window.__velivoRead.start(false," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(ReadVoiceTag()) + ")";   // głos i tempo w chwili kliknięcia
                     win.Loaded += async (a, b) =>
                     {
                         try
@@ -274,14 +280,21 @@ namespace Velivo
   document.addEventListener('click', e => {
     if (e.button !== 0 || (getSelection() && getSelection().toString().trim())) return;
     if (e.target.closest('a,button,input,textarea,select')) return;
-    window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", " + JsonSerializer.Serialize(ReadVoiceTag()) + @");
+    window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", window.__velivoVoice !== undefined ? window.__velivoVoice : " + JsonSerializer.Serialize(ReadVoiceTag()) + @");
   });
 })();");
-                                if (readAll) await view.CoreWebView2.ExecuteScriptAsync(readAllJs);
+                                if (readAll) await view.CoreWebView2.ExecuteScriptAsync(readAllJs());
                                 else await ReadSummaryInReader(view);
                             };
                             readSummaryBtn.Click += async (s3, e3) => await ReadSummaryInReader(view);
-                            readAllBtn.Click += async (s3, e3) => await view.CoreWebView2.ExecuteScriptAsync(readAllJs);
+                            readAllBtn.Click += async (s3, e3) => await view.CoreWebView2.ExecuteScriptAsync(readAllJs());
+                            voiceBox.SelectionChanged += async (s3, e3) =>
+                            {
+                                if (!(voiceBox.SelectedItem is ComboBoxItem vi)) return;
+                                _settings.ReadVoice = (string)vi.Tag; try { _settings.Save(DataDir); } catch (Exception) { }
+                                var vt = JsonSerializer.Serialize(ReadVoiceTag());
+                                await view.CoreWebView2.ExecuteScriptAsync("window.__velivoVoice=" + vt + ";window.__velivoRead && window.__velivoRead.config(" + Num(_settings.ReadRate) + "," + vt + "," + Num(_settings.ReadVolume) + ")");   // od bieżącego zdania
+                            };
                             stopBtn.Click += async (s3, e3) => await view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.stop()");
                         }
                         catch (Exception ex)

@@ -73,6 +73,9 @@ namespace Velivo
     if (t.length < 2 || dup(t)) continue;
     blocks.push({ el, text: t });
   }
+  // naglowki, zajawki i listy przed pierwszym prawdziwym akapitem (spis tresci, „najnowsze”, rubryki) - pomijane: czytanie od tytulu prosto do tresci
+  const first = blocks.findIndex(b => b.el.matches('p, blockquote, pre') && b.text.length >= 80);
+  if (first > 0) for (let i = first - 1; i >= 0; i--) if (blocks[i].el.tagName !== 'H1') blocks.splice(i, 1);
   let fallback = false;   // nie znaleziono akapitow - caly tekst bloku (awaryjnie, przegrywa z prawdziwa trescia)
   if (blocks.length === 0) { const t = (root.innerText || '').replace(/\s+/g, ' ').trim(); if (t) { blocks.push({ el: root, text: t }); fallback = true; } }
   const h1 = document.querySelector('h1');   // tytul na poczatek, jesli jest poza trescia

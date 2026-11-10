@@ -3942,6 +3942,42 @@ namespace Velivo
                     var abm = new MenuItem { Header = L.T("🎚 Audio Monitor i korektor…") };
                     abm.Click += (a, b) => ShowAudioMonitor();
                     cm.Items.Add(abm);
+                    // 🎛 wtyczki VST3 (efekty) - rozwijana lista: całość wł./wył., włączone (każda osobno + okno producenta), dostępne do dodania
+                    VstLoad();
+                    var vm = new MenuItem { Header = L.T("🎛 Wtyczki VST3") };
+                    var vOn = new MenuItem { Header = L.T("VST3 aktywne"), IsCheckable = true, IsChecked = Vst3.Active, IsEnabled = Vst3.Chain.Length > 0, ToolTip = L.T("Twoje wtyczki przejmują przetwarzanie dźwięku filmu (korektor i wyrównywanie Velivo są wtedy pominięte)") };
+                    vOn.Click += (a, b) => { Vst3.Active = vOn.IsChecked; VstSave(); if (Vst3.Active) AbNeedsRestartHint(); };
+                    vm.Items.Add(vOn); vm.Items.Add(new Separator());
+                    vm.Items.Add(new MenuItem { Header = L.T("Włączone w łańcuchu") + " (" + Vst3.Chain.Length + ")", IsEnabled = false, FontWeight = FontWeights.Bold });
+                    foreach (var vp in Vst3.Chain)
+                    {
+                        var p = vp; var it = new MenuItem { Header = p.Name };
+                        var onIt = new MenuItem { Header = L.T("Włączona"), IsCheckable = true, IsChecked = p.On, ToolTip = L.T("Włącz / wyłącz tę wtyczkę") };
+                        onIt.Click += (a, b) => { p.On = onIt.IsChecked; VstSave(); };
+                        var ed = new MenuItem { Header = L.T("Ustaw…"), ToolTip = L.T("Otwiera okno wtyczki (ustawienia producenta)") };
+                        ed.Click += (a, b) => { try { p.ShowEditor(p.Name); } catch (Exception ex) { ShowToast("🎛 " + ex.Message, null); } };
+                        var rm = new MenuItem { Header = L.T("Usuń"), ToolTip = L.T("Usuwa wtyczkę z łańcucha") };
+                        rm.Click += (a, b) => VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p);
+                        it.Items.Add(onIt); it.Items.Add(ed); it.Items.Add(rm); vm.Items.Add(it);
+                    }
+                    var av = new MenuItem { Header = L.T("Dostępne") };
+                    var found = Vst3.Scan().GroupBy(x => System.IO.Path.GetFileNameWithoutExtension(x), StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+                        .Where(x => !Vst3.Chain.Any(c => string.Equals(System.IO.Path.GetFileNameWithoutExtension(c.Path), System.IO.Path.GetFileNameWithoutExtension(x), StringComparison.OrdinalIgnoreCase)))
+                        .OrderBy(x => System.IO.Path.GetFileNameWithoutExtension(x), StringComparer.CurrentCultureIgnoreCase).ToList();
+                    if (found.Count == 0) av.Items.Add(new MenuItem { Header = L.T("Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3"), IsEnabled = false });
+                    foreach (var f0 in found)
+                    {
+                        var ff = f0; var mi = new MenuItem { Header = System.IO.Path.GetFileNameWithoutExtension(ff), ToolTip = ff };
+                        mi.Click += (a, b) =>
+                        {
+                            try { var p = Vst3.Plugin.Load(ff); VstSet(Vst3.Chain.Concat(new[] { p }).ToArray()); if (!Vst3.Active) { Vst3.Active = true; VstSave(); AbNeedsRestartHint(); } ShowToast("🎛 " + p.Name + L.T(" – dodana i włączona"), null); }
+                            catch (Exception ex) { App.LogError(new Exception("VST3: " + ff, ex)); ShowToast(L.T("🎛 Nie udało się wczytać wtyczki: ") + ex.Message, null); }
+                        };
+                        av.Items.Add(mi);
+                    }
+                    av.Header = L.T("Dostępne") + " (" + found.Count + ")";
+                    vm.Items.Add(new Separator()); vm.Items.Add(av);
+                    cm.Items.Add(vm);
                 }
             });
             popup(aspect, cm =>

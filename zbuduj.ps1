@@ -26,6 +26,8 @@ Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
 $edycja = if ($Podstawowa) { "-p:Podstawowa=true" } else { "-p:Podstawowa=false" }
 dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo $edycja
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -ForegroundColor Red; exit 1 }
+# darmowe efekty VST3 razem z Velivo (pelna wersja): foldery .vst3 i licencje z dodatki\VST3 (poza repozytorium) -> build\velivo\VST3
+if (-not $Podstawowa -and (Test-Path "dodatki\VST3")) { Copy-Item -Recurse -Force "dodatki\VST3" "build\velivo\VST3"; Write-Host ("Wtyczki VST3 w instalatorze: " + ((Get-ChildItem "dodatki\VST3" -Filter *.vst3).Count)) -ForegroundColor Green }
 # Velivo Komunikator - samodzielny program (rozmowy i serwer) z tego samego kodu komunikatora
 Remove-Item -Recurse -Force build\komunikator -ErrorAction SilentlyContinue
 dotnet publish komunikator-windows\VelivoKomunikator.csproj -c Release -r win-x64 --self-contained true -o build\komunikator

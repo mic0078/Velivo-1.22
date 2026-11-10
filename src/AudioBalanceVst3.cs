@@ -405,7 +405,7 @@ namespace Velivo
         public static List<string> Scan()
         {
             var res = new List<string>();
-            foreach (var root in new[] { System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles), "VST3"), System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Common", "VST3") }.Distinct())
+            foreach (var root in new[] { System.IO.Path.Combine(AppContext.BaseDirectory, "VST3"), System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles), "VST3"), System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Common", "VST3") }.Distinct())
             {
                 if (!Directory.Exists(root)) continue;
                 try

@@ -7,3 +7,6 @@ build/
 *.user
 .vs/
 src/UbolExtension/
+
+# darmowe wtyczki VST3 dolaczane do instalatora (pobrane recznie, z licencjami) - nie w repozytorium
+dodatki/

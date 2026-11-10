@@ -245,6 +245,14 @@ namespace Velivo
         // 🗣 doradca lektora: pasmo zrozumiałości mowy 1–4 kHz wyniku filmu (przed głośnością odtwarzacza) i aktywność dialogów w oryginale
         readonly AbBiquad aHp = AbBiquad.Hp(48000, 1000), aLp = AbBiquad.Lp(48000, 4000), sHp = AbBiquad.Hp(48000, 250), sLp = AbBiquad.Lp(48000, 4000);
         double aP, sS, sA;
+        // 🗣 inteligentny lektor: podczas czytania film ściszany na bieżąco tylko o tyle, ile trzeba, by lektor był nad filmem w paśmie mowy
+        //    (cicha scena - bez ściszania, głośna / dialog - więcej); płynnie, z przytrzymaniem między kwestiami - bez skoków głośności
+        public volatile bool LekOn, LekPath;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
+        public volatile float LekRef = float.NaN;          // lektor w paśmie mowy (dBFS, z jego głośnością); NaN - jeszcze niezmierzony
+        public volatile float LekFloorDb = -9;             // najgłębsze ściszenie (suwak „Film podczas czytania”)
+        public double LekDb;                               // obecne ściszenie filmu pod lektora (dB, do wyświetlania)
+        readonly AbBiquad kHp = AbBiquad.Hp(48000, 1000), kLp = AbBiquad.Lp(48000, 4000);
+        double kP; long lekHold;
         public double OutSpeechBandDb => 10 * Math.Log10(aP + 1e-12);        // film w paśmie 1–4 kHz (dBFS, średnio ok. 3 s)
         public double InDialogShare => sA < 1e-9 ? 0 : Math.Min(1, sS / sA); // udział pasma mowy w oryginale (0–1) - dialogi w filmie
         readonly AbBiquad[] eq = new AbBiquad[10]; readonly double[] eqDb = new double[10]; volatile bool eqDirty = true;
@@ -287,7 +295,7 @@ namespace Velivo
         {
             In.ResetWindows(); Out.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
-            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0; aHp.Reset(); aLp.Reset(); sHp.Reset(); sLp.Reset(); aP = sS = sA = 0;
+            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0; aHp.Reset(); aLp.Reset(); sHp.Reset(); sLp.Reset(); aP = sS = sA = 0; kHp.Reset(); kLp.Reset(); kP = 0; LekDb = 0; lekHold = 0;
             foreach (var b in eq) b?.Reset();
         }
         volatile bool newReq;
@@ -314,6 +322,7 @@ namespace Velivo
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
+            LekPath = !Bypass && !Vst3.Ready && !(pr == null && !eqOn && dlg == 0);
             if (!Bypass && Vst3.Ready)
             {   // 🎛 łańcuch VST3 przejmuje przetwarzanie: oryginał → wtyczki → głośność odtwarzacza (bez korektora, dialogów i wyrównywania Velivo - bez podwójnego przetwarzania)
                 for (int f = 0; f < frames; f++)
@@ -416,6 +425,15 @@ namespace Velivo
                     // (korekta wyniku „corrDb” usunięta 2026-11-09: domykała pętlę na wyjściu i między zdaniami pchała głośność w górę i w dół - falowanie ±3 dB)
                     g = levDb + fastDb + grDb;
                     if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
+                }
+                {   // 🗣 inteligentny lektor: film w paśmie mowy (300 ms, po wyrównaniu) → potrzebne ściszenie; atak 0,15 s, powrót 0,6 s, przytrzymanie 0,8 s
+                    double km = (l + r) * 0.5 * Math.Pow(10, g / 20) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs);
+                    double kWant = 0;
+                    if (LekOn) { lekHold = (long)(0.8 * Fs); double rf = LekRef; double fl = LekFloorDb;
+                        kWant = double.IsNaN(rf) ? fl : Math.Max(fl, Math.Min(0, rf - 10 - 10 * Math.Log10(kP + 1e-12) - (InDialogShare > 0.5 ? 2 : 0))); }   // lektor 10 dB nad filmem (12 przy dialogu w filmie)
+                    else if (lekHold > 0) { lekHold--; kWant = LekDb; }
+                    LekDb += (kWant - LekDb) / ((kWant < LekDb ? 0.15 : 0.6) * Fs);
+                    g += LekDb;
                 }
                 double lin = Math.Pow(10, g / 20) * vS;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami

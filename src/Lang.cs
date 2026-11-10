@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Inteligentne ściszanie filmu (na bieżąco)", "Smart film ducking (real time)" },
+            { "Wł.: podczas czytania film ściszany płynnie tylko o tyle, ile trzeba, by lektor był wyraźny (cicha scena – wcale, głośna – mocniej, najwyżej do „Film podczas czytania”). Działa, gdy dźwięk idzie przez Audio Balance. Wył.: dawne stałe ściszenie na czas kwestii.", "On: while the narrator reads, the film is lowered smoothly only as much as needed for a clear narrator (quiet scene – not at all, loud – more, at most to “Film while reading”). Works when sound goes through Audio Balance. Off: the old fixed ducking for each line." },
             { "Wykryte wtyczki VST3 na tym komputerze – zaznacz, aby włączyć w łańcuchu, odznacz, aby wyłączyć", "VST3 plugins found on this computer – tick to switch on in the chain, untick to switch off" },
             { "zamknęła Velivo przy wczytywaniu – usunięta z łańcucha", "closed Velivo while loading – removed from the chain" },
             { "🎤 Mój głos (XTTS)", "🎤 My voice (XTTS)" },

@@ -440,10 +440,23 @@ namespace Velivo
         {
             try
             {
-                var opts = _env.CreateCoreWebView2ControllerOptions();
-                opts.IsInPrivateModeEnabled = tab.Private && !tab.Bank;
-                if (tab.Bank) opts.ProfileName = BankProfileName;   // osobny, trwaly profil trybu bankowego
-                await tab.View.EnsureCoreWebView2Async(_env, opts);
+                // 0x8007139F (zły stan) zaraz po aktualizacji / starcie: proces przeglądarki poprzedniego Velivo jeszcze się zamyka - kilka prób, zanim komunikat
+                for (int attempt = 1; ; attempt++)
+                {
+                    try
+                    {
+                        var opts = _env.CreateCoreWebView2ControllerOptions();
+                        opts.IsInPrivateModeEnabled = tab.Private && !tab.Bank;
+                        if (tab.Bank) opts.ProfileName = BankProfileName;   // osobny, trwaly profil trybu bankowego
+                        await tab.View.EnsureCoreWebView2Async(_env, opts);
+                        break;
+                    }
+                    catch (System.Runtime.InteropServices.COMException cx) when (attempt < 5 && (uint)cx.HResult == 0x8007139F)
+                    {
+                        App.LogError(new Exception("Karta: WebView2 w złym stanie (0x8007139F) - próba " + attempt + " z 5", cx));
+                        await System.Threading.Tasks.Task.Delay(1500);
+                    }
+                }
             }
             catch (Exception ex)
             {

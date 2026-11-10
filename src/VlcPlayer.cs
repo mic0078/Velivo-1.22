@@ -2110,7 +2110,7 @@ namespace Velivo
             bool muted = false;
             Action<string, string> loadSubsText = (text, name) =>
             {
-                lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1; LectorStopRender(lc);
+                lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1; lc.NoSubsShown = false; LectorStopRender(lc);
                 if (text == null) return;
                 try { lc.Cues = ParseSubtitles(text); lc.Lang = SubtitleLanguage(lc.Cues); lc.File = name; }
                 catch (Exception ex) { App.LogError(ex); }

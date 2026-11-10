@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "🗣 Lektor: ten film nie ma napisów – lektor czyta napisy (plik .srt obok filmu albo wczytany z menu Napisy)", "🗣 Narrator: this film has no subtitles – the narrator reads subtitles (an .srt file next to the film or one loaded from the Subtitles menu)" },
             { "efekt dźwiękowy", "sound effect" },
             { "zmiana wysokości głosu", "pitch shift" },
             { "modulacja (chorus, flanger)", "modulation (chorus, flanger)" },

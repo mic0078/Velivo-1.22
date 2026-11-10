@@ -3977,6 +3977,9 @@ namespace Velivo
                     }
                     av.Header = L.T("Dostępne") + " (" + found.Count + ")";
                     vm.Items.Add(new Separator()); vm.Items.Add(av);
+                    var fr = new MenuItem { Header = L.T("Darmowe wtyczki…"), ToolTip = L.T("Darmowe efekty do poprawiania dźwięku – opis i strona do pobrania") };
+                    fr.Click += (a, b) => VstFreeWindow(Window.GetWindow(overlay) ?? win);
+                    vm.Items.Add(fr);
                     cm.Items.Add(vm);
                 }
             });

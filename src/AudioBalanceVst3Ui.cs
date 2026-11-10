@@ -71,6 +71,34 @@ namespace Velivo
             removed?.Dispose(); VstSave();
         }
 
+        // 🎁 darmowe efekty do pobrania (strony projektów) - Velivo ich nie dołącza (licencje), po instalacji same pojawiają się w „Dostępne”
+        static readonly (string Name, string Desc, string Lic, string Url)[] VstFree =
+        {
+            ("ZL Equalizer", "Korektor dynamiczny z widmem – podbija lub ścisza wybrane pasma, np. dialogi, bas, syczenie. Najbliższy Ozone EQ.", "AGPL-3 (otwarty kod)", "https://zl-audio.github.io/plugins/zlequalizer/"),
+            ("Airwindows Consolidated", "Setki prostych efektów w jednej wtyczce: korektory, kompresory, „ciepło” i przestrzeń dźwięku.", "MIT / GPL-3 (otwarty kod)", "https://www.airwindows.com/consolidated/"),
+            ("LSP Plugins", "Pełny zestaw studyjny: korektory, kompresory, limitery, bramki szumów. Wersja na Windows po rejestracji w sklepie LSP.", "LGPL-3 (otwarty kod)", "https://lsp-plug.in/"),
+        };
+
+        void VstFreeWindow(Window owner)
+        {
+            var fg = Brushes.White; var dim = new SolidColorBrush(Color.FromRgb(0xA8, 0xAE, 0xC4)); dim.Freeze();
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock { Text = L.T("Darmowe efekty do poprawiania dźwięku. Kliknij „Pobierz”, zainstaluj wtyczkę, a Velivo samo ją wykryje (Wtyczki VST3 → Dostępne). Twoje własne wtyczki (np. Ozone) działają tak jak dotąd."), Foreground = dim, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+            foreach (var p in VstFree)
+            {
+                var row = new DockPanel { Margin = new Thickness(0, 0, 0, 14), LastChildFill = true };
+                var url = p.Url; var b = new Button { Content = L.T("Pobierz"), Padding = new Thickness(14, 4, 14, 4), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top, ToolTip = url };
+                b.Click += (s, e) => { Show(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Activate(); AddTab(url, false); };
+                DockPanel.SetDock(b, Dock.Right); row.Children.Add(b);
+                var t = new StackPanel();
+                t.Children.Add(new TextBlock { Text = p.Name, Foreground = fg, FontSize = 14, FontWeight = FontWeights.SemiBold });
+                t.Children.Add(new TextBlock { Text = L.T(p.Desc), Foreground = fg, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 2) });
+                t.Children.Add(new TextBlock { Text = L.T("Licencja: ") + p.Lic, Foreground = dim, FontSize = 11 });
+                row.Children.Add(t); sp.Children.Add(row);
+            }
+            new Window { Title = L.T("Darmowe wtyczki VST3"), Uid = "own-theme", Owner = owner, Background = AbDark, Foreground = fg, Width = 520, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = sp }.Show();   // own-theme: ciemne niezależnie od motywu okien
+        }
+
         FrameworkElement VstPanel(Window owner, Brush fg, Brush dim, Func<string, Action, Button> mk)
         {
             VstLoad(); Vst3.EditorClosed = VstSave;   // ustawienia z okna wtyczki zapisane od razu po jego zamknięciu, nie dopiero przy zamknięciu odtwarzacza
@@ -165,7 +193,8 @@ namespace Velivo
                 var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Wtyczki VST3") + " (*.vst3)|*.vst3", Title = L.T("Wybierz wtyczkę VST3"), Multiselect = true, InitialDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles), "VST3") };
                 if (d.ShowDialog(owner) == true) foreach (var f in d.FileNames) Add(f);
             });
-            brow.Children.Add(addScan); brow.Children.Add(addFile); root.Children.Add(brow);
+            var addFree = mk(L.T("Darmowe wtyczki…"), () => VstFreeWindow(owner)); addFree.ToolTip = L.T("Darmowe efekty do poprawiania dźwięku – opis i strona do pobrania");
+            brow.Children.Add(addScan); brow.Children.Add(addFile); brow.Children.Add(addFree); root.Children.Add(brow);
             Refresh();
             return root;
         }

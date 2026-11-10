@@ -243,7 +243,6 @@ namespace Velivo
                 }
                 // magistrale: wszystkie audio stereo; dźwięk filmu w pierwszej, pozostałe (np. sidechain) - cisza
                 nIn = Math.Max(0, ((delegate* unmanaged[Stdcall]<IntPtr, int, int, int>)Fn(comp, 7))(comp, 0, 0));
-                if (nIn == 0) throw new NotEffectException();   // Velivo przetwarza dźwięk filmu - tylko efekty
                 nOut = Math.Max(1, ((delegate* unmanaged[Stdcall]<IntPtr, int, int, int>)Fn(comp, 7))(comp, 0, 1));
                 var arrIn = stackalloc ulong[Math.Max(1, nIn)]; var arrOut = stackalloc ulong[nOut];
                 for (int i = 0; i < nIn; i++) arrIn[i] = 3; for (int i = 0; i < nOut; i++) arrOut[i] = 3;   // kStereo (L|R)
@@ -360,14 +359,24 @@ namespace Velivo
 
         // domyślne foldery wtyczek VST3 w Windows
         // instrument wg moduleinfo.json pakietu VST3 (Sub Categories z „Instrument”, bez „Fx”); brak pliku = pokazujemy (nie wiadomo)
-        static bool IsInstrument(string bundle)
-        {
+        public static bool IsInstrument(string bundle)
+        {   // syntezator tylko wtedy, gdy KAŻDA klasa audio pakietu ma podkategorię „Instrument” i żadna „Fx” - każdy efekt (także z dodatkiem instrumentu) zostaje na liście
             try
             {
                 var mi = System.IO.Path.Combine(bundle, "Contents", "Resources", "moduleinfo.json");
                 if (!File.Exists(mi)) return false;
-                var t = File.ReadAllText(mi);
-                return t.IndexOf("Instrument", StringComparison.OrdinalIgnoreCase) >= 0 && t.IndexOf("Fx", StringComparison.Ordinal) < 0;
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(mi), new System.Text.Json.JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = System.Text.Json.JsonCommentHandling.Skip });
+                if (!doc.RootElement.TryGetProperty("Classes", out var cls) || cls.ValueKind != System.Text.Json.JsonValueKind.Array) return false;
+                int audio = 0, instr = 0;
+                foreach (var c in cls.EnumerateArray())
+                {
+                    if (!c.TryGetProperty("Category", out var cat) || cat.GetString() != "Audio Module Class") continue;
+                    audio++;
+                    var subs = new List<string>();
+                    if (c.TryGetProperty("Sub Categories", out var sc)) { if (sc.ValueKind == System.Text.Json.JsonValueKind.Array) foreach (var x in sc.EnumerateArray()) subs.Add(x.GetString() ?? ""); else if (sc.ValueKind == System.Text.Json.JsonValueKind.String) subs.AddRange((sc.GetString() ?? "").Split('|')); }
+                    if (subs.Any(x => x.Equals("Instrument", StringComparison.OrdinalIgnoreCase)) && !subs.Any(x => x.Equals("Fx", StringComparison.OrdinalIgnoreCase))) instr++;
+                }
+                return audio > 0 && instr == audio;
             }
             catch (Exception) { return false; }
         }
@@ -400,7 +409,6 @@ namespace Velivo
             return d;
         }
 
-        public sealed class NotEffectException : Exception { public NotEffectException() : base(L.T("To syntezator (instrument), a nie efekt – nie przetworzy dźwięku filmu")) { } }
         public static Action EditorClosed;   // okno producenta zamknięte - Velivo zapisuje stan wtyczek (vst3.json)
 
         public static List<string> Scan()

@@ -132,7 +132,11 @@ namespace Velivo
                     var ff = f; bool In() => Vst3.Chain.Any(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase));
                     var cb = new CheckBox { Content = System.IO.Path.GetFileNameWithoutExtension(f), ToolTip = f, Foreground = fg, IsChecked = In(), Margin = new Thickness(0, 0, 0, 6) };
                     cb.Click += (a, b) => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (cb.IsChecked == true) { if (p == null) Add(ff); } else if (p != null) { VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p); Refresh(); on.IsChecked = Vst3.Active; } cb.IsChecked = In(); };
-                    sp.Children.Add(cb);
+                    var ed = mk(L.T("Ustaw…"), () => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (p == null) return; try { p.ShowEditor(p.Name); } catch (Exception ex) { ShowToast("🎛 " + ex.Message, null); } });
+                    ed.Margin = new Thickness(8, 0, 0, 6); ed.Padding = new Thickness(8, 1, 8, 1); ed.ToolTip = L.T("Otwiera okno wtyczki (ustawienia producenta)"); ed.IsEnabled = In();
+                    cb.Click += (a, b) => ed.IsEnabled = In();
+                    var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(cb); row.Children.Add(ed);
+                    sp.Children.Add(row);
                 }
                 new Window { Title = L.T("Wtyczki VST3"), Owner = Window.GetWindow(addScan), Background = AbDark, SizeToContent = SizeToContent.WidthAndHeight, MaxHeight = 600, MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.Show();
             };

@@ -2915,6 +2915,19 @@ namespace Velivo
                 curRecFile = tv != null && IptvSt.WatchFromRec ? RecFileFor(path) : null;
                 if (curRecFile != null) stream = false;
                 var src = !stream && curRecFile == null && tv == null && !File.Exists(path) ? JellyfinStreamUrl(path) : null;   // 🎞 pliku nie ma na tym komputerze - z serwera Jellyfin
+                if (!stream && curRecFile == null && tv == null && !File.Exists(path))
+                {   // pliku nie ma (np. odłączony dysk) - słowami zamiast stania na 0:00; po 15 s, gdy nic nie gra, powód
+                    string drv = System.IO.Path.GetPathRoot(path) ?? "", srv = src != null ? new Uri(src).Authority : null;
+                    showOsd(L.T("🎞 Pliku nie ma na dysku ") + drv + (srv != null ? L.T(" – próbuję z serwera Jellyfin ") + srv : L.T(" – dysk odłączony?")));
+                    int seqNow = loadSeq + 1; var pathNow = path;
+                    _ = System.Threading.Tasks.Task.Delay(15000).ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        long len = 0; try { len = mp.Length; } catch (Exception) { }
+                        if (seqNow != loadSeq || len > 0) return;
+                        showOsd(L.T("🎞 Nie można otworzyć filmu: dysk ") + drv + L.T(" jest niedostępny") + (srv != null ? L.T(" i serwer Jellyfin ") + srv + L.T(" nie odpowiada") : "") + L.T(". Podłącz dysk albo włącz serwer."));
+                        App.LogInfo("Film nie startuje: brak pliku " + pathNow + (srv != null ? ", Jellyfin " + srv + " nie odpowiada" : ""));
+                    })));
+                }
                 using (var media = curRecFile != null ? new Media(_libVlc, curRecFile, FromType.FromPath) : src != null ? new Media(_libVlc, new Uri(src)) : stream ? new Media(_libVlc, new Uri(path)) : new Media(_libVlc, path, FromType.FromPath))
                 {
                     // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC; przy strumieniu - z komputera wlasciciela

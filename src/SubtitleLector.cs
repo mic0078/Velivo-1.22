@@ -93,13 +93,29 @@ namespace Velivo
             catch (Exception) { return new List<string>(); }
         }
 
+        // napisy do filmu - tam, gdzie znajduje je VLC: obok filmu (ta sama nazwa albo podobna), w podfolderach Subs / Subtitles / Napisy,
+        //    a gdy w folderze jest tylko ten jeden film - każdy plik napisów (było: tylko dokładnie ta sama nazwa - VLC pokazywał napisy, a lektor ich nie widział)
         internal static string FindSubtitleFor(string video)
         {
             try
             {
                 var dir = Path.GetDirectoryName(video); var name = Path.GetFileNameWithoutExtension(video);
-                var all = Directory.EnumerateFiles(dir, name + "*").Where(f => SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList();
-                return all.OrderBy(f => Regex.IsMatch(Path.GetFileName(f), @"[._-](pl|pol|polish)[._-]", RegexOptions.IgnoreCase) ? 0 : 1).ThenBy(f => f.Length).FirstOrDefault();
+                string Norm(string x) => Regex.Replace(x.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "");
+                var dirs = new List<string> { dir };
+                foreach (var d in Directory.EnumerateDirectories(dir)) { var n = Path.GetFileName(d).ToLowerInvariant(); if (n.StartsWith("sub") || n.StartsWith("napis") || n == "pl" || n == name.ToLowerInvariant()) dirs.Add(d); }
+                var all = dirs.SelectMany(d => { try { return Directory.EnumerateFiles(d); } catch (Exception) { return Enumerable.Empty<string>(); } })
+                    .Where(f => SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList();
+                if (all.Count == 0) return null;
+                string nn = Norm(name);
+                bool Same(string f) { var b = Norm(Path.GetFileNameWithoutExtension(f)); return b.StartsWith(nn) || nn.StartsWith(b) && b.Length >= 6; }
+                var match = all.Where(Same).ToList();
+                if (match.Count == 0)
+                {
+                    int videos = 0; try { videos = Directory.EnumerateFiles(dir).Count(f => new[] { ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v", ".ts", ".webm", ".mpg", ".mpeg" }.Contains(Path.GetExtension(f).ToLowerInvariant())); } catch (Exception) { }
+                    if (videos != 1) return null;   // kilka filmów w folderze - bez pewności, które napisy są do którego
+                    match = all;
+                }
+                return match.OrderBy(f => Regex.IsMatch(Path.GetFileName(f), @"(^|[._\- ])(pl|pol|polish|polski)([._\- ]|$)", RegexOptions.IgnoreCase) ? 0 : 1).ThenBy(f => Path.GetDirectoryName(f) == dir ? 0 : 1).ThenBy(f => f.Length).FirstOrDefault();
             }
             catch (Exception) { return null; }
         }

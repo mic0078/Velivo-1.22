@@ -43,7 +43,8 @@ namespace Velivo
         public volatile string Source = "";
         public long LateDrops, EarlyWaits;
         public volatile int AheadFrames;
-        double _vstLoad;   // obciążenie wtyczek VST3 na tym komputerze (0–1+): ile czasu porcji zajmuje ich liczenie - samo dopasowuje porcje i zapas   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
+        // start dopasowany do komputera (procesor i pamięć RAM): słabszy zaczyna od większych porcji, potem pomiar przestawia na bieżąco
+        double _vstLoad = Environment.ProcessorCount <= 4 || GC.GetGCMemoryInfo().TotalAvailableMemoryBytes < 8L << 30 ? 0.3 : 0;   // obciążenie wtyczek VST3 na tym komputerze (0–1+): ile czasu porcji zajmuje ich liczenie - samo dopasowuje porcje i zapas   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
         // dokładnie „która próbka procesora teraz gra”: każdy kawałek zapisuje, gdzie trafił w kolejce karty (W) i jaki ma numer w procesorze (P);
         // pozycja karty (zapisana w wątku dźwięku z czasem) → kawałek → próbka. Cisza wstawiona przez Velivo nie ma odpowiednika.
         struct Seg { public long W, P; public int N; }

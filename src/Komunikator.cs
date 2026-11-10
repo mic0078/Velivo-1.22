@@ -1200,21 +1200,33 @@ namespace Velivo
             _komResend = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _komResend.Tick += (s, e) =>
             {
-                _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
-                // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
-                if (_komRelayListener != null) { KomStep("BoxDoneRepeat", KomBoxDoneRepeat); KomStep("BoxExpire", KomBoxExpire); KomSrvInfoSend(); KomStep("EvHave", KomEvHave); _ = Task.Run(KomTakeover); KomStep("PeerLinks", KomPeerLinks); Dispatcher.BeginInvoke(new Action(() => KomStep("SrvAsk", KomSrvAsk))); KomStep("ClTick", KomClTick); KomFillReport(); }
-                // 📬 odbiorca połączony z innym moim serwerem (mama z NUCBOX) - czekające tu wiadomości idą do tamtego serwera; on doręcza i odsyła „doręczone”, kopia tu znika
-                if (_komRelayListener != null) foreach (var kv in _komStore.ToArray()) if (!_komRemote.ContainsKey(kv.Key) && KomPeerWith(kv.Key) != null) { List<System.Text.Json.Nodes.JsonNode> sq; lock (kv.Value) sq = kv.Value.ToList(); foreach (var q in sq) KomBoxPeers(KomFwd(q)); }
-                if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id);
-                if (_komContacts.Count == 0) return;
-                KomSendUdp(KomPacket("p2p-here"), null);
-                foreach (var c in _komContacts.ToList()) KomStep("ResendPending " + c.Name, () => KomResendPending(c));
-                KomStep("RelayPair", KomRelayPair);   // 🔁 dwa serwery w domu, które się nie znają - przedstawione sobie
-                _komRefresh?.Invoke();   // kropki w sieci / poza siecia
+                long tick0 = System.Diagnostics.Stopwatch.GetTimestamp(); _komTickSteps = new List<(string, long)>();
+                try { KomResendTick(); }
+                finally
+                {   // ⏱ cały krok zegara ponad 80 ms - do Błędów Velivo trzy najdłuższe części (przyczyna zacięć co minutę)
+                    long ms = (System.Diagnostics.Stopwatch.GetTimestamp() - tick0) * 1000 / System.Diagnostics.Stopwatch.Frequency; var st = _komTickSteps; _komTickSteps = null;
+                    if (ms > 80) App.LogInfo("ZACIĘCIE – zegar komunikatora " + ms + " ms: " + string.Join(", ", st.OrderByDescending(x => x.Item2).Take(3).Select(x => x.Item1 + " " + x.Item2 + " ms")));
+                }
             };
             _komResend.Start();
             // powrot do domowej sieci (np. laptop) - ogloszenie, kontakty dosylaja zalegle wiadomosci
             NetworkChange.NetworkAddressChanged += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_komContacts.Count > 0) KomAnnounce(); }));
+        }
+        List<(string, long)> _komTickSteps;
+
+        void KomResendTick()
+        {
+                _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
+                // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
+                if (_komRelayListener != null) { KomStep("BoxDoneRepeat", KomBoxDoneRepeat); KomStep("BoxExpire", KomBoxExpire); KomStep("SrvInfo", KomSrvInfoSend); KomStep("EvHave", KomEvHave); _ = Task.Run(KomTakeover); KomStep("PeerLinks", KomPeerLinks); Dispatcher.BeginInvoke(new Action(() => KomStep("SrvAsk", KomSrvAsk))); KomStep("ClTick", KomClTick); KomStep("FillReport", KomFillReport); }
+                // 📬 odbiorca połączony z innym moim serwerem (mama z NUCBOX) - czekające tu wiadomości idą do tamtego serwera; on doręcza i odsyła „doręczone”, kopia tu znika
+                KomStep("StoreToPeer", () => { if (_komRelayListener != null) foreach (var kv in _komStore.ToArray()) if (!_komRemote.ContainsKey(kv.Key) && KomPeerWith(kv.Key) != null) { List<System.Text.Json.Nodes.JsonNode> sq; lock (kv.Value) sq = kv.Value.ToList(); foreach (var q in sq) KomBoxPeers(KomFwd(q)); } });
+                KomStep("BoxFlush", () => { if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id); });
+                if (_komContacts.Count == 0) return;
+                KomSendUdp(KomPacket("p2p-here"), null);
+                foreach (var c in _komContacts.ToList()) KomStep("ResendPending " + c.Name, () => KomResendPending(c));
+                KomStep("RelayPair", KomRelayPair);   // 🔁 dwa serwery w domu, które się nie znają - przedstawione sobie
+                KomStep("Odswiez", () => _komRefresh?.Invoke());   // kropki w sieci / poza siecia
         }
 
         // ⏱ krok zegara serwera dłuższy niż 0,3 s - do Błędów Velivo z nazwą (zacięcia okna co minutę)
@@ -1223,6 +1235,7 @@ namespace Velivo
             long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             try { a(); } catch (Exception ex) { App.LogError(ex); }
             long ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+            _komTickSteps?.Add((name, ms));
             if (ms > 300) App.LogInfo("ZACIĘCIE – zegar serwera: " + name + " " + ms + " ms");
         }
 

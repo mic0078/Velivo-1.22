@@ -438,6 +438,7 @@ namespace Velivo
 
         async void InitView(BrowserTab tab, string url, CoreWebView2NewWindowRequestedEventArgs pending, CoreWebView2Deferral deferral)
         {
+            bool envRenewed = false;
             try
             {
                 // 0x8007139F (zły stan) zaraz po aktualizacji / starcie: proces przeglądarki poprzedniego Velivo jeszcze się zamyka - kilka prób, zanim komunikat
@@ -453,8 +454,11 @@ namespace Velivo
                     }
                     catch (System.Runtime.InteropServices.COMException cx) when (attempt < 5 && (uint)cx.HResult == 0x8007139F)
                     {
-                        App.LogError(new Exception("Karta: WebView2 w złym stanie (0x8007139F) - próba " + attempt + " z 5", cx));
-                        await System.Threading.Tasks.Task.Delay(1500);
+                        App.LogError(new Exception("Karta: WebView2 w złym stanie (0x8007139F) - silnik przeglądarki od nowa, próba " + attempt + " z 5", cx));
+                        await System.Threading.Tasks.Task.Delay(attempt == 1 ? 300 : 1500);
+                        // silnik przeglądarki padł (np. aktualizacja WebView2 w tle) - stare środowisko już nie otworzy karty: nowe, z tymi samymi ustawieniami
+                        envRenewed = true;
+                        try { _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"), new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() }); } catch (Exception ex2) { App.LogError(ex2); }
                     }
                 }
             }
@@ -664,13 +668,17 @@ namespace Velivo
                 if (e.IsSuccess) { _ = RememberPageTextAsync(tab, core); _ = ApplyPendingVideoTime(tab, core); }
             };
 
-            if (pending != null)
+            if (pending != null && !envRenewed)
             {
                 pending.NewWindow = core;
                 pending.Handled = true;
                 deferral.Complete();
             }
-            else Navigate(tab, string.IsNullOrWhiteSpace(url) ? NewTabUrl : url);
+            else
+            {   // nowy silnik przeglądarki (stary padł) nie przejmie okna otwieranego przez starą stronę - zwykłe otwarcie adresu
+                if (pending != null) { try { pending.Handled = true; deferral.Complete(); } catch (Exception) { } }
+                Navigate(tab, string.IsNullOrWhiteSpace(url) ? NewTabUrl : url);
+            }
         }
 
         static bool IsInternalNewTabUrl(string uri)

@@ -2181,23 +2181,26 @@ namespace Velivo
         {
             if (DateTime.UtcNow - _komExpireAt < TimeSpan.FromHours(1)) return; _komExpireAt = DateTime.UtcNow;
             var evLim = DateTimeOffset.UtcNow.AddDays(-Math.Min(KomBoxDays, 3)).ToUnixTimeMilliseconds(); _ = Task.Run(() => { try { KomEv.Prune(evLim); } catch (Exception ex) { App.LogError(ex); } });   // 🗄 dziennik zdarzeń - tylko z okresu przechowywania
-            var limit = DateTime.Now.AddDays(-KomBoxDays);
-            try
-            {
-                var root = Path.Combine(DataDir, "skrzynka");
-                if (Directory.Exists(root)) foreach (var d in Directory.GetDirectories(root))
-                    foreach (var hdr in Directory.GetFiles(d, "*.hdr").Where(x => File.GetLastWriteTime(x) < limit))
-                    {
-                        foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { }
-                        KomBoxLog(Path.GetFileName(d), "usunięty – odbiorca nie odebrał pliku przez " + KomBoxDays + " dni (ustawienie „Przechowuj”)");
-                    }
-                long lim = DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds(); bool ch = false;
-                foreach (var kv in _komStore) lock (kv.Value) ch |= kv.Value.RemoveAll(x => (long?)x["ts"] is long t && t < lim) > 0;
-                if (ch) KomStoreSave();
-                foreach (var p in new[] { Path.Combine(DataDir, "skrzynka.log"), Path.Combine(DataDir, "skrzynka-serwery.log") })
-                if (File.Exists(p)) { var keep = File.ReadLines(p).Where(l => !(l.Length > 19 && DateTime.TryParse(l.Substring(0, 19), out var t) && t < limit)).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, keep) + Environment.NewLine); }
-            }
-            catch (Exception ex) { App.LogError(ex); }
+            _ = Task.Run(() =>
+            {   // pliki skrzynki i dzienniki - w tle (w wątku okna przycinało Velivo, zmierzone 522 ms)
+                var limit = DateTime.Now.AddDays(-KomBoxDays);
+                try
+                {
+                    var root = Path.Combine(DataDir, "skrzynka");
+                    if (Directory.Exists(root)) foreach (var d in Directory.GetDirectories(root))
+                        foreach (var hdr in Directory.GetFiles(d, "*.hdr").Where(x => File.GetLastWriteTime(x) < limit))
+                        {
+                            foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { }
+                            KomBoxLog(Path.GetFileName(d), "usunięty – odbiorca nie odebrał pliku przez " + KomBoxDays + " dni (ustawienie „Przechowuj”)");
+                        }
+                    long lim = DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds(); bool ch = false;
+                    foreach (var kv in _komStore) lock (kv.Value) ch |= kv.Value.RemoveAll(x => (long?)x["ts"] is long t && t < lim) > 0;
+                    if (ch) KomStoreSave();
+                    foreach (var p in new[] { Path.Combine(DataDir, "skrzynka.log"), Path.Combine(DataDir, "skrzynka-serwery.log") })
+                    if (File.Exists(p)) { var keep = File.ReadLines(p).Where(l => !(l.Length > 19 && DateTime.TryParse(l.Substring(0, 19), out var t) && t < limit)).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, keep) + Environment.NewLine); }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            });
             KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdays", ["id"] = _komId, ["days"] = KomBoxDays, ["at"] = (long?)_komOpt["boxDaysAt"] ?? 0 });   // moje serwery - to samo przechowywanie (nowsze ustawienie wygrywa)
         }
         async void KomServerCenter(Window owner)

@@ -323,7 +323,8 @@ namespace Velivo
             // budowa lektora takze w pauzie: zmiana glosu / „Zbuduj lektora teraz” przy zatrzymanym filmie startuje od razu
             // (wczesniej sprawdzane dopiero po pauzie - budowa ruszala dopiero po wznowieniu filmu)
             if (lc.RenderKey != null && lc.RenderKey != LectorKeyParams(lc)) LectorStopRender(lc);   // inny glos / tempo / jakosc - liczymy od nowa
-            if (!lc.Rendering && lc.RenderKey == null) LectorRender(lc, !(_settings.VlcLectorAutoBuild || lc.BuildNow));   // samo albo po przycisku „Zbuduj lektora teraz”
+            long tNow = 0; try { tNow = mp.Time; } catch (Exception) { }
+            if (!lc.Rendering && lc.RenderKey == null && (tNow > 2000 || lc.BuildNow)) LectorRender(lc, !(_settings.VlcLectorAutoBuild || lc.BuildNow));   // budowa dopiero, gdy film już gra (2 s) - głos nie zajmuje karty graficznej w chwili otwierania filmu (film się nie włączał)   // samo albo po przycisku „Zbuduj lektora teraz”
             bool queue = _settings.VlcLectorQueue;   // kolejka: czyta wszystko po kolei, nawet z opóźnieniem
             bool ended = false; try { ended = mp.State == LibVLCSharp.Shared.VLCState.Ended; } catch (Exception) { }
             long t = ended ? long.MaxValue / 2 : mp.Time - mp.SpuDelay / 1000;   // jeden zegar: czas filmu VLC z przesunieciem napisow (to samo co napisy); koniec filmu = kolejka do konca
@@ -355,7 +356,7 @@ namespace Velivo
             lc.PauseT = long.MinValue;
             lc.LastTime = t; lc.LastWall = now;
             int i = queue ? (lc.LastSpoken + 1 < lc.Cues.Count && lc.Cues[lc.LastSpoken + 1].Start <= t ? lc.LastSpoken + 1 : -1) : CueAt(lc.Cues, t);   // kolejka: następna niewypowiedziana, która już się pojawiła
-            if (i < 0 && lc.PreWav == null && !lc.Busy)
+            if (i < 0 && lc.PreWav == null && !lc.Busy && tNow > 2000)
             {   // przerwa miedzy napisami: najblizsza kwestia liczona juz teraz (po starcie i po przewinieciu)
                 int j = lc.Cues.FindIndex(c => c.Start > t);
                 if (j >= 0 && lc.Cues[j].Start - t < 15000 && !lc.Ready.ContainsKey(j)) { lc.PreIdx = j; lc.PreWav = LectorSynthLive(lc, lc.Cues[j]); }

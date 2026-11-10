@@ -129,14 +129,8 @@ namespace Velivo.SupertonicTts
 
         private string PreprocessText(string text, string lang)
         {
-            // Velivo: litera, którą model zna w całości (np. polskie ą ć ę ł ń ó ś ź ż), zostaje w całości; rozkładana (NFKD) tylko ta, której model nie zna.
-            // Samo NFKD rozbijało „ą” na „a” + ogonek - gdy model nie zna osobnego ogonka, gubił go i polski brzmiał jak rosyjski.
-            {
-                var nb = new StringBuilder(text.Length);
-                foreach (var ch in text.Normalize(NormalizationForm.FormC))
-                    if (_indexer.TryGetValue(ch, out var known) && known >= 0) nb.Append(ch); else nb.Append(ch.ToString().Normalize(NormalizationForm.FormKD));   // -1 w tablicy = znak nieznany modelowi
-                text = nb.ToString();
-            }
+            // TODO: Need advanced normalizer for better performance
+            text = text.Normalize(NormalizationForm.FormKD);
 
             // Remove emojis (wide Unicode range)
             // C# doesn't support \u{...} syntax in regex, so we use character filtering instead

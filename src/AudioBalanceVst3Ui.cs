@@ -124,21 +124,41 @@ namespace Velivo
             addScan.ToolTip = L.T("Wtyczki zainstalowane w Windows (Common Files\\VST3)");
             addScan.Click += (s, e) =>
             {
-                var found = Vst3.Scan(); var sp = new StackPanel { Margin = new Thickness(12) };
-                sp.Children.Add(T(L.T("Wykryte wtyczki VST3 na tym komputerze – zaznacz, aby włączyć w łańcuchu, odznacz, aby wyłączyć"), 11, dim));
-                if (found.Count == 0) sp.Children.Add(T(L.T("Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3"), 12, dim));
-                foreach (var f in found)
+                bool In(string ff) => Vst3.Chain.Any(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase));
+                // wykryte wtyczki w porządku: najpierw włączone w łańcuchu, potem dostępne - w każdej grupie alfabetycznie, kolejne okno nie otwiera się drugi raz
+                var found = Vst3.Scan().GroupBy(x => System.IO.Path.GetFileNameWithoutExtension(x), StringComparer.OrdinalIgnoreCase).Select(g => g.FirstOrDefault(In) ?? g.First()).ToList(); var sp = new StackPanel { Margin = new Thickness(14) };   // ta sama wtyczka w dwóch folderach (Common Files i folder użytkownika) - raz
+                void Build()
                 {
-                    var ff = f; bool In() => Vst3.Chain.Any(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase));
-                    var cb = new CheckBox { Content = System.IO.Path.GetFileNameWithoutExtension(f), ToolTip = f, Foreground = fg, IsChecked = In(), Margin = new Thickness(0, 0, 0, 6) };
-                    cb.Click += (a, b) => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (cb.IsChecked == true) { if (p == null) Add(ff); } else if (p != null) { VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p); Refresh(); on.IsChecked = Vst3.Active; } cb.IsChecked = In(); };
-                    var ed = mk(L.T("Ustaw…"), () => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (p == null) return; try { p.ShowEditor(p.Name); } catch (Exception ex) { ShowToast("🎛 " + ex.Message, null); } });
-                    ed.Margin = new Thickness(8, 0, 0, 6); ed.Padding = new Thickness(8, 1, 8, 1); ed.ToolTip = L.T("Otwiera okno wtyczki (ustawienia producenta)"); ed.IsEnabled = In();
-                    cb.Click += (a, b) => ed.IsEnabled = In();
-                    var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(cb); row.Children.Add(ed);
-                    sp.Children.Add(row);
+                    sp.Children.Clear();
+                    sp.Children.Add(T(L.T("Wykryte wtyczki VST3 na tym komputerze – zaznacz, aby włączyć w łańcuchu, odznacz, aby wyłączyć"), 11, dim));
+                    if (found.Count == 0) { sp.Children.Add(T(L.T("Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3"), 12, dim)); return; }
+                    var sorted = found.OrderBy(x => System.IO.Path.GetFileNameWithoutExtension(x), StringComparer.CurrentCultureIgnoreCase).ToList();
+                    foreach (var (head, group) in new[] { (L.T("Włączone w łańcuchu"), sorted.Where(In).ToList()), (L.T("Dostępne"), sorted.Where(x => !In(x)).ToList()) })
+                    {
+                        if (group.Count == 0) continue;
+                        var h = T(head + " (" + group.Count + ")", 12, fg); h.FontWeight = FontWeights.SemiBold; h.Margin = new Thickness(0, 10, 0, 4); sp.Children.Add(h);
+                        foreach (var f in group)
+                        {
+                            var ff = f; bool on0 = In(ff);
+                            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 4), LastChildFill = true };
+                            var cb = new CheckBox { IsChecked = on0, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Włącz / wyłącz tę wtyczkę") };
+                            cb.Click += (a2, b2) =>
+                            {
+                                var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase));
+                                if (cb.IsChecked == true) { if (p == null) Add(ff); } else if (p != null) { VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p); Refresh(); on.IsChecked = Vst3.Active; }
+                                Build();
+                            };
+                            var ed = mk(L.T("Ustaw…"), () => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (p == null) return; try { p.ShowEditor(p.Name); } catch (Exception ex) { ShowToast("🎛 " + ex.Message, null); } });
+                            ed.Padding = new Thickness(10, 2, 10, 2); ed.Margin = new Thickness(8, 0, 0, 0); ed.ToolTip = L.T("Otwiera okno wtyczki (ustawienia producenta)"); ed.Visibility = on0 ? Visibility.Visible : Visibility.Hidden;
+                            var name = new TextBlock { Text = System.IO.Path.GetFileNameWithoutExtension(f), Foreground = on0 ? fg : dim, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = f };
+                            DockPanel.SetDock(cb, Dock.Left); DockPanel.SetDock(ed, Dock.Right);
+                            row.Children.Add(cb); row.Children.Add(ed); row.Children.Add(name);
+                            sp.Children.Add(row);
+                        }
+                    }
                 }
-                new Window { Title = L.T("Wtyczki VST3"), Owner = Window.GetWindow(addScan), Background = AbDark, SizeToContent = SizeToContent.WidthAndHeight, MaxHeight = 600, MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.Show();
+                Build();
+                new Window { Title = L.T("Wtyczki VST3"), Uid = "own-theme", Owner = Window.GetWindow(addScan), Background = AbDark, Foreground = fg, Width = 460, Height = 600, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.Show();   // own-theme: wspólny jasny motyw okien kasował ciemne tło (jasne napisy na białym)
             };
             var addFile = mk(L.T("Dodaj z pliku…"), () =>
             {

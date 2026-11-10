@@ -134,7 +134,7 @@ namespace Velivo
 
         sealed class Lector
         {
-            public List<SubCue> Cues = new List<SubCue>(); public bool NoSubsShown;
+            public List<SubCue> Cues = new List<SubCue>();
             public string Lang = "pl", File;
             public int LastSpoken = -1;
             public long LastTime = long.MinValue;
@@ -229,7 +229,6 @@ namespace Velivo
                     return m;
                 });
                 if (gen != lc.RenderGen) return;
-                App.LogInfo("Lektor: " + (loadOnly ? "budowa wyłączona (tylko gotowe nagrania)" : "budowa całego filmu") + ", kwestii " + lc.Cues.Count + ", gotowych " + found.Count + ", głos " + (_settings.VlcLectorVoice ?? "auto") + ", folder " + dir);   // diagnoza „lektor się nie buduje”
                 lc.Ready = found; lc.RenderKey = key;
                 if (loadOnly) { if (found.Count > 0) lc.Osd?.Invoke(L.T("🗣 Lektor: używam gotowych nagrań tego filmu – ") + found.Count + " / " + lc.Cues.Count); return; }
                 lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
@@ -237,9 +236,8 @@ namespace Velivo
                 while (gen == lc.RenderGen)
                 {
                     int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
-                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k) && k != lc.PreIdx) { idx = k; break; }   // bez kwestii liczonej właśnie na żywo - ta sama praca dwa razy dławiła silnik (opóźnienie, pomijane kwestie)
-                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k) && k != lc.PreIdx) { idx = k; break; }
-                    if (idx < 0 && lc.PreIdx >= 0 && !lc.Ready.ContainsKey(lc.PreIdx)) { await Task.Delay(200); continue; }   // została tylko kwestia liczona na żywo - poczekaj, potem dokończ
+                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
+                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
                     if (idx < 0) { lc.Osd?.Invoke(L.T("🗣 Lektor gotowy dla całego filmu")); break; }   // caly film gotowy
                     var preSw = System.Diagnostics.Stopwatch.StartNew(); while (gen == lc.RenderGen && lc.PreWav != null && !lc.PreWav.IsCompleted && preSw.ElapsedMilliseconds < 120000) await Task.Delay(100);   // kwestia liczona na biezaco ma pierwszenstwo (XTTS/Supertonic licza jedna naraz); samo granie lektora budowy nie wstrzymuje
                     if (gen != lc.RenderGen) return;
@@ -305,8 +303,6 @@ namespace Velivo
         }
 
         // odtwarzacz Windows (WPF MediaPlayer): przy 1,0 gra CISZEJ niż przy 0,99 (sprawdził właściciel - lektor i czytnik) - górna granica 0,99
-        // 🗣 inteligentny lektor (domyślnie wł.); wył. = dawne stałe ściszanie na czas kwestii
-        internal static bool LectorSmart { get => GetPref("lektor-inteligentny") != "0"; set => SetPref("lektor-inteligentny", value ? "1" : "0"); }
         internal static double WpfVol(double v) => Math.Max(0, Math.Min(0.99, v));
 
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
@@ -314,17 +310,12 @@ namespace Velivo
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
             lc.VoiceDone?.TrySetResult(false);
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
-            AbProc.LekOn = false;   // inteligentny lektor: film wraca płynnie (przytrzymanie 0,8 s - między kwestiami bez pompowania)
         }
 
         // co ~120 ms: nowa kwestia na ekranie -> czytamy ja (wolny lektor = pomijamy zalegle, czytamy biezaca)
         async void LectorTick(Lector lc, LibVLCSharp.Shared.MediaPlayer mp, Func<int> volume)
         {
-            if (lc.Cues.Count == 0)
-            {   // lektor włączony, a film bez napisów - mówimy raz, zamiast milczeć (wyglądało jak „lektor się nie buduje”)
-                if (!lc.NoSubsShown && mp.IsPlaying && mp.Time > 3000) { lc.NoSubsShown = true; lc.Osd?.Invoke(L.T("🗣 Lektor: ten film nie ma napisów – lektor czyta napisy (plik .srt obok filmu albo wczytany z menu Napisy)")); }
-                return;
-            }
+            if (lc.Cues.Count == 0) return;
             // budowa lektora takze w pauzie: zmiana glosu / „Zbuduj lektora teraz” przy zatrzymanym filmie startuje od razu
             // (wczesniej sprawdzane dopiero po pauzie - budowa ruszala dopiero po wznowieniu filmu)
             if (lc.RenderKey != null && lc.RenderKey != LectorKeyParams(lc)) LectorStopRender(lc);   // inny glos / tempo / jakosc - liczymy od nowa
@@ -384,15 +375,8 @@ namespace Velivo
                 long tn = mp.Time - mp.SpuDelay / 1000;
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
-                double duck = Math.Max(10, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // najmniej 10% - film nigdy nie znika pod lektorem
-                bool smart = LectorSmart && _abOut != null && AbProc.LekPath;   // 🗣 inteligentny: ściszanie na bieżąco w procesorze Velivo (wg filmu w paśmie mowy), bez skoku głośności
-                if (smart) { AbProc.LekFloorDb = (float)(20 * Math.Log10(duck)); AbProc.LekOn = true; }
-                else { lc.Ducked = volume(); mp.Volume = (int)Math.Round(lc.Ducked * duck); }   // dawny sposób: stałe ściszenie na czas kwestii
-                if (smart)
-                {   // poziom tego głosu w paśmie mowy (w tle) - od niego zależy, ile ściszyć film
-                    double lv0 = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume));
-                    _ = Task.Run(() => { LectorWavDb(wav, out var bd); if (!double.IsNaN(bd) && !double.IsInfinity(bd)) AbProc.LekRef = (float)(bd + 20 * Math.Log10(lv0)); });
-                }
+                lc.Ducked = volume(); double duck = Math.Max(10, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // najmniej 10% - film nigdy nie znika pod lektorem   // film ciszej, jak lektor w TV
+                mp.Volume = (int)Math.Round(lc.Ducked * duck);
                 // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
                 if (AbProc.Active && !AbBypass)
                 {   // pomiar lektora w tle (odczyt i filtr całego WAV - w wątku okna przycinał słupki Audio Monitora), wynik do doradcy w wątku okna; lektor nie czeka

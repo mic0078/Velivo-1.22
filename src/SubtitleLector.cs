@@ -134,7 +134,7 @@ namespace Velivo
 
         sealed class Lector
         {
-            public List<SubCue> Cues = new List<SubCue>();
+            public List<SubCue> Cues = new List<SubCue>(); public bool NoSubsShown;
             public string Lang = "pl", File;
             public int LastSpoken = -1;
             public long LastTime = long.MinValue;
@@ -229,6 +229,7 @@ namespace Velivo
                     return m;
                 });
                 if (gen != lc.RenderGen) return;
+                App.LogInfo("Lektor: " + (loadOnly ? "budowa wyłączona (tylko gotowe nagrania)" : "budowa całego filmu") + ", kwestii " + lc.Cues.Count + ", gotowych " + found.Count + ", głos " + (_settings.VlcLectorVoice ?? "auto") + ", folder " + dir);   // diagnoza „lektor się nie buduje”
                 lc.Ready = found; lc.RenderKey = key;
                 if (loadOnly) { if (found.Count > 0) lc.Osd?.Invoke(L.T("🗣 Lektor: używam gotowych nagrań tego filmu – ") + found.Count + " / " + lc.Cues.Count); return; }
                 lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
@@ -318,7 +319,16 @@ namespace Velivo
         // co ~120 ms: nowa kwestia na ekranie -> czytamy ja (wolny lektor = pomijamy zalegle, czytamy biezaca)
         async void LectorTick(Lector lc, LibVLCSharp.Shared.MediaPlayer mp, Func<int> volume)
         {
-            if (lc.Cues.Count == 0) return;
+            if (lc.Cues.Count == 0)
+            {   // diagnoza „lektor się nie buduje”: lektor włączony, a Velivo nie ma tekstu napisów (raz na film - Błędy Velivo i napis na filmie)
+                if (!lc.NoSubsShown && mp.IsPlaying && mp.Time > 3000)
+                {
+                    lc.NoSubsShown = true; int spu = 0; try { spu = mp.SpuDescription.Count(t => t.Id >= 0); } catch (Exception) { }
+                    App.LogInfo("Lektor: brak tekstu napisów (plik napisów: " + (lc.File ?? "brak") + ", ścieżki napisów w filmie: " + spu + ")");
+                    lc.Osd?.Invoke(spu > 0 ? L.T("🗣 Lektor: napisy są wbudowane w film – lektor czyta napisy z pliku (.srt obok filmu albo wczytany z menu Napisy)") : L.T("🗣 Lektor: ten film nie ma napisów – lektor czyta napisy (plik .srt obok filmu albo wczytany z menu Napisy)"));
+                }
+                return;
+            }
             // budowa lektora takze w pauzie: zmiana glosu / „Zbuduj lektora teraz” przy zatrzymanym filmie startuje od razu
             // (wczesniej sprawdzane dopiero po pauzie - budowa ruszala dopiero po wznowieniu filmu)
             if (lc.RenderKey != null && lc.RenderKey != LectorKeyParams(lc)) LectorStopRender(lc);   // inny glos / tempo / jakosc - liczymy od nowa

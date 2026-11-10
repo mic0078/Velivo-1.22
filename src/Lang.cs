@@ -197,6 +197,8 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "🗣 Lektor: napisy są wbudowane w film – lektor czyta napisy z pliku (.srt obok filmu albo wczytany z menu Napisy)", "🗣 Narrator: subtitles are built into the film – the narrator reads subtitles from a file (.srt next to the film or loaded from the Subtitles menu)" },
+            { "🗣 Lektor: ten film nie ma napisów – lektor czyta napisy (plik .srt obok filmu albo wczytany z menu Napisy)", "🗣 Narrator: this film has no subtitles – the narrator reads subtitles (an .srt file next to the film or one loaded from the Subtitles menu)" },
             { "Inteligentne ściszanie filmu (na bieżąco)", "Smart film ducking (real time)" },
             { "Wł.: podczas czytania film ściszany płynnie tylko o tyle, ile trzeba, by lektor był wyraźny (cicha scena – wcale, głośna – mocniej, najwyżej do „Film podczas czytania”). Działa, gdy dźwięk idzie przez Audio Balance. Wył.: dawne stałe ściszenie na czas kwestii.", "On: while the narrator reads, the film is lowered smoothly only as much as needed for a clear narrator (quiet scene – not at all, loud – more, at most to “Film while reading”). Works when sound goes through Audio Balance. Off: the old fixed ducking for each line." },
             { "efekt dźwiękowy", "sound effect" },

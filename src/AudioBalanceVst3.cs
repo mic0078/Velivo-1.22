@@ -358,6 +358,19 @@ namespace Velivo
         }
 
         // domyślne foldery wtyczek VST3 w Windows
+        // instrument wg moduleinfo.json pakietu VST3 (Sub Categories z „Instrument”, bez „Fx”); brak pliku = pokazujemy (nie wiadomo)
+        static bool IsInstrument(string bundle)
+        {
+            try
+            {
+                var mi = System.IO.Path.Combine(bundle, "Contents", "Resources", "moduleinfo.json");
+                if (!File.Exists(mi)) return false;
+                var t = File.ReadAllText(mi);
+                return t.IndexOf("Instrument", StringComparison.OrdinalIgnoreCase) >= 0 && t.IndexOf("Fx", StringComparison.Ordinal) < 0;
+            }
+            catch (Exception) { return false; }
+        }
+
         public static List<string> Scan()
         {
             var res = new List<string>();
@@ -371,7 +384,7 @@ namespace Velivo
                     {
                         var d = stack.Pop();
                         foreach (var e in Directory.EnumerateFileSystemEntries(d))
-                            if (e.EndsWith(".vst3", StringComparison.OrdinalIgnoreCase)) res.Add(e);
+                            if (e.EndsWith(".vst3", StringComparison.OrdinalIgnoreCase)) { if (!IsInstrument(e)) res.Add(e); }   // syntezatory (Analog Lab, ARP…) nie przetwarzają dźwięku filmu - pomijane
                             else if (Directory.Exists(e)) stack.Push(e);
                     }
                 }

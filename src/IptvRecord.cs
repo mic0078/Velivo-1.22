@@ -203,7 +203,8 @@ namespace Velivo
         // zaplanowane wlaczenie o godzinie: film z biblioteki albo kanal TV (zwykle okno, lista z wyszukiwaniem, data i godzina)
         void ShowScheduleStart(Window owner)
         {
-            var w = new Window { Title = L.T("⏰ Zaplanuj włączenie"), Width = 560, Height = 640, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var w = new Window { Title = L.T("⏰ Zaplanuj włączenie"), Width = 560, Height = 640, Owner = owner == this || owner == _vlcWin ? null : owner, Topmost = owner.Topmost, WindowStartupLocation = owner == this || owner == _vlcWin ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner };
+            w.Deactivated += (s0, e0) => w.Topmost = false;   // na wierzchu tylko do kliknięcia gdzie indziej - przeglądarka może je zasłonić
             Independent(w);
             var films = LoadLibrary().Where(v => v.Peer == null && File.Exists(v.Path)).Select(v => (Name: ShownTitle(v, MetaFor(v.Path)), Url: v.Path, Opts: (List<string>)null))
                 .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -571,7 +572,8 @@ namespace Velivo
         // lista zaplanowanych: nagrania i przelaczenia, usuwanie / zatrzymanie
         void ShowJobs(Window owner)
         {
-            var w = new Window { Title = L.T("📅 Zaplanowane"), Width = 640, Height = 360, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var w = new Window { Title = L.T("📅 Zaplanowane"), Width = 640, Height = 360, Owner = owner == this || owner == _vlcWin ? null : owner, Topmost = owner.Topmost, WindowStartupLocation = owner == this || owner == _vlcWin ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner };
+            w.Deactivated += (s0, e0) => w.Topmost = false;   // na wierzchu tylko do kliknięcia gdzie indziej - przeglądarka może je zasłonić
             Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new GridView();
             foreach (var c in new[] { new[] { "What", "Co", "70" }, new[] { "When", "Kiedy", "170" }, new[] { "Channel", "Kanał", "160" }, new[] { "Title", "Program", "220" } })
@@ -650,7 +652,8 @@ namespace Velivo
         // nagrania z folderu nagran: odtworz, usun (z dysku i z biblioteki filmow), otworz folder
         void ShowRecordings(Window owner)
         {
-            var w = new Window { Title = L.T("🎞 Nagrania TV"), Width = 760, Height = 420, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var w = new Window { Title = L.T("🎞 Nagrania TV"), Width = 760, Height = 420, Owner = owner == this || owner == _vlcWin ? null : owner, Topmost = owner.Topmost, WindowStartupLocation = owner == this || owner == _vlcWin ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner };
+            w.Deactivated += (s0, e0) => w.Topmost = false;   // na wierzchu tylko do kliknięcia gdzie indziej - przeglądarka może je zasłonić
             Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new GridView();
             foreach (var c in new[] { new[] { "Name", "Nagranie", "460" }, new[] { "Date", "Data", "130" }, new[] { "Size", "Rozmiar", "90" } })

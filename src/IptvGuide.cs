@@ -23,7 +23,8 @@ namespace Velivo
         {
             if (_guideWin != null && _guideWin.IsLoaded) { _guideWin.Activate(); return; }
             if (_iptvPl == null) ShowIptv(owner);   // lista jeszcze nie wczytana - okno kanalow ja wczyta, przewodnik odswiezy sie sam
-            var w = new Window { Title = L.T("📅 Program TV"), Width = 900, Height = 620, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var w = new Window { Title = L.T("📅 Program TV"), Width = 900, Height = 620, Owner = owner == this || owner == _vlcWin ? null : owner, Topmost = owner.Topmost, WindowStartupLocation = owner == this || owner == _vlcWin ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner };
+            w.Deactivated += (s0, e0) => w.Topmost = false;   // na wierzchu tylko do kliknięcia gdzie indziej - przeglądarka może je zasłonić
             Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 0, 4), Padding = new Thickness(4), Width = 200 };
             var hours = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 190, ToolTip = L.T("Jak często odświeżać listę i program TV") };

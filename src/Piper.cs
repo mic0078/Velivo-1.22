@@ -252,6 +252,19 @@ namespace Velivo
             if (_piperPlayer != null) _piperPlayer.Volume = WpfVol(v);   // od razu, w trakcie zdania
         }
 
+        // zmiana głosu w trakcie czytania: od razu, od bieżącego zdania - także przejście Windows ↔ Piper/Supertonic (tryb zewnętrzny na stronie)
+        async Task ReadVoiceApply(CoreWebView2 core)
+        {
+            if (core == null) return;
+            try
+            {
+                await PreparePiperReading(core);
+                var vt = JsonSerializer.Serialize(ReadVoiceTag());
+                await core.ExecuteScriptAsync("window.__velivoVoice=" + vt + ";window.__velivoRead && window.__velivoRead.config(" + Num(_settings.ReadRate) + "," + vt + "," + Num(_settings.ReadVolume) + ")");
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         // Wlacza tryb Piper na stronie (gdy wybrany glos Piper) i uruchamia petle odtwarzania. Zwraca false = czytaj systemowo.
         async Task<bool> PreparePiperReading(CoreWebView2 core)
         {
@@ -277,7 +290,7 @@ namespace Velivo
 
         async Task PiperDriveLoop(CoreWebView2 core, PiperVoice voice)
         {
-            string cachedText = null; Task<string> cachedWav = null;
+            string cachedText = null; Task<string> cachedWav = null; PiperVoice cachedVoice = null;
             int idle = 0;
             try
             {
@@ -292,12 +305,13 @@ namespace Velivo
                     if (string.IsNullOrEmpty(str)) { if (++idle > 750) break; continue; }   // ~1 min bez czytania - konczymy
                     idle = 0;
                     var p = JsonSerializer.Deserialize<PiperPending>(str);
-                    var v = SelectedPiperVoice(ReadVoiceTag()) ?? voice;
+                    var v = SelectedPiperVoice(ReadVoiceTag());
+                    if (v == null) break;   // wybrano głos Windows - czyta strona (ReadVoiceApply wyłączył tryb zewnętrzny)
 
-                    var wavTask = (cachedText == p.text && cachedWav != null) ? cachedWav : PiperSynthesizeAsync(v, p.text, _settings.ReadRate);
+                    var wavTask = (cachedText == p.text && cachedWav != null && cachedVoice == v) ? cachedWav : PiperSynthesizeAsync(v, p.text, _settings.ReadRate);
                     var wav = await wavTask;
                     // nastepne zdanie liczymy w tle, gdy gra biezace
-                    cachedText = p.next; cachedWav = string.IsNullOrEmpty(p.next) ? null : PiperSynthesizeAsync(v, p.next, _settings.ReadRate);
+                    cachedText = p.next; cachedVoice = v; cachedWav = string.IsNullOrEmpty(p.next) ? null : PiperSynthesizeAsync(v, p.next, _settings.ReadRate);
 
                     JsonElement? st;
                     try { st = await PiperState(core); } catch (Exception) { break; }   // karta zamknieta w trakcie syntezy

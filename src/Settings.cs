@@ -1057,7 +1057,7 @@ namespace Velivo
                 s.ReadRate = (double)((ComboBoxItem)rate.SelectedItem).Tag;
                 // czytanie w toku - nowy glos / tempo / glosnosc od biezacego zdania
                 if (_readTab != null && _tabs.Contains(_readTab) && _readTab.View.CoreWebView2 != null)
-                    _ = _readTab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.config(" + Num(s.ReadRate) + "," + System.Text.Json.JsonSerializer.Serialize(s.ReadVoice ?? "") + "," + Num(s.ReadVolume) + ")");
+                    _ = ReadVoiceApply(_readTab.View.CoreWebView2);
                 s.FullFilterLists = full.IsChecked == true;
                 s.LanSync = lanSync.IsChecked == true;
                 s.LanSyncSilent = lanSilent.IsChecked == true;

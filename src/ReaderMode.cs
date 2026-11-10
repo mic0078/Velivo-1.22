@@ -292,8 +292,7 @@ namespace Velivo
                             {
                                 if (!(voiceBox.SelectedItem is ComboBoxItem vi)) return;
                                 _settings.ReadVoice = (string)vi.Tag; try { _settings.Save(DataDir); } catch (Exception) { }
-                                var vt = JsonSerializer.Serialize(ReadVoiceTag());
-                                await view.CoreWebView2.ExecuteScriptAsync("window.__velivoVoice=" + vt + ";window.__velivoRead && window.__velivoRead.config(" + Num(_settings.ReadRate) + "," + vt + "," + Num(_settings.ReadVolume) + ")");   // od bieżącego zdania
+                                await ReadVoiceApply(view.CoreWebView2);   // od bieżącego zdania, także Windows ↔ Piper/Supertonic
                             };
                             stopBtn.Click += async (s3, e3) => await view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.stop()");
                         }

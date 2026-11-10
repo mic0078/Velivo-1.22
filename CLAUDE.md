@@ -301,6 +301,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-03: budowa padła – CS0165 „nieprzypisana zmienna onOff”: lambda w przycisku wołała funkcję lokalną All(), która czyta onOff, zanim `var onOff = …` się skończyło. Zmienną czytaną przez funkcje lokalne z własnego inicjatora – najpierw `= null`, potem przypisanie.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
+* 2026-11-10: Biblioteka i Telewizja wisiały nad przeglądarką (Owner = okno Velivo, Topmost z odtwarzacza na stałe); poprawiłem dwa okna, właściciel: „popraw wszystkie od razu – to polecenie”. Teraz też Program TV, Zaplanuj, Zaplanowane, Nagrania. Poprawka wyglądu/zachowania okna – od razu we wszystkich podobnych oknach, bez proszenia.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

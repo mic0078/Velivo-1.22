@@ -131,7 +131,7 @@ namespace Velivo
             };
             var addFile = mk(L.T("Dodaj z pliku…"), () =>
             {
-                var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Wtyczki VST3") + " (*.vst3)|*.vst3", Title = L.T("Wybierz wtyczkę VST3") };
+                var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Wtyczki VST3") + " (*.vst3)|*.vst3", Title = L.T("Wybierz wtyczkę VST3"), InitialDirectory = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles), "VST3") };
                 if (d.ShowDialog(owner) == true) Add(d.FileName);
             });
             brow.Children.Add(addScan); brow.Children.Add(addFile); root.Children.Add(brow);

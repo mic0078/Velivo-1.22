@@ -148,16 +148,27 @@ namespace Velivo
             _komSavePending = true;
             Dispatcher.BeginInvoke(new Action(() => { if (_komSavePending) KomSaveNow(); }), System.Windows.Threading.DispatcherPriority.Background);
         }
-        void KomSaveNow()
+        void KomSaveNow(bool wait = false)   // wait: zamknięcie programu - zapis do końca, zanim proces się skończy
         {
             _komSavePending = false;
             try
             {
-                Directory.CreateDirectory(DataDir);
-                VelivoData.SafeWrite(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(KomState().ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
+                var json = KomState().ToJsonString();   // stan z wątku okna (listy rozmów); szyfrowanie i zapis na dysk - w tle, po kolei, tylko najnowszy
+                long seq = Interlocked.Increment(ref _komSaveSeq);
+                var t = Task.Run(() =>
+                {
+                    lock (_komSaveLock)
+                    {
+                        if (seq != Interlocked.Read(ref _komSaveSeq)) return;   // w międzyczasie nowszy stan - zapisze go jego zadanie
+                        try { Directory.CreateDirectory(DataDir); VelivoData.SafeWrite(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(json), KomEntropy, DataProtectionScope.CurrentUser)); }
+                        catch (Exception ex) { App.LogError(ex); }
+                    }
+                });
+                if (wait) t.Wait(10000);
             }
             catch (Exception ex) { App.LogError(ex); }
         }
+        long _komSaveSeq; readonly object _komSaveLock = new object();
         JsonObject KomState()
         {
                 foreach (var kv in _komChats) KomPrune(kv.Key, kv.Value);   // ⏳ znikające wiadomości
@@ -1186,7 +1197,7 @@ namespace Velivo
         // zamkniecie Velivo: kontakty od razu widza "poza siecia"
         internal void KomBye()
         {
-            if (_komSavePending) KomSaveNow();   // zamknięcie - zaległy zapis od razu
+            if (_komSavePending) KomSaveNow(true); else lock (_komSaveLock) { }   // zamknięcie (else: czeka na zapis w tle, jeśli trwa) - zaległy zapis od razu
             if (!_komLoaded || _komContacts.Count == 0) return;
             for (int i = 0; i < 2; i++) KomSendUdp(KomPacket("p2p-bye"), null);
         }

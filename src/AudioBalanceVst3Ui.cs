@@ -124,10 +124,17 @@ namespace Velivo
             addScan.ToolTip = L.T("Wtyczki zainstalowane w Windows (Common Files\\VST3)");
             addScan.Click += (s, e) =>
             {
-                var found = Vst3.Scan(); var cm = new ContextMenu { PlacementTarget = addScan };
-                if (found.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3"), IsEnabled = false });
-                foreach (var f in found) { var ff = f; var mi = new MenuItem { Header = System.IO.Path.GetFileNameWithoutExtension(f), ToolTip = f }; mi.Click += (a, b) => Add(ff); cm.Items.Add(mi); }
-                cm.IsOpen = true;
+                var found = Vst3.Scan(); var sp = new StackPanel { Margin = new Thickness(12) };
+                sp.Children.Add(T(L.T("Wykryte wtyczki VST3 na tym komputerze – zaznacz, aby włączyć w łańcuchu, odznacz, aby wyłączyć"), 11, dim));
+                if (found.Count == 0) sp.Children.Add(T(L.T("Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3"), 12, dim));
+                foreach (var f in found)
+                {
+                    var ff = f; bool In() => Vst3.Chain.Any(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase));
+                    var cb = new CheckBox { Content = System.IO.Path.GetFileNameWithoutExtension(f), ToolTip = f, Foreground = fg, IsChecked = In(), Margin = new Thickness(0, 0, 0, 6) };
+                    cb.Click += (a, b) => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (cb.IsChecked == true) { if (p == null) Add(ff); } else if (p != null) { VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p); Refresh(); on.IsChecked = Vst3.Active; } cb.IsChecked = In(); };
+                    sp.Children.Add(cb);
+                }
+                new Window { Title = L.T("Wtyczki VST3"), Owner = Window.GetWindow(addScan), Background = owner.Background, SizeToContent = SizeToContent.WidthAndHeight, MaxHeight = 600, MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.Show();
             };
             var addFile = mk(L.T("Dodaj z pliku…"), () =>
             {

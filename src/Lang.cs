@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "Wykryte wtyczki VST3 na tym komputerze – zaznacz, aby włączyć w łańcuchu, odznacz, aby wyłączyć", "VST3 plugins found on this computer – tick to switch on in the chain, untick to switch off" },
             { "zamknęła Velivo przy wczytywaniu – usunięta z łańcucha", "closed Velivo while loading – removed from the chain" },
             { "🎤 Mój głos (XTTS)", "🎤 My voice (XTTS)" },
             { " – w Velivo Premium", " – in Velivo Premium" },

@@ -42,7 +42,8 @@ namespace Velivo
         Thread _th; volatile bool _run, _paused; volatile int _flushReq;
         public volatile string Source = "";
         public long LateDrops, EarlyWaits;
-        public volatile int AheadFrames;   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
+        public volatile int AheadFrames;
+        double _vstLoad;   // obciążenie wtyczek VST3 na tym komputerze (0–1+): ile czasu porcji zajmuje ich liczenie - samo dopasowuje porcje i zapas   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
         // dokładnie „która próbka procesora teraz gra”: każdy kawałek zapisuje, gdzie trafił w kolejce karty (W) i jaki ma numer w procesorze (P);
         // pozycja karty (zapisana w wątku dźwięku z czasem) → kawałek → próbka. Cisza wstawiona przez Velivo nie ma odpowiednika.
         struct Seg { public long W, P; public int N; }
@@ -146,7 +147,9 @@ namespace Velivo
                     if (Vst3.Ready && !Proc.Bypass)
                     {   // 🎛 wtyczki VST3: równe porcje po 10 ms w tempie odtwarzania (jak w programach muzycznych) - wtyczka widzi dźwięk płynnie, jej wykresy i
                         //    mierniki nie szarpią (VLC na części komputerów oddaje paczki po ~100 ms: Ozone dostawał dźwięk zrywami); w karcie zostaje ok. 80 ms zapasu
-                        int step = AbProcessor.Fs / 100, ahead = AbProcessor.Fs * 8 / 100; var sub = new float[step * 2];
+                        // dopasowanie do komputera (mierzone, nie zgadywane): wtyczki liczą długo względem porcji (słaby komputer, ciężki łańcuch) - większe porcje i zapas, bez przerw w dźwięku
+                        int step = _vstLoad > 0.5 ? AbProcessor.Fs / 25 : _vstLoad > 0.25 ? AbProcessor.Fs / 50 : AbProcessor.Fs / 100;
+                        int ahead = _vstLoad > 0.5 ? AbProcessor.Fs / 4 : _vstLoad > 0.25 ? AbProcessor.Fs * 15 / 100 : AbProcessor.Fs * 8 / 100; var sub = new float[step * 2];
                         for (int o = 0; o < c.Frames && _run; o += step)
                         {
                             int nf = Math.Min(step, c.Frames - o);
@@ -155,7 +158,10 @@ namespace Velivo
                             if (sub.Length != nf * 2) sub = new float[nf * 2];
                             Array.Copy(c.Data, o * 2, sub, 0, nf * 2);
                             long pb = Interlocked.Read(ref Proc.Frames);
+                            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
                             Proc.Process(sub, nf);
+                            double used = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) / (double)System.Diagnostics.Stopwatch.Frequency / (nf / (double)AbProcessor.Fs);   // czas liczenia / czas trwania porcji
+                            _vstLoad += (used - _vstLoad) * 0.02;
                             lock (_segs) { _segs[_segI & 511] = new Seg { W = _written, P = pb, N = nf }; _segI++; }
                             WriteFrames(sub, nf, ref pcm);
                         }

@@ -152,6 +152,7 @@ namespace Velivo
             Closing += GuardAgainstWebViewClosingWindow; // musi byc pierwsze - anuluje zamkniecie okna przez strone
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
             Closing += (s, e) => { if (!e.Cancel) _mainClosing = true; };
+            Closed += (s, e) => { try { _libWin?.Close(); _tvWin?.Close(); } catch (Exception) { } };   // biblioteka i TV bez właściciela - zamykane razem z Velivo
             Closed += (s, e) => CloseIndependent();   // okna niezalezne (biblioteka, telewizja...) zamykaja sie razem z Velivo   // odtwarzacz zamykany razem z Velivo - wznowi ostatni program
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;

@@ -697,7 +697,8 @@ namespace Velivo
             }
             var st = IptvSt;
             // właściciel - okno Velivo, nie odtwarzacz: okna podrzędne zamykają się razem z właścicielem (lista kanałów znikała po zamknięciu odtwarzacza)
-            var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner == _vlcWin ? this : owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
+            var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, WindowStartupLocation = WindowStartupLocation.CenterScreen, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
+            win.Topmost = owner.Topmost; win.Deactivated += (s0, e0) => win.Topmost = false;   // bez właściciela: przeglądarka może je zasłonić; nad odtwarzaczem na wierzchu tylko do kliknięcia gdzie indziej
             PlaceIptvWindow(win, st.Win);
             var source = new ComboBox { Width = 200, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center };
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale

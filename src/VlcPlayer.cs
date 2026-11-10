@@ -738,7 +738,8 @@ namespace Velivo
         {
             if (_libWin != null && _libWin.IsLoaded) { if (!_libWin.IsVisible) _libWin.Show(); if (_libWin.WindowState == WindowState.Minimized) _libWin.WindowState = WindowState.Normal; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
             // właściciel - okno Velivo, nie odtwarzacz: okna podrzędne zamykają się razem z właścicielem (biblioteka znikała po zamknięciu filmu)
-            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, Owner = owner == _vlcWin ? this : owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            win.Topmost = owner.Topmost; win.Deactivated += (s0, e0) => win.Topmost = false;   // bez właściciela: przeglądarka może je zasłonić; nad odtwarzaczem na wierzchu tylko do kliknięcia gdzie indziej
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4) };
             var hint = new TextBlock { Text = L.T("🔍 Szukaj filmu…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };

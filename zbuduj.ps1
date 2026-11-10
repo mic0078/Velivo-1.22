@@ -42,8 +42,6 @@ $outDir = Join-Path $PSScriptRoot 'build\instalator'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $nazwa = if ($Podstawowa) { 'Velivo-Podstawowa-Setup-1.22' } else { 'Velivo-Setup-1.22' }   # 💎 Premium: dotychczasowa nazwa; bezpłatne: osobny plik
 $old = Join-Path $outDir ($nazwa + '.exe')
-Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like ($nazwa + '*') } | Stop-Process -Force -ErrorAction SilentlyContinue   # otwarte okno starego instalatora (i jego proces .tmp) - zamykane samo, zamiast przerywac budowe
-Start-Sleep 1
 for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Force -ErrorAction Stop } catch { Start-Sleep 2 } }   # stary instalator (otwarty / sprawdzany przez antywirus) - kilka prob
 # nadal otwarty (instalator w tle / antywirus) - usunac sie nie da, ale zmienic nazwe tak: odkladamy go na bok
 if (Test-Path $old) { try { Rename-Item $old ("Velivo-Setup-stary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".exe") -ErrorAction Stop } catch { } }

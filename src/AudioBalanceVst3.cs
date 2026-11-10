@@ -311,10 +311,8 @@ namespace Velivo
                 form.Show();
             }
 
-            bool disposed;
             public void Dispose()
             {
-                if (disposed) return; disposed = true;   // drugie zwolnienie tej samej wtyczki (usunięcie + zamknięcie odtwarzacza) wołało już zwolnione obiekty - błąd, możliwe zamknięcie Velivo
                 try
                 {
                     if (active) { CI(proc, 8, 0); ((delegate* unmanaged[Stdcall]<IntPtr, byte, int>)Fn(comp, 11))(comp, 0); active = false; }

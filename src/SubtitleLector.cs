@@ -93,29 +93,13 @@ namespace Velivo
             catch (Exception) { return new List<string>(); }
         }
 
-        // napisy do filmu - tam, gdzie znajduje je VLC: obok filmu (ta sama nazwa albo podobna), w podfolderach Subs / Subtitles / Napisy,
-        //    a gdy w folderze jest tylko ten jeden film - każdy plik napisów (było: tylko dokładnie ta sama nazwa - VLC pokazywał napisy, a lektor ich nie widział)
         internal static string FindSubtitleFor(string video)
         {
             try
             {
                 var dir = Path.GetDirectoryName(video); var name = Path.GetFileNameWithoutExtension(video);
-                string Norm(string x) => Regex.Replace(x.ToLowerInvariant(), @"[^\p{L}\p{N}]+", "");
-                var dirs = new List<string> { dir };
-                foreach (var d in Directory.EnumerateDirectories(dir)) { var n = Path.GetFileName(d).ToLowerInvariant(); if (n.StartsWith("sub") || n.StartsWith("napis") || n == "pl" || n == name.ToLowerInvariant()) dirs.Add(d); }
-                var all = dirs.SelectMany(d => { try { return Directory.EnumerateFiles(d); } catch (Exception) { return Enumerable.Empty<string>(); } })
-                    .Where(f => SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList();
-                if (all.Count == 0) return null;
-                string nn = Norm(name);
-                bool Same(string f) { var b = Norm(Path.GetFileNameWithoutExtension(f)); return b.StartsWith(nn) || nn.StartsWith(b) && b.Length >= 6; }
-                var match = all.Where(Same).ToList();
-                if (match.Count == 0)
-                {
-                    var vids = new List<string>(); try { vids = Directory.EnumerateFiles(dir).Where(f => new[] { ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v", ".ts", ".webm", ".mpg", ".mpeg" }.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList(); } catch (Exception) { }
-                    if (vids.Count != 1 || !string.Equals(vids[0], video, StringComparison.OrdinalIgnoreCase)) return null;   // tylko gdy ten film jest jedynym w folderze - inaczej bez pewności, które napisy są do którego
-                    match = all;
-                }
-                return match.OrderBy(f => Regex.IsMatch(Path.GetFileName(f), @"(^|[._\- ])(pl|pol|polish|polski)([._\- ]|$)", RegexOptions.IgnoreCase) ? 0 : 1).ThenBy(f => Path.GetDirectoryName(f) == dir ? 0 : 1).ThenBy(f => f.Length).FirstOrDefault();
+                var all = Directory.EnumerateFiles(dir, name + "*").Where(f => SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList();
+                return all.OrderBy(f => Regex.IsMatch(Path.GetFileName(f), @"[._-](pl|pol|polish)[._-]", RegexOptions.IgnoreCase) ? 0 : 1).ThenBy(f => f.Length).FirstOrDefault();
             }
             catch (Exception) { return null; }
         }
@@ -150,7 +134,7 @@ namespace Velivo
 
         sealed class Lector
         {
-            public List<SubCue> Cues = new List<SubCue>(); public bool NoSubsShown;
+            public List<SubCue> Cues = new List<SubCue>();
             public string Lang = "pl", File;
             public int LastSpoken = -1;
             public long LastTime = long.MinValue;
@@ -209,8 +193,7 @@ namespace Velivo
             return LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
         }
 
-        // klucz budowy: głos, tempo, jakość, język i FOLDER nagrań - każda zmiana folderu (ręczna albo z innego komputera) = budowa i czytanie od razu w nowym miejscu
-        string LectorKeyParams(Lector lc) => (_settings.VlcLectorVoice ?? "") + ((_settings.VlcLectorVoice ?? "").StartsWith("piper:xtts-own") && File.Exists(XttsOwnWav) ? "@" + File.GetLastWriteTimeUtc(XttsOwnWav).Ticks : "") + "|" + ((_settings.VlcLectorVoice ?? "").StartsWith("piper:xtts") ? "1" : _settings.VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture)) + "|" + ((SelectedPiperVoice(string.IsNullOrEmpty(_settings.VlcLectorVoice) ? "piper:st3-M1-pl" : _settings.VlcLectorVoice)?.St != null) ? _settings.VlcLectorSteps + "n3" : "-") + "|" + lc.Lang + ((_settings.VlcLectorVoice ?? "").StartsWith("piper:xtts") ? "|xs3" : "") + "|" + (_settings.VlcLectorDir ?? "").Trim();   // xs3: XTTS zawsze 1:1 (bez przyspieszania) - nagrania z dawnym tempem budowane od nowa   // jakosc (kroki) liczy sie tylko dla Supertonic - przy innym glosie suwak nie buduje od nowa
+        string LectorKeyParams(Lector lc) => (_settings.VlcLectorVoice ?? "") + ((_settings.VlcLectorVoice ?? "").StartsWith("piper:xtts-own") && File.Exists(XttsOwnWav) ? "@" + File.GetLastWriteTimeUtc(XttsOwnWav).Ticks : "") + "|" + ((_settings.VlcLectorVoice ?? "").StartsWith("piper:xtts") ? "1" : _settings.VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture)) + "|" + ((SelectedPiperVoice(string.IsNullOrEmpty(_settings.VlcLectorVoice) ? "piper:st3-M1-pl" : _settings.VlcLectorVoice)?.St != null) ? _settings.VlcLectorSteps.ToString() : "-") + "|" + lc.Lang + ((_settings.VlcLectorVoice ?? "").StartsWith("piper:xtts") ? "|xs3" : "");   // xs3: XTTS zawsze 1:1 (bez przyspieszania) - nagrania z dawnym tempem budowane od nowa   // jakosc (kroki) liczy sie tylko dla Supertonic - przy innym glosie suwak nie buduje od nowa
 
         static void LectorStopRender(Lector lc) { lc.RenderGen++; lc.Rendering = false; lc.Ready = new Dictionary<int, string>(); lc.RenderKey = null; lc.BuildNow = false; }
 
@@ -246,7 +229,6 @@ namespace Velivo
                     return m;
                 });
                 if (gen != lc.RenderGen) return;
-                App.LogInfo("Lektor: " + (loadOnly ? "budowa wyłączona (tylko gotowe nagrania)" : "budowa całego filmu") + ", kwestii " + lc.Cues.Count + ", gotowych " + found.Count + ", głos " + (_settings.VlcLectorVoice ?? "auto") + ", folder " + dir);   // diagnoza „lektor się nie buduje”
                 lc.Ready = found; lc.RenderKey = key;
                 if (loadOnly) { if (found.Count > 0) lc.Osd?.Invoke(L.T("🗣 Lektor: używam gotowych nagrań tego filmu – ") + found.Count + " / " + lc.Cues.Count); return; }
                 lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
@@ -254,8 +236,9 @@ namespace Velivo
                 while (gen == lc.RenderGen)
                 {
                     int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
-                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
-                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k)) { idx = k; break; }
+                    for (int k = from; k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k) && k != lc.PreIdx) { idx = k; break; }   // bez kwestii liczonej właśnie na żywo - ta sama praca dwa razy dławiła silnik (opóźnienie, pomijane kwestie)
+                    if (idx < 0) for (int k = 0; k < from && k < lc.Cues.Count; k++) if (!lc.Ready.ContainsKey(k) && k != lc.PreIdx) { idx = k; break; }
+                    if (idx < 0 && lc.PreIdx >= 0 && !lc.Ready.ContainsKey(lc.PreIdx)) { await Task.Delay(200); continue; }   // została tylko kwestia liczona na żywo - poczekaj, potem dokończ
                     if (idx < 0) { lc.Osd?.Invoke(L.T("🗣 Lektor gotowy dla całego filmu")); break; }   // caly film gotowy
                     var preSw = System.Diagnostics.Stopwatch.StartNew(); while (gen == lc.RenderGen && lc.PreWav != null && !lc.PreWav.IsCompleted && preSw.ElapsedMilliseconds < 120000) await Task.Delay(100);   // kwestia liczona na biezaco ma pierwszenstwo (XTTS/Supertonic licza jedna naraz); samo granie lektora budowy nie wstrzymuje
                     if (gen != lc.RenderGen) return;
@@ -336,16 +319,7 @@ namespace Velivo
         // co ~120 ms: nowa kwestia na ekranie -> czytamy ja (wolny lektor = pomijamy zalegle, czytamy biezaca)
         async void LectorTick(Lector lc, LibVLCSharp.Shared.MediaPlayer mp, Func<int> volume)
         {
-            if (lc.Cues.Count == 0)
-            {   // diagnoza „lektor się nie buduje”: lektor włączony, a Velivo nie ma tekstu napisów (raz na film - Błędy Velivo i napis na filmie)
-                if (!lc.NoSubsShown && mp.IsPlaying && mp.Time > 3000)
-                {
-                    lc.NoSubsShown = true; int spu = 0; try { spu = mp.SpuDescription.Count(t => t.Id >= 0); } catch (Exception) { }
-                    App.LogInfo("Lektor: brak tekstu napisów (plik napisów: " + (lc.File ?? "brak") + ", ścieżki napisów w filmie: " + spu + ")");
-                    lc.Osd?.Invoke(spu > 0 ? L.T("🗣 Lektor: napisy są wbudowane w film – lektor czyta napisy z pliku (.srt obok filmu albo wczytany z menu Napisy)") : L.T("🗣 Lektor: ten film nie ma napisów – lektor czyta napisy (plik .srt obok filmu albo wczytany z menu Napisy)"));
-                }
-                return;
-            }
+            if (lc.Cues.Count == 0) return;
             // budowa lektora takze w pauzie: zmiana glosu / „Zbuduj lektora teraz” przy zatrzymanym filmie startuje od razu
             // (wczesniej sprawdzane dopiero po pauzie - budowa ruszala dopiero po wznowieniu filmu)
             if (lc.RenderKey != null && lc.RenderKey != LectorKeyParams(lc)) LectorStopRender(lc);   // inny glos / tempo / jakosc - liczymy od nowa

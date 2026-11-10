@@ -318,6 +318,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-10: Biblioteka i Telewizja wisiały nad przeglądarką (Owner = okno Velivo, Topmost z odtwarzacza na stałe); poprawiłem dwa okna, właściciel: „popraw wszystkie od razu – to polecenie”. Teraz też Program TV, Zaplanuj, Zaplanowane, Nagrania. Poprawka wyglądu/zachowania okna – od razu we wszystkich podobnych oknach, bez proszenia.
 * 2026-11-10: nowe okno „Wtyczki VST3” – jasne napisy na jasnym tle (tło wzięte z okna-właściciela, a ono było jasne), nieczytelne; teraz stałe ciemne tło Audio Monitora. Nowe okno: tło i kolor tekstu zawsze jawne, z jednego motywu – nigdy tło z jednego miejsca, a tekst z drugiego.
+* 2026-11-10: c.d. okno VST3 dalej białe – wspólny motyw okien (ApplyWindowTheme przy Loaded) w jasnym trybie kasuje tło okna; moja „poprawka” ustawiała tło, które i tak było kasowane. Lista bez porządku: powtórki z dwóch folderów, przyciski w nierównej linii, wszystko jedną listą. Teraz Uid "own-theme", grupy Włączone/Dostępne, jedna wtyczka raz, przycisk w równej kolumnie. Nowe okno: sprawdź, co z nim robi App przy otwarciu (motyw), i układaj listy od razu w porządku (grupy, sortowanie, równe kolumny, bez powtórek).
 
 ## Zrobione (pamięć)
 

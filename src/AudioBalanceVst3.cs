@@ -243,6 +243,7 @@ namespace Velivo
                 }
                 // magistrale: wszystkie audio stereo; dźwięk filmu w pierwszej, pozostałe (np. sidechain) - cisza
                 nIn = Math.Max(0, ((delegate* unmanaged[Stdcall]<IntPtr, int, int, int>)Fn(comp, 7))(comp, 0, 0));
+                if (nIn == 0) throw new Exception(L.T("To syntezator (instrument), a nie efekt – nie przetworzy dźwięku filmu"));   // Velivo przetwarza dźwięk filmu - tylko efekty
                 nOut = Math.Max(1, ((delegate* unmanaged[Stdcall]<IntPtr, int, int, int>)Fn(comp, 7))(comp, 0, 1));
                 var arrIn = stackalloc ulong[Math.Max(1, nIn)]; var arrOut = stackalloc ulong[nOut];
                 for (int i = 0; i < nIn; i++) arrIn[i] = 3; for (int i = 0; i < nOut; i++) arrOut[i] = 3;   // kStereo (L|R)
@@ -307,7 +308,7 @@ namespace Velivo
                 var rc = stackalloc int[4]; if (CP(view, 9, (IntPtr)rc) == kOk && rc[2] > rc[0]) form.ClientSize = new System.Drawing.Size(rc[2] - rc[0], rc[3] - rc[1]);
                 CP(view, 12, fr.Ptr);
                 fixed (byte* t = Encoding.ASCII.GetBytes("HWND\0")) ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, byte*, int>)Fn(view, 4))(view, form.Handle, t);
-                form.FormClosed += (s, e) => { try { C0(view, 5); CP(view, 12, IntPtr.Zero); Release(view); } catch (Exception) { } fr.Rel(); };
+                form.FormClosed += (s, e) => { try { C0(view, 5); CP(view, 12, IntPtr.Zero); Release(view); } catch (Exception) { } fr.Rel(); try { EditorClosed?.Invoke(); } catch (Exception) { } };   // zamknięcie okna wtyczki = zapis jej ustawień od razu
                 form.Show();
             }
 
@@ -370,6 +371,8 @@ namespace Velivo
             }
             catch (Exception) { return false; }
         }
+
+        public static Action EditorClosed;   // okno producenta zamknięte - Velivo zapisuje stan wtyczek (vst3.json)
 
         public static List<string> Scan()
         {

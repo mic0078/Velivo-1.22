@@ -73,7 +73,7 @@ namespace Velivo
 
         FrameworkElement VstPanel(Window owner, Brush fg, Brush dim, Func<string, Action, Button> mk)
         {
-            VstLoad();
+            VstLoad(); Vst3.EditorClosed = VstSave;   // ustawienia z okna wtyczki zapisane od razu po jego zamknięciu, nie dopiero przy zamknięciu odtwarzacza
             var root = new StackPanel();
             TextBlock T(string s, double size, Brush c) => new TextBlock { Text = s, FontSize = size, Foreground = c, TextWrapping = TextWrapping.Wrap };
             var on = new CheckBox { Content = L.T("VST3 aktywne – Twoje wtyczki przejmują przetwarzanie dźwięku filmu"), Foreground = fg, IsChecked = Vst3.Active, Margin = new Thickness(0, 0, 0, 4) };

@@ -197,6 +197,7 @@ namespace Velivo
             { "XTTS: instaluję PyTorch (kilka GB, to potrwa)…", "XTTS: installing PyTorch (several GB, this will take a while)…" },
             { "XTTS: instaluję coqui-tts…", "XTTS: installing coqui-tts…" },
             { "XTTS: pobieram Pythona…", "XTTS: downloading Python…" },
+            { "To syntezator (instrument), a nie efekt – nie przetworzy dźwięku filmu", "This is a synthesizer (instrument), not an effect – it cannot process film sound" },
             { "Dostępne", "Available" },
             { "Włączone w łańcuchu", "On in the chain" },
             { "Ustaw…", "Settings…" },

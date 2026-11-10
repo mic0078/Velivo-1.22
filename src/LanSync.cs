@@ -72,6 +72,7 @@ namespace Velivo
         static readonly HashSet<string> LanSettingsBlockedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "lanSync",
+            "vlcLectorDir",   // folder lektora (np. RAM-dysk Z:) - ustawienie tego komputera, nie przychodzi z innego (synchronizacja kasowała go na NUCBOX)
             "askedDefault",
             "playerSalt",
             "audioOut",

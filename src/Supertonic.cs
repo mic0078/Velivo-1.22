@@ -64,7 +64,7 @@ namespace Velivo
         }
 
         TextToSpeech _stTts;
-        bool _stGpu; volatile bool _stForceCpu;   // _stForceCpu: karta graficzna zawiesiła syntezę - do końca działania Velivo procesor
+        bool _stGpu;
         readonly Dictionary<string, Style> _stStyles = new Dictionary<string, Style>();
         readonly SemaphoreSlim _stLock = new SemaphoreSlim(1, 1);
 
@@ -75,15 +75,13 @@ namespace Velivo
             if (line.Length == 0 || !SupertonicInstalled(v)) return null;
             if (char.IsLetterOrDigit(line[line.Length - 1])) line += ".";   // bez kropki na koncu model ucinal ostatnie slowo (napisy czesto bez kropki)
             await EngineWait(_stLock);
-            bool released = false;
             try
             {
-                var work = Task.Run(() =>
+                return await Task.Run(() =>
                 {
                     if (_stTts == null)
                     {
-                        if (_stForceCpu) { _stTts = Helper.LoadTextToSpeech(SupertonicPath("onnx"), false); _stGpu = false; }
-                        else try { _stTts = Helper.LoadTextToSpeech(SupertonicPath("onnx"), true); _stGpu = true; }
+                        try { _stTts = Helper.LoadTextToSpeech(SupertonicPath("onnx"), true); _stGpu = true; }
                         catch (Exception ex) { App.LogError(ex); _stTts = Helper.LoadTextToSpeech(SupertonicPath("onnx"), false); _stGpu = false; }   // brak DirectML - procesor
                     }
                     if (!_stStyles.TryGetValue(v.St, out var style))
@@ -98,19 +96,9 @@ namespace Velivo
                     Helper.WriteWavFile(path, cut, _stTts.SampleRate);
                     return path;
                 });
-                // zawieszona synteza (karta graficzna / sterownik DirectML) trzymała silnik w nieskończoność - lektor milczał, folder pusty, bez błędu;
-                //    po 60 s: wpis w Błędach Velivo, dalej na procesorze (nowy silnik), zawieszone liczenie zostaje w tle
-                if (await Task.WhenAny(work, Task.Delay(TimeSpan.FromSeconds(_stTts == null ? 180 : 60))) != work)
-                {
-                    App.LogError(new Exception("Supertonic: głos nie oddał nagrania w czasie (" + (_stGpu ? "karta graficzna" : "procesor") + ") - przełączam na procesor"));
-                    _stForceCpu = true; _stTts = null; _stStyles.Clear();
-                    _ = work.ContinueWith(t => { var _x = t.Exception; });
-                    released = true; _stLock.Release(); return null;
-                }
-                return await work;
             }
             catch (Exception ex) { App.LogError(ex); _stTts = null; return null; }
-            finally { if (!released) _stLock.Release(); }
+            finally { _stLock.Release(); }
         }
     }
 }

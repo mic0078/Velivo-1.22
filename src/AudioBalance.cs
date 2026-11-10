@@ -143,10 +143,30 @@ namespace Velivo
                         if (skip >= c.Frames) continue;
                         var rest = new float[(c.Frames - skip) * 2]; Array.Copy(c.Data, skip * 2, rest, 0, rest.Length); c.Data = rest; c.Frames -= skip;
                     }
-                    long pBefore = Interlocked.Read(ref Proc.Frames);
-                    Proc.Process(c.Data, c.Frames);
-                    lock (_segs) { _segs[_segI & 511] = new Seg { W = _written, P = pBefore, N = c.Frames }; _segI++; }
-                    WriteFrames(c.Data, c.Frames, ref pcm);
+                    if (Vst3.Ready && !Proc.Bypass)
+                    {   // 🎛 wtyczki VST3: równe porcje po 10 ms w tempie odtwarzania (jak w programach muzycznych) - wtyczka widzi dźwięk płynnie, jej wykresy i
+                        //    mierniki nie szarpią (VLC na części komputerów oddaje paczki po ~100 ms: Ozone dostawał dźwięk zrywami); w karcie zostaje ok. 80 ms zapasu
+                        int step = AbProcessor.Fs / 100, ahead = AbProcessor.Fs * 8 / 100; var sub = new float[step * 2];
+                        for (int o = 0; o < c.Frames && _run; o += step)
+                        {
+                            int nf = Math.Min(step, c.Frames - o);
+                            while (_run && !_paused && _flushReq == flushSeen && QueuedFrames() > ahead) Thread.Sleep(2);
+                            if (_flushReq != flushSeen) break;   // przewinięcie w trakcie - reszta kawałka nieaktualna
+                            if (sub.Length != nf * 2) sub = new float[nf * 2];
+                            Array.Copy(c.Data, o * 2, sub, 0, nf * 2);
+                            long pb = Interlocked.Read(ref Proc.Frames);
+                            Proc.Process(sub, nf);
+                            lock (_segs) { _segs[_segI & 511] = new Seg { W = _written, P = pb, N = nf }; _segI++; }
+                            WriteFrames(sub, nf, ref pcm);
+                        }
+                    }
+                    else
+                    {
+                        long pBefore = Interlocked.Read(ref Proc.Frames);
+                        Proc.Process(c.Data, c.Frames);
+                        lock (_segs) { _segs[_segI & 511] = new Seg { W = _written, P = pBefore, N = c.Frames }; _segI++; }
+                        WriteFrames(c.Data, c.Frames, ref pcm);
+                    }
                     int qf = QueuedFrames(); AheadFrames = qf;
                     lock (_segs) { _posNow = _written - qf; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
                     Proc.Active = true;

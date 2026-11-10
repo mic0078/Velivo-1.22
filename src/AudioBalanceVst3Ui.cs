@@ -44,6 +44,7 @@ namespace Velivo
                     if (!string.IsNullOrEmpty(it.State)) p.SetState(Convert.FromBase64String(it.State));
                     list.Add(p);
                 }
+                catch (Vst3.NotEffectException) { dropped = true; App.LogInfo("VST3: syntezator usunięty z łańcucha (nie przetwarza dźwięku filmu): " + it.Path); }   // dodany starszą wersją - po cichu z łańcucha, bez czerwonego komunikatu
                 catch (Exception ex) { _vstErrors.Add(System.IO.Path.GetFileName(it.Path) + ": " + ex.Message); App.LogError(new Exception("VST3: " + it.Path, ex)); }
                 finally { try { System.IO.File.Delete(mark); } catch (Exception) { } }
             }

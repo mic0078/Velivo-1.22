@@ -243,7 +243,7 @@ namespace Velivo
                 }
                 // magistrale: wszystkie audio stereo; dźwięk filmu w pierwszej, pozostałe (np. sidechain) - cisza
                 nIn = Math.Max(0, ((delegate* unmanaged[Stdcall]<IntPtr, int, int, int>)Fn(comp, 7))(comp, 0, 0));
-                if (nIn == 0) throw new Exception(L.T("To syntezator (instrument), a nie efekt – nie przetworzy dźwięku filmu"));   // Velivo przetwarza dźwięk filmu - tylko efekty
+                if (nIn == 0) throw new NotEffectException();   // Velivo przetwarza dźwięk filmu - tylko efekty
                 nOut = Math.Max(1, ((delegate* unmanaged[Stdcall]<IntPtr, int, int, int>)Fn(comp, 7))(comp, 0, 1));
                 var arrIn = stackalloc ulong[Math.Max(1, nIn)]; var arrOut = stackalloc ulong[nOut];
                 for (int i = 0; i < nIn; i++) arrIn[i] = 3; for (int i = 0; i < nOut; i++) arrOut[i] = 3;   // kStereo (L|R)
@@ -400,6 +400,7 @@ namespace Velivo
             return d;
         }
 
+        public sealed class NotEffectException : Exception { public NotEffectException() : base(L.T("To syntezator (instrument), a nie efekt – nie przetworzy dźwięku filmu")) { } }
         public static Action EditorClosed;   // okno producenta zamknięte - Velivo zapisuje stan wtyczek (vst3.json)
 
         public static List<string> Scan()

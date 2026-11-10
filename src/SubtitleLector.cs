@@ -111,8 +111,8 @@ namespace Velivo
                 var match = all.Where(Same).ToList();
                 if (match.Count == 0)
                 {
-                    int videos = 0; try { videos = Directory.EnumerateFiles(dir).Count(f => new[] { ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v", ".ts", ".webm", ".mpg", ".mpeg" }.Contains(Path.GetExtension(f).ToLowerInvariant())); } catch (Exception) { }
-                    if (videos != 1) return null;   // kilka filmów w folderze - bez pewności, które napisy są do którego
+                    var vids = new List<string>(); try { vids = Directory.EnumerateFiles(dir).Where(f => new[] { ".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v", ".ts", ".webm", ".mpg", ".mpeg" }.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList(); } catch (Exception) { }
+                    if (vids.Count != 1 || !string.Equals(vids[0], video, StringComparison.OrdinalIgnoreCase)) return null;   // tylko gdy ten film jest jedynym w folderze - inaczej bez pewności, które napisy są do którego
                     match = all;
                 }
                 return match.OrderBy(f => Regex.IsMatch(Path.GetFileName(f), @"(^|[._\- ])(pl|pol|polish|polski)([._\- ]|$)", RegexOptions.IgnoreCase) ? 0 : 1).ThenBy(f => Path.GetDirectoryName(f) == dir ? 0 : 1).ThenBy(f => f.Length).FirstOrDefault();

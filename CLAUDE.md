@@ -316,6 +316,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 * 2026-11-10: Biblioteka i Telewizja wisiały nad przeglądarką (Owner = okno Velivo, Topmost z odtwarzacza na stałe); poprawiłem dwa okna, właściciel: „popraw wszystkie od razu – to polecenie”. Teraz też Program TV, Zaplanuj, Zaplanowane, Nagrania. Poprawka wyglądu/zachowania okna – od razu we wszystkich podobnych oknach, bez proszenia.
+* 2026-11-10: nowe okno „Wtyczki VST3” – jasne napisy na jasnym tle (tło wzięte z okna-właściciela, a ono było jasne), nieczytelne; teraz stałe ciemne tło Audio Monitora. Nowe okno: tło i kolor tekstu zawsze jawne, z jednego motywu – nigdy tło z jednego miejsca, a tekst z drugiego.
 
 ## Zrobione (pamięć)
 

@@ -134,7 +134,7 @@ namespace Velivo
                     cb.Click += (a, b) => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (cb.IsChecked == true) { if (p == null) Add(ff); } else if (p != null) { VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p); Refresh(); on.IsChecked = Vst3.Active; } cb.IsChecked = In(); };
                     sp.Children.Add(cb);
                 }
-                new Window { Title = L.T("Wtyczki VST3"), Owner = Window.GetWindow(addScan), Background = owner.Background, SizeToContent = SizeToContent.WidthAndHeight, MaxHeight = 600, MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.Show();
+                new Window { Title = L.T("Wtyczki VST3"), Owner = Window.GetWindow(addScan), Background = AbDark, SizeToContent = SizeToContent.WidthAndHeight, MaxHeight = 600, MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.Show();
             };
             var addFile = mk(L.T("Dodaj z pliku…"), () =>
             {

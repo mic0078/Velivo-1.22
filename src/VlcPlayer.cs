@@ -2198,6 +2198,10 @@ namespace Velivo
             var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 10) / 10);
             var ldRow = sliderRow(L.T("Film podczas czytania"), 10, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => { _settings.VlcLectorDuck = (int)v; if (!lekLoading) AbLektorUserSet(_settings.VlcLectorVoice, _settings.VlcLectorVolume, _settings.VlcLectorDuck); });
             foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
+            var lekSmart = new CheckBox { Content = L.T("Inteligentne ściszanie filmu (na bieżąco)"), IsChecked = LectorSmart, Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0),
+                ToolTip = L.T("Wł.: podczas czytania film ściszany płynnie tylko o tyle, ile trzeba, by lektor był wyraźny (cicha scena – wcale, głośna – mocniej, najwyżej do „Film podczas czytania”). Działa, gdy dźwięk idzie przez Audio Balance. Wył.: dawne stałe ściszenie na czas kwestii.") };
+            lekSmart.Click += (s0, e0) => LectorSmart = lekSmart.IsChecked == true;
+            lectorPanel.Children.Add(lekSmart);
             // 🗣 jakość głosu Supertonic (kroki): więcej = naturalniej, dłużej liczy; 0 = samo
             var stTxt = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Ile razy Supertonic dopracowuje głos: więcej – naturalniej, ale dłużej liczy. Samo: karta graficzna 8, procesor 5.") };
             var stSl = new Slider { Minimum = 0, Maximum = 16, Width = 240, IsMoveToPointEnabled = true, IsSnapToTickEnabled = true, TickFrequency = 1, Value = _settings.VlcLectorSteps };

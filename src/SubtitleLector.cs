@@ -303,6 +303,8 @@ namespace Velivo
         }
 
         // odtwarzacz Windows (WPF MediaPlayer): przy 1,0 gra CISZEJ niż przy 0,99 (sprawdził właściciel - lektor i czytnik) - górna granica 0,99
+        // 🗣 inteligentny lektor (domyślnie wł.); wył. = dawne stałe ściszanie na czas kwestii
+        internal static bool LectorSmart { get => GetPref("lektor-inteligentny") != "0"; set => SetPref("lektor-inteligentny", value ? "1" : "0"); }
         internal static double WpfVol(double v) => Math.Max(0, Math.Min(0.99, v));
 
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
@@ -310,6 +312,7 @@ namespace Velivo
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
             lc.VoiceDone?.TrySetResult(false);
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
+            AbProc.LekOn = false;   // inteligentny lektor: film wraca płynnie (przytrzymanie 0,8 s - między kwestiami bez pompowania)
         }
 
         // co ~120 ms: nowa kwestia na ekranie -> czytamy ja (wolny lektor = pomijamy zalegle, czytamy biezaca)
@@ -375,8 +378,15 @@ namespace Velivo
                 long tn = mp.Time - mp.SpuDelay / 1000;
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie
                 LectorStopVoice(lc, mp);
-                lc.Ducked = volume(); double duck = Math.Max(10, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // najmniej 10% - film nigdy nie znika pod lektorem   // film ciszej, jak lektor w TV
-                mp.Volume = (int)Math.Round(lc.Ducked * duck);
+                double duck = Math.Max(10, Math.Min(100, _settings.VlcLectorDuck)) / 100.0;   // najmniej 10% - film nigdy nie znika pod lektorem
+                bool smart = LectorSmart && _abOut != null && AbProc.LekPath;   // 🗣 inteligentny: ściszanie na bieżąco w procesorze Velivo (wg filmu w paśmie mowy), bez skoku głośności
+                if (smart) { AbProc.LekFloorDb = (float)(20 * Math.Log10(duck)); AbProc.LekOn = true; }
+                else { lc.Ducked = volume(); mp.Volume = (int)Math.Round(lc.Ducked * duck); }   // dawny sposób: stałe ściszenie na czas kwestii
+                if (smart)
+                {   // poziom tego głosu w paśmie mowy (w tle) - od niego zależy, ile ściszyć film
+                    double lv0 = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume));
+                    _ = Task.Run(() => { LectorWavDb(wav, out var bd); if (!double.IsNaN(bd) && !double.IsInfinity(bd)) AbProc.LekRef = (float)(bd + 20 * Math.Log10(lv0)); });
+                }
                 // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
                 if (AbProc.Active && !AbBypass)
                 {   // pomiar lektora w tle (odczyt i filtr całego WAV - w wątku okna przycinał słupki Audio Monitora), wynik do doradcy w wątku okna; lektor nie czeka

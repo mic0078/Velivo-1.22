@@ -3951,7 +3951,7 @@ namespace Velivo
                     vm.Items.Add(new MenuItem { Header = L.T("Włączone w łańcuchu") + " (" + Vst3.Chain.Length + ")", IsEnabled = false, FontWeight = FontWeights.Bold });
                     foreach (var vp in Vst3.Chain)
                     {
-                        var p = vp; var it = new MenuItem { Header = p.Name };
+                        var p = vp; var it = new MenuItem { Header = p.Name, ToolTip = VstTip(p.Path) };
                         var onIt = new MenuItem { Header = L.T("Włączona"), IsCheckable = true, IsChecked = p.On, ToolTip = L.T("Włącz / wyłącz tę wtyczkę") };
                         onIt.Click += (a, b) => { p.On = onIt.IsChecked; VstSave(); };
                         var ed = new MenuItem { Header = L.T("Ustaw…"), ToolTip = L.T("Otwiera okno wtyczki (ustawienia producenta)") };
@@ -3967,7 +3967,7 @@ namespace Velivo
                     if (found.Count == 0) av.Items.Add(new MenuItem { Header = L.T("Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3"), IsEnabled = false });
                     foreach (var f0 in found)
                     {
-                        var ff = f0; var mi = new MenuItem { Header = System.IO.Path.GetFileNameWithoutExtension(ff), ToolTip = ff };
+                        var ff = f0; var mi = new MenuItem { Header = System.IO.Path.GetFileNameWithoutExtension(ff), ToolTip = VstTip(ff) };
                         mi.Click += (a, b) =>
                         {
                             try { var p = Vst3.Plugin.Load(ff); VstSet(Vst3.Chain.Concat(new[] { p }).ToArray()); if (!Vst3.Active) { Vst3.Active = true; VstSave(); AbNeedsRestartHint(); } ShowToast("🎛 " + p.Name + L.T(" – dodana i włączona"), null); }

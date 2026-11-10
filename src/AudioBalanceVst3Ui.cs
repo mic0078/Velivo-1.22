@@ -79,6 +79,14 @@ namespace Velivo
             ("LSP Plugins", "Pełny zestaw studyjny: korektory, kompresory, limitery, bramki szumów. Wersja na Windows po rejestracji w sklepie LSP.", "LGPL-3 (otwarty kod)", "https://lsp-plug.in/"),
         };
 
+        // podpowiedź pod myszką: krótki opis (znana darmowa - nasz opis, inne - rodzaj efektu i producent), pod spodem plik
+        static string VstTip(string path)
+        {
+            var n = System.IO.Path.GetFileNameWithoutExtension(path ?? "");
+            var free = VstFree.FirstOrDefault(x => n.StartsWith(x.Name.Split(' ')[0], StringComparison.OrdinalIgnoreCase));
+            return (free.Name != null ? L.T(free.Desc) : Vst3.Describe(path)) + "\n" + path;
+        }
+
         void VstFreeWindow(Window owner)
         {
             var fg = Brushes.White; var dim = new SolidColorBrush(Color.FromRgb(0xA8, 0xAE, 0xC4)); dim.Freeze();
@@ -128,7 +136,7 @@ namespace Velivo
                     B(L.T("Okno"), L.T("Otwiera okno wtyczki (ustawienia producenta)"), () => { try { p.ShowEditor(p.Name); } catch (Exception ex) { ShowToast("🎛 " + ex.Message, null); } });
                     B(L.T("Usuń"), L.T("Usuwa wtyczkę z łańcucha"), () => { VstSet(Vst3.Chain.Where(x => x != p).ToArray(), p); Refresh(); on.IsChecked = Vst3.Active; });
                     DockPanel.SetDock(cb, Dock.Left); DockPanel.SetDock(btns, Dock.Right); row.Children.Add(cb); row.Children.Add(btns);
-                    row.Children.Add(new TextBlock { Text = (idx + 1) + ". " + p.Name + (p.Latency > 0 ? "  (" + Math.Round(p.Latency * 1000.0 / AbProcessor.Fs) + " ms)" : ""), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = p.Path });
+                    row.Children.Add(new TextBlock { Text = (idx + 1) + ". " + p.Name + (p.Latency > 0 ? "  (" + Math.Round(p.Latency * 1000.0 / AbProcessor.Fs) + " ms)" : ""), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = VstTip(p.Path) });
                     list.Children.Add(row);
                 }
             }
@@ -178,7 +186,7 @@ namespace Velivo
                             };
                             var ed = mk(L.T("Ustaw…"), () => { var p = Vst3.Chain.FirstOrDefault(x => string.Equals(x.Path, ff, StringComparison.OrdinalIgnoreCase)); if (p == null) return; try { p.ShowEditor(p.Name); } catch (Exception ex) { ShowToast("🎛 " + ex.Message, null); } });
                             ed.Padding = new Thickness(10, 2, 10, 2); ed.Margin = new Thickness(8, 0, 0, 0); ed.ToolTip = L.T("Otwiera okno wtyczki (ustawienia producenta)"); ed.Visibility = on0 ? Visibility.Visible : Visibility.Hidden;
-                            var name = new TextBlock { Text = System.IO.Path.GetFileNameWithoutExtension(f), Foreground = on0 ? fg : dim, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = f };
+                            var name = new TextBlock { Text = System.IO.Path.GetFileNameWithoutExtension(f), Foreground = on0 ? fg : dim, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = VstTip(f) };
                             DockPanel.SetDock(cb, Dock.Left); DockPanel.SetDock(ed, Dock.Right);
                             row.Children.Add(cb); row.Children.Add(ed); row.Children.Add(name);
                             sp.Children.Add(row);

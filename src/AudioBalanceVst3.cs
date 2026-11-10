@@ -372,6 +372,34 @@ namespace Velivo
             catch (Exception) { return false; }
         }
 
+        // krótki opis wtyczki do podpowiedzi pod myszką: rodzaj efektu i producent z moduleinfo.json pakietu (brak pliku - tylko „efekt dźwiękowy”)
+        static readonly Dictionary<string, string> _descCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public static string Describe(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "";
+            lock (_descCache) if (_descCache.TryGetValue(path, out var c)) return c;
+            string kind = null, vendor = null;
+            try
+            {
+                var bundle = path; while (bundle != null && !Directory.Exists(System.IO.Path.Combine(bundle, "Contents"))) bundle = System.IO.Path.GetDirectoryName(bundle);
+                var mi = bundle == null ? null : System.IO.Path.Combine(bundle, "Contents", "Resources", "moduleinfo.json");
+                if (mi != null && File.Exists(mi))
+                {
+                    var t = File.ReadAllText(mi);
+                    var m = System.Text.RegularExpressions.Regex.Match(t, "\"Vendor\"\\s*:\\s*\"([^\"]+)\""); if (m.Success) vendor = m.Groups[1].Value;
+                    var kinds = new List<string>();
+                    foreach (var (key, pl) in new[] { ("EQ", L.T("korektor (barwa dźwięku)")), ("Dynamics", L.T("dynamika: kompresor / limiter")), ("Restoration", L.T("odszumianie i naprawa dźwięku")), ("Reverb", L.T("pogłos")), ("Delay", L.T("echo")), ("Spatial", L.T("przestrzeń i stereo")), ("Distortion", L.T("przester / „ciepło”")), ("Filter", L.T("filtr")), ("Analyzer", L.T("analizator")), ("Mastering", L.T("mastering (wykończenie całości)")), ("Modulation", L.T("modulacja (chorus, flanger)")), ("Pitch Shift", L.T("zmiana wysokości głosu")) })
+                        if (t.IndexOf("|" + key, StringComparison.OrdinalIgnoreCase) >= 0 || t.IndexOf("\"" + key, StringComparison.OrdinalIgnoreCase) >= 0) kinds.Add(pl);
+                    if (kinds.Count > 0) kind = string.Join(", ", kinds.Distinct().Take(3));
+                }
+            }
+            catch (Exception) { }
+            var d = (kind ?? L.T("efekt dźwiękowy")) + (vendor != null ? " · " + vendor : "");
+            d = char.ToUpper(d[0]) + d.Substring(1);
+            lock (_descCache) _descCache[path] = d;
+            return d;
+        }
+
         public static Action EditorClosed;   // okno producenta zamknięte - Velivo zapisuje stan wtyczek (vst3.json)
 
         public static List<string> Scan()

@@ -319,7 +319,7 @@ namespace Velivo
             var s = LekPlaying ? lekS : null; double ceil = Math.Pow(10, CeilingDb / 20);
             for (int f = 0; f < frames; f++)
             {
-                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs); AbVad.Push(m);   // film w paśmie mowy (1 s)
+                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (10.0 * Fs); AbVad.Push(m);   // film w paśmie mowy, średnio z 10 s (lektor równy przez całą scenę - za chwilowym wybuchem nie skacze)
                 if (s == null) continue;
                 if (lekPos >= s.Length) { LekPlaying = false; s = null; continue; }
                 if (lekG < 0)

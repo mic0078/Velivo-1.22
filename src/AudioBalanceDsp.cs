@@ -290,6 +290,9 @@ namespace Velivo
         readonly float[] dL = new float[Dl], dR = new float[Dl]; readonly double[] mins = new double[La]; int mPos;
         int dPos; double minRunSum, limG = 1; readonly int[] dq = new int[La + 1]; readonly double[] dqV = new double[La + 1]; int dqH, dqT; long n;
         public double GainDb, LimitDb, PeakOutDb = double.NegativeInfinity; double peakHold; int peakN;
+        // 🎞 film: poziom z całego dotychczasowego filmu (jak normalizatory Plex/Kodi/FFmpeg) - po 30 s bez przestawiania na cichą scenę;
+        //    pomiar na stanowisku: filmy -38..-20 LUFS → różnica 1,8 dB, dialog w filmie ±0,05 dB (było: 7 dB i ±2,4 dB). TV - jak dotąd (zmiana programu, reklamy)
+        public volatile bool FilmLong; double intC = -99;
         public AbProcessor() { Reset(); }
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
         public void Reset()
@@ -425,10 +428,12 @@ namespace Velivo
                     double m15 = In.Median15 > double.NegativeInfinity && In.Median > double.NegativeInfinity ? Math.Min(In.Median15, In.Median + 3) : double.NegativeInfinity;   // głośniej - ta sama osłona co podstawa: krótki huk nie jest „sceną”
                     if (sinceStart > Fs * 6 && m15 > double.NegativeInfinity && Math.Abs(m15 - basis) > 5) { if (++sceneN > 2 * Fs) scene = true; } else sceneN = 0;
                     if (scene) basis = m15;
+                    if (FilmLong && sinceStart > Fs * 30) { if (n % 4800 == 0) intC = In.Integrated; if (intC > -70) { basis = intC; scene = false; } }
                     if (basis > double.NegativeInfinity && In.Momentary > bgGate)
                     {
-                        double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - pr.Dead);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dev));
+                        bool fl = FilmLong && pr.Name == "auto-normal"; double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
+                        double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
+                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, am * dev));
                         if (pr.LimitOnly) want = Math.Min(0, want);
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
                         double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie

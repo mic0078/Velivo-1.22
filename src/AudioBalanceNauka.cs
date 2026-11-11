@@ -77,6 +77,7 @@ namespace Velivo
                 double tg = (AbProc.Target >= -0.5 ? -23 : AbProc.Target) + _abLearnEff, dv = tg - e.Avg; dv = Math.Sign(dv) * Math.Max(0, Math.Abs(dv) - pr.Dead);
                 AbProc.SeedLevDb = (float)Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost, pr.Amount * dv));
             }
+            AbProc.FilmLong = !tv;   // 🎞 film: poziom z całego filmu (stabilnie); TV - jak dotąd
             AbProc.FastMul = e != null && e.Ad <= -6 ? 2 : 1;
             AbProc.TargetAdj = (float)_abLearnEff;
             if (_abLearnTimer == null)

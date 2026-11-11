@@ -275,8 +275,10 @@ namespace Velivo
                 if (rate < 8000 || n < 10) return (null, 0, 0);
                 LectorWavDb(wav, out var band); if (double.IsNaN(band) || double.IsInfinity(band)) return (null, 0, 0);
                 double step = rate * Math.Max(0.5, sr) / 48000.0; int outN = (int)((n - 1) / step);
+                int st = 0; for (; st < n - 1; st++) if (Math.Abs(BitConverter.ToInt16(b, 44 + st * ch * 2)) > 100) break;   // cisza na początku nagrania (głos syntetyczny) - lektor startuje równo z napisem
+                st = Math.Max(0, st - rate / 100); n -= st; outN = (int)((n - 1) / step); if (outN < 10) return (null, 0, 0);
                 var o = new float[outN]; double pk = 0;
-                Func<int, double> at = i => { double v = 0; for (int c = 0; c < ch; c++) v += BitConverter.ToInt16(b, 44 + (i * ch + c) * 2); return v / (32768.0 * ch); };
+                Func<int, double> at = i => { double v = 0; for (int c = 0; c < ch; c++) v += BitConverter.ToInt16(b, 44 + ((i + st) * ch + c) * 2); return v / (32768.0 * ch); };
                 for (int k = 0; k < outN; k++) { double x = k * step; int i = (int)x; double fr = x - i, v = at(i) + (at(i + 1) - at(i)) * fr; o[k] = (float)v; if (Math.Abs(v) > pk) pk = Math.Abs(v); }
                 return (o, band, pk);
             }

@@ -313,7 +313,7 @@ namespace Velivo
         public void LekPlay(float[] s, double bandDb, double peak) { LekPlaying = false; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
         public void LekStop() { LekPlaying = false; }
         // film do lektora: tylko gdy lektor doszedł do granicy (szczyt 0,9), film ustępuje o brakującą część, najwyżej do LekFloorDb (suwak „Film podczas czytania”)
-        double lekLastDb = double.NaN;   // głośność poprzedniej kwestii (dB) - następna najwyżej ±3 dB
+        double lekLastDb = double.NaN;   // słyszalny poziom poprzedniej kwestii (dB) - następna najwyżej ±3 dB
         double fDuck, fWant, mixG = 1; long fHold;   // mixG - granica Audio Balance (CeilingDb) dla filmu z lektorem: łagodne ograniczenie, nigdy ponad   // przytrzymanie 1,2 s po kwestii - między kwestiami film nie wraca i nie odbija (bez pompowania)
         void MixLek(float[] buf, int frames)
         {
@@ -326,8 +326,9 @@ namespace Velivo
                 if (s != null && lekG < 0)
                 {   // raz na kwestię: stała głośność lektora do końca zdania (bez pływania); między kwestiami najwyżej ±3 dB
                     double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 * ceil / lekPk);
-                    double gDb = Math.Min(need, cap); if (!double.IsNaN(lekLastDb)) gDb = Math.Max(lekLastDb - 3, Math.Min(lekLastDb + 3, gDb)); gDb = Math.Min(gDb, cap);
-                    lekLastDb = gDb; lekG = gt = Math.Pow(10, gDb / 20);
+                    double gDb = Math.Min(need, cap), o = gDb + LekBandDb;   // o - słyszalny poziom lektora (głos i nagranie zmierzone osobno: inny głos = inna wartość nagrania, ten sam poziom w filmie)
+                    if (!double.IsNaN(lekLastDb)) o = Math.Max(lekLastDb - 3, Math.Min(lekLastDb + 3, o)); gDb = Math.Min(o - LekBandDb, cap);
+                    lekLastDb = gDb + LekBandDb; lekG = gt = Math.Pow(10, gDb / 20);
                     fWant = -Math.Min(Math.Max(0, need - cap), Math.Max(0, -LekFloorDb));
                 }
                 fDuck += (fWant - fDuck) / ((fWant < fDuck ? 0.5 : 1.5) * Fs);

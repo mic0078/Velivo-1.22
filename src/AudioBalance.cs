@@ -229,7 +229,7 @@ namespace Velivo
         LibVLCSharp.Shared.MediaPlayer.LibVLCAudioPlayCb _abPlay; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioPauseCb _abPause; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioResumeCb _abResume;
         LibVLCSharp.Shared.MediaPlayer.LibVLCAudioFlushCb _abFlush; LibVLCSharp.Shared.MediaPlayer.LibVLCAudioDrainCb _abDrain; LibVLCSharp.Shared.MediaPlayer.LibVLCVolumeCb _abVol;
 
-        static string AbProfileName => GetPref("ab-profil") ?? "off";
+        static string AbProfileName => GetPref("ab-profil") ?? "auto";   // domyślnie (właściciel): Audio Balance włączony - Auto Level, Normal, dialogi wył., cel Auto -23 LUFS, nauka wł.
         static bool AbEqOn => GetPref("ab-eq") == "1";
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1";

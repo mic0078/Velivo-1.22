@@ -137,7 +137,8 @@ namespace Velivo
             public List<SubCue> Cues = new List<SubCue>();
             public string Lang = "pl", File;
             public int LastSpoken = -1;
-            public double DynBd = double.NaN;   // lektor w paśmie mowy (dBFS przy głośności 1) - do dopasowania do filmu
+            public double DynBd = double.NaN;
+            public bool AbVoice;   // kwestia gra ścieżką Velivo (AbProc.LekPlay)   // lektor w paśmie mowy (dBFS przy głośności 1) - do dopasowania do filmu
             public long LastTime = long.MinValue;
             public long LastWall;   // Environment.TickCount64 przy LastTime
             public int PreIdx = -1; public Task<string> PreWav;   // nastepna kwestia liczona z wyprzedzeniem (lektor gotowy, gdy napis sie pojawi)
@@ -264,6 +265,24 @@ namespace Velivo
             finally { if (gen == lc.RenderGen) lc.Rendering = false; }
         }
 
+        // nagranie kwestii -> mono 48 kHz (tempo sr: szybciej = krócej), pasmo mowy i szczyt - dla ścieżki Velivo
+        static (float[] s, double band, double peak) LectorWavPcm48(string wav, double sr)
+        {
+            try
+            {
+                var b = System.IO.File.ReadAllBytes(wav); if (b.Length < 1000 || BitConverter.ToInt16(b, 34) != 16) return (null, 0, 0);
+                int rate = BitConverter.ToInt32(b, 24), ch = Math.Max(1, (int)BitConverter.ToInt16(b, 22)), n = (b.Length - 44) / (2 * ch);
+                if (rate < 8000 || n < 10) return (null, 0, 0);
+                LectorWavDb(wav, out var band); if (double.IsNaN(band) || double.IsInfinity(band)) return (null, 0, 0);
+                double step = rate * Math.Max(0.5, sr) / 48000.0; int outN = (int)((n - 1) / step);
+                var o = new float[outN]; double pk = 0;
+                Func<int, double> at = i => { double v = 0; for (int c = 0; c < ch; c++) v += BitConverter.ToInt16(b, 44 + (i * ch + c) * 2); return v / (32768.0 * ch); };
+                for (int k = 0; k < outN; k++) { double x = k * step; int i = (int)x; double fr = x - i, v = at(i) + (at(i + 1) - at(i)) * fr; o[k] = (float)v; if (Math.Abs(v) > pk) pk = Math.Abs(v); }
+                return (o, band, pk);
+            }
+            catch (Exception) { return (null, 0, 0); }
+        }
+
         static long LectorWavMs(string wav)
         {
             try { using (var fs = System.IO.File.OpenRead(wav)) { var h = new byte[44]; if (fs.Read(h, 0, 44) < 44) return 0; int bps = BitConverter.ToInt32(h, 28); return bps > 0 ? (fs.Length - 44) * 1000 / bps : 0; } }
@@ -323,6 +342,7 @@ namespace Velivo
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
             lc.VoiceDone?.TrySetResult(false);
+            if (lc.AbVoice) { AbProc.LekStop(); lc.AbVoice = false; }
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
             AbProc.LekOn = false;   // inteligentny lektor: film wraca płynnie (przytrzymanie 0,8 s - między kwestiami bez pompowania)
         }
@@ -331,6 +351,7 @@ namespace Velivo
         async void LectorTick(Lector lc, LibVLCSharp.Shared.MediaPlayer mp, Func<int> volume)
         {
             if (lc.Cues.Count == 0) return;
+            if (lc.AbVoice) AbProc.LekUserDb = (float)(20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99));
             if (lc.Voice != null && !double.IsNaN(lc.DynBd)) { double cv = lc.Voice.Volume, tv = LectorDynVol(lc); lc.Voice.Volume = cv + (tv - cv) * (tv > cv ? 0.5 : 0.25); }   // dynamika w trakcie kwestii (płynnie, co ~120 ms)
             // budowa lektora takze w pauzie: zmiana glosu / „Zbuduj lektora teraz” przy zatrzymanym filmie startuje od razu
             // (wczesniej sprawdzane dopiero po pauzie - budowa ruszala dopiero po wznowieniu filmu)
@@ -345,7 +366,7 @@ namespace Velivo
             if (!mp.IsPlaying && (st == LibVLCSharp.Shared.VLCState.Buffering || st == LibVLCSharp.Shared.VLCState.Opening)) return;   // chwilowe buforowanie filmu to nie pauza - lektor czyta dalej
             if (!mp.IsPlaying && !(queue && ended))
             {
-                if (lc.Voice != null || lc.Busy)
+                if (lc.Voice != null || lc.AbVoice || lc.Busy)
                 {
                     LectorStopVoice(lc, mp); lc.Gen++; LectorDropPre(lc);
                     if (queue && lc.CurIdx >= 0) lc.LastSpoken = Math.Min(lc.LastSpoken, lc.CurIdx - 1);   // przerwana kwestia wraca do kolejki
@@ -401,6 +422,21 @@ namespace Velivo
                 {   // pomiar lektora w tle (odczyt i filtr całego WAV - w wątku okna przycinał słupki Audio Monitora), wynik do doradcy w wątku okna; lektor nie czeka
                     double lv = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)), dk = duck;
                     _ = Task.Run(() => { LectorWavDb(wav, out var bd); return bd; }).ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion && !double.IsNaN(t.Result)) Dispatcher.BeginInvoke(new Action(() => AbLektorCue(t.Result, lv, dk))); });
+                }
+                if (_abOut != null && mp.IsPlaying)
+                {   // 🗣 ścieżka Velivo: lektor wmieszany w dźwięk filmu - głośniej niż pozwala odtwarzacz Windows, dynamika na bieżąco, film bez zmian
+                    double sr0 = 1; if (queue) { long late = tn - cue.Start; if (late > 500) sr0 = Math.Min(1.5, 1 + (late - 500) / 6000.0); }
+                    var pcm = await Task.Run(() => LectorWavPcm48(wav, sr0));
+                    if (pcm.s != null && gen == lc.Gen && mp.IsPlaying)
+                    {
+                        AbProc.LekUserDb = (float)(20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99));
+                        lc.AbVoice = true; AbProc.LekPlay(pcm.s, pcm.band, pcm.peak);
+                        var sw = System.Diagnostics.Stopwatch.StartNew(); long maxMs = pcm.s.Length / 48 + 20000;
+                        while (lc.AbVoice && AbProc.LekPlaying && gen == lc.Gen && sw.ElapsedMilliseconds < maxMs) await Task.Delay(40);
+                        if (lc.AbVoice && gen == lc.Gen) { lc.AbVoice = false; AbProc.LekStop(); }
+                        if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { }
+                        return;
+                    }
                 }
                 var done = new TaskCompletionSource<bool>();
                 var voice = new System.Windows.Media.MediaPlayer { Volume = LectorDynVol(lc) };

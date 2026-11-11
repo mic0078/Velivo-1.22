@@ -306,7 +306,30 @@ namespace Velivo
         public void NewMedia() => newReq = true;   // z wątku okna - wykonane w wątku dźwięku przed kolejnym kawałkiem
 
         // przetwarza ramki stereo float w miejscu (bufor VLC → wyjście)
-        public void Process(float[] buf, int frames)
+        // 🗣 lektor na ścieżce Velivo (bez limitu 99% odtwarzacza Windows): wmieszany PO przetwarzaniu filmu, film bez zmian;
+        // dynamika: lektor 10 dB nad filmem w paśmie mowy (mierzonym tu, na tym, co słychać), + Twoja poprawka; szczyt lektora najwyżej 0,9
+        float[] lekS; int lekPos; double lekG = -1, lekPk = 1, mP; readonly AbBiquad mHp = AbBiquad.Hp(Fs, 1000), mLp = AbBiquad.Lp(Fs, 4000);
+        public volatile bool LekPlaying; public volatile float LekBandDb = float.NaN, LekUserDb;
+        public void LekPlay(float[] s, double bandDb, double peak) { LekPlaying = false; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
+        public void LekStop() { LekPlaying = false; }
+        void MixLek(float[] buf, int frames)
+        {
+            var s = LekPlaying ? lekS : null; double gt = 1;
+            for (int f = 0; f < frames; f++)
+            {
+                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (0.3 * Fs);
+                if (s == null) continue;
+                if (lekPos >= s.Length) { LekPlaying = false; s = null; continue; }
+                if ((f & 63) == 0) { double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50); gt = Math.Min(0.9 / lekPk, Math.Pow(10, (k + 10 + LekUserDb - LekBandDb) / 20)); if (lekG < 0) lekG = gt; }
+                lekG += (gt - lekG) / ((gt > lekG ? 0.05 : 0.3) * Fs);
+                double v = s[lekPos++] * lekG, l = buf[2 * f] + v, r = buf[2 * f + 1] + v;
+                buf[2 * f] = (float)(l > 1 ? 1 : l < -1 ? -1 : l); buf[2 * f + 1] = (float)(r > 1 ? 1 : r < -1 ? -1 : r);
+            }
+            KDb = (float)(10 * Math.Log10(mP + 1e-12));
+        }
+
+        public void Process(float[] buf, int frames) { ProcessCore(buf, frames); MixLek(buf, frames); }
+        void ProcessCore(float[] buf, int frames)
         {
             if (newReq) { newReq = false; Reset(); In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
@@ -428,7 +451,7 @@ namespace Velivo
                     if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
                 }
                 {   // 🗣 inteligentny lektor: film w paśmie mowy (300 ms, po wyrównaniu) → potrzebne ściszenie; atak 0,15 s, powrót 0,6 s, przytrzymanie 0,8 s
-                    double km = (l + r) * 0.5 * Math.Pow(10, g / 20) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs); if ((n & 1023) == 0) KDb = (float)(10 * Math.Log10(kP + 1e-12));
+                    double km = (l + r) * 0.5 * Math.Pow(10, g / 20) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs);
                     double kWant = 0;
                     if (LekOn) { lekHold = (long)(0.8 * Fs); double rf = LekRef; double fl = LekFloorDb;
                         kWant = double.IsNaN(rf) ? fl : Math.Max(fl, Math.Min(0, rf - 10 - 10 * Math.Log10(kP + 1e-12) - (InDialogShare > 0.5 ? 2 : 0))); }   // lektor 10 dB nad filmem (12 przy dialogu w filmie)

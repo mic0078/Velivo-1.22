@@ -313,24 +313,24 @@ namespace Velivo
         public void LekPlay(float[] s, double bandDb, double peak) { LekPlaying = false; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
         public void LekStop() { LekPlaying = false; }
         // film do lektora: tylko gdy lektor doszedł do granicy (szczyt 0,9), film ustępuje o brakującą część, najwyżej do LekFloorDb (suwak „Film podczas czytania”)
-        double fDuck, fWant;
+        double fDuck, fWant; long fHold;   // przytrzymanie 1,2 s po kwestii - między kwestiami film nie wraca i nie odbija (bez pompowania)
         void MixLek(float[] buf, int frames)
         {
             var s = LekPlaying ? lekS : null; double gt = lekG < 0 ? 1 : lekG;
-            if (s == null) fWant = 0;
             for (int f = 0; f < frames; f++)
             {
-                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (0.3 * Fs);   // film przed ustąpieniem - stały punkt odniesienia
-                if (s != null && lekPos >= s.Length) { LekPlaying = false; s = null; fWant = 0; }
-                if (s != null && (f & 63) == 0)
+                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
+                if (s != null && lekPos >= s.Length) { LekPlaying = false; s = null; }
+                if (s != null) fHold = (long)(1.2 * Fs); else if (fHold > 0) fHold--; else fWant = 0;
+                if (s != null && ((f & 63) == 0 || lekG < 0))
                 {
                     double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 / lekPk);
                     gt = Math.Pow(10, Math.Min(need, cap) / 20); if (lekG < 0) lekG = gt;
                     fWant = -Math.Min(Math.Max(0, need - cap), Math.Max(0, -LekFloorDb));
                 }
-                fDuck += (fWant - fDuck) / ((fWant < fDuck ? 0.15 : 0.6) * Fs);
+                fDuck += (fWant - fDuck) / ((fWant < fDuck ? 0.5 : 1.5) * Fs);
                 double fg = fDuck < -0.01 ? Math.Pow(10, fDuck / 20) : 1, l = buf[2 * f] * fg, r = buf[2 * f + 1] * fg;
-                if (s != null) { lekG += (gt - lekG) / ((gt > lekG ? 0.05 : 0.3) * Fs); double v = s[lekPos++] * lekG; l += v; r += v; }
+                if (s != null) { lekG += (gt - lekG) / ((gt > lekG ? 0.3 : 1.0) * Fs); double v = s[lekPos++] * lekG; l += v; r += v; }
                 buf[2 * f] = (float)(l > 1 ? 1 : l < -1 ? -1 : l); buf[2 * f + 1] = (float)(r > 1 ? 1 : r < -1 ? -1 : r);
             }
             KDb = (float)(10 * Math.Log10(mP + 1e-12));

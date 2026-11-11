@@ -79,14 +79,17 @@ namespace Velivo
             AbWriteLatest(AbLekPrefsFile, json);   // zapisy po kolei, tylko najnowszy (było: kilka naraz → „plik .tmp zajęty”)
         }
 
-        // zmiana głosu lektora: jeśli dla tego głosu ustawiasz zwykle co innego - propozycja (bez zmiany)
+        // zmiana głosu lektora: jeśli dla tego głosu ustawiasz zwykle co innego - Velivo samo wraca do Twojego ustawienia tego głosu
         internal void AbLektorVoiceChanged(string voice)
         {
             if (AbLekSugKey != null && AbLekSugKey.StartsWith("voice|")) { AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; }
             if (!AbLekPrefs().TryGetValue(voice ?? "", out var p) || p.N == 0) return;
             if (p.Duck < 10) return;   // nigdy nie proponuj wyciszenia filmu
             if (Math.Abs(p.Vol - _settings.VlcLectorVolume) < 0.03 && p.Duck == _settings.VlcLectorDuck) return;
-            Propose("voice|" + voice + "|" + p.Vol.ToString("0.00") + "|" + p.Duck, L.T("Dla głosu „") + AbLekVoiceName(voice) + L.T("” zwykle ustawiasz: głośność ") + (int)Math.Round(p.Vol * 100) + L.T("%, film podczas czytania ") + p.Duck + L.T("%. Zastosować?"), () => { _settings.VlcLectorVolume = p.Vol; _settings.VlcLectorDuck = p.Duck; });
+            // 🧠 sam (bez pytania): Twoje ustawienie dla tego głosu - każdy głos ma inne nagranie i inną poprawkę; dalej dopasowanie na bieżąco do filmu
+            _settings.VlcLectorVolume = p.Vol; _settings.VlcLectorDuck = p.Duck; try { _settings.Save(DataDir); } catch (Exception ex) { App.LogError(ex); }
+            AbLektorUiRefresh?.Invoke(); _abLek.Reset();
+            AbLekApplied = L.T("Głos „") + AbLekVoiceName(voice) + L.T("”: Twoje ustawienie – głośność ") + (int)Math.Round(p.Vol * 100) + L.T("%, film podczas czytania ") + p.Duck + "%";
         }
 
         // tekst i kolor wskaźnika w Audio Monitorze

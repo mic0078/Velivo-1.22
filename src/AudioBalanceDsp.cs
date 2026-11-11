@@ -250,6 +250,7 @@ namespace Velivo
         public volatile bool LekOn, LekPath;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
         public volatile float LekRef = float.NaN;          // lektor w paśmie mowy (dBFS, z jego głośnością); NaN - jeszcze niezmierzony
         public volatile float LekFloorDb = -9;             // najgłębsze ściszenie (suwak „Film podczas czytania”)
+        public volatile float KDb = float.NaN;             // film w paśmie mowy (dBFS, 300 ms) - do tego lektor dopasowuje swoją głośność
         public double LekDb;                               // obecne ściszenie filmu pod lektora (dB, do wyświetlania)
         readonly AbBiquad kHp = AbBiquad.Hp(48000, 1000), kLp = AbBiquad.Lp(48000, 4000);
         double kP; long lekHold;
@@ -427,7 +428,7 @@ namespace Velivo
                     if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
                 }
                 {   // 🗣 inteligentny lektor: film w paśmie mowy (300 ms, po wyrównaniu) → potrzebne ściszenie; atak 0,15 s, powrót 0,6 s, przytrzymanie 0,8 s
-                    double km = (l + r) * 0.5 * Math.Pow(10, g / 20) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs);
+                    double km = (l + r) * 0.5 * Math.Pow(10, g / 20) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs); if ((n & 1023) == 0) KDb = (float)(10 * Math.Log10(kP + 1e-12));
                     double kWant = 0;
                     if (LekOn) { lekHold = (long)(0.8 * Fs); double rf = LekRef; double fl = LekFloorDb;
                         kWant = double.IsNaN(rf) ? fl : Math.Max(fl, Math.Min(0, rf - 10 - 10 * Math.Log10(kP + 1e-12) - (InDialogShare > 0.5 ? 2 : 0))); }   // lektor 10 dB nad filmem (12 przy dialogu w filmie)

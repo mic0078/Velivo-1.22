@@ -309,27 +309,29 @@ namespace Velivo
         // 🗣 lektor na ścieżce Velivo (bez limitu 99% odtwarzacza Windows): wmieszany PO przetwarzaniu filmu, film bez zmian;
         // dynamika: lektor 10 dB nad filmem w paśmie mowy (mierzonym tu, na tym, co słychać), + Twoja poprawka; szczyt lektora najwyżej 0,9
         float[] lekS; int lekPos; double lekG = -1, lekPk = 1, mP; readonly AbBiquad mHp = AbBiquad.Hp(Fs, 1000), mLp = AbBiquad.Lp(Fs, 4000);
-        public volatile bool LekPlaying; public volatile float LekBandDb = float.NaN, LekUserDb;
-        public void LekPlay(float[] s, double bandDb, double peak) { LekPlaying = false; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
+        public volatile bool LekPlaying; public volatile float LekBandDb = float.NaN, LekUserDb; float lekFullDb;
+        public void LekPlay(float[] s, double bandDb, double fullDb, double peak) { LekPlaying = false; lekFullDb = (float)fullDb; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
         public void LekStop() { LekPlaying = false; }
         // film do lektora: tylko gdy lektor doszedł do granicy (szczyt 0,9), film ustępuje o brakującą część, najwyżej do LekFloorDb (suwak „Film podczas czytania”)
         double lekLastDb = double.NaN;   // słyszalny poziom ostatniej kwestii (dB)
-        double mF, lekK0, fLive;   // czuwanie na żywo: film z 0,15 s, poziom filmu na starcie kwestii, ustąpienie na żywo
+        double mF, lekK0, fLive, mFull, cgW = 1, cgS = 1;   // mFull - film pełne pasmo (1 s); cg - Audio Balance pilnuje całości: film + lektor = głośność samego filmu   // czuwanie na żywo: film z 0,15 s, poziom filmu na starcie kwestii, ustąpienie na żywo
         double fDuck, fWant, mixG = 1; long fHold;   // mixG - granica Audio Balance (CeilingDb) dla filmu z lektorem: łagodne ograniczenie, nigdy ponad   // przytrzymanie 1,2 s po kwestii - między kwestiami film nie wraca i nie odbija (bez pompowania)
         void MixLek(float[] buf, int frames)
         {
             var s = LekPlaying ? lekS : null; double gt = lekG, ceil = Math.Pow(10, CeilingDb / 20), mRel = 1.0 / (0.3 * Fs);
             for (int f = 0; f < frames; f++)
             {
-                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs); mF += (b * b - mF) / (0.15 * Fs);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
+                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs); mF += (b * b - mF) / (0.15 * Fs); mFull += (m * m - mFull) / (1.0 * Fs);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
                 if (s != null && lekPos >= s.Length) { LekPlaying = false; s = null; }
-                if (s != null) fHold = (long)(1.2 * Fs); else if (fHold > 0) fHold--; else fWant = 0;
+                if (s != null) fHold = (long)(1.2 * Fs); else if (fHold > 0) fHold--; else { fWant = 0; cgW = 1; }
                 if (s != null && lekG < 0)
                 {   // raz na kwestię, od razu właściwa: stała głośność lektora do końca zdania (bez pływania)
                     double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 * ceil / lekPk);
                     double gDb = Math.Min(need, cap), o = gDb + LekBandDb;   // o - słyszalny poziom lektora (głos i nagranie zmierzone osobno: inny głos = inna wartość nagrania, ten sam poziom w filmie)
                     lekLastDb = gDb + LekBandDb; lekK0 = k; lekG = gt = Math.Pow(10, gDb / 20);
                     fWant = -Math.Min(Math.Max(0, need - cap), Math.Max(0, -LekFloorDb));
+                    double pf = mFull + 1e-12, pl = Math.Pow(10, lekFullDb / 10) * lekG * lekG;   // raz na kwestię - stałe, bez pływania
+                    cgW = Math.Min(1, Math.Sqrt(pf / (pf * Math.Pow(10, fWant / 10) + pl)));
                 }
                 if (s != null && (f & 63) == 0)
                 {   // 🎚 czuwanie na żywo (jak ducker w studiu): film nagle głośniej niż na starcie kwestii - ustępuje o nadwyżkę (lektor stały, nie pływa)
@@ -341,7 +343,8 @@ namespace Velivo
                 fDuck += (fW - fDuck) / ((fW < fDuck ? (fLive < fWant ? 0.08 : 0.5) : 1.5) * Fs);
                 double fg = fDuck < -0.01 ? Math.Pow(10, fDuck / 20) : 1, l = buf[2 * f] * fg, r = buf[2 * f + 1] * fg;
                 if (s != null) { double v = s[lekPos++] * lekG; l += v; r += v; }
-                if (s != null || mixG < 1)
+                cgS += (cgW - cgS) / ((cgW < cgS ? 0.3 : 1.5) * Fs); if (cgS < 0.9999) { l *= cgS; r *= cgS; }   // ogólna głośność z lektorem = jak bez niego (Audio Balance rządzi)
+                if (s != null || mixG < 1 || cgS < 0.9999)
                 {   // Audio Balance rządzi: film + lektor nie przekracza jego granicy (szybko w dół, powoli z powrotem - bez zniekształceń i pompowania)
                     double pk = Math.Max(Math.Abs(l), Math.Abs(r)) * mixG; if (pk > ceil) mixG *= ceil / pk; else mixG += (1 - mixG) * mRel;
                     l *= mixG; r *= mixG; l = l > ceil ? ceil : l < -ceil ? -ceil : l; r = r > ceil ? ceil : r < -ceil ? -ceil : r;

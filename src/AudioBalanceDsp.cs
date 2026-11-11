@@ -313,10 +313,10 @@ namespace Velivo
         public void LekPlay(float[] s, double bandDb, double peak) { LekPlaying = false; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
         public void LekStop() { LekPlaying = false; }
         // film do lektora: tylko gdy lektor doszedł do granicy (szczyt 0,9), film ustępuje o brakującą część, najwyżej do LekFloorDb (suwak „Film podczas czytania”)
-        double fDuck, fWant; long fHold;   // przytrzymanie 1,2 s po kwestii - między kwestiami film nie wraca i nie odbija (bez pompowania)
+        double fDuck, fWant, mixG = 1; long fHold;   // mixG - granica Audio Balance (CeilingDb) dla filmu z lektorem: łagodne ograniczenie, nigdy ponad   // przytrzymanie 1,2 s po kwestii - między kwestiami film nie wraca i nie odbija (bez pompowania)
         void MixLek(float[] buf, int frames)
         {
-            var s = LekPlaying ? lekS : null; double gt = lekG < 0 ? 1 : lekG;
+            var s = LekPlaying ? lekS : null; double gt = lekG < 0 ? 1 : lekG, ceil = Math.Pow(10, CeilingDb / 20), mRel = 1.0 / (0.3 * Fs);
             for (int f = 0; f < frames; f++)
             {
                 double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
@@ -324,14 +324,19 @@ namespace Velivo
                 if (s != null) fHold = (long)(1.2 * Fs); else if (fHold > 0) fHold--; else fWant = 0;
                 if (s != null && ((f & 63) == 0 || lekG < 0))
                 {
-                    double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 / lekPk);
+                    double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 * ceil / lekPk);
                     gt = Math.Pow(10, Math.Min(need, cap) / 20); if (lekG < 0) lekG = gt;
                     fWant = -Math.Min(Math.Max(0, need - cap), Math.Max(0, -LekFloorDb));
                 }
                 fDuck += (fWant - fDuck) / ((fWant < fDuck ? 0.5 : 1.5) * Fs);
                 double fg = fDuck < -0.01 ? Math.Pow(10, fDuck / 20) : 1, l = buf[2 * f] * fg, r = buf[2 * f + 1] * fg;
                 if (s != null) { lekG += (gt - lekG) / ((gt > lekG ? 0.3 : 1.0) * Fs); double v = s[lekPos++] * lekG; l += v; r += v; }
-                buf[2 * f] = (float)(l > 1 ? 1 : l < -1 ? -1 : l); buf[2 * f + 1] = (float)(r > 1 ? 1 : r < -1 ? -1 : r);
+                if (s != null || mixG < 1)
+                {   // Audio Balance rządzi: film + lektor nie przekracza jego granicy (szybko w dół, powoli z powrotem - bez zniekształceń i pompowania)
+                    double pk = Math.Max(Math.Abs(l), Math.Abs(r)) * mixG; if (pk > ceil) mixG *= ceil / pk; else mixG += (1 - mixG) * mRel;
+                    l *= mixG; r *= mixG; l = l > ceil ? ceil : l < -ceil ? -ceil : l; r = r > ceil ? ceil : r < -ceil ? -ceil : r;
+                }
+                buf[2 * f] = (float)(l > 1 ? 1 : l < -1 ? -1 : l); buf[2 * f + 1] = (float)(r > 1 ? 1 : r < -1 ? -1 : r);   // bez lektora - dźwięk filmu bez zmian
             }
             KDb = (float)(10 * Math.Log10(mP + 1e-12));
         }

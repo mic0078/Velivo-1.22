@@ -727,6 +727,7 @@ namespace Velivo
             // na pulpicie zawsze jeden widżet: pokazanie jednego zamienia drugi (miejsce przechodzi na nowy, jeśli nie ma własnego)
             var other = onlyV ? _abDesk : _abDeskV; double? swapL = other?.Left, swapT = other?.Top; other?.Close();
             string key = onlyV ? "ab-pulpitv" : "ab-pulpit";
+            SetPref(key, "1");   // widżet wraca sam przy starcie Velivo (także pokazany przyciskiem „Na pulpit” albo z menu zasobnika)
             var fg = AbFg; var dim = AbDim;
             var w = new Window { Title = onlyV ? "Velivo – V (pulpit)" : "Velivo – Audio Monitor (pulpit)", Width = onlyV ? 66 : 156, Height = onlyV ? 62 : 78, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = false };
             double l0, t0;

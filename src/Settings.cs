@@ -792,7 +792,7 @@ namespace Velivo
                 abRow.Children.Add(abMon);
                 root.Children.Add(abRow);
                 root.Children.Add(AbDeviceBox());
-                var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") == "1");
+                var abDeskBox = Check(L.T("📌 Mały Audio Monitor na pulpicie"), L.T("Widmo i głośność w małym okienku na pulpicie (pod innymi oknami). Przeciągnij, aby przenieść; dwuklik – pełny widżet."), GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1");
                 CheckBox abDeskVRef = null;
                 abDeskBox.Click += (a, b) => { if (abDeskBox.IsChecked == true) { ShowAbDesk(); if (abDeskVRef != null) abDeskVRef.IsChecked = false; } else _abDesk?.Close(); SetPref("ab-pulpit", abDeskBox.IsChecked == true ? "1" : "0"); };
                 root.Children.Add(abDeskBox);

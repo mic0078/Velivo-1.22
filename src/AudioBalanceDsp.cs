@@ -325,7 +325,7 @@ namespace Velivo
                 if (s == null) continue;
                 if (lekPos >= s.Length) { LekPlaying = false; s = null; continue; }
                 if (lekG < 0) lekG = Math.Pow(10, Math.Min(EffTarget + 2 + LekUserDb - lekFullDb, 20 * Math.Log10(0.9 * ceil / lekPk)) / 20);
-                double fl = buf[2 * f], fr = buf[2 * f + 1], v = s[lekPos++] * lekG;   // film bez zmian, lektor dołożony
+                double fl = buf[2 * f], fr = buf[2 * f + 1], v = s[lekPos++] * lekG * vS;   // film bez zmian, lektor dołożony; vS - główny regulator głośności Velivo (ścisza też lektora)
                 double c = Math.Max(ceil, Math.Max(Math.Abs(fl), Math.Abs(fr))); v = Math.Max(Math.Max(-c - fl, -c - fr), Math.Min(Math.Min(c - fl, c - fr), v));   // granica Audio Balance: przycinany tylko lektor, nigdy film
                 buf[2 * f] = (float)(fl + v); buf[2 * f + 1] = (float)(fr + v);
             }

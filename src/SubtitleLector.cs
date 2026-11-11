@@ -430,6 +430,7 @@ namespace Velivo
                     if (pcm.s != null && gen == lc.Gen && mp.IsPlaying)
                     {
                         AbProc.LekUserDb = (float)(20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99));
+                        AbProc.LekFloorDb = (float)(20 * Math.Log10(Math.Max(10, Math.Min(100, _settings.VlcLectorDuck)) / 100.0));   // suwak: najgłębsze ustąpienie filmu (100% = film nigdy)
                         lc.AbVoice = true; AbProc.LekPlay(pcm.s, pcm.band, pcm.peak);
                         var sw = System.Diagnostics.Stopwatch.StartNew(); long maxMs = pcm.s.Length / 48 + 20000;
                         while (lc.AbVoice && AbProc.LekPlaying && gen == lc.Gen && sw.ElapsedMilliseconds < maxMs) await Task.Delay(40);

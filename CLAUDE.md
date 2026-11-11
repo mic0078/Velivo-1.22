@@ -322,6 +322,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-10: nowa blokada (syntezator nie jest efektem) trafiała w łańcuch zapisany starszą wersją i pokazywała czerwone „Nie wczytano: Augmented VOICES” – właściciel wziął to za awarię Ozone. Nowa reguła odrzucająca coś, co już jest zapisane u użytkownika – sprzątaj po cichu (wpis w dzienniku), nie czerwonym błędem.
 * 2026-11-10: „lektor nie czyta” – synchronizacja ustawień z innym komputerem kasowała folder lektora (RAM-dysk Z:), budowa szła do Dane\lektor, a Velivo nie reagowało na zmianę położenia; ja szukałem w kodzie lektora i cofałem dobre zmiany. Ustawienia zależne od komputera (ścieżki, dyski) – nigdy z synchronizacji; zmiana położenia plików – od razu w budowie i odczycie. Najpierw porównaj, gdzie program zapisuje, z tym, gdzie właściciel ustawił.
 * 2026-11-10: zmiana przygotowania tekstu Supertonic (litery w całości zamiast NFKD) bez możliwości odsłuchu – nagrania lektora wyszły głuche, cofnięte. Zmiany w samym silniku mowy/dźwięku tylko z próbą u właściciela (osobna gałąź albo przełącznik), nigdy wprost do działającej wersji.
+* 2026-11-11: lektor z Audio Balance – roller coaster przez kilka rund: dokładałem mechanizmy ruszające film (ustępowanie, czuwanie na żywo, ściszanie całości), choć zasada właściciela była jedna: „źródło bez zmian, dopasowuje się tylko lektor”. Przy zmianach dźwięku najpierw jedna zasada potwierdzona przez właściciela, potem jeden mechanizm – nie dokładaj kolejnych bez odsłuchu.
 
 ## Zrobione (pamięć)
 

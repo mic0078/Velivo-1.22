@@ -67,6 +67,9 @@ namespace Velivo
         }
         internal static void AbLektorSugDismiss() { if (AbLekSugKey != null) AbLekDismissed.Add(AbLekSugKey); AbLekSugText = null; AbLekSugApply = null; AbLekSugKey = null; }
 
+        // 🧠 czego Velivo nauczyło się od Ciebie dla tego głosu (null - jeszcze nic)
+        internal static double? AbLekLearnedVol(string voice) => AbLekPrefs().TryGetValue(voice ?? "", out var p) && p.N > 0 ? p.Vol : (double?)null;
+
         // Twoje ręczne ustawienie (suwaki lektora) = przyzwyczajenie dla tego głosu (ostatnie ustawienie, zapis od razu)
         internal static void AbLektorUserSet(string voice, double vol, int duck)
         {

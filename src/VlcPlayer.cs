@@ -2233,7 +2233,7 @@ namespace Velivo
             Action applyFilmPrefs = () =>
             {
                 // film bez wlasnych ustawien - domyslne (nie te z poprzedniego filmu)
-                lekLoading = true; lvRow.Item2.Value = (current?.LVol ?? defLVol) * 100; lekLoading = false;
+                lekLoading = true; lvRow.Item2.Value = (current?.LVol ?? AbLekLearnedVol(current?.LVoice ?? defVoice) ?? defLVol) * 100; lekLoading = false;   // 🧠 nowy film: głośność, której nauczyłeś Velivo dla tego głosu
                 lrRow.Item2.Value = current?.LRate ?? defRate;
                 lekLoading = true; ldRow.Item2.Value = current?.LDuck ?? defDuck; lekLoading = false;
                 stSl.Value = current?.LSteps ?? defSteps;

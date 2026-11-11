@@ -194,7 +194,7 @@ namespace Velivo
                     LoadBookmarks();
                     StartJellyfinAutoSync();
                     _ = VoiceUpdateCheckAsync(null);
-                    if (GetPref("ab-pulpit") == "1") ShowAbDesk();   // 📌 maly Audio Monitor na pulpicie (opcja)
+                    if (GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1") ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
                     if (GetPref("ab-pulpitv") == "1") ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
                     LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
                     var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku

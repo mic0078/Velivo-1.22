@@ -321,7 +321,7 @@ namespace Velivo
             var s = LekPlaying ? lekS : null; double gt = lekG, ceil = Math.Pow(10, CeilingDb / 20), mRel = 1.0 / (0.3 * Fs);
             for (int f = 0; f < frames; f++)
             {
-                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs); mF += (b * b - mF) / (0.15 * Fs);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
+                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs); mF += (b * b - mF) / (0.15 * Fs); AbVad.Push(m);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
                 if (s != null && lekPos >= s.Length) { LekPlaying = false; s = null; }
                 if (s != null) fHold = (long)(1.2 * Fs); else if (fHold > 0) fHold--; else fWant = 0;
                 if (s != null && lekG < 0)
@@ -337,7 +337,8 @@ namespace Velivo
                     fLive = -Math.Min(Math.Max(0, over), Math.Max(0, -LekFloorDb));
                 }
                 else if (s == null && fHold <= 0) fLive = 0;
-                double fW = Math.Min(fWant, fLive);
+                double fVad = AbVad.Ready && fHold > 0 ? -Math.Min(4 * Math.Min(1, Math.Max(0, (AbVad.Speech - 0.3) / 0.4)), Math.Max(0, -LekFloorDb)) : 0;   // 🧠 eksperyment: aktor mówi w filmie - film ustępuje do 4 dB, żeby dwa głosy się nie mieszały; muzyka / efekty - nic
+                double fW = Math.Min(Math.Min(fWant, fLive), fVad);
                 fDuck += (fW - fDuck) / ((fW < fDuck ? (fLive < fWant ? 0.08 : 0.5) : 1.5) * Fs);
                 double fg = fDuck < -0.01 ? Math.Pow(10, fDuck / 20) : 1, l = buf[2 * f] * fg, r = buf[2 * f + 1] * fg;
                 if (s != null) { double v = s[lekPos++] * lekG; l += v; r += v; }

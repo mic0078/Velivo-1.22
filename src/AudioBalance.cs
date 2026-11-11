@@ -269,7 +269,7 @@ namespace Velivo
             AbDetach();
             var o = new AbOutput(AbProc, _libVlc);
             if (!o.Open(GetPref("ab-wyjscie"))) { App.LogError(new Exception("Audio Balance: wyjście dźwięku Windows (waveOut) nie otworzyło się – zwykły dźwięk VLC")); return false; }
-            _abOut = o;
+            _abOut = o; AbVad.Start(DataDir);   // 🧠 eksperyment lektor-ai
             // kazdy odtwarzacz rozmawia tylko ze swoim wyjsciem - stary (zamykany w tle) nie wpisze dzwieku do nowego
             _abPlay = (d, s, c, p) => { if (_abOut == o) o.Play(s, c, p); };
             _abPause = (d, p) => { if (_abOut == o) o.Pause(); };

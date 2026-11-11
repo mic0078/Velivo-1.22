@@ -420,7 +420,7 @@ namespace Velivo
                 lc.DynBd = double.NaN;
                 if (smart) { var bdT = Task.Run(() => { LectorWavDb(wav, out var bd); return bd; }); if (await Task.WhenAny(bdT, Task.Delay(1500)) == bdT && !double.IsNaN(bdT.Result) && !double.IsInfinity(bdT.Result)) lc.DynBd = bdT.Result; }
                 // 🗣 doradca: słyszalność tej kwestii w paśmie mowy 1–4 kHz (lektor vs film po wyrównaniu i ściszeniu, dialogi w filmie) - tylko ocena i propozycja
-                if (AbProc.Active && !AbBypass)
+                if (AbProc.Active && !AbBypass && _abOut == null)   // lektor przez Audio Balance ma stały poziom - doradca (dawne ściszanie filmu) nie ma czego radzić
                 {   // pomiar lektora w tle (odczyt i filtr całego WAV - w wątku okna przycinał słupki Audio Monitora), wynik do doradcy w wątku okna; lektor nie czeka
                     double lv = WpfVol(Math.Max(0.1, _settings.VlcLectorVolume)), dk = duck;
                     _ = Task.Run(() => { LectorWavDb(wav, out var bd); return bd; }).ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion && !double.IsNaN(t.Result)) Dispatcher.BeginInvoke(new Action(() => AbLektorCue(t.Result, lv, dk))); });

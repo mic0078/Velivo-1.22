@@ -2202,6 +2202,7 @@ namespace Velivo
                 ToolTip = L.T("Wł.: podczas czytania film ściszany płynnie tylko o tyle, ile trzeba, by lektor był wyraźny (cicha scena – wcale, głośna – mocniej, najwyżej do „Film podczas czytania”). Działa, gdy dźwięk idzie przez Audio Balance. Wył.: dawne stałe ściszenie na czas kwestii.") };
             lekSmart.Click += (s0, e0) => LectorSmart = lekSmart.IsChecked == true;
             lectorPanel.Children.Add(lekSmart);
+            ldRow.Item1.Visibility = Visibility.Collapsed; lekSmart.Visibility = Visibility.Collapsed;   // film nie jest już ściszany pod lektora - bez martwych przełączników
             // 🗣 jakość głosu Supertonic (kroki): więcej = naturalniej, dłużej liczy; 0 = samo
             var stTxt = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Ile razy Supertonic dopracowuje głos: więcej – naturalniej, ale dłużej liczy. Samo: karta graficzna 8, procesor 5.") };
             var stSl = new Slider { Minimum = 0, Maximum = 16, Width = 240, IsMoveToPointEnabled = true, IsSnapToTickEnabled = true, TickFrequency = 1, Value = _settings.VlcLectorSteps };

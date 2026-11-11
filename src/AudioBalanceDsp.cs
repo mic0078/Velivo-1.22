@@ -313,21 +313,18 @@ namespace Velivo
         public void LekPlay(float[] s, double bandDb, double fullDb, double peak) { LekPlaying = false; lekFullDb = (float)fullDb; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
         public void LekStop() { LekPlaying = false; }
         // 🗣 zasada właściciela: źródło (film po Audio Balance) zostaje bez zmian - dopasowuje się tylko lektor
-        double mP, lekT = -1;   // lekT - docelowe wzmocnienie lektora liczone na bieżąco
+        // 🗣 lektor jak w studiu: KAŻDA kwestia ta sama głośność - cel Audio Balance + 2 dB (każde nagranie zmierzone osobno), stała, niezależna od chwilowego filmu;
+        // film trzyma Audio Balance i zostaje bez zmian; suwak „Głośność lektora” = Twoja poprawka
+        double mP;
         void MixLek(float[] buf, int frames)
         {
-            var s = LekPlaying ? lekS : null; double ceil = Math.Pow(10, CeilingDb / 20), up = 1.0 / (0.08 * Fs), dn = 1.0 / (3.0 * Fs);
+            var s = LekPlaying ? lekS : null; double ceil = Math.Pow(10, CeilingDb / 20);
             for (int f = 0; f < frames; f++)
             {
-                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (0.4 * Fs); AbVad.Push(m);   // film w paśmie mowy na bieżąco (0,4 s)
+                double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (0.4 * Fs); AbVad.Push(m);
                 if (s == null) continue;
                 if (lekPos >= s.Length) { LekPlaying = false; s = null; continue; }
-                if ((f & 63) == 0 || lekG < 0)
-                {   // 🎚 w czasie rzeczywistym: lektor 10 dB nad filmem w paśmie mowy (+2, gdy sieć słyszy aktora); film bez zmian
-                    double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + (AbVad.Ready && AbVad.Speech > 0.5 ? 2 : 0) + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 * ceil / lekPk);
-                    lekT = Math.Pow(10, Math.Min(need, cap) / 20); if (lekG < 0) lekG = lekT;
-                }
-                lekG += (lekT - lekG) * (lekT > lekG ? up : dn);   // głośniej film - lektor od razu w górę (0,08 s); ciszej - schodzi bardzo powoli (3 s), bez falowania
+                if (lekG < 0) lekG = Math.Pow(10, Math.Min(EffTarget + 2 + LekUserDb - lekFullDb, 20 * Math.Log10(0.9 * ceil / lekPk)) / 20);
                 double fl = buf[2 * f], fr = buf[2 * f + 1], v = s[lekPos++] * lekG;   // film bez zmian, lektor dołożony
                 double c = Math.Max(ceil, Math.Max(Math.Abs(fl), Math.Abs(fr))); v = Math.Max(Math.Max(-c - fl, -c - fr), Math.Min(Math.Min(c - fl, c - fr), v));   // granica Audio Balance: przycinany tylko lektor, nigdy film
                 buf[2 * f] = (float)(fl + v); buf[2 * f + 1] = (float)(fr + v);

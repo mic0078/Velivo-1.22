@@ -296,7 +296,7 @@ namespace Velivo
         {
             In.ResetWindows(); Out.ResetWindows(); Raw.ResetWindows(); tpIn.Reset(); tpOut.Reset();
             Array.Clear(dL, 0, Dl); Array.Clear(dR, 0, Dl); for (int i = 0; i < La; i++) mins[i] = 1;
-            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0; aHp.Reset(); aLp.Reset(); sHp.Reset(); sLp.Reset(); aP = sS = sA = 0; kHp.Reset(); kLp.Reset(); kP = 0; LekDb = 0; lekHold = 0;
+            minRunSum = La; limG = 1; dPos = 0; mPos = 0; dqH = dqT = 0; n = 0; detP = 0; grDb = 0; fastDb = 0; dHp.Reset(); dLp.Reset(); dS = dM = dSide = dG = 0; aHp.Reset(); aLp.Reset(); sHp.Reset(); sLp.Reset(); aP = sS = sA = 0; kHp.Reset(); kLp.Reset(); kP = 0; LekDb = 0; lekHold = 0; lekLastDb = double.NaN;
             foreach (var b in eq) b?.Reset();
         }
         volatile bool newReq;
@@ -313,24 +313,26 @@ namespace Velivo
         public void LekPlay(float[] s, double bandDb, double peak) { LekPlaying = false; lekPos = 0; lekG = -1; lekPk = Math.Max(1e-3, peak); LekBandDb = (float)bandDb; lekS = s; LekPlaying = true; }
         public void LekStop() { LekPlaying = false; }
         // film do lektora: tylko gdy lektor doszedł do granicy (szczyt 0,9), film ustępuje o brakującą część, najwyżej do LekFloorDb (suwak „Film podczas czytania”)
+        double lekLastDb = double.NaN;   // głośność poprzedniej kwestii (dB) - następna najwyżej ±3 dB
         double fDuck, fWant, mixG = 1; long fHold;   // mixG - granica Audio Balance (CeilingDb) dla filmu z lektorem: łagodne ograniczenie, nigdy ponad   // przytrzymanie 1,2 s po kwestii - między kwestiami film nie wraca i nie odbija (bez pompowania)
         void MixLek(float[] buf, int frames)
         {
-            var s = LekPlaying ? lekS : null; double gt = lekG < 0 ? 1 : lekG, ceil = Math.Pow(10, CeilingDb / 20), mRel = 1.0 / (0.3 * Fs);
+            var s = LekPlaying ? lekS : null; double gt = lekG, ceil = Math.Pow(10, CeilingDb / 20), mRel = 1.0 / (0.3 * Fs);
             for (int f = 0; f < frames; f++)
             {
                 double m = (buf[2 * f] + buf[2 * f + 1]) * 0.5, b = mLp.L(mHp.L(m)); mP += (b * b - mP) / (1.0 * Fs);   // film przed ustąpieniem (1 s - bez reagowania na pojedyncze uderzenia)
                 if (s != null && lekPos >= s.Length) { LekPlaying = false; s = null; }
                 if (s != null) fHold = (long)(1.2 * Fs); else if (fHold > 0) fHold--; else fWant = 0;
-                if (s != null && ((f & 63) == 0 || lekG < 0))
-                {
+                if (s != null && lekG < 0)
+                {   // raz na kwestię: stała głośność lektora do końca zdania (bez pływania); między kwestiami najwyżej ±3 dB
                     double k = Math.Max(10 * Math.Log10(mP + 1e-12), -50), need = k + 10 + LekUserDb - LekBandDb, cap = 20 * Math.Log10(0.9 * ceil / lekPk);
-                    gt = Math.Pow(10, Math.Min(need, cap) / 20); if (lekG < 0) lekG = gt;
+                    double gDb = Math.Min(need, cap); if (!double.IsNaN(lekLastDb)) gDb = Math.Max(lekLastDb - 3, Math.Min(lekLastDb + 3, gDb)); gDb = Math.Min(gDb, cap);
+                    lekLastDb = gDb; lekG = gt = Math.Pow(10, gDb / 20);
                     fWant = -Math.Min(Math.Max(0, need - cap), Math.Max(0, -LekFloorDb));
                 }
                 fDuck += (fWant - fDuck) / ((fWant < fDuck ? 0.5 : 1.5) * Fs);
                 double fg = fDuck < -0.01 ? Math.Pow(10, fDuck / 20) : 1, l = buf[2 * f] * fg, r = buf[2 * f + 1] * fg;
-                if (s != null) { lekG += (gt - lekG) / ((gt > lekG ? 0.3 : 1.0) * Fs); double v = s[lekPos++] * lekG; l += v; r += v; }
+                if (s != null) { double v = s[lekPos++] * lekG; l += v; r += v; }
                 if (s != null || mixG < 1)
                 {   // Audio Balance rządzi: film + lektor nie przekracza jego granicy (szybko w dół, powoli z powrotem - bez zniekształceń i pompowania)
                     double pk = Math.Max(Math.Abs(l), Math.Abs(r)) * mixG; if (pk > ceil) mixG *= ceil / pk; else mixG += (1 - mixG) * mRel;

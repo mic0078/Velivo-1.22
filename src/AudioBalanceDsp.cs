@@ -331,7 +331,7 @@ namespace Velivo
                     lekLastDb = gDb + LekBandDb; lekK0 = k; lekG = gt = Math.Pow(10, gDb / 20);
                     fWant = -Math.Min(Math.Max(0, need - cap), Math.Max(0, -LekFloorDb));
                     double pf = mFull + 1e-12, pl = Math.Pow(10, lekFullDb / 10) * lekG * lekG;   // raz na kwestię - stałe, bez pływania
-                    cgW = Math.Min(1, Math.Sqrt(pf / (pf * Math.Pow(10, fWant / 10) + pl)));
+                    cgW = Math.Max(0.794, Math.Min(1, Math.Sqrt(pf / (pf * Math.Pow(10, fWant / 10) + pl))));   // najwyżej -2 dB - całość nie siada (właściciel: za bardzo ściszało)
                 }
                 if (s != null && (f & 63) == 0)
                 {   // 🎚 czuwanie na żywo (jak ducker w studiu): film nagle głośniej niż na starcie kwestii - ustępuje o nadwyżkę (lektor stały, nie pływa)

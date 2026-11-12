@@ -87,17 +87,45 @@ namespace Velivo
             where.Children.Add(whereLabel); where.Children.Add(change); where.Children.Add(folderText);
             panel.Children.Insert(panel.Children.Count - 1, where);
             var ok = new Button { Content = L.T("Pobierz"), IsDefault = true, Padding = new Thickness(16, 5, 16, 5), Margin = new Thickness(0, 0, 8, 0) };
+            var play = new Button { Content = L.T("▶ Odtwórz w Velivo"), Padding = new Thickness(16, 5, 16, 5), Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = L.T("Bez pobierania: film gra w odtwarzaczu Velivo – z Audio Balance, lektorem i wtyczkami VST3 (w przeglądarce dźwięk idzie prosto do Windows).") };
             var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(16, 5, 16, 5) };
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            buttons.Children.Add(ok); buttons.Children.Add(cancel);
+            buttons.Children.Add(play); buttons.Children.Add(ok); buttons.Children.Add(cancel);
             panel.Children.Add(buttons);
             var w = new Window { Title = L.T("Pobierz film"), Width = 560, SizeToContent = SizeToContent.Height, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Content = panel };
             string mode = null;
+            play.Click += (s, e) => { mode = "play"; w.Close(); };
             ok.Click += (s, e) => { mode = best.IsChecked == true ? "best" : simple.IsChecked == true ? "simple" : m4a.IsChecked == true ? "m4a" : "mp3"; w.Close(); };
             w.ShowDialog();
             if (mode == null) return;
+            if (mode == "play") { _ = PlayYtInVelivoAsync(pageUrl, title); return; }
             if (folder != _settings.VideoDir) { _settings.VideoDir = folder; try { _settings.Save(DataDir); } catch (Exception) { } }
             _ = StartYtDlpAsync(pageUrl, mode, title, folder);
+        }
+
+        // ▶ YouTube w odtwarzaczu Velivo (Audio Balance, lektor, VST3): yt-dlp podaje adresy obrazu i dźwięku (do 1080p), VLC łączy je przy odtwarzaniu
+        internal static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _ytAudio = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+        async Task PlayYtInVelivoAsync(string pageUrl, string title)
+        {
+            if (!await EnsureYtDlpAsync()) return;
+            ShowToast(L.T("▶ Otwieram w odtwarzaczu Velivo…"), null);
+            var psi = new ProcessStartInfo(YtDlpPath) { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = System.Text.Encoding.UTF8 };
+            foreach (var a in new[] { "-g", "--no-playlist", "-f", "bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=1080]+ba/b", pageUrl }) psi.ArgumentList.Add(a);
+            string[] urls; string err;
+            try
+            {
+                using (var p = Process.Start(psi))
+                {
+                    var o = p.StandardOutput.ReadToEndAsync(); var e = p.StandardError.ReadToEndAsync();
+                    if (!await Task.Run(() => p.WaitForExit(60000))) { try { p.Kill(); } catch (Exception) { } }
+                    urls = (await o).Split('\n').Select(x => x.Trim()).Where(x => x.StartsWith("http")).ToArray(); err = await e;
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); urls = new string[0]; err = ex.Message; }
+            if (urls.Length == 0) { ShowToast(L.T("▶ Nie udało się otworzyć filmu w Velivo: ") + (err ?? "").Trim().Split('\n').LastOrDefault(), null); return; }
+            if (urls.Length > 1) _ytAudio[urls[0]] = urls[1];
+            PlayVideos(new[] { urls[0] }, 0, false);
         }
 
         // ---------- narzedzia (pobierane raz) ----------

@@ -191,6 +191,13 @@ namespace Velivo
                 shots.Children.Add(visible); shots.Children.Add(full);
                 add(shots);
 
+                if (Core != null && IsYoutubeLikeHost(MediaHost(Core.Source)))
+                {   // ▶ YouTube w odtwarzaczu Velivo - z Audio Balance, lektorem i VST3
+                    var ytPlay = _env.CreateContextMenuItem(MenuText(L.T("▶ Odtwórz w Velivo")), GlyphIcon("\uE768"), CoreWebView2ContextMenuItemKind.Command);
+                    string ytUrl = Core.Source, ytTitle = Core.DocumentTitle;
+                    ytPlay.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => _ = PlayYtInVelivoAsync(ytUrl, ytTitle));
+                    add(ytPlay);
+                }
                 var tools = _env.CreateContextMenuItem(MenuText(L.T("Narzędzia Velivo")), GlyphIcon("\uE90F"), CoreWebView2ContextMenuItemKind.Submenu);
                 var tPrivacy = _env.CreateContextMenuItem(MenuText(L.T("Prywatność i antyfingerprinting")), GlyphIcon("\uEA18"), CoreWebView2ContextMenuItemKind.Command);
                 tPrivacy.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenPrivacyPanel);

@@ -36,7 +36,7 @@ namespace Velivo
             {
                 var raw = await core.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];var t=v?v.currentTime:0;if(v)try{v.pause();}catch(e){}return JSON.stringify({page:location.href,time:t,title:document.title||''});})()");
                 var r = JsonSerializer.Deserialize<FloatRequest>(JsonSerializer.Deserialize<string>(raw));
-                if (r != null) ShowFloatingVideo(r.page, r.time, r.title, tab.Private);
+                if (r != null) ShowFloatingVideo(r.page, r.time, r.title, tab.Private, tab);
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -49,7 +49,7 @@ namespace Velivo
                 if (r == null) return;
                 var core = tab.View.CoreWebView2;
                 if (core != null) _ = core.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];if(v)try{v.__velivoUserPaused=true;v.pause();}catch(e){}})()");
-                ShowFloatingVideo(r.page, r.time, r.title, tab.Private);
+                ShowFloatingVideo(r.page, r.time, r.title, tab.Private, tab);
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -139,7 +139,7 @@ namespace Velivo
   document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; if(!big()) return; e.preventDefault(); e.stopPropagation(); toggle(); }, true);
 })";
 
-        void ShowFloatingVideo(string page, double time, string title, bool isPrivate)
+        void ShowFloatingVideo(string page, double time, string title, bool isPrivate, BrowserTab srcTab = null)
         {
             if (string.IsNullOrEmpty(page) || !(page.StartsWith("http://") || page.StartsWith("https://") || IsPlayerUrl(PlayerFile, page))) return;   // strony www albo odtwarzacz filmow z dysku
             // kontrolka rysowana w oknie WPF (nie osobne okno systemowe) - dzieki temu dziala przezroczystosc okienka
@@ -236,6 +236,16 @@ namespace Velivo
                 }
                 catch (Exception) { }
                 var url = view.CoreWebView2 != null && !string.IsNullOrEmpty(view.CoreWebView2.Source) ? view.CoreWebView2.Source : page;
+                { var em = System.Text.RegularExpressions.Regex.Match(url, @"youtube\.com/embed/([\w-]{11})"); if (em.Success) url = page; }   // lekki odtwarzacz (embed) - powrót na pełną stronę filmu
+                // ⚡ karta, z której wyszło okienko, wciąż ma ten film - wracamy do niej (przewinięcie i odtwarzanie), bez wczytywania YouTube od nowa
+                if (!_mainClosed && srcTab != null && _tabs.Contains(srcTab) && srcTab.View.CoreWebView2 is { } sc && string.Equals(sc.Source, page, StringComparison.OrdinalIgnoreCase))
+                {
+                    win.Close(); SelectTab(srcTab);
+                    try { await sc.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];if(v){" + (now > 1 ? "v.currentTime=" + now.ToString(CultureInfo.InvariantCulture) + ";" : "") + "v.play();}})()"); } catch (Exception) { }
+                    if (WindowState == WindowState.Minimized) WindowState = WindowState.Maximized;
+                    Show(); Activate(); Topmost = true; Topmost = false;
+                    return;
+                }
                 // YouTube: miejsce filmu w adresie (dziala tez, gdy Velivo trzeba uruchomic od nowa)
                 if (now > 5 && (url.Contains("youtube.com/watch") || url.Contains("youtu.be/")))
                 {

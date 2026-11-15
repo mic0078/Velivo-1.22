@@ -65,19 +65,19 @@ namespace Velivo
                 if (dev == null) { Error = "output"; return false; }
                 OutputName = dev.FriendlyName;
                 cap = new WasapiCapture(cable, false, 30);   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
-                buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(600), ReadFully = true };
+                buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
                 cap.DataAvailable += (s, e) =>
                 {
+                    RtThread();
                     buf.AddSamples(e.Buffer, 0, e.BytesRecorded);
-                    // zegary kabla i głośników nie chodzą idealnie razem - nadmiar (ponad 200 ms) odrzucany, opóźnienie nie rośnie
-                    if (buf.BufferedDuration.TotalMilliseconds > 200) { int drop = cf.AverageBytesPerSecond / 1000 * 100 / cf.BlockAlign * cf.BlockAlign; var junk = new byte[drop]; buf.Read(junk, 0, drop); }
                 };
                 cap.RecordingStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odbiór z CABLE Output" + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 ISampleProvider sp = buf.ToSampleProvider();
                 if (sp.WaveFormat.Channels == 1) sp = new MonoToStereoSampleProvider(sp);
                 else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
                 if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
+                sp = new Elastic(sp, buf);   // elastyczny bufor: zapas stale ok. 100 ms, bez przerw i trzasków (zegary kabla i głośników się rozjeżdżają)
                 outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, 60);   // jw. - odpytywanie, 60 ms zapasu
                 outp.Init(new Processing(sp, Proc));
                 outp.PlaybackStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
@@ -100,6 +100,53 @@ namespace Velivo
         }
         public void Dispose() => Stop();
 
+        // 🎚 elastyczny bufor: kabel i głośniki mają osobne zegary (zawsze trochę różne) - odtwarzanie minimalnie szybciej / wolniej (najwyżej ±0,3 %,
+        // niesłyszalne), żeby zapas stał przy ok. 100 ms: bez przerw (brak dźwięku) i bez przycinania (nadmiar). Start po zebraniu zapasu.
+        // wątki dźwięku jak w programach audio: harmonogram „Pro Audio” Windows (MMCSS) i najwyższy priorytet - obciążenie okna / komputera nie przerywa dźwięku (trzaski)
+        [ThreadStatic] static bool rtDone;
+        [DllImport("avrt.dll", CharSet = CharSet.Unicode)] static extern IntPtr AvSetMmThreadCharacteristics(string task, ref int index);
+        internal static void RtThread()
+        {
+            if (rtDone) return; rtDone = true;
+            try { System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest; int i = 0; AvSetMmThreadCharacteristics("Pro Audio", ref i); } catch (Exception) { }
+        }
+
+        sealed class Elastic : ISampleProvider
+        {
+            readonly ISampleProvider src; readonly BufferedWaveProvider b; readonly double bytesPerMs;
+            float[] inb = new float[48000 * 2]; int inLen; double pos, rate = 1, drift; bool filling = true;
+            readonly float[] pull = new float[960];
+            public Elastic(ISampleProvider s, BufferedWaveProvider buf) { src = s; b = buf; bytesPerMs = buf.WaveFormat.AverageBytesPerSecond / 1000.0; }
+            public WaveFormat WaveFormat => src.WaveFormat;
+            double LevelMs => b.BufferedBytes / bytesPerMs + (inLen - pos) / (WaveFormat.SampleRate / 1000.0);
+            bool Pull()
+            {   // dobranie 10 ms z kabla do bufora wewnętrznego (zachowując niezużyte)
+                int n = src.Read(pull, 0, pull.Length) / 2; if (n <= 0) return false;
+                int keep = (int)pos; if (keep > 0) { Array.Copy(inb, keep * 2, inb, 0, (inLen - keep) * 2); inLen -= keep; pos -= keep; }
+                if ((inLen + n) * 2 > inb.Length) Array.Resize(ref inb, (inLen + n) * 4);
+                Array.Copy(pull, 0, inb, inLen * 2, n * 2); inLen += n; return true;
+            }
+            public int Read(float[] buffer, int offset, int count)
+            {
+                double lvl = LevelMs;
+                if (filling) { if (lvl < 100) { for (int i = 0; i < count; i++) buffer[offset + i] = 0; return count; } filling = false; }
+                // regulator PI: część P - bieżący zapas, część I - uczy się stałej różnicy zegarów kart (zapas wraca do 100 ms); razem najwyżej ±0,5 % (niesłyszalne)
+                double err = (lvl - 100) / 100; drift = Math.Max(-0.004, Math.Min(0.004, drift + err * 0.00005));
+                double want = 1 + Math.Max(-0.005, Math.Min(0.005, err * 0.003 + drift));
+                rate += (want - rate) * 0.05;
+                int frames = count / 2;
+                for (int f = 0; f < frames; f++)
+                {
+                    while ((int)pos + 1 >= inLen) if (!Pull()) { for (int i = f * 2; i < count; i++) buffer[offset + i] = 0; filling = true; return count; }   // kabel milczy - cisza i ponowne zebranie zapasu
+                    int k = (int)pos; float fr = (float)(pos - k);
+                    buffer[offset + 2 * f] = inb[2 * k] + (inb[2 * k + 2] - inb[2 * k]) * fr;
+                    buffer[offset + 2 * f + 1] = inb[2 * k + 1] + (inb[2 * k + 3] - inb[2 * k + 1]) * fr;
+                    pos += rate;
+                }
+                return count;
+            }
+        }
+
         // przetwarzanie w porcjach od głośników: dźwięk → Audio Balance (w miejscu)
         sealed class Processing : ISampleProvider
         {
@@ -107,7 +154,7 @@ namespace Velivo
             public Processing(ISampleProvider s, AbProcessor p) { src = s; proc = p; }
             public WaveFormat WaveFormat => src.WaveFormat;
             public int Read(float[] buffer, int offset, int count)
-            {
+            { RtThread();
                 int n = src.Read(buffer, offset, count); if (n < 2) return n;
                 n -= n & 1;
                 if (tmp.Length < n) tmp = new float[n];

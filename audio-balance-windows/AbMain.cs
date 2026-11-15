@@ -98,7 +98,7 @@ namespace Velivo
         FrameworkElement FilePanel()
         {
             var p = new StackPanel(); var st = T(L.T("Wynik: plik „nazwa (Audio Balance).wav” obok oryginału – WAV 32-bit, 48 kHz, bez strat. Te same ustawienia co wyżej (bez wtyczek VST3)."), 11, Dim);
-            Button b = null; bool busy = false;
+            Button b = null, dirB = null; bool busy = false;
             b = Mk(L.T("📂 Wybierz pliki (WAV, MP3, FLAC, M4A)…"), async () =>
             {
                 if (busy) return;
@@ -107,10 +107,19 @@ namespace Velivo
                 if (dlg.ShowDialog(filesWin ?? win) != true) return;
                 Put("plik-z", Path.GetDirectoryName(dlg.FileNames[0]));
                 busy = true; string lastOut = null; int ok = 0;
+                // 💾 gdzie zapisać: jeden utwór - okno „Zapisz jako” (nazwa i miejsce), kilka - folder; ostatnie miejsce zapamiętane
+                string outDir = Get("plik-do"); string single = null;
+                if (dlg.FileNames.Length == 1)
+                {
+                    var sd = new Microsoft.Win32.SaveFileDialog { Filter = "WAV 32-bit float 48 kHz|*.wav", FileName = AbPlik.DefaultName(dlg.FileNames[0]), InitialDirectory = Directory.Exists(outDir ?? "") ? outDir : Path.GetDirectoryName(dlg.FileNames[0]) };
+                    if (sd.ShowDialog(filesWin ?? win) != true) { busy = false; return; }
+                    single = sd.FileName; Put("plik-do", Path.GetDirectoryName(single)); DirTxt();
+                }
                 foreach (var f in dlg.FileNames)
                 {
                     var name = Path.GetFileName(f);
-                    try { lastOut = await AbPlik.Process(f, Get("plik-do"), Configure, x => win.Dispatcher.BeginInvoke(new Action(() => st.Text = "⏳ " + name + "  " + (int)(x * 100) + " %"))); ok++; }
+                    var dst = single ?? Path.Combine(Directory.Exists(outDir ?? "") ? outDir : Path.GetDirectoryName(f), AbPlik.DefaultName(f));
+                    try { lastOut = await AbPlik.Process(f, dst, Configure, x => win.Dispatcher.BeginInvoke(new Action(() => st.Text = "⏳ " + name + "  " + (int)(x * 100) + " %"))); ok++; }
                     catch (Exception ex) { App.LogError(ex); st.Text = "✖ " + name + ": " + ex.Message; st.Foreground = Bad; }
                 }
                 busy = false;
@@ -119,7 +128,6 @@ namespace Velivo
             p.Children.Add(Head(L.T("🎵 Popraw plik"), b)); p.Children.Add(st);
             // 📁 gdzie zapisywać (zapamiętane) i 💾 ustawienia poprawek do pliku na dysku (własne zestawy, przenoszenie na inny komputer)
             var row = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-            Button dirB = null;
             void DirTxt() { var d = Get("plik-do"); SetText(dirB, "📁 " + (Directory.Exists(d ?? "") ? L.T("Zapisuj do: ") + d : L.T("Zapisuj obok oryginału"))); }
             dirB = Mk("", () =>
             {

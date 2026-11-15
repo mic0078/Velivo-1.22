@@ -10,7 +10,8 @@ namespace Velivo
     // 🔊 tor dźwięku: Windows gra na „CABLE Input” (VB-Audio Virtual Cable) → odbiór z „CABLE Output” → Audio Balance → wybrane głośniki
     sealed class AbEngine : IDisposable
     {
-        public readonly AbProcessor Proc = new AbProcessor();
+        public readonly AbProcessor Proc = MkProc();
+        static AbProcessor MkProc() { var p = new AbProcessor(); p.Pre.KeepLevel = true; return p; }
         WasapiCapture cap; WasapiOut outp; BufferedWaveProvider buf;
         public int Latency = 1;   // ⏱ opóźnienie: 0 niskie (~0,1 s), 1 normalne (~0,2 s), 2 bezpieczne (~0,35 s, bez pyknięć)
         int lc, lt, lo;
@@ -57,7 +58,7 @@ namespace Velivo
         // Teraz: przed przetwarzaniem poziom wraca do pełnego (o tyle, o ile ściszył Windows), a po przetwarzaniu jest ściszany o tyle samo.
         // Razem zawsze 1:1 - głośność z klawiszy działa jak dotąd, a przetwarzanie nie zależy od suwaka.
         volatile float preT = 1, postT = 1; System.Threading.Timer volTm; volatile bool volDirty; int volN;
-        MMDevice volIn, volCap; string volInId, volCapId, volOutId; bool volLogged;
+        MMDevice volIn, volCap; string volInId, volCapId, volOutId; bool volLogged; double volInLog, volCapLog; long volLogAt;
         void VolStart(string cableOutId, string outId)
         {
             volCapId = cableOutId; volOutId = outId; volInId = null; volLogged = false; preT = postT = 1; volDirty = true; volN = 0;
@@ -85,6 +86,9 @@ namespace Velivo
                 double inDb = volIn.AudioEndpointVolume.MasterVolumeLevel, capDb = volCap.AudioEndpointVolume.MasterVolumeLevel;
                 double post = Math.Max(0, Math.Min(60, -inDb)), pre = Math.Max(0, Math.Min(60, post + Math.Max(0, -capDb)));   // suwak nagrywania „CABLE Output” też ścisza - wyrównany tylko przed przetwarzaniem
                 preT = (float)Math.Pow(10, pre / 20); postT = (float)Math.Pow(10, -post / 20);
+                if (volLogged && (Math.Abs(inDb - volInLog) > 0.5 || Math.Abs(capDb - volCapLog) > 0.5) && Environment.TickCount64 - volLogAt > 2000)   // 🔬 każda zmiana głośności Windows w dzienniku (szukanie „ścisza się samo”)
+                { volLogAt = Environment.TickCount64; App.LogInfo($"Głośność Windows zmieniona: CABLE Input {volInLog:0.0} → {inDb:0.0} dB, odbiór CABLE Output {volCapLog:0.0} → {capDb:0.0} dB"); volInLog = inDb; volCapLog = capDb; }
+                if (!volLogged) { volInLog = inDb; volCapLog = capDb; }
                 if (!volLogged)
                 {
                     volLogged = true; string spk = "?";

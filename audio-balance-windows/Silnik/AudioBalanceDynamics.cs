@@ -76,7 +76,8 @@ namespace Velivo
         DynParams cp; double ca, cr, cRms, cAvg, cs;   // współczynniki liczone raz na zmianę ustawień (nie co próbkę)
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progP = double.NaN; progN = 0; liftS = 0; AutoLiftDb = 0; }
+        public bool KeepLevel;   // dźwięk Windows na żywo: ponowny start toru (zmiana urządzenia, przerwa) to dalej ten sam materiał - zmierzony poziom i podbicie „do celu” zostają (bez nagłego ściszenia)
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; liftS = 0; AutoLiftDb = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);

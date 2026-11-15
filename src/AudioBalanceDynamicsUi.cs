@@ -9,6 +9,30 @@ namespace Velivo
 {
     public partial class MainWindow
     {
+        // 🎚 ustawienia kompresora: domyślne (ab-kompresor) + własne dla filmu / kanału (ab-kompresor-zrodla: nazwa źródła → ustawienia), stosowane przy starcie źródła
+        static string _abPreSrc; static bool _abPreSrcTv, _abPreSrcOwn;
+        static Dictionary<string, string> AbPreSrcLoad()
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ln in (GetPref("ab-kompresor-zrodla") ?? "").Split('\n')) { var k = ln.IndexOf('\u001F'); if (k > 0) d[ln.Substring(0, k)] = ln.Substring(k + 1); }
+            return d;
+        }
+        static void AbPreSrcSave(Dictionary<string, string> d)
+        {
+            var l = new List<string>(); foreach (var kv in d) l.Add(kv.Key + "\u001F" + kv.Value);
+            SetPref("ab-kompresor-zrodla", string.Join("\n", l)); _abPreAnyOn = null;
+        }
+        // czy kompresor może być potrzebny (domyślnie albo dla któregoś filmu / kanału) - wtedy dźwięk idzie przez procesor Velivo
+        static bool? _abPreAnyOn;   // zapamiętane - AbWanted woła to nawet 50×/s; liczone od nowa po każdym zapisie ustawień
+        internal static bool AbPreAnyOn { get { if (_abPreAnyOn == null) { bool any = DynParams.Load(GetPref("ab-kompresor")).IsEnabled; if (!any) foreach (var v in AbPreSrcLoad().Values) if (DynParams.Load(v).IsEnabled) { any = true; break; } _abPreAnyOn = any; } return _abPreAnyOn.Value; } }
+        static void AbPreSetDefault(DynParams p) { SetPref("ab-kompresor", p.Save()); _abPreAnyOn = null; }
+        internal static void AbPreApplyFor(string src, bool tv)
+        {
+            _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv;
+            string own = null; _abPreSrcOwn = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own);
+            AbProc.Pre.Params = DynParams.Load(_abPreSrcOwn ? own : GetPref("ab-kompresor"));
+        }
+
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji
         FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
         {
@@ -19,6 +43,14 @@ namespace Velivo
             Action manual = null; CheckBox autoThr = null;   // autoThr - przypisany niżej (czytany przez Apply/Show)   // ręczna zmiana suwaka - ustawienie już nie jest zapisanym presetem
             var on = new CheckBox { Content = L.T("Kompresor wstępny włączony"), Foreground = fg, Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(on);
+            // 🎞📺 dla czego są te ustawienia: domyślne albo własne tego filmu / kanału
+            var srcText = new TextBlock { Foreground = fg, FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) };
+            var ownSrc = new CheckBox { Foreground = fg, Margin = new Thickness(0, 2, 0, 2), ToolTip = L.T("Zaznaczone: te ustawienia zapamiętane tylko dla tego filmu / kanału i wracają same przy następnym włączeniu. Odznaczone: działają ustawienia domyślne.") };
+            var srcBtns = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
+            var toDef = mk(L.T("↺ Domyślne"), () => { }); toDef.ToolTip = L.T("Ten film / kanał wraca do ustawień domyślnych (własne dla niego są usuwane).");
+            var setDef = mk(L.T("★ Ustaw jako domyślne"), () => { }); setDef.ToolTip = L.T("Obecne ustawienia stają się domyślnymi – dla filmów i kanałów bez własnych.");
+            srcBtns.Children.Add(toDef); srcBtns.Children.Add(setDef);
+            panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns);
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
             var vis = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             vis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); vis.ColumnDefinitions.Add(new ColumnDefinition());
@@ -122,7 +154,7 @@ namespace Velivo
                     AutoThreshold = autoThr.IsChecked == true, AutoOffsetDb = (float)rows["aoff"].Value,
                     MakeupGainDb = (float)rows["mk"].Value, MixPercent = (float)rows["mix"].Value, ExpanderThresholdDb = (float)rows["et"].Value, ExpanderRatio = (float)rows["er"].Value
                 };
-                AbProc.Pre.Params = p; SetPref("ab-kompresor", p.Save()); DrawCurve(p); rows["thr"].IsEnabled = !p.AutoThreshold;
+                AbProc.Pre.Params = p; if (_abPreSrcOwn && _abPreSrc != null) { var d = AbPreSrcLoad(); d[_abPreSrc] = p.Save(); AbPreSrcSave(d); } else AbPreSetDefault(p); DrawCurve(p); rows["thr"].IsEnabled = !p.AutoThreshold;
                 if (p.IsEnabled && !was) AbNeedsRestartHint();
             }
             on.Click += (s, e) => Apply(); autoThr.Click += (s, e) => { Apply(); manual?.Invoke(); }; auto.Click += (s, e) => { Apply(); manual?.Invoke(); }; mode.SelectionChanged += (s, e) => { if (!loading) { Apply(); manual?.Invoke(); } };
@@ -167,12 +199,32 @@ namespace Velivo
                 (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
                 (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
             { var f = mkP; var n0 = nm; var b = mk(nm, () => { Show(f()); Apply(); SetName(n0); }); b.ToolTip = tip; presets.Children.Add(b); }
+            string shownSrc = "\u0000";
+            void SrcUi()
+            {
+                shownSrc = _abPreSrc;
+                string kind = _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");
+                srcText.Text = _abPreSrc == null ? L.T("Ustawienia domyślne (nic nie gra)") : kind + _abPreSrc + " – " + (_abPreSrcOwn ? L.T("ustawienia własne") : L.T("ustawienia domyślne"));
+                ownSrc.Content = _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
+                ownSrc.IsEnabled = _abPreSrc != null; ownSrc.IsChecked = _abPreSrcOwn; toDef.IsEnabled = _abPreSrcOwn;
+            }
+            ownSrc.Click += (s, e) =>
+            {
+                if (_abPreSrc == null) return; var d = AbPreSrcLoad();
+                if (ownSrc.IsChecked == true) { d[_abPreSrc] = AbProc.Pre.Params.Save(); _abPreSrcOwn = true; }   // od teraz zmiany zapisują się dla tego źródła
+                else { d.Remove(_abPreSrc); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); }
+                AbPreSrcSave(d); SrcUi();
+            };
+            toDef.Click += (s, e) => { if (_abPreSrc == null) return; var d = AbPreSrcLoad(); d.Remove(_abPreSrc); AbPreSrcSave(d); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); };
+            setDef.Click += (s, e) => { AbPreSetDefault(AbProc.Pre.Params); ShowToast(L.T("★ Ustawienia kompresora zapisane jako domyślne"), null); };
+            SrcUi();
             Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params);
             manual = () => { if (!string.IsNullOrEmpty(GetPref("ab-kompresor-nazwa"))) SetName(null); };
             var lastName = GetPref("ab-kompresor-nazwa"); SetName(string.IsNullOrEmpty(lastName) ? null : lastName);
             var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             tm.Tick += (s, e) =>
             {
+                if (!string.Equals(shownSrc, _abPreSrc)) { Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); }   // nowy film / kanał - jego ustawienia
                 var pr = AbProc.Pre; bool act = pr.Params.IsEnabled && AbFlowing();
                 double xi = act ? pr.InputDb : -120, xo = act ? pr.OutputDb : -120, gr = act ? pr.CurrentGainReductionDb : 0;
                 Canvas.SetLeft(dot, X(xi) - 5); Canvas.SetTop(dot, Y(xo) - 5); dot.Visibility = act && xi > Lo ? Visibility.Visible : Visibility.Hidden;

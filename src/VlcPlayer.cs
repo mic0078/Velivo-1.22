@@ -2183,11 +2183,14 @@ namespace Velivo
             // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
             // domyslne ustawienia (film bez wlasnych): te z ustawien Velivo - zmiany w filmie ich nie nadpisuja
             int defVol = _settings.VlcVolume, defDuck = _settings.VlcLectorDuck; double defLVol = _settings.VlcLectorVolume, defRate = _settings.VlcLectorRate; string defVoice = _settings.VlcLectorVoice; int defSteps = _settings.VlcLectorSteps;
+            // 🗣 film spoza biblioteki (Jellyfin bez pliku, TV): głośność lektora pamiętana dla tytułu (wspólne dane) - nie zmienia domyślnej dla wszystkich
+            string lekKey = null;
+            Func<double?> titleLVol = () => lekKey != null && double.TryParse(GetPref("lektor-vol|" + lekKey), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tv0) ? tv0 : (double?)null;
             Action saveLector = () =>
             {
                 try
                 {
-                    if (current == null) { defVol = _settings.VlcVolume; defDuck = _settings.VlcLectorDuck; defLVol = _settings.VlcLectorVolume; defRate = _settings.VlcLectorRate; defVoice = _settings.VlcLectorVoice; defSteps = _settings.VlcLectorSteps; _settings.Save(DataDir); return; }
+                    if (current == null) { defVol = _settings.VlcVolume; defDuck = _settings.VlcLectorDuck; if (lekKey == null) defLVol = _settings.VlcLectorVolume; defRate = _settings.VlcLectorRate; defVoice = _settings.VlcLectorVoice; defSteps = _settings.VlcLectorSteps; _settings.Save(DataDir); return; }
                     // zapis pozostalych ustawien (lektor wl., napisy) z domyslnymi wartosciami filmu - ustawienia tego filmu ida do biblioteki
                     var keep = (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice, _settings.VlcLectorSteps);
                     _settings.VlcVolume = defVol; _settings.VlcLectorDuck = defDuck; _settings.VlcLectorVolume = defLVol; _settings.VlcLectorRate = defRate; _settings.VlcLectorVoice = defVoice; _settings.VlcLectorSteps = defSteps;
@@ -2201,7 +2204,7 @@ namespace Velivo
             filmPrefsTimer.Tick += (s, e) =>
             {
                 filmPrefsTimer.Stop(); saveLector();
-                if (current == null) return;
+                if (current == null) { if (lekKey != null) SetPref("lektor-vol|" + lekKey, _settings.VlcLectorVolume.ToString(System.Globalization.CultureInfo.InvariantCulture)); return; }
                 current.Vol = _settings.VlcVolume; current.LVol = _settings.VlcLectorVolume; current.LRate = _settings.VlcLectorRate; current.LDuck = _settings.VlcLectorDuck; current.LVoice = _settings.VlcLectorVoice; current.LSteps = _settings.VlcLectorSteps;
                 if (_remoteFilms.TryGetValue(current.Path, out var rfp)) { SendRemoteProgress(rfp, mp.Time, mp.Length, false); return; }   // film z innego komputera - ustawienia do jego biblioteki
                 var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current));
@@ -2292,7 +2295,7 @@ namespace Velivo
             Action applyFilmPrefs = () =>
             {
                 // film bez wlasnych ustawien - domyslne (nie te z poprzedniego filmu)
-                lekLoading = true; lvRow.Item2.Value = (current?.LVol ?? AbLekLearnedVol(current?.LVoice ?? defVoice) ?? defLVol) * 100; lekLoading = false;   // 🧠 nowy film: głośność, której nauczyłeś Velivo dla tego głosu
+                lekLoading = true; lvRow.Item2.Value = (current?.LVol ?? titleLVol() ?? AbLekLearnedVol(current?.LVoice ?? defVoice) ?? defLVol) * 100; lekLoading = false;   // 🧠 nowy film: głośność, której nauczyłeś Velivo dla tego głosu
                 lrRow.Item2.Value = current?.LRate ?? defRate;
                 lekLoading = true; ldRow.Item2.Value = current?.LDuck ?? defDuck; lekLoading = false;
                 stSl.Value = current?.LSteps ?? defSteps;
@@ -2961,7 +2964,7 @@ namespace Velivo
                 SaveTvResume(tv != null && tv.ArchiveStart == null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
                 bool stream = path.Contains("://");
                 var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);
-                curTitle = name; marqueePos = 0;
+                curTitle = name; marqueePos = 0; lekKey = current == null ? name : null;
                 win.Title = (IsRecording(path) ? "⏺ REC  " : "") + name + " – " + L.T("Odtwarzacz filmów");
                 LectorStopVoice(lc, mp);
                 if (stream && rf?.Sub != null)

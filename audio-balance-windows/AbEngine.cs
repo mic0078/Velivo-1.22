@@ -69,7 +69,7 @@ namespace Velivo
                 var cf = cap.WaveFormat;
                 cap.DataAvailable += (s, e) =>
                 {
-                    RtThread();
+                    RtThread(); Diag.Cap(e.BytesRecorded / cf.BlockAlign, cf.SampleRate);
                     buf.AddSamples(e.Buffer, 0, e.BytesRecorded);
                 };
                 cap.RecordingStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odbiór z CABLE Output" + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
@@ -156,6 +156,27 @@ namespace Velivo
             }
         }
 
+        // 🔬 pomiar co 30 s do bledy.log: przerwy w odbiorze z kabla i w odtwarzaniu, ile próbek przyszło względem zegara, czas przetwarzania - szukanie pyknięć
+        static class Diag
+        {
+            static readonly double tick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            static long capLast, outLast, start, samples; static double capMax, outMax, procMax; static int capLate, outLate; static int rate;
+            public static void Cap(int frames, int sr)
+            {
+                long now = System.Diagnostics.Stopwatch.GetTimestamp(); rate = sr;
+                if (capLast != 0) { double g = (now - capLast) * tick; if (g > capMax) capMax = g; if (g > 60) capLate++; } else start = now;
+                capLast = now; samples += frames;
+                if ((now - start) * tick >= 30000)
+                {
+                    double sec = (now - start) * tick / 1000, pct = samples / (sec * sr) * 100;
+                    App.LogInfo($"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms");
+                    start = now; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0;
+                }
+            }
+            public static void Out() { long now = System.Diagnostics.Stopwatch.GetTimestamp(); if (outLast != 0) { double g = (now - outLast) * tick; if (g > outMax) outMax = g; if (g > 120) outLate++; } outLast = now; }
+            public static void Proc(long t) { double ms = t * tick; if (ms > procMax) procMax = ms; }
+        }
+
         // przetwarzanie w porcjach od głośników: dźwięk → Audio Balance (w miejscu)
         sealed class Processing : ISampleProvider
         {
@@ -169,8 +190,10 @@ namespace Velivo
                 if (tmp.Length < n) tmp = new float[n];
                 // kopiowanie próbka po próbce - NAudio podaje tu tablicę bajtów „udającą” float[] (WaveBuffer); Array.Copy jej odmawia („Source array type cannot be assigned…”)
                 for (int i = 0; i < n; i++) tmp[i] = buffer[offset + i];
+                long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); Diag.Out();
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza
                 for (int i = 0; i < n; i++) buffer[offset + i] = tmp[i];
+                Diag.Proc(System.Diagnostics.Stopwatch.GetTimestamp() - t0);
                 return n;
             }
         }

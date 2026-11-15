@@ -30,6 +30,7 @@
     <Compile Include="Silnik\*.cs" />
     <Compile Include="..\src\AbStyl.cs" Link="AbStyl.cs" />
     <Compile Include="..\src\AbWidok.cs" Link="AbWidok.cs" />
+    <Compile Include="..\src\VelivoBledy.cs" Link="VelivoBledy.cs" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="audiobalance.ico" />

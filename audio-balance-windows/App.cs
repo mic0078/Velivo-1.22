@@ -9,11 +9,10 @@ namespace Velivo
     public partial class App : Application
     {
         internal static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows");
-        static readonly object LogLock = new object();
 
         static void Line(string s)
         {
-            try { lock (LogLock) { Directory.CreateDirectory(DataDir); File.AppendAllText(Path.Combine(DataDir, "bledy.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\r\n" + s + "\r\n\r\n"); } } catch (Exception) { }
+            VelivoBledy.Write("Velivo Audio Balance for Windows", s);   // ⚠ wspólny katalog „Poważne błędy” wszystkich programów Velivo
         }
         internal static void LogError(Exception ex) => Line("✖ " + ex);
         internal static void LogInfo(string text) => Line("ℹ " + text);

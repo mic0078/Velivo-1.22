@@ -41,8 +41,7 @@ namespace Velivo
         internal static void LogInfo(string text) => LogLine("ℹ " + text);
         static void LogLine(string text)
         {
-            try { File.AppendAllText(Path.Combine(Velivo.MainWindow.DataFolder, "bledy.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [Komunikator]\n" + text + "\n\n"); }
-            catch (Exception) { }
+            VelivoBledy.Write("Velivo Komunikator", text);   // ⚠ wspólny katalog „Poważne błędy”
         }
     }
 

@@ -12,12 +12,11 @@ namespace Velivo
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji
         FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
         {
-            var exp = new Expander { Header = L.T("Kompresor wstępny"), Foreground = fg, Margin = new Thickness(0, 0, 0, 0), IsExpanded = true,
-                ToolTip = L.T("Działa przed wyrównywaniem głośności: łagodzi różnicę między szeptem a wybuchem, zanim Audio Balance ją zobaczy – mniej „pompowania”. Domyślnie wyłączony.") };
+            var exp = new Expander { Header = L.T("Kompresor wstępny"), Foreground = fg, Margin = new Thickness(0, 0, 0, 0), IsExpanded = true };   // bez podpowiedzi całej sekcji - wyskakiwała ucięta przy każdym ruchu myszy (opis jest pod nagłówkiem)
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });
             bool loading = false;
-            Action manual = null;   // ręczna zmiana suwaka - ustawienie już nie jest zapisanym presetem
+            Action manual = null; CheckBox autoThr = null;   // autoThr - przypisany niżej (czytany przez Apply/Show)   // ręczna zmiana suwaka - ustawienie już nie jest zapisanym presetem
             var on = new CheckBox { Content = L.T("Kompresor wstępny włączony"), Foreground = fg, Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(on);
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
@@ -36,11 +35,12 @@ namespace Velivo
             var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), Stroke = Brushes.White, StrokeThickness = 1 };
             plot.Children.Add(thrLine); plot.Children.Add(expLine); plot.Children.Add(curve); plot.Children.Add(dot);
             vis.Children.Add(plot);
-            void DrawCurve(DynParams p)
+            void DrawCurve(DynParams p, double thr = double.NaN)
             {
+                if (double.IsNaN(thr)) thr = p.AutoThreshold ? AbProc.Pre.EffThresholdDb : p.ThresholdDb;
                 var pts = new PointCollection(); double mk = p.MakeupGainDb, mix = p.MixPercent / 100.0;
-                for (double x = Lo; x <= 0.001; x += 0.5) { double g = VelivoDynamicsProcessor.GainComputer(x, p) + mk, y = x + 20 * Math.Log10(Math.Max(1e-6, 1 - mix + mix * Math.Pow(10, g / 20))); pts.Add(new Point(X(x), Y(y))); }
-                curve.Points = pts; thrLine.X1 = thrLine.X2 = X(p.ThresholdDb); expLine.X1 = expLine.X2 = X(p.ExpanderThresholdDb);
+                for (double x = Lo; x <= 0.001; x += 0.5) { double g = VelivoDynamicsProcessor.GainComputer(x, p, thr) + mk, y = x + 20 * Math.Log10(Math.Max(1e-6, 1 - mix + mix * Math.Pow(10, g / 20))); pts.Add(new Point(X(x), Y(y))); }
+                curve.Points = pts; thrLine.X1 = thrLine.X2 = X(thr); expLine.X1 = expLine.X2 = X(p.ExpanderThresholdDb);
             }
             var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) }; Grid.SetColumn(right, 1); vis.Children.Add(right);
             var bars = new Grid { Height = 104 };
@@ -66,7 +66,7 @@ namespace Velivo
             var grText = new TextBlock { Foreground = fg, FontSize = 11, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap };
             right.Children.Add(grText);
             panel.Children.Add(vis);
-            var grHist = new double[120]; int grPos = 0;
+            var grHist = new double[120]; int grPos = 0; double lastThr = double.NaN;
             var presets = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(presets);
             var mode = new ComboBox { Margin = new Thickness(0, 0, 0, 6), ToolTip = L.T("RMS – średnia energia (naturalnie dla dialogów i muzyki); Peak – reaguje na każdy szczyt (strzały, trzaski).") };
@@ -88,6 +88,10 @@ namespace Velivo
             }
             string Db(double v) => v.ToString("+0.0;-0.0;0") + " dB";
             Row("thr", L.T("Próg"), L.T("Od jakiej głośności kompresor zaczyna ściszać (dB)."), -60, 0, 0.5, Db);
+            autoThr = new CheckBox { Content = L.T("Próg automatyczny (z poziomu filmu)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 2),
+                ToolTip = L.T("Kompresor sam mierzy typowy poziom filmu (ok. 10 s, bez ciszy) i ustawia próg ponad nim – ściska tylko to, co wystaje, przy każdym filmie tak samo.") };
+            panel.Children.Add(autoThr);
+            Row("aoff", L.T("Nad średnią filmu"), L.T("O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny."), 0, 20, 0.5, Db);
             Row("ratio", L.T("Stopień"), L.T("Jak mocno ściszać to, co ponad progiem: 4:1 – 4 dB ponad progiem daje 1 dB."), 1, 20, 0.1, v => v.ToString("0.0") + ":1");
             Row("att", L.T("Atak"), L.T("Jak szybko kompresor zaczyna ściszać (ms)."), 0.5, 200, 0.5, v => v.ToString("0.#") + " ms");
             Row("rel", L.T("Powrót"), L.T("Jak szybko wraca po głośnym fragmencie (ms) – dłużej = spokojniej, bez pompowania."), 10, 2000, 10, v => v.ToString("0") + " ms");
@@ -104,6 +108,7 @@ namespace Velivo
                 loading = true;
                 on.IsChecked = p.IsEnabled; auto.IsChecked = p.AutoMakeup; mode.SelectedIndex = p.DetectionMode == DynDetection.Peak ? 1 : 0;
                 rows["thr"].Value = p.ThresholdDb; rows["ratio"].Value = p.Ratio; rows["att"].Value = p.AttackMs; rows["rel"].Value = p.ReleaseMs; rows["knee"].Value = p.KneeDb;
+                autoThr.IsChecked = p.AutoThreshold; rows["aoff"].Value = p.AutoOffsetDb; rows["thr"].IsEnabled = !p.AutoThreshold;
                 rows["mk"].Value = p.MakeupGainDb; rows["mix"].Value = p.MixPercent; rows["et"].Value = p.ExpanderThresholdDb; rows["er"].Value = p.ExpanderRatio;
                 loading = false;
             }
@@ -114,12 +119,13 @@ namespace Velivo
                 {
                     IsEnabled = on.IsChecked == true, AutoMakeup = auto.IsChecked == true, DetectionMode = mode.SelectedIndex == 1 ? DynDetection.Peak : DynDetection.Rms,
                     ThresholdDb = (float)rows["thr"].Value, Ratio = (float)rows["ratio"].Value, AttackMs = (float)rows["att"].Value, ReleaseMs = (float)rows["rel"].Value, KneeDb = (float)rows["knee"].Value,
+                    AutoThreshold = autoThr.IsChecked == true, AutoOffsetDb = (float)rows["aoff"].Value,
                     MakeupGainDb = (float)rows["mk"].Value, MixPercent = (float)rows["mix"].Value, ExpanderThresholdDb = (float)rows["et"].Value, ExpanderRatio = (float)rows["er"].Value
                 };
-                AbProc.Pre.Params = p; SetPref("ab-kompresor", p.Save()); DrawCurve(p);
+                AbProc.Pre.Params = p; SetPref("ab-kompresor", p.Save()); DrawCurve(p); rows["thr"].IsEnabled = !p.AutoThreshold;
                 if (p.IsEnabled && !was) AbNeedsRestartHint();
             }
-            on.Click += (s, e) => Apply(); auto.Click += (s, e) => { Apply(); manual?.Invoke(); }; mode.SelectionChanged += (s, e) => { if (!loading) { Apply(); manual?.Invoke(); } };
+            on.Click += (s, e) => Apply(); autoThr.Click += (s, e) => { Apply(); manual?.Invoke(); }; auto.Click += (s, e) => { Apply(); manual?.Invoke(); }; mode.SelectionChanged += (s, e) => { if (!loading) { Apply(); manual?.Invoke(); } };
             // 💾 własne ustawienia pod własnymi nazwami (zapamiętane na tym komputerze) + nazwa ostatnio wybranego
             var nameText = new TextBlock { Foreground = dim, FontSize = 11, Margin = new Thickness(0, 0, 0, 4) };
             var ownRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
@@ -178,7 +184,8 @@ namespace Velivo
                 double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = 40; var pts = new PointCollection();
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
-                grText.Text = !pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB";
+                if (pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.3) { lastThr = pr.EffThresholdDb; DrawCurve(pr.Params, lastThr); }   // próg automatyczny - wykres na żywo
+                grText.Text = (pr.Params.AutoThreshold && act ? L.T("Próg teraz: ") + pr.EffThresholdDb.ToString("0.0") + " dB · " : "") + (!pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB");
             };
             exp.IsVisibleChanged += (s, e) => { if (exp.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy zakładka Kompresor jest na ekranie - nie zabiera czasu Audio Monitorowi
             exp.Unloaded += (s, e) => tm.Stop();

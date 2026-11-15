@@ -537,6 +537,7 @@ namespace Velivo
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
                 if (src.ToolTip as string != src.Text) src.ToolTip = src.Text;   // pełny opis po najechaniu (w oknie najwyżej 2 linie)
                 { var (lt, lc0) = AbLektorStatus(); if (lekTxt.Text != lt) { lekTxt.Text = lt; lekTxt.Foreground = new SolidColorBrush(lc0); } }
+                { var lv = _abLek.Status >= 0 || AbLekApplied != null || AbLekSugText != null ? Visibility.Visible : Visibility.Collapsed; if (lekRow.Visibility != lv) lekRow.Visibility = lv; }   // ocena lektora tylko, gdy coś mówi (lektor przez Audio Balance jej nie ma - bez wiecznego „czekam”)
                 if ((AbLekSugText ?? "") != (string)(sugBox.Tag ?? ""))
                 {   // propozycja doradcy: Ty decydujesz (Zastosuj / Nie teraz)
                     sugBox.Tag = AbLekSugText ?? ""; sugBox.Visibility = AbLekSugText == null ? Visibility.Collapsed : Visibility.Visible;

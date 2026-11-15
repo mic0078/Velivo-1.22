@@ -356,10 +356,12 @@ public class AudioBalanceTests
     [Fact]
     public void KompresorWstepnyZapisIOdczyt()
     {
-        var p = DynParams.Night(); p.AutoMakeup = true; p.DetectionMode = DynDetection.Peak;
+        var p = DynParams.Night(); p.AutoMakeup = true; p.DetectionMode = DynDetection.Peak; p.AutoThreshold = true; p.AutoOffsetDb = 8;
         var q = DynParams.Load(p.Save());
         Assert.True(q.IsEnabled); Assert.True(q.AutoMakeup); Assert.Equal(DynDetection.Peak, q.DetectionMode);
         Assert.Equal(-42f, q.ThresholdDb); Assert.Equal(6f, q.Ratio); Assert.Equal(12f, q.MakeupGainDb); Assert.Equal(-50f, q.ExpanderThresholdDb);
+        Assert.True(q.AutoThreshold); Assert.Equal(8f, q.AutoOffsetDb);
+        Assert.False(DynParams.Load("1;rms;-30;4;25;250;10;6;0;100;-52;1.5").AutoThreshold);   // starszy zapis (12 pól) - bez progu automatycznego
         Assert.False(DynParams.Load(null).IsEnabled);   // brak ustawienia = wyłączony (dźwięk bez zmian)
     }
 }

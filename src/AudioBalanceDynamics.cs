@@ -12,6 +12,7 @@ namespace Velivo
         public float ThresholdDb = -32f, Ratio = 4f, AttackMs = 25f, ReleaseMs = 250f, KneeDb = 10f, MakeupGainDb = 6f, MixPercent = 100f;
         public bool AutoMakeup;
         public float ExpanderThresholdDb = -52f, ExpanderRatio = 1.5f;
+        public bool AutoThreshold; public float AutoOffsetDb = 6f;   // próg automatyczny: typowy poziom filmu + AutoOffsetDb (jak „Learn” w Ozone)
 
         public DynParams Clone() => (DynParams)MemberwiseClone();
         // zakresy ze specyfikacji - wartości spoza nich (np. z ręcznie zmienionego pliku) przycinane
@@ -20,7 +21,7 @@ namespace Velivo
             var p = Clone();
             p.ThresholdDb = C(p.ThresholdDb, -60, 0); p.Ratio = C(p.Ratio, 1, 20); p.AttackMs = C(p.AttackMs, 0.5f, 200); p.ReleaseMs = C(p.ReleaseMs, 10, 2000);
             p.KneeDb = C(p.KneeDb, 0, 12); p.MakeupGainDb = C(p.MakeupGainDb, -12, 24); p.MixPercent = C(p.MixPercent, 0, 100);
-            p.ExpanderThresholdDb = C(p.ExpanderThresholdDb, -80, -30); p.ExpanderRatio = C(p.ExpanderRatio, 1, 4);
+            p.ExpanderThresholdDb = C(p.ExpanderThresholdDb, -80, -30); p.ExpanderRatio = C(p.ExpanderRatio, 1, 4); p.AutoOffsetDb = C(p.AutoOffsetDb, 0, 20);
             return p;
         }
         static float C(float v, float lo, float hi) => float.IsNaN(v) ? lo : v < lo ? lo : v > hi ? hi : v;
@@ -35,7 +36,7 @@ namespace Velivo
         {
             var ci = System.Globalization.CultureInfo.InvariantCulture;
             return string.Join(";", IsEnabled ? "1" : "0", DetectionMode == DynDetection.Peak ? "peak" : "rms", ThresholdDb.ToString(ci), Ratio.ToString(ci), AttackMs.ToString(ci), ReleaseMs.ToString(ci),
-                KneeDb.ToString(ci), MakeupGainDb.ToString(ci), AutoMakeup ? "1" : "0", MixPercent.ToString(ci), ExpanderThresholdDb.ToString(ci), ExpanderRatio.ToString(ci));
+                KneeDb.ToString(ci), MakeupGainDb.ToString(ci), AutoMakeup ? "1" : "0", MixPercent.ToString(ci), ExpanderThresholdDb.ToString(ci), ExpanderRatio.ToString(ci), AutoThreshold ? "1" : "0", AutoOffsetDb.ToString(ci));
         }
         public static DynParams Load(string s)
         {
@@ -46,6 +47,7 @@ namespace Velivo
             p.IsEnabled = a[0] == "1"; p.DetectionMode = a[1] == "peak" ? DynDetection.Peak : DynDetection.Rms;
             p.ThresholdDb = F(2, p.ThresholdDb); p.Ratio = F(3, p.Ratio); p.AttackMs = F(4, p.AttackMs); p.ReleaseMs = F(5, p.ReleaseMs); p.KneeDb = F(6, p.KneeDb);
             p.MakeupGainDb = F(7, p.MakeupGainDb); p.AutoMakeup = a[8] == "1"; p.MixPercent = F(9, p.MixPercent); p.ExpanderThresholdDb = F(10, p.ExpanderThresholdDb); p.ExpanderRatio = F(11, p.ExpanderRatio);
+            if (a.Length >= 14) { p.AutoThreshold = a[12] == "1"; p.AutoOffsetDb = F(13, p.AutoOffsetDb); }   // starszy zapis (12 pól) - bez progu automatycznego
             return p.Clamped();
         }
     }
@@ -58,19 +60,21 @@ namespace Velivo
         readonly double fs;
         volatile DynParams prm = new DynParams();
         public DynParams Params { get => prm; set => prm = (value ?? new DynParams()).Clamped(); }
-        public volatile float CurrentGainReductionDb;
+        public volatile float CurrentGainReductionDb;   // obecna redukcja (dB, ≤ 0; ujemna też przy ekspanderze) - miernik w oknie
         public volatile float InputDb = -120, OutputDb = -120;   // poziom wykrywania na wejściu i wynik po kompresji (dB) - kropka na wykresie i mierniki
-        int mtrN;   // obecna redukcja (dB, ≤ 0; ujemna też przy ekspanderze) - miernik w oknie
+        public volatile float EffThresholdDb = -32;   // próg w tej chwili (przy progu automatycznym - liczony z filmu)
+        int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
         DynParams cp; double ca, cr, cRms, cAvg, cs;   // współczynniki liczone raz na zmianę ustawień (nie co próbkę)
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; }
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progN = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
-        public static double GainComputer(double x, DynParams p)
+        public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb);
+        public static double GainComputer(double x, DynParams p, double thr)
         {
-            double t = p.ThresholdDb, r = Math.Max(1, p.Ratio), w = Math.Max(0, p.KneeDb), d = x - t, g = 0;
+            double t = thr, r = Math.Max(1, p.Ratio), w = Math.Max(0, p.KneeDb), d = x - t, g = 0;
             if (w > 0 && Math.Abs(d) <= w / 2) g = (1 / r - 1) * (d + w / 2) * (d + w / 2) / (2 * w);   // miękkie kolano - płynne wejście kompresji
             else if (d > 0) g = (1 / r - 1) * d;
             if (x < p.ExpanderThresholdDb && p.ExpanderRatio > 1) g += Math.Max(-40, (x - p.ExpanderThresholdDb) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół, nie w górę
@@ -105,7 +109,15 @@ namespace Velivo
             if (p.DetectionMode == DynDetection.Peak) lvl = Math.Max(Math.Abs(l), Math.Abs(r));
             else { double e = (l * l + r * r) * 0.5; env += (e - env) * cRms; lvl = Math.Sqrt(env); }   // RMS z ok. 20 ms
             double xDb = lvl > 1e-9 ? 20 * Math.Log10(lvl) : -180;
-            double want = GainComputer(xDb, p);
+            if (p.AutoThreshold && (mtrN & 63) == 0 && xDb > -70)
+            {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
+                if (double.IsNaN(progDb)) progDb = xDb;
+                else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
+                else if (xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / (10.0 * fs / 64);
+            }
+            double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
+            EffThresholdDb = (float)thr;
+            double want = GainComputer(xDb, p, thr);
             grDb = want < grDb ? want + ca * (grDb - want) : want + cr * (grDb - want);   // mocniej - czas ataku, słabiej - czas powrotu
             if (xDb > p.ExpanderThresholdDb) avgGr += (grDb - avgGr) * cAvg;   // średnia redukcja z ok. 3 s (bez ciszy) - do automatycznego podbicia
             double mkWant = p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0), mixWant = p.MixPercent / 100.0;

@@ -239,7 +239,7 @@ namespace Velivo
         static AbProcessor AbV => _abExtLive ? AbExtProc : AbProc;
         static bool AbBypassV => _abExtLive ? _abExtByp : AbBypass;
         long AbHead() => _abExtLive ? Interlocked.Read(ref AbExtProc.Frames) : AbPlayHead();
-        TextBlock _abQuietNow;
+        TextBlock _abQuietNow; CheckBox _abQuietSrc; string _abQuietShown = "\0";
         static bool _abWinOn; static DateTime _abWinAt; static int _abWinMs;
         // o ile Audio Balance for Windows spóźnia dźwięk (ms) - odtwarzacz Velivo gra dźwięk o tyle wcześniej (obraz równo z głosem); 0, gdy program nie działa
         internal static int AbWinDelayMs => AbWinActive ? _abWinMs : 0;
@@ -266,7 +266,7 @@ namespace Velivo
             { SetPref("ab-profil", op == "limiter" ? "limit" : "auto"); SetPref("ab-sila", op == "light" ? "light" : op == "night" ? "strong" : "normal"); }
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
-            AbProc.QuietOn = GetPref("ab-cichy") != "0"; AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
+            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
             AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor"));   // 🎚 kompresor wstępny (domyślnie wył.)
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
@@ -476,15 +476,18 @@ namespace Velivo
             root.Children.Add(tgt);
             // 🔈 bardzo ciche nagrania (jak w Audio Balance for Windows): dodatkowe podbicie ponad limit trybu, tylko gdy całe nagranie dużo ciszej niż cel
             var qRow = new DockPanel { Margin = new Thickness(0, 6, 0, 0), ToolTip = L.T("Podciąga skrajnie cicho nagrane filmy do normalnej głośności – razem z wyrównaniem LUFS. Działa tylko, gdy całe nagranie jest dużo ciszej niż cel; limiter pilnuje szczytów.") };
-            var qOn = new CheckBox { Content = L.T("🔈 Bardzo ciche nagrania"), Foreground = fg, IsChecked = GetPref("ab-cichy") != "0", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var qOn = new CheckBox { Content = L.T("🔈 Bardzo ciche nagrania – wszędzie"), Foreground = fg, IsChecked = AbQuietGlobal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             var qVal = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 70, Margin = new Thickness(6, 0, 0, 0) };
             _abQuietNow = new TextBlock { Foreground = AbCyan, VerticalAlignment = VerticalAlignment.Center, Width = 90 };
             var qSl = new Slider { Minimum = 0, Maximum = 24, Value = AbProc.QuietMaxDb, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
             qVal.Text = L.T("do +") + qSl.Value.ToString("0") + " dB";
-            qOn.Click += (s, e) => { SetPref("ab-cichy", qOn.IsChecked == true ? "1" : "0"); AbProc.QuietOn = qOn.IsChecked == true; };
+            qOn.Click += (s, e) => { SetPref("ab-cichy", qOn.IsChecked == true ? "1" : "0"); AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); };
             qSl.ValueChanged += (s, e) => { AbProc.QuietMaxDb = qSl.Value; SetPref("ab-cichy-db", qSl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); qVal.Text = L.T("do +") + qSl.Value.ToString("0") + " dB"; };
             DockPanel.SetDock(qOn, Dock.Left); DockPanel.SetDock(_abQuietNow, Dock.Right); DockPanel.SetDock(qVal, Dock.Right);
             qRow.Children.Add(qOn); qRow.Children.Add(_abQuietNow); qRow.Children.Add(qVal); qRow.Children.Add(qSl); root.Children.Add(qRow);
+            // 📌 tylko dla tego materiału (domyślnie wyłączone - zapamiętane dla filmu / kanału, który tego potrzebuje)
+            _abQuietSrc = new CheckBox { Foreground = fg, Margin = new Thickness(0, 2, 0, 0), ToolTip = L.T("Zapamiętane tylko dla tego filmu / kanału – włączy się samo przy następnym odtworzeniu.") };
+            _abQuietSrc.Click += (s, e) => AbQuietSet(AbQuietSrc, _abQuietSrc.IsChecked == true); root.Children.Add(_abQuietSrc);
             var devBox = AbDeviceBox(); root.Children.Add(devBox);
             // korektor (EQ) - zwiniety
             var eqExp = new Expander { Header = L.T("Korektor (EQ)"), Foreground = fg, Margin = new Thickness(0, 8, 0, 0) };
@@ -567,6 +570,7 @@ namespace Velivo
                 double extPro = 0, extByp = 0; _abExtLive = AbWinActive && AbWidok.Read(AbExtProc, out extPro, out extByp); _abExtPro = extPro > 0; _abExtByp = extByp > 0;   // 🔗 praca Audio Balance for Windows na wykresach Velivo
                 bool live = _abExtLive || (_abOut != null && AbProc.Active && AbFlowing());
                 bigVuUpd(live); SumBars(live);
+                if (_abQuietSrc != null && _abQuietShown != AbQuietSrc) { _abQuietShown = AbQuietSrc; _abQuietSrc.IsEnabled = AbQuietSrc != null; _abQuietSrc.Content = AbQuietSrc == null ? L.T("📌 Zapamiętaj dla filmu / kanału (nic nie gra)") : L.T("📌 Zawsze dla: ") + AbQuietSrc; _abQuietSrc.IsChecked = AbQuietFor(AbQuietSrc); }
                 if (_abQuietNow != null) { var qt = live && AbV.QuietOn ? L.T("teraz: +") + AbV.QuietNow.ToString("0") + " dB" + (AbV.QuietNoise ? L.T(" (mniej – szum)") : "") : ""; if (_abQuietNow.Text != qt) _abQuietNow.Text = qt; }
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }

@@ -86,6 +86,15 @@ namespace Velivo
             p.Children.Add(pr); return p;
         }
         // 🎵 poprawianie własnych plików (dla muzyka): WAV / MP3 / FLAC / M4A → „(Audio Balance).wav” 32-bit 48 kHz, te same ustawienia co dźwięk Windows
+        Window filesWin;
+        void ShowFiles()
+        {   // 🎵 osobne okno (właściciel): poprawianie plików niezależnie od okna podglądu
+            if (filesWin != null) { filesWin.Show(); filesWin.Activate(); return; }
+            filesWin = new Window { Title = L.T("Velivo Audio Balance – popraw pliki"), Width = 620, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI"), Icon = win.Icon };
+            filesWin.Resources.MergedDictionaries.Add(AbStyl.Res);
+            var c = Card(FilePanel()); c.Margin = new Thickness(14); filesWin.Content = c;
+            filesWin.Closed += (s, e) => filesWin = null; filesWin.Show();
+        }
         FrameworkElement FilePanel()
         {
             var p = new StackPanel(); var st = T(L.T("Wynik: plik „nazwa (Audio Balance).wav” obok oryginału – WAV 32-bit, 48 kHz, bez strat. Te same ustawienia co wyżej (bez wtyczek VST3)."), 11, Dim);
@@ -94,19 +103,58 @@ namespace Velivo
             {
                 if (busy) return;
                 var dlg = new Microsoft.Win32.OpenFileDialog { Multiselect = true, Filter = L.T("Dźwięk") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma|*.*|*.*" };
-                if (dlg.ShowDialog(win) != true) return;
+                if (Directory.Exists(Get("plik-z") ?? "")) dlg.InitialDirectory = Get("plik-z");   // ostatni folder z utworami
+                if (dlg.ShowDialog(filesWin ?? win) != true) return;
+                Put("plik-z", Path.GetDirectoryName(dlg.FileNames[0]));
                 busy = true; string lastOut = null; int ok = 0;
                 foreach (var f in dlg.FileNames)
                 {
                     var name = Path.GetFileName(f);
-                    try { lastOut = await AbPlik.Process(f, Configure, x => win.Dispatcher.BeginInvoke(new Action(() => st.Text = "⏳ " + name + "  " + (int)(x * 100) + " %"))); ok++; }
+                    try { lastOut = await AbPlik.Process(f, Get("plik-do"), Configure, x => win.Dispatcher.BeginInvoke(new Action(() => st.Text = "⏳ " + name + "  " + (int)(x * 100) + " %"))); ok++; }
                     catch (Exception ex) { App.LogError(ex); st.Text = "✖ " + name + ": " + ex.Message; st.Foreground = Bad; }
                 }
                 busy = false;
                 if (ok > 0) { st.Text = L.T("✔ Gotowe: ") + ok + " / " + dlg.FileNames.Length; st.Foreground = Ok; try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + lastOut + "\""); } catch (Exception) { } }
             }, L.T("Poprawia wybrane utwory tymi samymi ustawieniami co dźwięk Windows i zapisuje obok oryginału."));
             p.Children.Add(Head(L.T("🎵 Popraw plik"), b)); p.Children.Add(st);
+            // 📁 gdzie zapisywać (zapamiętane) i 💾 ustawienia poprawek do pliku na dysku (własne zestawy, przenoszenie na inny komputer)
+            var row = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+            Button dirB = null;
+            void DirTxt() { var d = Get("plik-do"); SetText(dirB, "📁 " + (Directory.Exists(d ?? "") ? L.T("Zapisuj do: ") + d : L.T("Zapisuj obok oryginału"))); }
+            dirB = Mk("", () =>
+            {
+                var fd = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder na poprawione utwory") };
+                if (Directory.Exists(Get("plik-do") ?? "")) fd.InitialDirectory = Get("plik-do");
+                if (fd.ShowDialog(filesWin ?? win) == true) Put("plik-do", fd.FolderName); else if (MessageBox.Show(filesWin ?? win, L.T("Zapisywać obok oryginału?"), "Velivo Audio Balance", MessageBoxButton.YesNo) == MessageBoxResult.Yes) Put("plik-do", "");
+                DirTxt();
+            }, L.T("Folder na poprawione utwory – zapamiętany. Bez wyboru: obok oryginału.")); DirTxt(); row.Children.Add(dirB);
+            row.Children.Add(Mk(L.T("💾 Zapisz ustawienia…"), SaveSettingsFile, L.T("Zapisuje wszystkie poprawki dźwięku (wyrównanie, kompresor, korektor, dialogi, cel) do pliku na dysku.")));
+            row.Children.Add(Mk(L.T("📂 Wczytaj ustawienia…"), LoadSettingsFile, L.T("Wczytuje zapisany zestaw poprawek z pliku.")));
+            p.Children.Add(row);
             return p;
+        }
+        static readonly string[] SoundKeys = { "profil", "sila", "dialogi", "cel", "eq", "eq-db", "kompresor", "kompresor-nazwa", "kompresor-wlasne" };
+        void SaveSettingsFile()
+        {
+            var d = new Microsoft.Win32.SaveFileDialog { Filter = L.T("Ustawienia Audio Balance") + "|*.vab.json", FileName = L.T("Moje poprawki") + ".vab.json" };
+            if (Directory.Exists(Get("ust-dir") ?? "")) d.InitialDirectory = Get("ust-dir");
+            if (d.ShowDialog(filesWin ?? win) != true) return;
+            try { var o = SoundKeys.Where(k => Get(k) != null).ToDictionary(k => k, k => Get(k)); File.WriteAllText(d.FileName, JsonSerializer.Serialize(o, new JsonSerializerOptions { WriteIndented = true })); Put("ust-dir", Path.GetDirectoryName(d.FileName)); Toast(L.T("✔ Zapisano: ") + Path.GetFileName(d.FileName)); }
+            catch (Exception ex) { App.LogError(ex); Toast(ex.Message); }
+        }
+        void LoadSettingsFile()
+        {
+            var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Ustawienia Audio Balance") + "|*.vab.json|*.*|*.*" };
+            if (Directory.Exists(Get("ust-dir") ?? "")) d.InitialDirectory = Get("ust-dir");
+            if (d.ShowDialog(filesWin ?? win) != true) return;
+            try
+            {
+                var o = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(d.FileName));
+                foreach (var k in SoundKeys) if (o.TryGetValue(k, out var v)) Put(k, v);
+                Put("ust-dir", Path.GetDirectoryName(d.FileName)); Apply();
+                MessageBox.Show(filesWin ?? win, L.T("Wczytano. Okno odświeży suwaki po ponownym otwarciu programu – dźwięk już działa z nowymi ustawieniami."), "Velivo Audio Balance");
+            }
+            catch (Exception ex) { App.LogError(ex); Toast(ex.Message); }
         }
         void Apply()
         {
@@ -188,6 +236,7 @@ namespace Velivo
             defBtn = Mk("", ToggleDefault); defBtn.Margin = new Thickness(0, 0, 8, 0);
             rightTop.Children.Add(outBox); rightTop.Children.Add(defBtn);
             recBtn = Mk(L.T("⏺ Nagrywaj"), ToggleRec, L.T("Nagrywa dźwięk po poprawkach do pliku WAV najwyższej jakości (32-bit, 48 kHz, stereo) w folderze Muzyka\\Velivo Audio Balance.")); recBtn.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(recBtn);
+            var fb = Mk(L.T("🎵 Popraw pliki…"), ShowFiles, L.T("Osobne okno: poprawianie Twoich utworów (WAV, MP3, FLAC, M4A) i zapis na dysk.")); fb.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(fb);
             var wg = Mk(L.T("📌 Widżet"), () => widget.Toggle(), L.T("Mały widżet z animowanymi słupkami na pulpicie (wł./wył.).")); wg.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(wg);
             var tr = Mk(L.T("Do zasobnika"), () => win.Hide()); tr.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(tr);
             var ex = Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")); ex.Margin = new Thickness(0); rightTop.Children.Add(ex);
@@ -235,8 +284,7 @@ namespace Velivo
             var lower = new Grid(); lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star) }); lower.ColumnDefinitions.Add(new ColumnDefinition());
             var c2 = Card(sets); c2.Margin = new Thickness(0, 0, 10, 0); var c4 = Card(EqPanel()); c4.Margin = new Thickness(0); Grid.SetColumn(c4, 1);
             lower.Children.Add(c2); lower.Children.Add(c4);
-            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower);
-            { var fc = Card(FilePanel()); fc.Margin = new Thickness(0, 10, 0, 0); left.Children.Add(fc); } cols.Children.Add(left);
+            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower); cols.Children.Add(left);
             // 🎚 kompresor wstępny i 🎛 VST3 z Velivo (ten sam kod)
             MainWindow.Host = this; MainWindow.AbPreNoSrc = true; var mw = new MainWindow();
             var comp = new StackPanel(); var cp = mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2));

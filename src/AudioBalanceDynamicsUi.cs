@@ -180,7 +180,8 @@ namespace Velivo
                 histLine.Points = pts;
                 grText.Text = !pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB";
             };
-            exp.Loaded += (s, e) => tm.Start(); exp.Unloaded += (s, e) => tm.Stop();
+            exp.IsVisibleChanged += (s, e) => { if (exp.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy zakładka Kompresor jest na ekranie - nie zabiera czasu Audio Monitorowi
+            exp.Unloaded += (s, e) => tm.Stop();
             return exp;
         }
     }

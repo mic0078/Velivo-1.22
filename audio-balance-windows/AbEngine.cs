@@ -83,7 +83,7 @@ namespace Velivo
                 outp.PlaybackStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
                 cap.StartRecording(); outp.Play();
-                App.LogInfo("Audio Balance: CABLE Output (" + cf + ") → " + OutputName);
+                App.LogInfo("Audio Balance (program z " + System.IO.File.GetLastWriteTime(Environment.ProcessPath).ToString("yyyy-MM-dd HH:mm") + ", pomiar co 30 s): CABLE Output (" + cf + ") → " + OutputName);
                 return true;
             }
             catch (Exception ex) { App.LogError(ex); Error = ex.Message; Stop(); return false; }

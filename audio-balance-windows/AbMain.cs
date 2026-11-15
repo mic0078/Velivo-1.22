@@ -229,7 +229,7 @@ namespace Velivo
             var sl = new Slider { Minimum = 0, Maximum = 24, Value = v0, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(sl, 1);
             var val = new TextBlock { Text = L.T("do +") + v0.ToString("0") + " dB", Foreground = Fg, VerticalAlignment = VerticalAlignment.Center };
             var pill = new Border { Background = BtnBg, CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 12, 0), Child = val }; Grid.SetColumn(pill, 2);
-            quietNow = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, MinWidth = 92 }; Grid.SetColumn(quietNow, 3);
+            quietNow = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, MinWidth = 92, ToolTip = L.T("Ile program teraz dodaje ponad zwykłe wyrównanie. „mniej – szum”: nagranie ma szum tła – podbija tylko tyle, żeby szum został niesłyszalny.") }; Grid.SetColumn(quietNow, 3);
             sl.ValueChanged += (s, e) => { val.Text = L.T("do +") + sl.Value.ToString("0") + " dB"; Put("cichy-db", sl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); };
             g.Children.Add(sl); g.Children.Add(pill); g.Children.Add(quietNow); p.Children.Add(g);
             return p;
@@ -397,7 +397,7 @@ namespace Velivo
             if (eng.Rec is { } rr && recBtn != null) SetText(recBtn, "⏹ " + TimeSpan.FromSeconds(rr.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss"));   // czas nagrania
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
-            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = L.T("teraz: +") + qn.ToString("0") + " dB"; if (quietNow.Text != qt) quietNow.Text = qt; }
+            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; }
             UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
         }
 

@@ -488,6 +488,7 @@ namespace Velivo
             { "🔈 Bardzo ciche nagrania", "🔈 Very quiet recordings" },
             { "do +", "up to +" },
             { "teraz: +", "now: +" },
+            { " (mniej – szum)", " (less – noise)" },
             { "● bez przetwarzania", "● no processing" },
             { " + dialogi", " + dialogue" },
             { "Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)", "No processing – the film's sound unchanged (measuring continues)" },

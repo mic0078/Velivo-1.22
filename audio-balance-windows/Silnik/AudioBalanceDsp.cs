@@ -237,7 +237,7 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
-        public bool QuietOn = true; public double QuietMaxDb = 15, QuietNow;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
+        public bool QuietOn = true, QuietNoise; public double QuietMaxDb = 15, QuietNow; double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
         public bool NoVst;   // poprawianie pliku (osobny obiekt) - bez wtyczek VST3, które gra właśnie dźwięk Windows
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
@@ -343,7 +343,7 @@ namespace Velivo
         public void Process(float[] buf, int frames) { ProcessCore(buf, frames); MixLek(buf, frames); }
         void ProcessCore(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; noiseFl = -60; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
@@ -425,6 +425,7 @@ namespace Velivo
                 }
                 else DialogDb = 0;
                 double p = In.Push(l, r);
+                if (++nfN >= 4800) { nfN = 0; double mo0 = In.Momentary; if (mo0 > -90) noiseFl = mo0 < noiseFl ? noiseFl + (mo0 - noiseFl) * 0.3 : Math.Min(mo0, noiseFl + 0.01); }   // 🔇 szum tła: najcichsze chwile nagrania co 0,1 s, także w przerwach (w dół szybko, w górę 0,1 dB/s)
                 double g = 0;
                 if (pr != null)
                 {
@@ -455,7 +456,8 @@ namespace Velivo
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double xb = QuietOn && film > -70 && film < Tg - 12 ? Math.Min(QuietMaxDb, Tg - 12 - film) : 0;   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
+                        double xb = QuietOn && film > -70 && film < Tg - 12 ? Math.Min(QuietMaxDb, Tg - 12 - film) : 0;
+                        if (xb > 0) { double room = -50 - noiseFl - pr.MaxBoost; QuietNoise = room < xb; xb = Math.Max(0, Math.Min(xb, room)); }   // najlepszy kompromis: podbicie tylko tak duże, żeby szum tła po podbiciu został poniżej -50 LUFS (niesłyszalny)   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));

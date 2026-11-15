@@ -138,6 +138,8 @@ namespace Velivo
             { "Dodatkowe podbicie", "Extra boost" },
             { "do +", "up to +" },
             { "teraz: +", "now: +" },
+            { " (mniej – szum)", " (less – noise)" },
+            { "Ile program teraz dodaje ponad zwykłe wyrównanie. „mniej – szum”: nagranie ma szum tła – podbija tylko tyle, żeby szum został niesłyszalny.", "How much the program adds now above normal levelling. “less – noise”: the recording has background noise – boosts only as much as keeps the noise inaudible." },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

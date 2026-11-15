@@ -567,7 +567,7 @@ namespace Velivo
                 double extPro = 0, extByp = 0; _abExtLive = AbWinActive && AbWidok.Read(AbExtProc, out extPro, out extByp); _abExtPro = extPro > 0; _abExtByp = extByp > 0;   // 🔗 praca Audio Balance for Windows na wykresach Velivo
                 bool live = _abExtLive || (_abOut != null && AbProc.Active && AbFlowing());
                 bigVuUpd(live); SumBars(live);
-                if (_abQuietNow != null) { var qt = live && AbV.QuietOn ? L.T("teraz: +") + AbV.QuietNow.ToString("0") + " dB" : ""; if (_abQuietNow.Text != qt) _abQuietNow.Text = qt; }
+                if (_abQuietNow != null) { var qt = live && AbV.QuietOn ? L.T("teraz: +") + AbV.QuietNow.ToString("0") + " dB" + (AbV.QuietNoise ? L.T(" (mniej – szum)") : "") : ""; if (_abQuietNow.Text != qt) _abQuietNow.Text = qt; }
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
                 state.Text = AbWinActive ? L.T("● Audio Balance for Windows przetwarza cały dźwięk Windows – wskaźniki pokazują jego pracę (Velivo nie poprawia drugi raz)") : AbBypassV ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbV.EqOn ? " + EQ" : "") + (AbV.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");

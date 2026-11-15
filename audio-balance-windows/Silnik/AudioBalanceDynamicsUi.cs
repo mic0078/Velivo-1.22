@@ -52,10 +52,11 @@ namespace Velivo
         {
             var exp = new Expander { Header = L.T("Kompresor wstępny"), Foreground = fg, Margin = new Thickness(0, 0, 0, 0), IsExpanded = true };   // bez podpowiedzi całej sekcji - wyskakiwała ucięta przy każdym ruchu myszy (opis jest pod nagłówkiem)
             var panel = new StackPanel();
-            panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });
+            if (!AbWide) panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });
             bool loading = false;
             Action manual = null; CheckBox autoThr = null;   // autoThr - przypisany niżej (czytany przez Apply/Show)   // ręczna zmiana suwaka - ustawienie już nie jest zapisanym presetem
             var on = new CheckBox { Content = L.T("Kompresor wstępny włączony"), Foreground = fg, Margin = new Thickness(0, 0, 0, 6) };
+            if (AbWide) on.ToolTip = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać.");   /* program samodzielny: opis w podpowiedzi - okno bez przewijania */
             panel.Children.Add(on);
             // 🎞📺 dla czego są te ustawienia: domyślne albo własne tego filmu / kanału
             var srcText = new TextBlock { Foreground = fg, FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) };
@@ -68,8 +69,8 @@ namespace Velivo
             if (!AbPreNoSrc) { panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns); }   // program samodzielny: nie ma filmów / kanałów - tylko jedno ustawienie
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
             var vis = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            vis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); vis.ColumnDefinitions.Add(new ColumnDefinition());
-            const double W = 150, H = 150, Lo = -60;   // oś: -60..0 dB
+            vis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(AbWide ? 122 : 160) }); vis.ColumnDefinitions.Add(new ColumnDefinition());
+            const double Lo = -60; double W = AbWide ? 112 : 150, H = W;   /* program samodzielny: niższe wskaźniki - całe okno bez przewijania */   // oś: -60..0 dB
             double X(double db) => (Math.Max(Lo, Math.Min(0, db)) - Lo) / -Lo * W; double Y(double db) => H - (Math.Max(Lo, Math.Min(0, db)) - Lo) / -Lo * H;
             var plot = new Canvas { Width = W, Height = H, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true,
                 ToolTip = L.T("Charakterystyka: poziom wejścia (poziomo) → wyjścia (pionowo). Kropka – obecny dźwięk; przekątna – bez zmian.") };
@@ -91,7 +92,7 @@ namespace Velivo
                 curve.Points = pts; thrLine.X1 = thrLine.X2 = X(thr); expLine.X1 = expLine.X2 = X(et);
             }
             var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) }; Grid.SetColumn(right, 1); vis.Children.Add(right);
-            var bars = new Grid { Height = 104 };
+            var bars = new Grid { Height = AbWide ? 70 : 104 };
             (Border bar, TextBlock val) Meter(int col, string name, Color c, string tip)
             {
                 bars.ColumnDefinitions.Add(new ColumnDefinition());
@@ -107,7 +108,7 @@ namespace Velivo
             var mGr = Meter(1, L.T("Redukcja"), Color.FromRgb(0xFA, 0xCC, 0x15), L.T("Ile kompresor teraz ścisza (dB) – pasek rośnie w dół."));
             var mOut = Meter(2, L.T("Wyjście"), Color.FromRgb(0x2E, 0xD3, 0xC6), L.T("Poziom po kompresorze, przed wyrównywaniem Audio Balance (dB)."));
             right.Children.Add(bars);
-            var hist = new Canvas { Height = 40, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true, Margin = new Thickness(0, 4, 0, 0),
+            var hist = new Canvas { Height = AbWide ? 24 : 40, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true, Margin = new Thickness(0, 4, 0, 0),
                 ToolTip = L.T("Historia redukcji z ostatnich 6 sekund – im głębiej, tym mocniej kompresor ściszał.") };
             var histLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), StrokeThickness = 1.5 };
             hist.Children.Add(histLine); right.Children.Add(hist);
@@ -300,7 +301,7 @@ namespace Velivo
                 mOut.bar.Height = Math.Max(0, (Math.Max(Lo, xo) - Lo) / -Lo * bh); mOut.val.Text = act ? xo.ToString("0") : "–";
                 mGr.bar.Height = Math.Min(bh, Math.Max(0, -gr) / 24 * bh); mGr.val.Text = act ? gr.ToString("0.0") : "–";
                 grHist[grPos++ % grHist.Length] = gr;
-                double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = 40; var pts = new PointCollection();
+                double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = hist.Height; var pts = new PointCollection();
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
                 if ((pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) || Math.Abs(pr.EffExpanderDb - lastExp) > 0.1) { lastThr = pr.EffThresholdDb; lastExp = pr.EffExpanderDb; DrawCurve(pr.Params, pr.Params.AutoThreshold ? lastThr : pr.Params.ThresholdDb, lastExp); }   // próg i próg ciszy z filmu - linie na żywo   // próg automatyczny - wykres na żywo

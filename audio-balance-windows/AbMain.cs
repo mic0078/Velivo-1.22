@@ -74,7 +74,7 @@ namespace Velivo
             {
                 grid.ColumnDefinitions.Add(new ColumnDefinition());
                 double fq = AbProcessor.EqFreq[i]; var sp = new StackPanel();
-                sl[i] = new Slider { Orientation = Orientation.Vertical, Minimum = -12, Maximum = 12, Value = cur[i], Height = 110, HorizontalAlignment = HorizontalAlignment.Center, TickFrequency = 1, IsSnapToTickEnabled = true, ToolTip = fq + " Hz" };
+                sl[i] = new Slider { Orientation = Orientation.Vertical, Minimum = -12, Maximum = 12, Value = cur[i], Height = 84, HorizontalAlignment = HorizontalAlignment.Center, TickFrequency = 1, IsSnapToTickEnabled = true, ToolTip = fq + " Hz" };
                 var vt = T(cur[i].ToString("+0;-0;0"), 10, Fg); vt.HorizontalAlignment = HorizontalAlignment.Center; sp.Children.Add(vt); var sli = sl[i]; sli.ValueChanged += (s2, e2) => vt.Text = sli.Value.ToString("+0;-0;0");
                 sp.Children.Add(sl[i]); var lab = T(fq >= 1000 ? (fq / 1000) + "k" : fq.ToString(), 10, Dim); lab.HorizontalAlignment = HorizontalAlignment.Center; sp.Children.Add(lab);
                 Grid.SetColumn(sp, i); grid.Children.Add(sp);

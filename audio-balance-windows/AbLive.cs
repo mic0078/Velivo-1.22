@@ -24,7 +24,7 @@ namespace Velivo
         Canvas spec, hist; const int NB = 28; readonly Rectangle[] bars = new Rectangle[NB], peaks = new Rectangle[NB]; readonly double[] sm = new double[NB], smO = new double[NB];
         readonly double[] edges = new double[NB + 1]; readonly double[] re = new double[2048], im = new double[2048], re2 = new double[2048], im2 = new double[2048];
         Polyline plIn, plOut; Line tgt; TextBlock tgtTxt; readonly TextBlock[] scale = new TextBlock[4], times = new TextBlock[4]; readonly Line[] gridH = new Line[4], gridV = new Line[2];
-        public double Extra { get => spec.Height - 150; set => spec.Height = 150 + Math.Max(0, value); }   // wolne miejsce pod lewą kolumną → większe widmo
+        public double Extra { get => spec.Height - 96; set => spec.Height = 96 + Math.Max(0, value); }   // wolne miejsce pod lewą kolumną → większe widmo
         Canvas work; Line zero; Polygon pgLu, pgCo; readonly TextBlock[] wScale = new TextBlock[3]; readonly double[] hG = new double[HN], hGr = new double[HN];
         const double GL = 40, GB = 16, GT = 6;   // marginesy: skala dB z lewej, czas pod wykresem (makieta) - napisy nie giną za słupkami
 
@@ -45,7 +45,7 @@ namespace Velivo
             chgB = Bar(L.T("ZMIANA (dB)"), Teal, L.T("Ile Audio Balance teraz podgłaśnia (w prawo) albo ścisza (w lewo), dB."));
             outB = Bar(L.T("WYNIK (LUFS)"), Green, L.T("Głośność po poprawie – to słyszysz (LUFS)."));
             grB = Bar(L.T("KOMPRESOR (dB)"), Gold, L.T("Ile kompresor wstępny teraz ścisza głośne fragmenty (dB)."));
-            spec = new Canvas { Height = 150, Background = Well, ClipToBounds = true, Margin = new Thickness(0, 10, 0, 0) };
+            spec = new Canvas { Height = 96, Background = Well, ClipToBounds = true, Margin = new Thickness(0, 10, 0, 0) };
             for (int b = 0; b < NB; b++)
             {
                 double t = b / (double)(NB - 1); var c = Color.FromRgb((byte)(0x2E + (0x7C - 0x2E) * t), (byte)(0xD3 + (0x5C - 0xD3) * t), (byte)(0xC6 + (0xFF - 0xC6) * t));
@@ -58,7 +58,7 @@ namespace Velivo
             leg.Children.Add(new TextBlock { Text = "■ ", Foreground = Teal, FontSize = 11 }); leg.Children.Add(new TextBlock { Text = L.T("Audio Balance (LUFS): podgłaśnia ↑ / ścisza ↓"), Foreground = dim, FontSize = 10, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center });
             leg.Children.Add(new TextBlock { Text = "■ ", Foreground = Gold, FontSize = 11 }); leg.Children.Add(new TextBlock { Text = L.T("Kompresor: ściszanie głośnych fragmentów"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center });
             Root.Children.Add(leg);
-            work = new Canvas { Height = 70, Background = Well, ClipToBounds = true };
+            work = new Canvas { Height = 54, Background = Well, ClipToBounds = true };
             var zl = new Line { Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1 }; zero = zl; work.Children.Add(zl);
             pgLu = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x40, 0x2E, 0xD3, 0xC6)), Stroke = Teal, StrokeThickness = 1.4 };
             pgCo = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = Gold, StrokeThickness = 1.4 };

@@ -233,7 +233,7 @@ namespace Velivo
         static bool AbEqOn => GetPref("ab-eq") == "1";
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1";
-        internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbProc.Pre.Params.IsEnabled);
+        internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbPreAnyOn);
 
         static void AbLoadSettings()
         {
@@ -287,7 +287,7 @@ namespace Velivo
 
         // nowy film zawsze startuje bez pauzy: VLC nie woła „wznów” dla nowego materiału, a pauza z poprzedniego (koniec filmu, pytanie o wznowienie) zostawała - cisza
         void AbDetach() { AbLearnEnd(); VstSave(); var o = _abOut; _abOut = null; o?.Dispose(); }
-        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Resume(); _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
+        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Resume(); _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbPreApplyFor(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;

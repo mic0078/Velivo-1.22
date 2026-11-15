@@ -242,6 +242,7 @@ namespace Velivo
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
             var pre = Get("kompresor"); p.Pre.Params = pre == null ? DynParams.Film() : DynParams.Load(pre);
+            if (p == eng.Proc && pre != null) MainWindow.AbPreReapply();   // dźwięk Windows: kompresor tego filmu / programu, nie domyślny po każdej zmianie celu czy korektora
         }
 
         TextBlock cableTxt; bool cableBusy;

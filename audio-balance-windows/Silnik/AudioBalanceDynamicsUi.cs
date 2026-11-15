@@ -35,6 +35,8 @@ namespace Velivo
             AbProc.Pre.Params = DynParams.Load(_abPreSrcOwn ? own : GetPref("ab-kompresor"));
 
         }
+        // ustawienia kompresora dla tego, co gra teraz (własne filmu / programu albo domyślne) - po każdej zmianie innych ustawień (nie nadpisuje własnych domyślnymi)
+        internal static void AbPreReapply() { string own = null; bool o = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own); AbProc.Pre.Params = DynParams.Load(o ? own : GetPref("ab-kompresor")); }
         static bool AbWide => AbPreNoSrc || AbPreApps;   // program samodzielny: suwaki w dwóch kolumnach
 
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji

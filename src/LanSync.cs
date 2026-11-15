@@ -462,7 +462,7 @@ namespace Velivo
                 _lanTick.Tick += (s, e) =>
                 {
                     if (_lanApplying) return;
-                    if (!Wariant.Pelne && ++_lanFilmyCheck % 3 == 0 && LanFilmyObok()) { StopLanSync(); LanOddajPorty(); LanLeadWait(); return; }   // 🧩 co 9 s: ważniejszy program Velivo wystartował - oddajemy mu sieć
+                    if (!Wariant.MaFilmy && ++_lanFilmyCheck % 3 == 0 && LanFilmyObok()) { StopLanSync(); LanOddajPorty(); LanLeadWait(); return; }   // 🧩 co 9 s: wystartował program Velivo z filmami i Pilotem - Przeglądarka oddaje mu sieć
                     ExpireLanPairings();
                     if (_lanLegacyNoKeyMode)
                     {
@@ -563,12 +563,9 @@ namespace Velivo
             LanLeadWait();
             return false;
         }
-        // 🧩 kolejność: pełne Velivo > Odtwarzacz > Przeglądarka - mniej ważny oddaje sieć domową ważniejszemu (pełne Velivo działa wtedy jak przed podziałem)
-        static bool LanFilmyObok()
-        {
-            if (Wariant.Pelne) return false;
-            return ProcesDziala("Velivo") || (Wariant.Przegladarka && ProcesDziala("VelivoOdtwarzacz"));
-        }
+        // 🧩 programy Velivo są równe: sieć domową prowadzi ten, który wystartował pierwszy, drugi przejmuje po jego zamknięciu (żaden nie jest „główny”).
+        // Jedyny wyjątek wynika z możliwości, nie z ważności: Przeglądarka nie ma filmów ani Pilota - gdy działa program, który je ma, oddaje mu sieć.
+        static bool LanFilmyObok() => !Wariant.MaFilmy && (ProcesDziala("Velivo") || ProcesDziala("VelivoOdtwarzacz"));
         static bool ProcesDziala(string nazwa)
         {
             var ps = System.Diagnostics.Process.GetProcessesByName(nazwa);
@@ -580,7 +577,7 @@ namespace Velivo
             if (_lanLeadWait == null || !_lanLeadWait.IsEnabled) LanLog(L.T("Sieć domową prowadzi inny program Velivo na tym komputerze – przejmę ją, gdy się zamknie."));
             if (_lanLeadWait == null)
             {
-                _lanLeadWait = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Wariant.Pelne ? 5 : 30) };   // pełne Velivo przejmuje w kilka sekund
+                _lanLeadWait = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };   // przejęcie do 15 s po zamknięciu prowadzącego
                 _lanLeadWait.Tick += (s, e) => { if (_lanLead == null && _settings != null && _settings.LanSync && !LanFilmyObok()) StartLanSync(); };
             }
             _lanLeadWait.Start();

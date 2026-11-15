@@ -395,16 +395,6 @@ namespace Velivo
         // ---------- zakladki ----------
 
         // 🧩 profil silnika stron: każdy program Velivo własny (dwa programy naraz na jednym profilu = „Żądane zasoby są w użyciu” 0x800700AA); pełne Velivo bez zmian
-        // 🧩 zamyka inne programy Velivo (Odtwarzacz, Przeglądarka) trzymające ten sam profil; true = coś zamknięto
-        static bool ZamknijInneVelivo()
-        {
-            bool any = false;
-            if (!Wariant.Pelne) return false;   // osobne programy mają własne profile - nie zamykają pełnego Velivo
-            foreach (var n in new[] { "VelivoOdtwarzacz", "VelivoPrzegladarka", "Velivo" })
-                foreach (var p in System.Diagnostics.Process.GetProcessesByName(n))
-                    try { if (p.Id != Environment.ProcessId) { p.Kill(true); p.WaitForExit(5000); any = true; } } catch { } finally { p.Dispose(); }
-            return any;
-        }
         static string WebViewProfil => Wariant.Pelne ? "Profil" : "Profil-" + Wariant.Pid;
         bool _sessionReady;   // 🧩 start skończony (Odtwarzacz: od teraz pokazanie okna = Kanapa)
         void AddTab(string url) { AddTab(url, false); }
@@ -479,14 +469,6 @@ namespace Velivo
                         if (tab.Bank) opts.ProfileName = BankProfileName;   // osobny, trwaly profil trybu bankowego
                         await tab.View.EnsureCoreWebView2Async(_env, opts);
                         break;
-                    }
-                    catch (Exception bx) when (attempt < 3 && (uint)bx.HResult == 0x800700AA && ZamknijInneVelivo())
-                    {
-                        // 🧩 profil zajęty przez inny program Velivo (Odtwarzacz / Przeglądarka, także starszy) – Velivo samo go zamyka i otwiera kartę od nowa
-                        App.LogError(new Exception("Karta: profil silnika stron zajęty (0x800700AA) - zamknięto inne programy Velivo, próba " + attempt, bx));
-                        await System.Threading.Tasks.Task.Delay(2500);
-                        envRenewed = true;
-                        try { _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, WebViewProfil), new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() }); } catch (Exception ex2) { App.LogError(ex2); }
                     }
                     catch (System.Runtime.InteropServices.COMException cx) when (attempt < 5 && (uint)cx.HResult == 0x8007139F)
                     {

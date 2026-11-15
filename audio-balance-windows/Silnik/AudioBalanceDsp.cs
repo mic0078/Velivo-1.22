@@ -348,7 +348,7 @@ namespace Velivo
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
             if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
-            Tg += TargetAdj; EffTarget = Tg; var pr = Profile;
+            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; bool upOnly = false; if (QuietOn && pr == null) { pr = AbProfile.ByName("auto"); upOnly = true; }   /* 🔈 Bardzo ciche przy wyłączonym wyrównywaniu: tylko podciąga cichy film do celu, nigdy nie ścisza */
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
             double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); if (pr != null && QuietOn && film > -70 && film < Tg - 12) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
@@ -460,6 +460,7 @@ namespace Velivo
                         if (xb > 0) { double room = -50 - noiseFl - pr.MaxBoost; QuietNoise = room < xb; xb = Math.Max(0, Math.Min(xb, room)); }   // najlepszy kompromis: podbicie tylko tak duże, żeby szum tła po podbiciu został poniżej -50 LUFS (niesłyszalny)   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
+                        if (upOnly) want = Math.Max(0, want);
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
                         double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));

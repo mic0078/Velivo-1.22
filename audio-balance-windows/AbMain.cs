@@ -92,7 +92,7 @@ namespace Velivo
         }
 
         TextBlock cableTxt; bool cableBusy;
-        TextBlock status; AbLive live; ComboBox outBox; Border setupBox; Button defBtn;
+        TextBlock status, velivoTxt; AbLive live; ComboBox outBox; Border setupBox; Button defBtn;
         // własny wygląd przycisku: tekst zawsze czytelny (zwykły szablon Windows robi biały przycisk po najechaniu)
         static readonly ControlTemplate BtnTpl = MkTpl();
         static ControlTemplate MkTpl()
@@ -159,6 +159,7 @@ namespace Velivo
             status = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) };
             top.Children.Add(status);
             root.Children.Add(top);
+            velivoTxt = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontSize = 12, Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed }; root.Children.Add(velivoTxt);
             // kreator: brak VB-Audio Virtual Cable
             var sp = new StackPanel();
             sp.Children.Add(T(L.T("Potrzebny jest darmowy VB-Audio Virtual Cable (wirtualna karta dźwiękowa). Windows gra na nią, a Audio Balance przetwarza dźwięk i wysyła go na Twoje głośniki."), 12));
@@ -243,7 +244,7 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        volatile string cinC, didC, dnameC; volatile bool devBusy; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
+        volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
@@ -251,7 +252,7 @@ namespace Velivo
             else if (!devBusy && (DateTime.UtcNow - devAt).TotalSeconds >= 2)
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
@@ -264,8 +265,12 @@ namespace Velivo
             var txt = on ? L.T("✔ Cały dźwięk przez Audio Balance") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance");
             defBtn.ToolTip = on ? L.T("Kliknij, aby Windows znów grał prosto na głośniki.") : L.T("VB-Cable staje się urządzeniem domyślnym – cały dźwięk Windows przechodzi przez Audio Balance.");
             if (GetText(defBtn) != txt) { SetText(defBtn, txt); defBtn.Background = on ? BtnBg : Acc; }
+            { var vt = velivoOn ? (proc ? L.T("🔗 Velivo Audio Balance wykryte – czeka, a ten program poprawia cały dźwięk (przeglądarka Velivo, odtwarzacz, inne programy); filmy w odtwarzaczu Velivo zgrane z obrazem, wskaźniki widać też w Velivo") : L.T("🔗 Velivo Audio Balance wykryte – poprawia dźwięk odtwarzacza Velivo samo (ten program teraz nie przetwarza całego dźwięku)")) : "";
+              if (velivoTxt.Text != vt) { velivoTxt.Text = vt; velivoTxt.Visibility = vt.Length > 0 ? Visibility.Visible : Visibility.Collapsed; } }
             if (!on && eng.Running && cin != null && did != null && status.Foreground == Ok) status.Text = L.T("● Działa, ale Windows gra prosto na ") + dname + L.T(" – kliknij przycisk niżej");
         }
+        // 🔗 Velivo działa? (znak od Velivo) - wtedy jego Audio Balance czeka, a film w Velivo jest zgrany z opóźnieniem tego programu
+        static bool VelivoRunning() { try { if (Mutex.TryOpenExisting(@"Local\VelivoAudioBalance.Velivo", out var m)) { m.Dispose(); return true; } } catch (UnauthorizedAccessException) { return true; } catch (Exception) { } return false; }
         void ToggleDefault()
         {
             var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput(); if (cin == null) return;

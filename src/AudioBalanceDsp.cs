@@ -108,10 +108,12 @@ namespace Velivo
             return p;
         }
         // zintegrowana głośność z bramką bezwzględną -70 LUFS i względną -10 LU
+        public double IntegratedExt = double.NaN;   // 🔗 widok Audio Balance for Windows: wartość od programu samodzielnego
         public double Integrated
         {
             get
             {
+                if (!double.IsNaN(IntegratedExt)) return IntegratedExt;
                 long n = 0; double s = 0;
                 for (int b = 0; b < 1000; b++) { n += hCnt[b]; s += hSum[b]; }
                 if (n == 0) return double.NegativeInfinity;
@@ -263,6 +265,13 @@ namespace Velivo
         public struct Snap { public long F; public double VuL, VuR, VuInL, VuInR, Fast, RawM, OutM; }
         readonly Snap[] snaps = new Snap[512]; int snapI;
         public Snap Delayed(long behind) { long target = Frames - behind; int n = snapI; for (int k = n - 1; k >= 0 && k >= n - 512; k--) { var x = snaps[k & 511]; if (x.F <= target) return x; } return n > 0 ? snaps[Math.Max(0, n - 512) & 511] : default; }
+        // 🔗 tylko do wyświetlania w Velivo: wskaźniki programu Audio Balance for Windows (AbWidok) - ten obiekt nie przetwarza dźwięku
+        public void Mirror(double[] a, int scopePos)
+        {
+            Raw.Momentary = a[0]; Raw.ShortTerm = a[1]; Raw.Gated10 = a[2]; Out.Momentary = a[3]; Out.ShortTerm = a[4]; Out.Gated10 = a[5]; Out.IntegratedExt = a[6];
+            GainDb = a[7]; LimitDb = a[8]; PeakOutDb = a[9]; EffTarget = a[10]; Target = (float)a[11]; VuL = a[12]; VuR = a[13]; VuInL = a[14]; VuInR = a[15];
+            ScopePos = scopePos; Frames += 960; Active = true; SnapAdd();
+        }
         void SnapAdd() { snaps[snapI & 511] = new Snap { F = Frames, VuL = VuL, VuR = VuR, VuInL = VuInL, VuInR = VuInR, Fast = Out.Fast, RawM = Raw.Momentary, OutM = Out.Momentary }; snapI++; }
         public volatile bool Active; public long Frames;
         // wskazniki VU lewego i prawego kanalu wyjscia: moc RMS wygladzona ~80 ms, w dBFS

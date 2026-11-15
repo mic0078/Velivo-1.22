@@ -234,6 +234,11 @@ namespace Velivo
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1" || AbWinActive;
         // 🔊 Velivo Audio Balance for Windows już przetwarza cały dźwięk Windows (znak: nazwany mutex, gdy działa i Windows gra przez CABLE) - Velivo nie poprawia drugi raz; sprawdzane najwyżej co 2 s
+        // 🔗 widok pracy Audio Balance for Windows (AbWidok): osobny obiekt tylko do wyświetlania - wykresy Velivo pokazują, co robi program samodzielny
+        static readonly AbProcessor AbExtProc = new AbProcessor(); static bool _abExtLive, _abExtPro, _abExtByp;
+        static AbProcessor AbV => _abExtLive ? AbExtProc : AbProc;
+        static bool AbBypassV => _abExtLive ? _abExtByp : AbBypass;
+        long AbHead() => _abExtLive ? Interlocked.Read(ref AbExtProc.Frames) : AbPlayHead();
         static bool _abWinOn; static DateTime _abWinAt; static int _abWinMs;
         // o ile Audio Balance for Windows spóźnia dźwięk (ms) - odtwarzacz Velivo gra dźwięk o tyle wcześniej (obraz równo z głosem); 0, gdy program nie działa
         internal static int AbWinDelayMs => AbWinActive ? _abWinMs : 0;
@@ -450,9 +455,9 @@ namespace Velivo
             double sbIn = -70, sbOut = -70, sbD = 0;   // wygładzenie pasków: w górę szybko, w dół płynnie (jak V)
             void SumBars(bool on)
             {   // co klatkę: tylko szerokości (bez nowych obiektów); skala -50…-10 dBFS, zmiana ±12 dB od środka
-                var sn = AbProc.Delayed(Math.Max(0, Interlocked.Read(ref AbProc.Frames) - AbPlayHead()));
+                var sn = AbV.Delayed(Math.Max(0, Interlocked.Read(ref AbV.Frames) - AbHead()));
                 double ri = on ? Math.Max(-70, (sn.VuInL + sn.VuInR) / 2) : -70, ro = on ? Math.Max(-70, (sn.VuL + sn.VuR) / 2) : -70;   // RMS ok. 80 ms - reakcja na dźwięk od razu (jak V)
-                double dl = sn.VuL - sn.VuInL, dr = sn.VuR - sn.VuInR, d = on && !AbBypass && sn.VuInL > -70 ? (dl + dr) / 2 : 0;
+                double dl = sn.VuL - sn.VuInL, dr = sn.VuR - sn.VuInR, d = on && !AbBypassV && sn.VuInL > -70 ? (dl + dr) / 2 : 0;
                 if (double.IsNaN(d) || double.IsInfinity(d)) d = 0; if (double.IsNaN(ri)) ri = -70; if (double.IsNaN(ro)) ro = -70;
                 sbIn += (ri - sbIn) * (ri > sbIn ? 0.8 : 0.4); sbOut += (ro - sbOut) * (ro > sbOut ? 0.8 : 0.4); sbD += (Math.Max(-12, Math.Min(12, d)) - sbD) * 0.7;
                 double w0 = sumT[0].ActualWidth, w1 = sumT[1].ActualWidth, w2 = sumT[2].ActualWidth;
@@ -546,13 +551,14 @@ namespace Velivo
             _abTimer.Tick += (s, e) =>
             {
                 if (!win.IsVisible || win.WindowState == WindowState.Minimized) return;
-                bool live = _abOut != null && AbProc.Active && AbFlowing();
+                double extPro = 0, extByp = 0; _abExtLive = AbWinActive && AbWidok.Read(AbExtProc, out extPro, out extByp); _abExtPro = extPro > 0; _abExtByp = extByp > 0;   // 🔗 praca Audio Balance for Windows na wykresach Velivo
+                bool live = _abExtLive || (_abOut != null && AbProc.Active && AbFlowing());
                 bigVuUpd(live); SumBars(live);
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
-                state.Text = AbWinActive ? L.T("● Audio Balance for Windows już wyrównuje cały dźwięk – w Velivo wyłączone, by nie poprawiać dwa razy") : AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
+                state.Text = AbWinActive ? L.T("● Audio Balance for Windows przetwarza cały dźwięk Windows – wskaźniki pokazują jego pracę (Velivo nie poprawia drugi raz)") : AbBypassV ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbV.EqOn ? " + EQ" : "") + (AbV.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
-                src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
+                src.Text = _abExtLive ? L.T("Źródło: cały dźwięk Windows – przetwarza Audio Balance for Windows") : live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
                 if (src.ToolTip as string != src.Text) src.ToolTip = src.Text;   // pełny opis po najechaniu (w oknie najwyżej 2 linie)
                 { var (lt, lc0) = AbLektorStatus(); if (lekTxt.Text != lt) { lekTxt.Text = lt; lekTxt.Foreground = new SolidColorBrush(lc0); } }
                 { var lv = _abLek.Status >= 0 || AbLekApplied != null || AbLekSugText != null ? Visibility.Visible : Visibility.Collapsed; if (lekRow.Visibility != lv) lekRow.Visibility = lv; }   // ocena lektora tylko, gdy coś mówi (lektor przez Audio Balance jej nie ma - bez wiecznego „czekam”)
@@ -569,8 +575,8 @@ namespace Velivo
                     }
                 }
                 // FFT 2048 z ostatnich probek
-                long head = AbPlayHead(); int ahead = (int)Math.Max(0, Math.Min(60000, Interlocked.Read(ref AbProc.Frames) - head)), pos = (int)(head & 65535);   // fragment, który właśnie słychać (płynnie, za kolejką karty)
-                for (int i = 0; i < 2048; i++) { int si = (pos - 2048 + i + 131072) & 65535; fftRe[i] = live ? AbProc.Scope[si] * hann[i] : 0; fftIm[i] = 0; fftRe2[i] = live ? AbProc.ScopeOut[si] * hann[i] : 0; fftIm2[i] = 0; }
+                long head = AbHead(); int ahead = (int)Math.Max(0, Math.Min(60000, Interlocked.Read(ref AbV.Frames) - head)), pos = _abExtLive ? AbExtProc.ScopePos : (int)(head & 65535);   // fragment, który właśnie słychać (płynnie, za kolejką karty)
+                for (int i = 0; i < 2048; i++) { int si = (pos - 2048 + i + 131072) & 65535; fftRe[i] = live ? AbV.Scope[si] * hann[i] : 0; fftIm[i] = 0; fftRe2[i] = live ? AbV.ScopeOut[si] * hann[i] : 0; fftIm2[i] = 0; }
                 AbFft(fftRe, fftIm); AbFft(fftRe2, fftIm2);
                 double w = spec.ActualWidth, h = spec.ActualHeight, bw = w / NB;
                 for (int b = 0; b < NB; b++)
@@ -584,45 +590,45 @@ namespace Velivo
                     smooth[b] = v > smooth[b] ? v : Math.Max(v, smooth[b] - 0.05); smoothO[b] = vo > smoothO[b] ? vo : Math.Max(vo, smoothO[b] - 0.05);
                     double bh = smooth[b] * h;
                     bars[b].Width = Math.Max(1, bw - 2); bars[b].Height = bh; Canvas.SetLeft(bars[b], b * bw + 1); Canvas.SetTop(bars[b], h - bh);
-                    peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - smoothO[b] * h - 1.5); peaks[b].Visibility = live && !AbBypass && smoothO[b] > 0.01 ? Visibility.Visible : Visibility.Collapsed;
+                    peaks[b].Width = Math.Max(1, bw - 2); Canvas.SetLeft(peaks[b], b * bw + 1); Canvas.SetTop(peaks[b], h - smoothO[b] * h - 1.5); peaks[b].Visibility = live && !AbBypassV && smoothO[b] > 0.01 ? Visibility.Visible : Visibility.Collapsed;
                 }
                 string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !live ? "–" : x.ToString("0.0");
                 if ((DateTime.UtcNow - numsLast).TotalMilliseconds >= 250)
                 {   // liczby 4×/s - przy 30/s nie da się ich przeczytać
                     numsLast = DateTime.UtcNow;
                     {
-                        double si = AbProc.Raw.Gated10 > double.NegativeInfinity ? AbProc.Raw.Gated10 : AbProc.Raw.ShortTerm, so = AbProc.Out.Gated10 > double.NegativeInfinity ? AbProc.Out.Gated10 : AbProc.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
+                        double si = AbV.Raw.Gated10 > double.NegativeInfinity ? AbV.Raw.Gated10 : AbV.Raw.ShortTerm, so = AbV.Out.Gated10 > double.NegativeInfinity ? AbV.Out.Gated10 : AbV.Out.ShortTerm, dd = so - si; bool okd = live && !double.IsInfinity(dd) && !double.IsNaN(dd) && si > -69;
                         sumV[0].Text = F(si);
                         sumV[1].Text = !okd ? "–" : Math.Abs(dd) < 0.25 ? "±0" : (dd > 0 ? "▲ +" : "▼ ") + dd.ToString("0.0");
                         sumV[1].Foreground = !okd || Math.Abs(dd) < 0.25 ? fg : dd > 0 ? AbCyan : AbViolet;
                         sumV[2].Text = F(so);
                     }
-                    vals[0].Text = F(AbProc.Out.Momentary); vals[1].Text = F(AbProc.Out.ShortTerm); vals[2].Text = F(AbProc.Out.Integrated); vals[3].Text = F(AbProc.PeakOutDb);
-                    vals[3].Foreground = live && AbProc.PeakOutDb > -1.05 ? Brushes.Gold : fg;
+                    vals[0].Text = F(AbV.Out.Momentary); vals[1].Text = F(AbV.Out.ShortTerm); vals[2].Text = F(AbV.Out.Integrated); vals[3].Text = F(AbV.PeakOutDb);
+                    vals[3].Foreground = live && AbV.PeakOutDb > -1.05 ? Brushes.Gold : fg;
                 }
                 if ((DateTime.UtcNow - hLast).TotalMilliseconds >= 100)
                 {   // nowy punkt co 100 ms (blok pomiaru BS.1770)
                     hLast = DateTime.UtcNow;
                     Array.Copy(hIn, 1, hIn, 0, HN - 1); Array.Copy(hOut, 1, hOut, 0, HN - 1);
-                    var hs = AbProc.Delayed(ahead); hIn[HN - 1] = live ? Math.Max(-70, hs.RawM) : -70; hOut[HN - 1] = live ? Math.Max(-70, hs.OutM) : -70;   // wykres też za kolejką karty - to, co słychać
+                    var hs = AbV.Delayed(ahead); hIn[HN - 1] = live ? Math.Max(-70, hs.RawM) : -70; hOut[HN - 1] = live ? Math.Max(-70, hs.OutM) : -70;   // wykres też za kolejką karty - to, co słychać
                     double hw = hist.ActualWidth, hh = hist.ActualHeight;
                     double Y(double v) => hh - 4 - (Math.Max(-60, Math.Min(0, v)) + 60) / 60 * (hh - 8);
                     var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
                     for (int i = 0; i < HN; i++) { double x = i * hw / (HN - 1); a1.Add(new Point(x, Y(hIn[i]))); a2.Add(new Point(x, Y(hOut[i]))); }
                     plIn.Points = a1; plOut.Points = a2;
-                    double ty = Y(AbProc.EffTarget); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = (AbProc.Target == 0 ? L.T("Auto ") : "") + AbProc.EffTarget.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
+                    double ty = Y(AbV.EffTarget); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = (AbV.Target == 0 ? L.T("Auto ") : "") + AbV.EffTarget.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
                 }
-                bool byp = live && AbBypass;
+                bool byp = live && AbBypassV;
                 info.Visibility = live && !byp ? Visibility.Visible : Visibility.Collapsed; bypassNote.Visibility = byp ? Visibility.Visible : Visibility.Collapsed;
                 if (live && !byp && (DateTime.UtcNow - infoLast).TotalMilliseconds >= 250)
                 {
                     infoLast = DateTime.UtcNow;
-                    infoV[0].Text = AbProc.Profile != null ? (Math.Abs(AbProc.GainDb) < 0.05 ? "±0,0" : AbProc.GainDb.ToString("+0.0;-0.0")) + " dB" : L.T("wył.");
-                    infoV[1].Text = AbProc.Dialog > 0 ? (Math.Abs(AbProc.DialogDb) < 0.05 ? "±0,0" : AbProc.DialogDb.ToString("+0.0;-0.0")) + " dB" : L.T("wył.");
-                    infoV[2].Text = AbProc.LimitDb.ToString("0.0") + " dB";
-                    infoV[3].Text = F(AbProc.Raw.ShortTerm) + " LUFS";
-                    infoV[4].Text = Interlocked.Read(ref _abOut.EarlyWaits).ToString();
-                    infoV[5].Text = Interlocked.Read(ref _abOut.LateDrops).ToString();
+                    infoV[0].Text = (_abExtLive ? _abExtPro : AbV.Profile != null) ? (Math.Abs(AbV.GainDb) < 0.05 ? "±0,0" : AbV.GainDb.ToString("+0.0;-0.0")) + " dB" : L.T("wył.");
+                    infoV[1].Text = AbV.Dialog > 0 ? (Math.Abs(AbV.DialogDb) < 0.05 ? "±0,0" : AbV.DialogDb.ToString("+0.0;-0.0")) + " dB" : L.T("wył.");
+                    infoV[2].Text = AbV.LimitDb.ToString("0.0") + " dB";
+                    infoV[3].Text = F(AbV.Raw.ShortTerm) + " LUFS";
+                    infoV[4].Text = _abOut != null ? Interlocked.Read(ref _abOut.EarlyWaits).ToString() : "–";
+                    infoV[5].Text = _abOut != null ? Interlocked.Read(ref _abOut.LateDrops).ToString() : "–";
                 }
             };
             win.StateChanged += (s, e) => { if (win.WindowState == WindowState.Minimized) AbHideMonitor(); };
@@ -845,7 +851,7 @@ namespace Velivo
             double np = 0; var dAt = DateTime.MinValue;
             upd = live =>
             {
-                var sn = AbProc.Delayed(Math.Max(0, Interlocked.Read(ref AbProc.Frames) - AbPlayHead()));   // to, co słychać teraz (płynnie, za kolejką karty)
+                var sn = AbV.Delayed(Math.Max(0, Interlocked.Read(ref AbV.Frames) - AbHead()));   // to, co słychać teraz (płynnie, za kolejką karty)
                 double dl = sn.VuL - sn.VuInL, dr = sn.VuR - sn.VuInR;
                 double d = live && !AbBypass && sn.VuInL > -70 ? (dl + dr) / 2 : 0;
                 if (double.IsNaN(d) || double.IsInfinity(d)) d = 0;

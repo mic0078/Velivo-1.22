@@ -84,7 +84,7 @@ namespace Velivo
                 if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
                 sp = new Elastic(sp, buf, lt);   // elastyczny bufor: zapas stale ok. 100 ms, bez przerw i trzasków (zegary kabla i głośników się rozjeżdżają)
                 outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, lo);   // jw. - odpytywanie, 100 ms zapasu
-                outp.Init(new Processing(sp, Proc));
+                outp.Init(new Processing(sp, Proc) { Owner = this });
                 outp.PlaybackStopped += (s, e) => { if (Running && ReferenceEquals(s, outp)) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
                 cap.StartRecording(); outp.Play();
@@ -187,7 +187,7 @@ namespace Velivo
         // przetwarzanie w porcjach od głośników: dźwięk → Audio Balance (w miejscu)
         sealed class Processing : ISampleProvider
         {
-            readonly ISampleProvider src; readonly AbProcessor proc; float[] tmp = new float[9600];
+            readonly ISampleProvider src; readonly AbProcessor proc; float[] tmp = new float[9600]; public AbEngine Owner;
             public Processing(ISampleProvider s, AbProcessor p) { src = s; proc = p; }
             public WaveFormat WaveFormat => src.WaveFormat;
             public int Read(float[] buffer, int offset, int count)
@@ -201,6 +201,7 @@ namespace Velivo
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza
                 for (int i = 0; i < n; i++) buffer[offset + i] = tmp[i];
                 Diag.Proc(System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+                AbWidok.Write(proc, proc.Profile != null ? 1 : 0, Owner?.DelayMs ?? 0);   // 🔗 wskaźniki dla Velivo (pamięć współdzielona)
                 return n;
             }
         }

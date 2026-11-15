@@ -40,6 +40,23 @@ namespace Velivo
         {
             try { var d = new MMDeviceEnumerator().GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia); return (d.ID, d.FriendlyName); } catch (Exception) { return (null, null); }
         }
+        // 🎮 która aplikacja gra teraz przez kabel (najgłośniejsza sesja dźwięku Windows na „CABLE Input”) - do osobnych ustawień kompresora dla programu
+        public static string PlayingApp(string cableId)
+        {
+            try
+            {
+                using var dev = new MMDeviceEnumerator().GetDevice(cableId); var ss = dev.AudioSessionManager.Sessions; string best = null; float bp = 0.003f;
+                for (int i = 0; i < ss.Count; i++)
+                {
+                    var x = ss[i]; float pk = x.AudioMeterInformation.MasterPeakValue; if (pk <= bp) continue;
+                    string n = null; try { n = System.Diagnostics.Process.GetProcessById((int)x.GetProcessID).ProcessName; } catch (Exception) { }
+                    if (string.IsNullOrEmpty(n) || n.Equals("VelivoAudioBalance", StringComparison.OrdinalIgnoreCase)) continue;
+                    best = n; bp = pk;
+                }
+                return best;
+            }
+            catch (Exception) { return null; }
+        }
         public static string CableInputId()
         {
             // wejście kabla (tu Windows ma grać): „CABLE Input”, a w nowszym VB-Cable „Głośniki (VB-Audio Virtual Cable)”; wersja 16-kanałowa tylko w zapasie

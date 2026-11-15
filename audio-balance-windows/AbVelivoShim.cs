@@ -10,7 +10,7 @@ namespace Velivo
     // to, czego panel kompresora z Velivo (Silnik/AudioBalanceDynamicsUi.cs) potrzebuje od okna Velivo - tu z ustawień i silnika programu samodzielnego
     public partial class MainWindow
     {
-        internal static AbMain Host; internal static bool AbPreNoSrc;
+        internal static AbMain Host; internal static bool AbPreNoSrc, AbPreApps;
         static AbProcessor AbProc => Host.Eng.Proc;
         static string GetPref(string k) => Host.Get(k.StartsWith("ab-") ? k.Substring(3) : k);
         static void SetPref(string k, string v) => Host.Put(k.StartsWith("ab-") ? k.Substring(3) : k, v);

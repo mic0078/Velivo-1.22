@@ -346,6 +346,7 @@ namespace Velivo
 
         void SaveTabGroups(List<BrowserTab> savedTabs)
         {
+            if (!Wariant.MaKarty) return;   // 🧩 program bez kart nie nadpisuje kart Velivo
             try
             {
                 var lines = new List<string>();
@@ -385,6 +386,7 @@ namespace Velivo
 
         void SaveKeptGroups()
         {
+            if (!Wariant.MaKarty) return;   // 🧩 program bez kart nie nadpisuje kart Velivo
             try
             {
                 Func<BrowserTab, string> urlOf = t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl;

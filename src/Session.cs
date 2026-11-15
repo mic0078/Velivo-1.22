@@ -27,6 +27,7 @@ namespace Velivo
 
         void SavePinnedTabs()
         {
+            if (!Wariant.MaKarty) return;   // 🧩 program bez kart nie nadpisuje kart Velivo
             try
             {
                 var urls = _tabs.Where(t => t.Pinned).Select(t => t.PinnedUrl).Where(Restorable).ToList();

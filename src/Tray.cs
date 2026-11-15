@@ -66,7 +66,7 @@ namespace Velivo
                 _trayIcon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
                 // lagodny "oddech": 100% -> 65% -> 100% w 8 krokach (bez migania)
                 _trayFrames = new[] { 1f, 0.92f, 0.82f, 0.72f, 0.65f, 0.72f, 0.82f, 0.92f }.Select(a => MakeDimIcon(_trayIcon, a)).ToArray();
-                _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = "Velivo", Visible = true };
+                _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = Wariant.Nazwa, Visible = true };
                 var menu = new System.Windows.Forms.ContextMenuStrip();
                 menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
                 var filmItem = menu.Items.Add(L.T("🎬 Biblioteka filmów"), null, (s, e) => Dispatcher.Invoke(ShowVideoLibrary));
@@ -129,7 +129,7 @@ namespace Velivo
                 try
                 {
                     if (_tray == null) { _trayPulse.Stop(); _trayPulse = null; return; }
-                    if (DateTime.UtcNow > _trayPulseUntil && frame == 0) { _tray.Icon = _trayIcon; _tray.Text = "Velivo"; _trayPulse.Stop(); _trayPulse = null; return; }
+                    if (DateTime.UtcNow > _trayPulseUntil && frame == 0) { _tray.Icon = _trayIcon; _tray.Text = Wariant.Nazwa; _trayPulse.Stop(); _trayPulse = null; return; }
                     frame = (frame + 1) % _trayFrames.Length;
                     _tray.Icon = _trayFrames[frame];
                 }
@@ -140,6 +140,7 @@ namespace Velivo
 
         void ShowFromTray()
         {
+            if (!Wariant.MaKarty) { ShowKanapa(); return; }   // 🧩 Velivo Odtwarzacz: zamiast (pustej) przeglądarki - Kanapa
             _inTray = false;
             Show();
             if (WindowState == WindowState.Minimized) WindowState = SilentStart ? WindowState.Maximized : WindowState.Normal;
@@ -175,7 +176,7 @@ namespace Velivo
         static string KomVelivoExe => Environment.ProcessPath;
         // 💬 pełne Velivo samo prowadzi rozmowy i serwer - także gdy na komputerze jest osobny Komunikator (on wtedy tylko otwiera okno rozmów Velivo);
         // wcześniej Velivo oddawało wtedy wszystko Komunikatorowi i serwery przestały pośredniczyć
-        static bool KomOddany => false;
+        static bool KomOddany => !Wariant.MaKomunikator;   // 🧩 programy bez komunikatora (Odtwarzacz, Przeglądarka) nie prowadzą rozmów ani serwera
         static void KomAppRun(bool silent) { }
         void KomShowBrowser() => ShowFromTray();   // link z rozmowy: Velivo schowane w zasobniku też się pokazuje (samo Activate nic nie dawało - karta otwierała się niewidocznie)
         // znak dla osobnego Komunikatora: to Velivo prowadzi rozmowy (starsze Velivo oddawało je Komunikatorowi - wtedy Komunikator prowadzi sam,
@@ -183,7 +184,7 @@ namespace Velivo
         static bool _komVelivoMark;
         static void KomVelivoProwadzi()
         {
-            if (_komVelivoMark) return; _komVelivoMark = true;
+            if (_komVelivoMark || !Wariant.MaKomunikator) return; _komVelivoMark = true;   // 🧩 program bez komunikatora nie zamyka osobnego Komunikatora
             try { File.WriteAllText(KomVelivoMarkFile, "1"); } catch (Exception ex) { App.LogError(ex); }
             foreach (var p in System.Diagnostics.Process.GetProcessesByName("VelivoKomunikator")) try { using (p) { p.Kill(); p.WaitForExit(3000); } } catch (Exception) { }
         }

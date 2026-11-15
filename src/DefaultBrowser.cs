@@ -18,7 +18,7 @@ namespace Velivo
     // Link otwarty z innego programu trafia jako nowa karta do juz dzialajacego okna (nazwany potok).
     public partial class MainWindow
     {
-        internal const string AppName = "Velivo";
+        internal const string AppName = Wariant.Nazwa;   // osobny program = osobna kopia, osobny wpis przeglądarki
         const string ProgId = "VelivoHTML";
         const string PdfProgId = "VelivoPDF";
         const string VideoProgId = "VelivoVideo";

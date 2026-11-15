@@ -197,22 +197,26 @@ namespace Velivo
                     if (GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1") ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
                     if (GetPref("ab-pulpitv") == "1") ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
                     LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
-                    var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
-                    foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
-                    var session = LoadSession(); // karty z poprzedniego uruchomienia
-                    foreach (var u in session) AddTab(u);
-                    if (session.Count > 0) RestoreTabGroups(_tabs.Skip(pinned.Count).Take(session.Count).ToList());
-                    int beforeKept = _tabs.Count;
-                    RestoreKeptGroups();   // grupy kart - zawsze, takze bez przywracania kart
-                    bool keptOpened = _tabs.Count > beforeKept;
-                    if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
-                    if (session.Count == 0 && pinned.Count == 0 && !keptOpened && _startUrls.Length == 0) AddTab("");
-                    if (session.Count == 0 && (pinned.Count > 0 || keptOpened) && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
-                    foreach (var u in _startUrls) OpenArg(u);
-                    if (_tabs.Count == 0 && !OnlyVlcVideos(_startUrls)) AddTab("");   // start samym torrentem (dwuklik w film: sam odtwarzacz, bez strony)
-                    if (_tabs.Count == 0) { EventHandler first = null; first = (o, a2) => { if (WindowState != WindowState.Minimized && _tabs.Count == 0) { StateChanged -= first; if (WindowState == WindowState.Normal) WindowState = WindowState.Maximized; AddTab(""); } }; StateChanged += first; }   // przegladarka otwarta pozniej z paska zadan
-                    _sessionLoaded = true;
-                    SaveSessionSoon();
+                    if (Wariant.MaKarty)   // 🧩 Velivo Odtwarzacz: bez kart i bez zapisu sesji (nie nadpisuje kart Velivo we wspólnym folderze danych)
+                    {
+                        var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
+                        foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
+                        var session = LoadSession(); // karty z poprzedniego uruchomienia
+                        foreach (var u in session) AddTab(u);
+                        if (session.Count > 0) RestoreTabGroups(_tabs.Skip(pinned.Count).Take(session.Count).ToList());
+                        int beforeKept = _tabs.Count;
+                        RestoreKeptGroups();   // grupy kart - zawsze, takze bez przywracania kart
+                        bool keptOpened = _tabs.Count > beforeKept;
+                        if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
+                        if (session.Count == 0 && pinned.Count == 0 && !keptOpened && _startUrls.Length == 0) AddTab("");
+                        if (session.Count == 0 && (pinned.Count > 0 || keptOpened) && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
+                        foreach (var u in _startUrls) OpenArg(u);
+                        if (_tabs.Count == 0 && !OnlyVlcVideos(_startUrls)) AddTab("");   // start samym torrentem (dwuklik w film: sam odtwarzacz, bez strony)
+                        if (_tabs.Count == 0) { EventHandler first = null; first = (o, a2) => { if (WindowState != WindowState.Minimized && _tabs.Count == 0) { StateChanged -= first; if (WindowState == WindowState.Normal) WindowState = WindowState.Maximized; AddTab(""); } }; StateChanged += first; }   // przegladarka otwarta pozniej z paska zadan
+                        _sessionLoaded = true;
+                        SaveSessionSoon();
+                    }
+                    else SilentStart = true;   // okno przeglądarki zawsze schowane, widać Kanapę / odtwarzacz
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
                     if (!SilentStart) AskDefaultBrowserOnce();
@@ -221,6 +225,7 @@ namespace Velivo
                     TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                     if (SilentStart) StartSilently();
+                    if (Wariant.Odtwarzacz) Dispatcher.BeginInvoke(new Action(ShowKanapa), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🧩 Odtwarzacz startuje Kanapą
                 }
                 catch (Exception ex)
                 {

@@ -293,6 +293,7 @@ namespace Velivo
         // 🎞 film: poziom z całego dotychczasowego filmu (jak normalizatory Plex/Kodi/FFmpeg) - po 30 s bez przestawiania na cichą scenę;
         //    pomiar na stanowisku: filmy -38..-20 LUFS → różnica 1,8 dB, dialog w filmie ±0,05 dB (było: 7 dB i ±2,4 dB). TV - jak dotąd (zmiana programu, reklamy)
         public readonly VelivoDynamicsProcessor Pre = new VelivoDynamicsProcessor(Fs);   // 🎚 kompresor wstępny - przed regulatorem LUFS (domyślnie wył.)
+        float[] vstRaw = new float[4096];
         public volatile bool FilmLong; double intC = -99, tvP; int tvQ;   // tvP - poziom kanału TV (LUFS, średnia w dB z ok. 30 s; 0 = jeszcze brak)
         public AbProcessor() { Reset(); }
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
@@ -355,9 +356,17 @@ namespace Velivo
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
             var preP = Pre.Params; bool preOn = preP.IsEnabled;
-            LekPath = !Bypass && !Vst3.Ready && !(pr == null && !eqOn && dlg == 0 && !preOn);
-            if (!Bypass && Vst3.Ready)
-            {   // 🎛 łańcuch VST3 przejmuje przetwarzanie: oryginał → wtyczki → głośność odtwarzacza (bez korektora, dialogów i wyrównywania Velivo - bez podwójnego przetwarzania)
+            bool abOn = !(pr == null && !eqOn && dlg == 0 && !preOn);   // Audio Balance coś robi (wyrównywanie, korektor, dialogi albo kompresor)
+            LekPath = !Bypass && abOn;
+            float[] raw = null;   // oryginał filmu sprzed wtyczek VST3 - do wskaźników „źródło” i widma
+            if (!Bypass && Vst3.Ready && abOn)
+            {   // 🎛 wtyczki VST3 PRZED Audio Balance (właściciel): oryginał → wtyczki → kompresor → korektor, dialogi, LUFS → limiter (sufit bezpieczeństwa)
+                if (vstRaw.Length < frames * 2) vstRaw = new float[frames * 2];   // rośnie rzadko (tylko przy większej porcji), nie w każdej próbce
+                Array.Copy(buf, vstRaw, frames * 2);
+                if (Vst3.Run(buf, frames)) raw = vstRaw;
+            }
+            else if (!Bypass && Vst3.Ready)
+            {   // 🎛 same wtyczki VST3 (Audio Balance nic nie robi): oryginał → wtyczki → głośność odtwarzacza
                 for (int f = 0; f < frames; f++)
                 {
                     double il = buf[2 * f], ir = buf[2 * f + 1];
@@ -380,7 +389,7 @@ namespace Velivo
                     GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; SnapAdd(); return;
                 }
             }
-            if (Bypass || (pr == null && !eqOn && dlg == 0 && !preOn))
+            if (Bypass || !abOn)
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
@@ -396,10 +405,10 @@ namespace Velivo
             }
             for (int f = 0; f < frames; f++)
             {
-                double l = buf[2 * f], r = buf[2 * f + 1];
-                { int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (przed korektorem, wyrównaniem i głośnością) - pracę Velivo pokazują V i paski
-                vS += (vol - vS) * kV; VuIn(l * vS, r * vS); Raw.Push(l * vS, r * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
-                { double dm0 = (l + r) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
+                double l = buf[2 * f], r = buf[2 * f + 1], rl = raw != null ? raw[2 * f] : l, rr = raw != null ? raw[2 * f + 1] : r;   // rl/rr - oryginał (sprzed VST3)
+                { int sp = ScopePos; Scope[sp] = (float)((rl + rr) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (przed korektorem, wyrównaniem i głośnością) - pracę Velivo pokazują V i paski
+                vS += (vol - vS) * kV; VuIn(rl * vS, rr * vS); Raw.Push(rl * vS, rr * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
+                { double dm0 = (rl + rr) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
                 if (preOn) Pre.Frame(ref l, ref r, preP);   // 🎚 kompresor wstępny: po pomiarze źródła, przed korektorem i regulatorem LUFS
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)

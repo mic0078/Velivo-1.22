@@ -9,7 +9,7 @@ using System.Threading;
 
 namespace Velivo
 {
-    // 🎛 VST3: Twoje wtyczki (kompresory, limitery, korektory…) w torze dźwięku filmu. Gdy łańcuch VST3 jest aktywny, przejmuje przetwarzanie:
+    // 🎛 VST3: Twoje wtyczki (kompresory, limitery, korektory…) w torze dźwięku filmu. Gdy łańcuch VST3 jest aktywny, działa PRZED Audio Balance (od 2026-11-15; wcześniej przejmował przetwarzanie):
     //    VLC → wtyczki po kolei → głośność odtwarzacza → wyjście (korektor Velivo, dialogi i Audio Balance pominięte - bez podwójnego przetwarzania).
     // Host bez SDK i bez COM .NET: wywołania wprost przez tablice funkcji (vtable) - COM .NET wiąże obiekty z wątkiem, a dźwięk liczy inny wątek niż okno.
     // Interfejsy i IID wg pluginterfaces Steinberga (VST3 SDK, GPLv3/licencja Steinberg - tu tylko zgodny układ binarny, bez kodu SDK).
@@ -336,7 +336,7 @@ namespace Velivo
 
         // ---- łańcuch (wspólny dla procesora dźwięku i okna) ----
         public static volatile Plugin[] Chain = Array.Empty<Plugin>();
-        public static volatile bool Active;                 // łańcuch przejmuje przetwarzanie
+        public static volatile bool Active;                 // łańcuch włączony (działa przed Audio Balance)
         public static readonly object Lock = new object();  // blok dźwięku vs zmiana łańcucha w oknie
         public static int Latency { get { int s = 0; if (Active) foreach (var p in Chain) if (p.On) s += p.Latency; return s; } }
         public static bool Ready { get { if (!Active) return false; foreach (var p in Chain) if (p.On) return true; return false; } }   // aktywne i choć jedna wtyczka włączona (bez LINQ - wątek dźwięku)

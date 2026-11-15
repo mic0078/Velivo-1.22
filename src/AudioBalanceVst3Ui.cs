@@ -113,7 +113,7 @@ namespace Velivo
             VstLoad(); Vst3.EditorClosed = VstSave;   // ustawienia z okna wtyczki zapisane od razu po jego zamknięciu, nie dopiero przy zamknięciu odtwarzacza
             var root = new StackPanel();
             TextBlock T(string s, double size, Brush c) => new TextBlock { Text = s, FontSize = size, Foreground = c, TextWrapping = TextWrapping.Wrap };
-            var on = new CheckBox { Content = L.T("VST3 aktywne – Twoje wtyczki przejmują przetwarzanie dźwięku filmu"), Foreground = fg, IsChecked = Vst3.Active, Margin = new Thickness(0, 0, 0, 4) };
+            var on = new CheckBox { Content = L.T("VST3 aktywne – Twoje wtyczki działają przed Audio Balance"), Foreground = fg, IsChecked = Vst3.Active, Margin = new Thickness(0, 0, 0, 4) };
             root.Children.Add(on);
             var note = T(L.T("Gdy VST3 jest aktywne: oryginał → Twoje wtyczki po kolei → głośność odtwarzacza. Korektor, dialogi i wyrównywanie Velivo są wtedy pominięte (bez podwójnego przetwarzania). Wtyczka, która się wysypie, może zamknąć Velivo."), 11, dim);
             note.Margin = new Thickness(0, 0, 0, 8); root.Children.Add(note);

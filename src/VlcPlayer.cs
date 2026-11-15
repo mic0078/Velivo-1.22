@@ -3960,7 +3960,7 @@ namespace Velivo
                     // 🎛 wtyczki VST3 (efekty) - rozwijana lista: całość wł./wył., włączone (każda osobno + okno producenta), dostępne do dodania
                     VstLoad();
                     var vm = new MenuItem { Header = L.T("🎛 Wtyczki VST3") };
-                    var vOn = new MenuItem { Header = L.T("VST3 aktywne"), IsCheckable = true, IsChecked = Vst3.Active, IsEnabled = Vst3.Chain.Length > 0, ToolTip = L.T("Twoje wtyczki przejmują przetwarzanie dźwięku filmu (korektor i wyrównywanie Velivo są wtedy pominięte)") };
+                    var vOn = new MenuItem { Header = L.T("VST3 aktywne"), IsCheckable = true, IsChecked = Vst3.Active, IsEnabled = Vst3.Chain.Length > 0, ToolTip = L.T("Twoje wtyczki działają pierwsze, potem kompresor, wyrównywanie (LUFS) i limiter Velivo – używaj z rozwagą, by nie przetwarzać dźwięku dwa razy tym samym") };
                     vOn.Click += (a, b) => { Vst3.Active = vOn.IsChecked; VstSave(); if (Vst3.Active) AbNeedsRestartHint(); };
                     vm.Items.Add(vOn); vm.Items.Add(new Separator());
                     vm.Items.Add(new MenuItem { Header = L.T("Włączone w łańcuchu") + " (" + Vst3.Chain.Length + ")", IsEnabled = false, FontWeight = FontWeights.Bold });

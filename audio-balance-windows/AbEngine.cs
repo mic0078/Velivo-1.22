@@ -111,9 +111,10 @@ namespace Velivo
                 int n = src.Read(buffer, offset, count); if (n < 2) return n;
                 n -= n & 1;
                 if (tmp.Length < n) tmp = new float[n];
-                Array.Copy(buffer, offset, tmp, 0, n);
+                // kopiowanie próbka po próbce - NAudio podaje tu tablicę bajtów „udającą” float[] (WaveBuffer); Array.Copy jej odmawia („Source array type cannot be assigned…”)
+                for (int i = 0; i < n; i++) tmp[i] = buffer[offset + i];
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza
-                Array.Copy(tmp, 0, buffer, offset, n);
+                for (int i = 0; i < n; i++) buffer[offset + i] = tmp[i];
                 return n;
             }
         }

@@ -135,7 +135,7 @@ namespace Velivo
             string Db(double v) => v.ToString("+0.0;-0.0;0") + " dB";
             Row("thr", L.T("Próg"), L.T("Od jakiej głośności kompresor zaczyna ściszać (dB)."), -60, 0, 0.5, Db);
             autoThr = new CheckBox { Content = L.T("Próg automatyczny (z poziomu filmu)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 2),
-                ToolTip = L.T("Kompresor sam mierzy typowy poziom filmu (ok. 10 s, bez ciszy) i ustawia próg ponad nim – ściska tylko to, co wystaje, przy każdym filmie tak samo.") };
+                ToolTip = L.T("Kompresor sam mierzy typowy poziom dźwięku i ustawia próg ponad nim, a całość doprowadza do celu LUFS: bardzo cichy film podgłaśnia, głośny ścisza. Wyrównanie LUFS potem tylko dopracowuje.") };
             panel.Children.Add(autoThr);
             Row("aoff", L.T("Nad średnią filmu"), L.T("O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny."), 0, 20, 0.5, Db);
             Row("ratio", L.T("Stopień"), L.T("Jak mocno ściszać to, co ponad progiem: 4:1 – 4 dB ponad progiem daje 1 dB."), 1, 20, 0.1, v => v.ToString("0.0") + ":1");
@@ -292,7 +292,7 @@ namespace Velivo
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
                 if ((pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) || Math.Abs(pr.EffExpanderDb - lastExp) > 0.1) { lastThr = pr.EffThresholdDb; lastExp = pr.EffExpanderDb; DrawCurve(pr.Params, pr.Params.AutoThreshold ? lastThr : pr.Params.ThresholdDb, lastExp); }   // próg i próg ciszy z filmu - linie na żywo   // próg automatyczny - wykres na żywo
-                grText.Text = (pr.Params.AutoThreshold && act ? L.T("Próg teraz: ") + pr.EffThresholdDb.ToString("0.0") + " dB · " : "") + (!pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB");
+                grText.Text = (pr.Params.AutoThreshold && act ? L.T("Próg teraz: ") + pr.EffThresholdDb.ToString("0.0") + " dB · " + L.T("do celu: ") + pr.AutoLiftDb.ToString("+0.0;-0.0;0") + " dB · " : "") + (!pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB");
             };
             exp.IsVisibleChanged += (s, e) => { if (exp.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy zakładka Kompresor jest na ekranie - nie zabiera czasu Audio Monitorowi
             exp.Unloaded += (s, e) => tm.Stop();

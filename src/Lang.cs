@@ -331,6 +331,8 @@ namespace Velivo
             { "Nad średnią filmu", "Above film average" },
             { "O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny.", "How many dB above the film's typical level the automatic threshold starts." },
             { "Próg teraz: ", "Threshold now: " },
+            { "do celu: ", "to target: " },
+            { "Kompresor sam mierzy typowy poziom dźwięku i ustawia próg ponad nim, a całość doprowadza do celu LUFS: bardzo cichy film podgłaśnia, głośny ścisza. Wyrównanie LUFS potem tylko dopracowuje.", "The compressor measures the typical sound level, sets the threshold above it and brings the whole to the LUFS target: a very quiet film is raised, a loud one lowered. LUFS levelling then only fine-tunes." },
             { "Twoje zapisane ustawienia kompresora – wybierz, aby włączyć.", "Your saved compressor settings – pick one to apply." },
             { "Zapisuje obecne ustawienia kompresora pod Twoją nazwą.", "Saves the current compressor settings under your own name." },
             { "🗑 Usuń", "🗑 Delete" },

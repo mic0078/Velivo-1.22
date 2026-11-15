@@ -15,12 +15,13 @@ namespace Velivo
         public volatile bool Running; public string OutputName, Error;
         public event Action Stopped;   // urządzenie zniknęło / błąd - okno spróbuje ponownie
 
-        static bool IsCable(string name) => name != null && name.IndexOf("CABLE", StringComparison.OrdinalIgnoreCase) >= 0;
+        // VB-Cable w każdej wersji: „CABLE Input/Output (VB-Audio Virtual Cable)”, nowsze „Głośniki (VB-Audio Virtual Cable)”, „CABLE In 16 Ch”
+        static bool IsCable(string name) => name != null && (name.IndexOf("VB-Audio", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("CABLE", StringComparison.OrdinalIgnoreCase) >= 0);
         public static bool CableInstalled() { try { return FindCable() != null; } catch (Exception) { return false; } }
         static MMDevice FindCable()
         {
             var en = new MMDeviceEnumerator();
-            foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)) if (d.FriendlyName.IndexOf("CABLE Output", StringComparison.OrdinalIgnoreCase) >= 0) return d;
+            foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)) if (d.FriendlyName.IndexOf("CABLE Output", StringComparison.OrdinalIgnoreCase) >= 0 || (IsCable(d.FriendlyName) && d.FriendlyName.IndexOf("16", StringComparison.Ordinal) < 0)) return d;   // odbiór: „CABLE Output (VB-Audio Virtual Cable)”
             return null;
         }
         // głośniki / słuchawki (bez wirtualnego kabla - inaczej dźwięk krążyłby w kółko)
@@ -36,7 +37,19 @@ namespace Velivo
         }
         public static string CableInputId()
         {
-            try { var en = new MMDeviceEnumerator(); foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)) if (d.FriendlyName.IndexOf("CABLE Input", StringComparison.OrdinalIgnoreCase) >= 0) return d.ID; } catch (Exception) { }
+            // wejście kabla (tu Windows ma grać): „CABLE Input”, a w nowszym VB-Cable „Głośniki (VB-Audio Virtual Cable)”; wersja 16-kanałowa tylko w zapasie
+            try
+            {
+                string any = null; var en = new MMDeviceEnumerator();
+                foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+                {
+                    var n = d.FriendlyName; if (!IsCable(n)) continue;
+                    if (n.IndexOf("CABLE Input", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("16", StringComparison.Ordinal) < 0) return d.ID;
+                    any ??= d.ID;
+                }
+                return any;
+            }
+            catch (Exception) { }
             return null;
         }
 

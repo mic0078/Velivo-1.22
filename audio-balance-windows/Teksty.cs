@@ -49,7 +49,7 @@ namespace Velivo
             { "działa", "working" },
             { "zatrzymany", "stopped" },
             { "✔ Windows gra przez Audio Balance – przywróć głośniki jako domyślne", "✔ Windows plays through Audio Balance – restore speakers as default" },
-            { "▶ Kieruj dźwięk Windows przez Audio Balance (CABLE Input jako domyślne)", "▶ Route Windows sound through Audio Balance (CABLE Input as default)" },
+            { "▶ Kieruj dźwięk Windows przez Audio Balance (VB-Cable jako urządzenie domyślne)", "▶ Route Windows sound through Audio Balance (VB-Cable as the default device)" },
             { "● Działa, ale Windows gra prosto na ", "● Running, but Windows plays straight to " },
             { " – kliknij przycisk niżej", " – click the button below" },
             { "Pokaż", "Show" },

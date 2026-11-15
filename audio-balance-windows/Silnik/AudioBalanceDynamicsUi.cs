@@ -33,19 +33,9 @@ namespace Velivo
             _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv; _abPreSrcApp = app;
             string own = null; _abPreSrcOwn = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own);
             AbProc.Pre.Params = DynParams.Load(_abPreSrcOwn ? own : GetPref("ab-kompresor"));
-            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc);   // 🔈 bardzo ciche nagrania: wszędzie (włącznik) albo tylko dla zapamiętanych filmów / kanałów / programów
+
         }
-        // 🔈 lista materiałów, które potrzebują „Bardzo ciche nagrania” (domyślnie wyłączone - włączane dla konkretnego filmu / kanału / programu)
         static bool AbWide => AbPreNoSrc || AbPreApps;   // program samodzielny: suwaki w dwóch kolumnach
-        internal static bool AbQuietGlobal => GetPref("ab-cichy") == "1";
-        internal static string AbQuietSrc => _abPreSrc;
-        internal static bool AbQuietFor(string src) => src != null && ("\n" + (GetPref("ab-cichy-zrodla") ?? "") + "\n").Contains("\n" + src + "\n", StringComparison.OrdinalIgnoreCase);
-        internal static void AbQuietSet(string src, bool on)
-        {
-            if (src == null) return; var l = new List<string>((GetPref("ab-cichy-zrodla") ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries));
-            l.RemoveAll(x => x.Equals(src, StringComparison.OrdinalIgnoreCase)); if (on) l.Add(src);
-            SetPref("ab-cichy-zrodla", string.Join("\n", l)); if (src.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase)) AbProc.QuietOn = AbQuietGlobal || on;
-        }
 
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji
         internal FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
@@ -221,9 +211,8 @@ namespace Velivo
                 var l = Own(); l.RemoveAll(x => x.n == n); SaveOwn(l); SetName(null);
             };
             foreach (var (nm, tip, mkP) in new (string, string, Func<DynParams>)[] {
-                (L.T("Film / kino"), L.T("Dialog nietknięty, wybuchy i muzyka trzymane blisko niego: RMS, próg automatyczny (średnia +3 dB), 6:1, powrót 400 ms, podbicie +4 dB."), DynParams.Film),
+                (L.T("Film / kino"), L.T("RMS, próg automatyczny (średnia filmu +6 dB), 3,5:1, atak 30 ms, powrót 300 ms, podbicie +4 dB."), DynParams.Film),
                 (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
-                (L.T("Bardzo ciche filmy"), L.T("Ekstremalnie cicho nagrane filmy: RMS, próg -52 dB, 4:1, podbicie +22 dB, ekspander od -68 dB (szum nie rośnie). Wyrównanie LUFS dociąga potem do celu."), DynParams.VeryQuiet),
                 (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
             { var f = mkP; var n0 = nm; var b = mk(nm, () => { Show(f()); Apply(); SetName(n0); }); b.ToolTip = tip; presets.Children.Add(b); }
             string shownSrc = "\u0000";

@@ -85,15 +85,42 @@ namespace Velivo
             { var gg = g; pr.Children.Add(Mk(nm, () => { for (int i = 0; i < 10; i++) sl[i].Value = gg[i]; })); }
             p.Children.Add(pr); return p;
         }
+        // 🎵 poprawianie własnych plików (dla muzyka): WAV / MP3 / FLAC / M4A → „(Audio Balance).wav” 32-bit 48 kHz, te same ustawienia co dźwięk Windows
+        FrameworkElement FilePanel()
+        {
+            var p = new StackPanel(); var st = T(L.T("Wynik: plik „nazwa (Audio Balance).wav” obok oryginału – WAV 32-bit, 48 kHz, bez strat. Te same ustawienia co wyżej (bez wtyczek VST3)."), 11, Dim);
+            Button b = null; bool busy = false;
+            b = Mk(L.T("📂 Wybierz pliki (WAV, MP3, FLAC, M4A)…"), async () =>
+            {
+                if (busy) return;
+                var dlg = new Microsoft.Win32.OpenFileDialog { Multiselect = true, Filter = L.T("Dźwięk") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma|*.*|*.*" };
+                if (dlg.ShowDialog(win) != true) return;
+                busy = true; string lastOut = null; int ok = 0;
+                foreach (var f in dlg.FileNames)
+                {
+                    var name = Path.GetFileName(f);
+                    try { lastOut = await AbPlik.Process(f, Configure, x => win.Dispatcher.BeginInvoke(new Action(() => st.Text = "⏳ " + name + "  " + (int)(x * 100) + " %"))); ok++; }
+                    catch (Exception ex) { App.LogError(ex); st.Text = "✖ " + name + ": " + ex.Message; st.Foreground = Bad; }
+                }
+                busy = false;
+                if (ok > 0) { st.Text = L.T("✔ Gotowe: ") + ok + " / " + dlg.FileNames.Length; st.Foreground = Ok; try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + lastOut + "\""); } catch (Exception) { } }
+            }, L.T("Poprawia wybrane utwory tymi samymi ustawieniami co dźwięk Windows i zapisuje obok oryginału."));
+            p.Children.Add(Head(L.T("🎵 Popraw plik"), b)); p.Children.Add(st);
+            return p;
+        }
         void Apply()
         {
             eng.Latency = int.TryParse(Get("opoznienie"), out var lat) ? lat : 1;
-            var p = eng.Proc;
+            Configure(eng.Proc);
+            eng.Proc.Bypass = Get("obejscie") == "1";
+        }
+        // te same ustawienia dla dowolnego procesora (dźwięk Windows albo poprawiany plik)
+        internal void Configure(AbProcessor p)
+        {
             p.Profile = AbProfile.ByName(Get("profil") ?? "auto", Get("sila") ?? "normal");
             p.Target = float.TryParse(Get("cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             p.Dialog = int.TryParse(Get("dialogi"), out var d) ? d : 0;
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
-            p.Bypass = Get("obejscie") == "1";
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
             var pre = Get("kompresor"); p.Pre.Params = pre == null ? DynParams.Film() : DynParams.Load(pre);
         }
@@ -208,7 +235,8 @@ namespace Velivo
             var lower = new Grid(); lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star) }); lower.ColumnDefinitions.Add(new ColumnDefinition());
             var c2 = Card(sets); c2.Margin = new Thickness(0, 0, 10, 0); var c4 = Card(EqPanel()); c4.Margin = new Thickness(0); Grid.SetColumn(c4, 1);
             lower.Children.Add(c2); lower.Children.Add(c4);
-            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower); cols.Children.Add(left);
+            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower);
+            { var fc = Card(FilePanel()); fc.Margin = new Thickness(0, 10, 0, 0); left.Children.Add(fc); } cols.Children.Add(left);
             // 🎚 kompresor wstępny i 🎛 VST3 z Velivo (ten sam kod)
             MainWindow.Host = this; MainWindow.AbPreNoSrc = true; var mw = new MainWindow();
             var comp = new StackPanel(); var cp = mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2));

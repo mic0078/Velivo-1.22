@@ -237,6 +237,7 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
+        public bool NoVst;   // poprawianie pliku (osobny obiekt) - bez wtyczek VST3, które gra właśnie dźwięk Windows
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
         public double DialogDb;               // bieżące podbicie mowy (widżet)
@@ -360,13 +361,13 @@ namespace Velivo
             bool abOn = !(pr == null && !eqOn && dlg == 0 && !preOn);   // Audio Balance coś robi (wyrównywanie, korektor, dialogi albo kompresor)
             LekPath = !Bypass && abOn;
             float[] raw = null;   // oryginał filmu sprzed wtyczek VST3 - do wskaźników „źródło” i widma
-            if (!Bypass && Vst3.Ready && abOn)
+            if (!Bypass && !NoVst && Vst3.Ready && abOn)
             {   // 🎛 wtyczki VST3 PRZED Audio Balance (właściciel): oryginał → wtyczki → kompresor → korektor, dialogi, LUFS → limiter (sufit bezpieczeństwa)
                 if (vstRaw.Length < frames * 2) vstRaw = new float[frames * 2];   // rośnie rzadko (tylko przy większej porcji), nie w każdej próbce
                 Array.Copy(buf, vstRaw, frames * 2);
                 if (Vst3.Run(buf, frames)) raw = vstRaw;
             }
-            else if (!Bypass && Vst3.Ready)
+            else if (!Bypass && !NoVst && Vst3.Ready)
             {   // 🎛 same wtyczki VST3 (Audio Balance nic nie robi): oryginał → wtyczki → głośność odtwarzacza
                 for (int f = 0; f < frames; f++)
                 {

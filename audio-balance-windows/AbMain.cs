@@ -166,7 +166,20 @@ namespace Velivo
                 st.Text = L.T("↶ Cofnięto do poprzednich ustawień (zostało kroków: ") + hist.Count + ")"; st.Foreground = Ok; undo.IsEnabled = hist.Count > 0;
             }, L.T("Cofa ostatnią zmianę ustawień (krok po kroku, także Ctrl+Z). Oryginalny plik nigdy nie jest zmieniany – eksport to zawsze nowy plik.")); undo.IsEnabled = false;
             (filesWin ?? win).PreviewKeyDown += (s2, e2) => { if (e2.Key == System.Windows.Input.Key.Z && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control) { undo.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); e2.Handled = true; } };
-            var prow = new WrapPanel(); prow.Children.Add(open); prow.Children.Add(play); prow.Children.Add(stop); prow.Children.Add(ab); prow.Children.Add(undo); prow.Children.Add(exp);
+            // ⏺ eksport na żywo: utwór od początku przez Audio Balance (z wtyczkami VST3 i wszystkimi zmianami w trakcie), nagranie dokładnie tego, co słychać, do końca utworu
+            Button live = null; live = Mk(L.T("⏺ Eksport na żywo (z VST)…"), () =>
+            {
+                if (od == null) return;
+                if (eng.Rec != null) { var r0 = eng.Rec; eng.Rec = null; r0.Dispose(); od.Stop(); SetText(live, L.T("⏺ Eksport na żywo (z VST)…")); st.Text = L.T("✔ Zapisano: ") + Path.GetFileName(r0.Path); st.Foreground = Ok; return; }
+                if (!eng.Running) { st.Text = L.T("Najpierw musi działać dźwięk (Windows gra przez Audio Balance)"); st.Foreground = Bad; return; }
+                var sd = new Microsoft.Win32.SaveFileDialog { Filter = "WAV 32-bit float 48 kHz|*.wav", FileName = AbPlik.DefaultName(od.File), InitialDirectory = Directory.Exists(Get("plik-do") ?? "") ? Get("plik-do") : Path.GetDirectoryName(od.File) };
+                if (sd.ShowDialog(filesWin ?? win) != true) return; Put("plik-do", Path.GetDirectoryName(sd.FileName)); DirTxt();
+                if (od.Playing) od.Toggle(); od.Pos = TimeSpan.Zero;
+                eng.Rec = new AbRecorder(Path.GetDirectoryName(sd.FileName), sd.FileName); od.HookEnd(); var me = od;
+                me.Ended += () => win.Dispatcher.BeginInvoke(new Action(() => { if (eng.Rec != null && od == me) { var r1 = eng.Rec; eng.Rec = null; r1.Dispose(); SetText(live, L.T("⏺ Eksport na żywo (z VST)…")); st.Text = L.T("✔ Zapisano: ") + Path.GetFileName(r1.Path); st.Foreground = Ok; try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + r1.Path + "\""); } catch (Exception) { } } }));
+                od.Toggle(); SetText(live, L.T("⏹ Zatrzymaj eksport")); st.Text = L.T("⏺ Eksport na żywo – gra od początku; zmiany ustawień i wtyczek słychać i zapisują się. Inne dźwięki Windows też się nagrają – wycisz je."); st.Foreground = Ok;
+            }, L.T("Gra utwór od początku przez Audio Balance z wtyczkami VST3 i zapisuje dokładnie to, co słyszysz (trwa tyle, co utwór)."));
+            var prow = new WrapPanel(); prow.Children.Add(open); prow.Children.Add(play); prow.Children.Add(stop); prow.Children.Add(ab); prow.Children.Add(undo); prow.Children.Add(exp); prow.Children.Add(live);
             p.Children.Add(nameT); p.Children.Add(prow); p.Children.Add(fala); p.Children.Add(tt);
             var ptm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             ptm.Tick += (s2, e2) => {
@@ -301,7 +314,7 @@ namespace Velivo
 
         void BuildWindow()
         {
-            win = new Window { Title = "Velivo Audio Balance for Windows", Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40), MinWidth = 1000, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanResize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI") };
+            win = new Window { Title = "Velivo Audio Balance for Windows 1.22 By MichAel", Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40), MinWidth = 1000, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanResize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI") };
             win.Resources.MergedDictionaries.Add(AbStyl.Res);
             try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")); } catch (Exception) { }
             var root = new StackPanel { Margin = new Thickness(14, 10, 14, 12) };

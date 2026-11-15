@@ -13,7 +13,7 @@ namespace Velivo
             File = file; rd = new MediaFoundationReader(file);
             MMDevice dev = null; var id = AbEngine.CableInputId();
             try { if (id != null) dev = new MMDeviceEnumerator().GetDevice(id); } catch (Exception) { }
-            o = dev != null ? new WasapiOut(dev, AudioClientShareMode.Shared, true, 100) : new WasapiOut(AudioClientShareMode.Shared, 100);
+            o = dev != null ? new WasapiOut(dev, AudioClientShareMode.Shared, false, 200) : new WasapiOut(AudioClientShareMode.Shared, false, 200);   // odpytywanie i 200 ms zapasu - duże pliki i filmy (dekodowanie) bez przycięć
             o.Init(rd);
         }
         public bool Playing => o.PlaybackState == PlaybackState.Playing;
@@ -21,6 +21,8 @@ namespace Velivo
         public TimeSpan Len => rd.TotalTime;
         public void Toggle() { if (Playing) o.Pause(); else o.Play(); }
         public void Stop() { o.Stop(); Pos = TimeSpan.Zero; }
+        public event Action Ended; bool hooked;
+        public void HookEnd() { if (hooked) return; hooked = true; o.PlaybackStopped += (s, e) => Ended?.Invoke(); }
         public void Dispose() { try { o.Dispose(); } catch (Exception) { } try { rd.Dispose(); } catch (Exception) { } }
     }
 }

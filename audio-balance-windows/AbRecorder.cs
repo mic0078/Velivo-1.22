@@ -13,10 +13,10 @@ namespace Velivo
         public readonly string Path; public long Frames; public readonly DateTime Start = DateTime.Now;
         readonly BlockingCollection<float[]> q = new BlockingCollection<float[]>(2000); readonly Thread th; WaveFileWriter w;
         public string Error;
-        public AbRecorder(string dir)
+        public AbRecorder(string dir, string file = null)
         {
             Directory.CreateDirectory(dir);
-            Path = System.IO.Path.Combine(dir, "Audio Balance " + DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".wav");
+            Path = file ?? System.IO.Path.Combine(dir, "Audio Balance " + DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".wav");
             w = new WaveFileWriter(Path, WaveFormat.CreateIeeeFloatWaveFormat(AbProcessor.Fs, 2));
             th = new Thread(() =>
             {

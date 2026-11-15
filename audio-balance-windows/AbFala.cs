@@ -46,7 +46,20 @@ namespace Velivo
 
         double X(double t) => (t - view0) / Math.Max(0.001, viewLen) * ActualWidth;
         double T(double x) => Math.Max(0, Math.Min(total, view0 + x / Math.Max(1, ActualWidth) * viewLen));
+        // fala rysowana raz do obrazka (tylko po zmianie widoku / rozmiaru) - kursor co 50 ms nie przelicza całego utworu (duże pliki przycinały)
+        System.Windows.Media.Imaging.RenderTargetBitmap cache; string cacheKey;
         protected override void OnRender(DrawingContext dc)
+        {
+            string key = view0 + "|" + viewLen + "|" + ActualWidth + "|" + ActualHeight + "|" + mn.Length + "|" + Status;
+            if (key != cacheKey && ActualWidth > 0 && ActualHeight > 0)
+            {
+                cacheKey = key; var dv = new DrawingVisual(); using (var c = dv.RenderOpen()) Draw(c);
+                cache = new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(ActualWidth), (int)Math.Ceiling(ActualHeight), 96, 96, PixelFormats.Pbgra32); cache.Render(dv); cache.Freeze();
+            }
+            if (cache != null) dc.DrawImage(cache, new Rect(0, 0, cache.Width, cache.Height));
+            if (mn.Length > 0 && total > 0) { double hx = X(Play); if (hx >= 0 && hx <= ActualWidth) dc.DrawLine(Head, new Point(hx, 0), new Point(hx, ActualHeight)); }
+        }
+        void Draw(DrawingContext dc)
         {
             double w = ActualWidth, h = ActualHeight, top = 16, wh = h - top, mid = top + wh / 2;
             dc.DrawRectangle(Bg, null, new Rect(0, 0, w, h));
@@ -66,7 +79,6 @@ namespace Velivo
                 double y1 = mid - Math.Min(1, hi) * wh / 2, y2 = mid - Math.Max(-1, lo) * wh / 2;
                 dc.DrawRectangle(Wave, null, new Rect(px, y1, 1, Math.Max(1, y2 - y1)));
             }
-            double hx = X(Play); if (hx >= 0 && hx <= w) dc.DrawLine(Head, new Point(hx, 0), new Point(hx, h));
         }
         static FormattedText Txt(string s, Brush b, double size) => new FormattedText(s, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), size, b, 1.0);
 

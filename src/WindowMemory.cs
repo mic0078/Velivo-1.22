@@ -92,12 +92,21 @@ namespace Velivo
             return true;
         }
 
+        // 🧩 okna.txt dzielą wszystkie programy Velivo - zapis łączy zmiany (nie kasuje położenia okien i wyborów innego programu)
+        static Dictionary<string, string> _winBase;
+        static void SaveWinBounds()
+        {
+            var saved = VelivoData.MergeWrite(WindowsFile, '\t', WinBounds().ToList(), _winBase);
+            _winBase = new Dictionary<string, string>(saved);
+            _winBounds.Clear(); foreach (var kv in saved) _winBounds[kv.Key] = kv.Value;
+        }
         static Dictionary<string, string> WinBounds()
         {
             if (_winBounds != null) return _winBounds;
             _winBounds = new Dictionary<string, string>();
             try { if (File.Exists(WindowsFile)) foreach (var l in File.ReadAllLines(WindowsFile)) { var k = l.IndexOf('\t'); if (k > 0) _winBounds[l.Substring(0, k)] = l.Substring(k + 1); } }
             catch (Exception ex) { App.LogError(ex); }
+            _winBase = new Dictionary<string, string>(_winBounds);
             return _winBounds;
         }
 
@@ -128,7 +137,7 @@ namespace Velivo
                 var b = w.WindowState == WindowState.Normal ? new Rect(w.Left, w.Top, w.ActualWidth, w.ActualHeight) : w.RestoreBounds;
                 if (b.IsEmpty) return;
                 WinBounds()[key] = FormatBounds(b, w.WindowState == WindowState.Maximized);
-                try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+                try { SaveWinBounds(); }
                 catch (Exception ex) { App.LogError(ex); }
             };
         }
@@ -146,7 +155,7 @@ namespace Velivo
             w.Closing += (o, e) =>
             {
                 WinBounds()[key] = string.Join(",", grid.Columns.Select(c => ((int)Math.Round(double.IsNaN(c.Width) ? c.ActualWidth : c.Width)).ToString(CultureInfo.InvariantCulture)));
-                try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+                try { SaveWinBounds(); }
                 catch (Exception ex) { App.LogError(ex); }
             };
         }
@@ -190,7 +199,7 @@ namespace Velivo
             a = Math.Round(Math.Max(0.1, Math.Min(1.0, a)), 2);
             ApplyAlpha(w, a);
             WinBounds()[AlphaKey(w)] = a.ToString(CultureInfo.InvariantCulture);
-            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            try { SaveWinBounds(); }
             catch (Exception ex) { App.LogError(ex); }
         }
 
@@ -202,7 +211,7 @@ namespace Velivo
             ApplyAlpha(w, a);
             e.Handled = true;
             WinBounds()[AlphaKey(w)] = a.ToString(CultureInfo.InvariantCulture);
-            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            try { SaveWinBounds(); }
             catch (Exception ex) { App.LogError(ex); }
         }
 
@@ -276,7 +285,7 @@ namespace Velivo
         internal static void SetPref(string key, string value)
         {
             WinBounds()["ust:" + key] = value;
-            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            try { SaveWinBounds(); }
             catch (Exception ex) { App.LogError(ex); }
         }
 

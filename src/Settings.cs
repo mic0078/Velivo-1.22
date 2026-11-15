@@ -158,6 +158,8 @@ namespace Velivo
             try
             {
                 if (File.Exists(path)) lines = File.ReadAllLines(path);
+                s._base = new Dictionary<string, string>();
+                foreach (var l in lines) { int j = l.IndexOf('='); if (j > 0) s._base[l.Substring(0, j)] = l.Substring(j + 1); }
                 foreach (var line in lines)
                 {
                     int i = line.IndexOf('=');
@@ -308,7 +310,7 @@ namespace Velivo
             Func<bool, string> B = x => x ? "1" : "0";
             Directory.CreateDirectory(dir);
             SaveLanSyncKey(dir, LanSyncKey);
-            File.WriteAllLines(FilePath(dir), new[]
+            var lines = new[]
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + Tracking,
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
@@ -318,8 +320,20 @@ namespace Velivo
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
                 "toolbarCompact=" + B(ToolbarAlwaysCompact),
-            });
+            };
+            // 🧩 inne programy Velivo (Odtwarzacz, Przeglądarka) zapisują ten sam plik - łączymy zamiast nadpisywać
+            var mine = lines.Select(l => { int i = l.IndexOf('='); return new KeyValuePair<string, string>(l.Substring(0, i), l.Substring(i + 1)); }).ToList();
+            var saved = VelivoData.MergeWrite(FilePath(dir), '=', mine, _base);
+            _base = saved;
+            if (mine.Any(kv => !saved.TryGetValue(kv.Key, out var v) || v != kv.Value))   // inny program zmienił coś w międzyczasie - bierzemy jego zmianę
+            {
+                var fresh = Load(dir);
+                foreach (var fi in typeof(AppSettings).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                    if (!fi.IsInitOnly) fi.SetValue(this, fi.GetValue(fresh));
+                _base = fresh._base;
+            }
         }
+        Dictionary<string, string> _base;   // ustawienia z dysku przy ostatnim odczycie / zapisie (co zmienił ten program)
     }
 
     public partial class MainWindow

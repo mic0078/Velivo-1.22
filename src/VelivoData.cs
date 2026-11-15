@@ -27,6 +27,48 @@ namespace Velivo
         }
         public static void SafeWrite(string path, string text) => SafeWrite(path, System.Text.Encoding.UTF8.GetBytes(text));
 
+        // 🧩 kilka programów Velivo (pełne, Odtwarzacz, Przeglądarka) na jednym folderze danych: zapis pliku „klucz<sep>wartość”
+        // bez kasowania cudzych zmian. Na dysk trafia aktualny plik + tylko to, co TEN program zmienił od ostatniego odczytu
+        // (baseline); usunięty u nas klucz znika tylko, gdy nikt go w międzyczasie nie zmienił. Zwraca to, co zapisano (nowy baseline).
+        public static System.Collections.Generic.Dictionary<string, string> MergeWrite(string path, char sep,
+            System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> mine,
+            System.Collections.Generic.Dictionary<string, string> baseline)
+        {
+            using (var mx = new System.Threading.Mutex(false, @"Local\Velivo.Dane.Zapis"))
+            {
+                bool got = false;
+                try { got = mx.WaitOne(3000); } catch (System.Threading.AbandonedMutexException) { got = true; }
+                try
+                {
+                    var disk = new System.Collections.Generic.Dictionary<string, string>();
+                    var order = new System.Collections.Generic.List<string>();
+                    if (File.Exists(path))
+                        foreach (var l in File.ReadAllLines(path))
+                        {
+                            int i = l.IndexOf(sep); if (i <= 0) continue;
+                            var k = l.Substring(0, i); if (!disk.ContainsKey(k)) order.Add(k);
+                            disk[k] = l.Substring(i + 1);
+                        }
+                    var result = new System.Collections.Generic.Dictionary<string, string>(disk);
+                    var mineKeys = new System.Collections.Generic.HashSet<string>();
+                    foreach (var kv in mine)
+                    {
+                        mineKeys.Add(kv.Key);
+                        string b = null;
+                        if (baseline == null || !baseline.TryGetValue(kv.Key, out b) || b != kv.Value || !disk.ContainsKey(kv.Key)) result[kv.Key] = kv.Value;
+                        if (!order.Contains(kv.Key)) order.Add(kv.Key);
+                    }
+                    if (baseline != null)
+                        foreach (var kv in baseline)
+                            if (!mineKeys.Contains(kv.Key) && disk.TryGetValue(kv.Key, out var d) && d == kv.Value) result.Remove(kv.Key);
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    SafeWrite(path, string.Join("\r\n", order.Where(result.ContainsKey).Select(k => k + sep + result[k])) + "\r\n");
+                    return result;
+                }
+                finally { if (got) try { mx.ReleaseMutex(); } catch (Exception) { } }
+            }
+        }
+
         // Dopoki stary folder istnieje, dane sa w nim (przeniesienie sie nie udalo albo jeszcze nie bylo).
         public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : NewRoot; } }
 

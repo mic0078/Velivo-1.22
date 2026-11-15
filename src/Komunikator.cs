@@ -1493,7 +1493,7 @@ namespace Velivo
                 {
                     using (var fo = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
                     {
-                        int n = ChunkCount(size); long got = 0; var lb = new byte[4]; var buf = new byte[LanChunk + 16]; var plain = new byte[LanChunk];
+                        var rx0 = DateTime.UtcNow; int n = ChunkCount(size); long got = 0; var lb = new byte[4]; var buf = new byte[LanChunk + 16]; var plain = new byte[LanChunk];
                         for (int i = 0; i < n; i++)
                         {
                             using (var idle = CancellationTokenSource.CreateLinkedTokenSource(token))
@@ -1510,6 +1510,7 @@ namespace Velivo
                             }
                         }
                         if (got != size) return;
+                        { var sec = Math.Max(0.001, (DateTime.UtcNow - rx0).TotalSeconds); App.LogInfo("📥 Plik odebrany od " + dev + ": " + (size / 1048576.0).ToString("0.0") + " MB w " + sec.ToString("0.0") + " s (" + (size * 8 / 1e6 / sec).ToString("0.0") + " Mb/s)"); }   // pomiar prędkości (właściciel: „wolno”)
                     }
                     if (!string.Equals(Convert.ToHexString(sha.GetHashAndReset()), (string)h["Hash"], StringComparison.OrdinalIgnoreCase)) return;
                 }

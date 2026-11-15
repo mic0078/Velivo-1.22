@@ -12,6 +12,7 @@ namespace Velivo
     {
         public readonly AbProcessor Proc = new AbProcessor();
         WasapiCapture cap; WasapiOut outp; BufferedWaveProvider buf;
+        public int Latency = 1;   // ⏱ opóźnienie: 0 niskie (~0,1 s), 1 normalne (~0,2 s), 2 bezpieczne (~0,35 s, bez pyknięć)
         public volatile bool Running; public string OutputName, Error;
         public event Action Stopped;   // urządzenie zniknęło / błąd - okno spróbuje ponownie
 
@@ -64,7 +65,7 @@ namespace Velivo
                 if (dev == null) foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)) if (!IsCable(d.FriendlyName)) { dev = d; break; }
                 if (dev == null) { Error = "output"; return false; }
                 OutputName = dev.FriendlyName;
-                timeBeginPeriod(1); cap = new WasapiCapture(cable, false, 100);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
+                timeBeginPeriod(1); var (lc, lt, lo) = Latency == 0 ? (40, 40, 40) : Latency == 2 ? (100, 150, 100) : (60, 80, 60); cap = new WasapiCapture(cable, false, lc);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
                 cap.DataAvailable += (s, e) =>
@@ -77,8 +78,8 @@ namespace Velivo
                 if (sp.WaveFormat.Channels == 1) sp = new MonoToStereoSampleProvider(sp);
                 else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
                 if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
-                sp = new Elastic(sp, buf);   // elastyczny bufor: zapas stale ok. 100 ms, bez przerw i trzasków (zegary kabla i głośników się rozjeżdżają)
-                outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, 100);   // jw. - odpytywanie, 100 ms zapasu
+                sp = new Elastic(sp, buf, lt);   // elastyczny bufor: zapas stale ok. 100 ms, bez przerw i trzasków (zegary kabla i głośników się rozjeżdżają)
+                outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, lo);   // jw. - odpytywanie, 100 ms zapasu
                 outp.Init(new Processing(sp, Proc));
                 outp.PlaybackStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
@@ -117,7 +118,8 @@ namespace Velivo
             readonly ISampleProvider src; readonly BufferedWaveProvider b; readonly double bytesPerMs;
             float[] inb = new float[48000 * 2]; int inLen; double pos, rate = 1, drift; bool filling = true; float lastL, lastR; int fadeIn; public static int Gaps; static DateTime gapLog;
             readonly float[] pull = new float[960];
-            public Elastic(ISampleProvider s, BufferedWaveProvider buf) { src = s; b = buf; bytesPerMs = buf.WaveFormat.AverageBytesPerSecond / 1000.0; }
+            readonly double tgt;
+            public Elastic(ISampleProvider s, BufferedWaveProvider buf, double target) { tgt = target; src = s; b = buf; bytesPerMs = buf.WaveFormat.AverageBytesPerSecond / 1000.0; }
             public WaveFormat WaveFormat => src.WaveFormat;
             double LevelMs => b.BufferedBytes / bytesPerMs + (inLen - pos) / (WaveFormat.SampleRate / 1000.0);
             bool Pull()
@@ -130,9 +132,9 @@ namespace Velivo
             public int Read(float[] buffer, int offset, int count)
             {
                 double lvl = LevelMs;
-                if (filling) { if (lvl < 150) { Silence(buffer, offset, 0, count); return count; } filling = false; fadeIn = 240; }
+                if (filling) { if (lvl < tgt) { Silence(buffer, offset, 0, count); return count; } filling = false; fadeIn = 240; }
                 // regulator PI: część P - bieżący zapas, część I - uczy się stałej różnicy zegarów kart (zapas wraca do 100 ms); razem najwyżej ±0,5 % (niesłyszalne)
-                double err = (lvl - 150) / 150; drift = Math.Max(-0.004, Math.Min(0.004, drift + err * 0.00005));
+                double err = (lvl - tgt) / tgt; drift = Math.Max(-0.004, Math.Min(0.004, drift + err * 0.00005));
                 double want = 1 + Math.Max(-0.005, Math.Min(0.005, err * 0.003 + drift));
                 rate += (want - rate) * 0.05;
                 int frames = count / 2;

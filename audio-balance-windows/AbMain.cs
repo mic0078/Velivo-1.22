@@ -86,14 +86,14 @@ namespace Velivo
             p.Children.Add(pr); return p;
         }
         // 🎵 poprawianie własnych plików (dla muzyka): WAV / MP3 / FLAC / M4A → „(Audio Balance).wav” 32-bit 48 kHz, te same ustawienia co dźwięk Windows
-        Window filesWin;
+        Window filesWin; AbOdsluch od;
         void ShowFiles()
         {   // 🎵 osobne okno (właściciel): poprawianie plików niezależnie od okna podglądu
             if (filesWin != null) { filesWin.Show(); filesWin.Activate(); return; }
             filesWin = new Window { Title = L.T("Velivo Audio Balance – popraw pliki"), Width = 620, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI"), Icon = win.Icon };
             filesWin.Resources.MergedDictionaries.Add(AbStyl.Res);
             var c = Card(FilePanel()); c.Margin = new Thickness(14); filesWin.Content = c;
-            filesWin.Closed += (s, e) => filesWin = null; filesWin.Show();
+            filesWin.Closed += (s, e) => { filesWin = null; od?.Dispose(); od = null; }; filesWin.Show();
         }
         FrameworkElement FilePanel()
         {
@@ -125,7 +125,42 @@ namespace Velivo
                 busy = false;
                 if (ok > 0) { st.Text = L.T("✔ Gotowe: ") + ok + " / " + dlg.FileNames.Length; st.Foreground = Ok; try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + lastOut + "\""); } catch (Exception) { } }
             }, L.T("Poprawia wybrane utwory tymi samymi ustawieniami co dźwięk Windows i zapisuje obok oryginału."));
-            p.Children.Add(Head(L.T("🎵 Popraw plik"), b)); p.Children.Add(st);
+            // 🎧 słuchasz → podoba się → 💾 eksport (właściciel): utwór gra przez Audio Balance z bieżącymi ustawieniami, eksport zapisuje dokładnie to brzmienie
+            p.Children.Add(Head(L.T("🎧 Odsłuch i eksport")));
+            var nameT = T(L.T("Otwórz utwór, posłuchaj i zmieniaj ustawienia w głównym oknie – słyszysz od razu. Gdy brzmi dobrze: Eksportuj."), 11, Dim);
+            var pos = new Slider { Minimum = 0, Maximum = 1, Margin = new Thickness(0, 4, 0, 4) }; var tt = T("", 11, Dim);
+            Button play = null, exp = null; bool drag = false;
+            pos.PreviewMouseDown += (s2, e2) => drag = true; pos.PreviewMouseUp += (s2, e2) => { drag = false; if (od != null) od.Pos = TimeSpan.FromSeconds(pos.Value * od.Len.TotalSeconds); };
+            var open = Mk(L.T("📂 Otwórz utwór…"), () =>
+            {
+                var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Dźwięk") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma|*.*|*.*" };
+                if (Directory.Exists(Get("plik-z") ?? "")) d.InitialDirectory = Get("plik-z");
+                if (d.ShowDialog(filesWin ?? win) != true) return;
+                Put("plik-z", Path.GetDirectoryName(d.FileName));
+                od?.Dispose(); od = null;
+                try { od = new AbOdsluch(d.FileName); od.Toggle(); nameT.Text = "🎵 " + Path.GetFileName(d.FileName); nameT.Foreground = Fg; play.IsEnabled = exp.IsEnabled = true; }
+                catch (Exception ex) { App.LogError(ex); nameT.Text = "✖ " + ex.Message; nameT.Foreground = Bad; }
+                if (!eng.Running || GetText(defBtn)?.StartsWith("▶") == true) nameT.Text += L.T("  (uwaga: Windows nie gra przez Audio Balance – słyszysz bez poprawek, eksport i tak je zastosuje)");
+            });
+            play = Mk("⏯", () => od?.Toggle(), L.T("Odtwarzaj / pauza")); play.IsEnabled = false;
+            var stop = Mk("⏹", () => od?.Stop(), L.T("Stop"));
+            exp = Mk(L.T("💾 Eksportuj…"), async () =>
+            {
+                if (od == null || busy) return; var src = od.File;
+                var sd = new Microsoft.Win32.SaveFileDialog { Filter = "WAV 32-bit float 48 kHz|*.wav", FileName = AbPlik.DefaultName(src), InitialDirectory = Directory.Exists(Get("plik-do") ?? "") ? Get("plik-do") : Path.GetDirectoryName(src) };
+                if (sd.ShowDialog(filesWin ?? win) != true) return;
+                Put("plik-do", Path.GetDirectoryName(sd.FileName)); DirTxt(); busy = true;
+                try { var o2 = await AbPlik.Process(src, sd.FileName, Configure, x => win.Dispatcher.BeginInvoke(new Action(() => st.Text = "⏳ " + L.T("Eksport ") + (int)(x * 100) + " %"))); st.Text = L.T("✔ Zapisano: ") + Path.GetFileName(o2); st.Foreground = Ok; try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + o2 + "\""); } catch (Exception) { } }
+                catch (Exception ex) { App.LogError(ex); st.Text = "✖ " + ex.Message; st.Foreground = Bad; }
+                busy = false;
+            }, L.T("Zapisuje utwór z bieżącymi poprawkami do WAV 32-bit, 48 kHz (wybierasz nazwę i miejsce).")); exp.IsEnabled = false;
+            var prow = new WrapPanel(); prow.Children.Add(open); prow.Children.Add(play); prow.Children.Add(stop); prow.Children.Add(exp);
+            p.Children.Add(nameT); p.Children.Add(prow); p.Children.Add(pos); p.Children.Add(tt);
+            var ptm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            ptm.Tick += (s2, e2) => { if (od == null) return; var L0 = od.Len.TotalSeconds; if (!drag && L0 > 0) pos.Value = od.Pos.TotalSeconds / L0; tt.Text = od.Pos.ToString(@"m\:ss") + " / " + od.Len.ToString(@"m\:ss"); };
+            ptm.Start(); p.Unloaded += (s2, e2) => { ptm.Stop(); od?.Dispose(); od = null; };
+            p.Children.Add(new Border { Height = 1, Background = Dim, Opacity = 0.3, Margin = new Thickness(0, 10, 0, 10) });
+            p.Children.Add(Head(L.T("🎵 Wiele plików naraz"), b)); p.Children.Add(st);
             // 📁 gdzie zapisywać (zapamiętane) i 💾 ustawienia poprawek do pliku na dysku (własne zestawy, przenoszenie na inny komputer)
             var row = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             void DirTxt() { var d = Get("plik-do"); SetText(dirB, "📁 " + (Directory.Exists(d ?? "") ? L.T("Zapisuj do: ") + d : L.T("Zapisuj obok oryginału"))); }

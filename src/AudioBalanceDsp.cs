@@ -292,6 +292,7 @@ namespace Velivo
         public double GainDb, LimitDb, PeakOutDb = double.NegativeInfinity; double peakHold; int peakN;
         // 🎞 film: poziom z całego dotychczasowego filmu (jak normalizatory Plex/Kodi/FFmpeg) - po 30 s bez przestawiania na cichą scenę;
         //    pomiar na stanowisku: filmy -38..-20 LUFS → różnica 1,8 dB, dialog w filmie ±0,05 dB (było: 7 dB i ±2,4 dB). TV - jak dotąd (zmiana programu, reklamy)
+        public readonly VelivoDynamicsProcessor Pre = new VelivoDynamicsProcessor(Fs);   // 🎚 kompresor wstępny - przed regulatorem LUFS (domyślnie wył.)
         public volatile bool FilmLong; double intC = -99, tvP; int tvQ;   // tvP - poziom kanału TV (LUFS, średnia w dB z ok. 30 s; 0 = jeszcze brak)
         public AbProcessor() { Reset(); }
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
@@ -338,7 +339,7 @@ namespace Velivo
         public void Process(float[] buf, int frames) { ProcessCore(buf, frames); MixLek(buf, frames); }
         void ProcessCore(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); tvP = 0; tvQ = 0; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
@@ -353,7 +354,8 @@ namespace Velivo
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
-            LekPath = !Bypass && !Vst3.Ready && !(pr == null && !eqOn && dlg == 0);
+            var preP = Pre.Params; bool preOn = preP.IsEnabled;
+            LekPath = !Bypass && !Vst3.Ready && !(pr == null && !eqOn && dlg == 0 && !preOn);
             if (!Bypass && Vst3.Ready)
             {   // 🎛 łańcuch VST3 przejmuje przetwarzanie: oryginał → wtyczki → głośność odtwarzacza (bez korektora, dialogów i wyrównywania Velivo - bez podwójnego przetwarzania)
                 for (int f = 0; f < frames; f++)
@@ -378,7 +380,7 @@ namespace Velivo
                     GainDb = 0; LimitDb = 0; Frames += frames; limG = 1; SnapAdd(); return;
                 }
             }
-            if (Bypass || (pr == null && !eqOn && dlg == 0))
+            if (Bypass || (pr == null && !eqOn && dlg == 0 && !preOn))
             {   // wyłączone w trakcie odtwarzania: dźwięk bez zmian (tylko głośność odtwarzacza), pomiar i widmo dalej działają
                 for (int f = 0; f < frames; f++)
                 {
@@ -398,6 +400,7 @@ namespace Velivo
                 { int sp = ScopePos; Scope[sp] = (float)((l + r) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (przed korektorem, wyrównaniem i głośnością) - pracę Velivo pokazują V i paski
                 vS += (vol - vS) * kV; VuIn(l * vS, r * vS); Raw.Push(l * vS, r * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 { double dm0 = (l + r) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
+                if (preOn) Pre.Frame(ref l, ref r, preP);   // 🎚 kompresor wstępny: po pomiarze źródła, przed korektorem i regulatorem LUFS
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
                 {

@@ -322,4 +322,44 @@ public class AudioBalanceTests
         double src = p.In.Integrated, dv = -18 - src; dv = Math.Sign(dv) * Math.Max(0, Math.Abs(dv) - p.Profile.Dead); double goal = src + Math.Max(-p.Profile.MaxCut, Math.Min(p.Profile.MaxBoost, p.Profile.Amount * dv));
         Assert.InRange(outM.Integrated, Math.Min(goal, src) - 1, -17);   // między źródłem a celem - bliżej celu przy większej intensywności, nigdy ponad cel
     }
+
+    // 🎚 kompresor wstępny (VelivoDynamicsProcessor): charakterystyka, wyłączony bez zmian, sinus ponad progiem, zapis ustawień
+    [Fact]
+    public void KompresorWstepnyCharakterystyka()
+    {
+        var p = new DynParams { IsEnabled = true, ThresholdDb = -32, Ratio = 4, KneeDb = 10, ExpanderThresholdDb = -52, ExpanderRatio = 1.5f };
+        Assert.Equal(0, VelivoDynamicsProcessor.GainComputer(-40, p), 3);       // poniżej kolana - bez zmian
+        Assert.Equal(-15, VelivoDynamicsProcessor.GainComputer(-12, p), 3);     // 20 dB ponad progiem przy 4:1 → -15 dB
+        Assert.InRange(VelivoDynamicsProcessor.GainComputer(-32, p), -1.0, -0.8);   // na progu miękkie kolano (ok. -0,94 dB)
+        Assert.Equal(-4, VelivoDynamicsProcessor.GainComputer(-60, p), 3);      // ekspander: 8 dB poniżej progu ciszy przy 1,5:1 → -4 dB
+    }
+
+    [Fact]
+    public void KompresorWstepnyWylaczonyNieZmieniaDzwieku()
+    {
+        var d = new VelivoDynamicsProcessor(Fs); var buf = new float[2048];
+        for (int i = 0; i < buf.Length; i++) buf[i] = (float)Math.Sin(i * 0.01) * 0.5f;
+        var copy = (float[])buf.Clone(); d.Process(buf, 2);
+        Assert.Equal(copy, buf);
+    }
+
+    [Fact]
+    public void KompresorWstepnySinusPonadProgiem()
+    {
+        var d = new VelivoDynamicsProcessor(Fs) { Params = new DynParams { IsEnabled = true, ThresholdDb = -32, Ratio = 4, KneeDb = 10, MakeupGainDb = 0 } };
+        var buf = new float[2048]; double a = Math.Pow(10, -12 / 20.0) * Math.Sqrt(2); int n = 0;
+        for (int b = 0; b < 100; b++) { for (int i = 0; i < 1024; i++) { float v = (float)(a * Math.Sin(2 * Math.PI * 1000 * n++ / Fs)); buf[2 * i] = buf[2 * i + 1] = v; } d.Process(buf, 2); }
+        Assert.InRange(d.CurrentGainReductionDb, -15.5, -14.5);
+        Assert.DoesNotContain(buf, float.IsNaN);
+    }
+
+    [Fact]
+    public void KompresorWstepnyZapisIOdczyt()
+    {
+        var p = DynParams.Night(); p.AutoMakeup = true; p.DetectionMode = DynDetection.Peak;
+        var q = DynParams.Load(p.Save());
+        Assert.True(q.IsEnabled); Assert.True(q.AutoMakeup); Assert.Equal(DynDetection.Peak, q.DetectionMode);
+        Assert.Equal(-42f, q.ThresholdDb); Assert.Equal(6f, q.Ratio); Assert.Equal(12f, q.MakeupGainDb); Assert.Equal(-50f, q.ExpanderThresholdDb);
+        Assert.False(DynParams.Load(null).IsEnabled);   // brak ustawienia = wyłączony (dźwięk bez zmian)
+    }
 }

@@ -36,7 +36,7 @@ namespace Velivo
             AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc);   // 🔈 bardzo ciche nagrania: wszędzie (włącznik) albo tylko dla zapamiętanych filmów / kanałów / programów
         }
         // 🔈 lista materiałów, które potrzebują „Bardzo ciche nagrania” (domyślnie wyłączone - włączane dla konkretnego filmu / kanału / programu)
-        static bool AbWide => AbPreNoSrc || AbPreApps;   // program samodzielny: suwaki w dwóch kolumnach
+        static bool AbWide => true;   // suwaki w dwóch kolumnach, niższe wskaźniki - ten sam wygląd w Velivo i w programie samodzielnym
         internal static bool AbQuietGlobal => GetPref("ab-cichy") == "1";
         internal static string AbQuietSrc => _abPreSrc;
         internal static bool AbQuietFor(string src) => src != null && ("\n" + (GetPref("ab-cichy-zrodla") ?? "") + "\n").Contains("\n" + src + "\n", StringComparison.OrdinalIgnoreCase);

@@ -10,6 +10,7 @@ namespace Velivo
 {
     public partial class MainWindow
     {
+        // (kopia src/AudioBalanceDynamicsUi.cs dla programu samodzielnego - zmiany przenoś w obie strony)
         // 🎚 ustawienia kompresora: domyślne (ab-kompresor) + własne dla filmu / kanału (ab-kompresor-zrodla: nazwa źródła → ustawienia), stosowane przy starcie źródła
         static string _abPreSrc; static bool _abPreSrcTv, _abPreSrcOwn;
         static Dictionary<string, string> AbPreSrcLoad()
@@ -35,6 +36,7 @@ namespace Velivo
             AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc);   // 🔈 bardzo ciche nagrania: wszędzie (włącznik) albo tylko dla zapamiętanych filmów / kanałów / programów
         }
         // 🔈 lista materiałów, które potrzebują „Bardzo ciche nagrania” (domyślnie wyłączone - włączane dla konkretnego filmu / kanału / programu)
+        static bool AbWide => true;   // suwaki w dwóch kolumnach, niższe wskaźniki - ten sam wygląd w Velivo i w programie samodzielnym
         internal static bool AbQuietGlobal => GetPref("ab-cichy") == "1";
         internal static string AbQuietSrc => _abPreSrc;
         internal static bool AbQuietFor(string src) => src != null && ("\n" + (GetPref("ab-cichy-zrodla") ?? "") + "\n").Contains("\n" + src + "\n", StringComparison.OrdinalIgnoreCase);
@@ -46,14 +48,15 @@ namespace Velivo
         }
 
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji
-        FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
+        internal FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
         {
             var exp = new Expander { Header = L.T("Kompresor wstępny"), Foreground = fg, Margin = new Thickness(0, 0, 0, 0), IsExpanded = true };   // bez podpowiedzi całej sekcji - wyskakiwała ucięta przy każdym ruchu myszy (opis jest pod nagłówkiem)
             var panel = new StackPanel();
-            panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });
+            if (!AbWide) panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });
             bool loading = false;
             Action manual = null; CheckBox autoThr = null;   // autoThr - przypisany niżej (czytany przez Apply/Show)   // ręczna zmiana suwaka - ustawienie już nie jest zapisanym presetem
             var on = new CheckBox { Content = L.T("Kompresor wstępny włączony"), Foreground = fg, Margin = new Thickness(0, 0, 0, 6) };
+            if (AbWide) on.ToolTip = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać.");   /* program samodzielny: opis w podpowiedzi - okno bez przewijania */
             panel.Children.Add(on);
             // 🎞📺 dla czego są te ustawienia: domyślne albo własne tego filmu / kanału
             var srcText = new TextBlock { Foreground = fg, FontSize = 12, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) };
@@ -61,13 +64,13 @@ namespace Velivo
             var srcBtns = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
             var toDef = mk(L.T("↺ Domyślne"), () => { }); toDef.ToolTip = L.T("Ten film / kanał wraca do ustawień domyślnych (własne dla niego są usuwane).");
             var setDef = mk(L.T("★ Ustaw jako domyślne"), () => { }); setDef.ToolTip = L.T("Obecne ustawienia stają się domyślnymi – dla filmów i kanałów bez własnych.");
-            var listBtn = mk(L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
+            var listBtn = mk(AbPreApps ? L.T("📋 Zapisane dla programów…") : L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
             srcBtns.Children.Add(toDef); srcBtns.Children.Add(setDef); srcBtns.Children.Add(listBtn);
-            panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns);
+            if (!AbPreNoSrc) { panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns); }   // program samodzielny: nie ma filmów / kanałów - tylko jedno ustawienie
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
             var vis = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            vis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); vis.ColumnDefinitions.Add(new ColumnDefinition());
-            const double W = 150, H = 150, Lo = -60;   // oś: -60..0 dB
+            vis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(AbWide ? 122 : 160) }); vis.ColumnDefinitions.Add(new ColumnDefinition());
+            const double Lo = -60; double W = AbWide ? 112 : 150, H = W;   /* program samodzielny: niższe wskaźniki - całe okno bez przewijania */   // oś: -60..0 dB
             double X(double db) => (Math.Max(Lo, Math.Min(0, db)) - Lo) / -Lo * W; double Y(double db) => H - (Math.Max(Lo, Math.Min(0, db)) - Lo) / -Lo * H;
             var plot = new Canvas { Width = W, Height = H, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true,
                 ToolTip = L.T("Charakterystyka: poziom wejścia (poziomo) → wyjścia (pionowo). Kropka – obecny dźwięk; przekątna – bez zmian.") };
@@ -89,7 +92,7 @@ namespace Velivo
                 curve.Points = pts; thrLine.X1 = thrLine.X2 = X(thr); expLine.X1 = expLine.X2 = X(et);
             }
             var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) }; Grid.SetColumn(right, 1); vis.Children.Add(right);
-            var bars = new Grid { Height = 104 };
+            var bars = new Grid { Height = AbWide ? 70 : 104 };
             (Border bar, TextBlock val) Meter(int col, string name, Color c, string tip)
             {
                 bars.ColumnDefinitions.Add(new ColumnDefinition());
@@ -105,7 +108,7 @@ namespace Velivo
             var mGr = Meter(1, L.T("Redukcja"), Color.FromRgb(0xFA, 0xCC, 0x15), L.T("Ile kompresor teraz ścisza (dB) – pasek rośnie w dół."));
             var mOut = Meter(2, L.T("Wyjście"), Color.FromRgb(0x2E, 0xD3, 0xC6), L.T("Poziom po kompresorze, przed wyrównywaniem Audio Balance (dB)."));
             right.Children.Add(bars);
-            var hist = new Canvas { Height = 40, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true, Margin = new Thickness(0, 4, 0, 0),
+            var hist = new Canvas { Height = AbWide ? 24 : 40, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true, Margin = new Thickness(0, 4, 0, 0),
                 ToolTip = L.T("Historia redukcji z ostatnich 6 sekund – im głębiej, tym mocniej kompresor ściszał.") };
             var histLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), StrokeThickness = 1.5 };
             hist.Children.Add(histLine); right.Children.Add(hist);
@@ -121,14 +124,23 @@ namespace Velivo
             panel.Children.Add(mode);
             var auto = new CheckBox { Content = L.T("Automatyczne podbicie (wyrównuje to, co kompresor ściszył)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 6) };
             var rows = new Dictionary<string, Slider>();
+            // program samodzielny: suwaki w dwóch kolumnach, opcje w jednym wierszu (okno bez przewijania)
+            var rowsGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2 }; var opts = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             void Row(string key, string name, string tip, double min, double max, double step, Func<double, string> fmt)
             {
-                var g = new Grid { Margin = new Thickness(0, 0, 0, 2), ToolTip = tip };
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) }); g.ColumnDefinitions.Add(new ColumnDefinition());
+                var g = new Grid { Margin = AbWide ? new Thickness(0, 0, 14, 4) : new Thickness(0, 0, 0, 2), ToolTip = tip };
+                if (AbWide) { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(126) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(66) }); }
+                else { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) }); g.ColumnDefinitions.Add(new ColumnDefinition()); }
                 var lab = new TextBlock { Text = name, Foreground = fg, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 var val = new TextBlock { Foreground = dim, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
                 var sl = new Slider { Minimum = min, Maximum = max, SmallChange = step, LargeChange = step * 5, TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
                 sl.ValueChanged += (s, e) => { val.Text = fmt(sl.Value); if (!loading) { Apply(); manual?.Invoke(); } };
+                if (AbWide)
+                {   // wartość w ramce z prawej
+                    lab.Foreground = dim; val.Foreground = fg; val.HorizontalAlignment = HorizontalAlignment.Right;
+                    var pill = new Border { Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x34)), CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 0, 0), Child = val };
+                    sl.Margin = new Thickness(4, 0, 0, 0); Grid.SetColumn(sl, 1); Grid.SetColumn(pill, 2); g.Children.Add(lab); g.Children.Add(sl); g.Children.Add(pill); rowsGrid.Children.Add(g); rows[key] = sl; return;
+                }
                 Grid.SetColumn(val, 1); Grid.SetColumn(sl, 2); g.Children.Add(lab); g.Children.Add(val); g.Children.Add(sl);
                 panel.Children.Add(g); rows[key] = sl;
             }
@@ -136,17 +148,18 @@ namespace Velivo
             Row("thr", L.T("Próg"), L.T("Od jakiej głośności kompresor zaczyna ściszać (dB)."), -60, 0, 0.5, Db);
             autoThr = new CheckBox { Content = L.T("Próg automatyczny (z poziomu filmu)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 2),
                 ToolTip = L.T("Kompresor sam mierzy typowy poziom dźwięku i ustawia próg ponad nim, a całość doprowadza do celu LUFS: bardzo cichy film podgłaśnia, głośny ścisza. Wyrównanie LUFS potem tylko dopracowuje.") };
-            panel.Children.Add(autoThr);
+            if (AbWide) { autoThr.Margin = new Thickness(0, 0, 14, 0); opts.Children.Add(autoThr); } else panel.Children.Add(autoThr);
             Row("aoff", L.T("Nad średnią filmu"), L.T("O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny."), 0, 20, 0.5, Db);
             Row("ratio", L.T("Stopień"), L.T("Jak mocno ściszać to, co ponad progiem: 4:1 – 4 dB ponad progiem daje 1 dB."), 1, 20, 0.1, v => v.ToString("0.0") + ":1");
             Row("att", L.T("Atak"), L.T("Jak szybko kompresor zaczyna ściszać (ms)."), 0.5, 200, 0.5, v => v.ToString("0.#") + " ms");
             Row("rel", L.T("Powrót"), L.T("Jak szybko wraca po głośnym fragmencie (ms) – dłużej = spokojniej, bez pompowania."), 10, 2000, 10, v => v.ToString("0") + " ms");
             Row("knee", L.T("Miękkie kolano"), L.T("Szerokość płynnego przejścia wokół progu (dB) – im szersze, tym mniej słychać moment zadziałania."), 0, 12, 0.5, v => v.ToString("0.0") + " dB");
             Row("mk", L.T("Podbicie"), L.T("Stałe podbicie po kompresji (dB)."), -12, 24, 0.5, Db);
-            panel.Children.Add(auto);
+            if (AbWide) { auto.Margin = new Thickness(0, 0, 14, 0);  opts.Children.Add(auto); } else panel.Children.Add(auto);
             Row("mix", L.T("Mix (równoległa)"), L.T("Ile sygnału skompresowanego, a ile czystego – poniżej 100% film zachowuje naturalne uderzenia."), 0, 100, 1, v => v.ToString("0") + "%");
             Row("et", L.T("Próg ciszy (ekspander)"), L.T("Poniżej tej głośności szum tła jest łagodnie ściszany zamiast wzmacniany (dB)."), -80, -30, 0.5, Db);
             Row("er", L.T("Stopień ekspandera"), L.T("Jak mocno ściszać szum poniżej progu ciszy (1:1 – wcale)."), 1, 4, 0.1, v => v.ToString("0.0") + ":1");
+            if (AbWide) { panel.Children.Remove(mode); mode.Width = 240; mode.Margin = new Thickness(0); panel.Children.Add(rowsGrid); opts.Children.Add(mode); panel.Children.Add(opts); }
             exp.Content = panel;
 
             void Show(DynParams p)
@@ -218,9 +231,9 @@ namespace Velivo
             void SrcUi()
             {
                 shownSrc = _abPreSrc;
-                string kind = _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");
+                string kind = AbPreApps ? L.T("Program: ") : _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");   // program samodzielny: aplikacja, która gra (Chrome, VLC, gra…)
                 srcText.Text = _abPreSrc == null ? L.T("Ustawienia domyślne (nic nie gra)") : kind + _abPreSrc + " – " + (_abPreSrcOwn ? L.T("ustawienia własne") : L.T("ustawienia domyślne"));
-                ownSrc.Content = _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
+                ownSrc.Content = AbPreApps ? L.T("Własne ustawienia dla tego programu") : _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
                 ownSrc.IsEnabled = _abPreSrc != null; ownSrc.IsChecked = _abPreSrcOwn; toDef.IsEnabled = _abPreSrcOwn;
             }
             ownSrc.Click += (s, e) =>
@@ -288,7 +301,7 @@ namespace Velivo
                 mOut.bar.Height = Math.Max(0, (Math.Max(Lo, xo) - Lo) / -Lo * bh); mOut.val.Text = act ? xo.ToString("0") : "–";
                 mGr.bar.Height = Math.Min(bh, Math.Max(0, -gr) / 24 * bh); mGr.val.Text = act ? gr.ToString("0.0") : "–";
                 grHist[grPos++ % grHist.Length] = gr;
-                double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = 40; var pts = new PointCollection();
+                double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = hist.Height; var pts = new PointCollection();
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
                 if ((pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) || Math.Abs(pr.EffExpanderDb - lastExp) > 0.1) { lastThr = pr.EffThresholdDb; lastExp = pr.EffExpanderDb; DrawCurve(pr.Params, pr.Params.AutoThreshold ? lastThr : pr.Params.ThresholdDb, lastExp); }   // próg i próg ciszy z filmu - linie na żywo   // próg automatyczny - wykres na żywo

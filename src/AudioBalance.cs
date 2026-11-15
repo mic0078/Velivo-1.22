@@ -275,6 +275,7 @@ namespace Velivo
         {
             try { _lekEv ??= new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, @"Local\Velivo.Lektor.Czyta"); if (czyta) _lekEv.Set(); else _lekEv.Reset(); } catch (Exception) { }
         }
+        internal static readonly bool AbPreNoSrc = false, AbPreApps = false;   // panel kompresora wspólny z programem samodzielnym: w Velivo ustawienia są dla filmów i kanałów
         internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbPreAnyOn);
 
         static void AbLoadSettings()
@@ -360,7 +361,7 @@ namespace Velivo
             AbLoadSettings();
             var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = AbFg; var dim = AbDim;
             var acc = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)); var acc2 = AbTeal;
-            var win = new Window { Title = "Velivo – Audio Monitor", Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
+            var win = new Window { Title = "Velivo – Audio Monitor", Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = false, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
             win.Resources.MergedDictionaries.Add(AbStyl.Res);   // 🎨 nowoczesne suwaki i przełączniki jak w Audio Balance for Windows (właściciel)
             var root = new StackPanel { Margin = new Thickness(12) };
             TextBlock T(string s, double size = 12, Brush c = null, FontWeight? w = null) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? fg, FontWeight = w ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap };
@@ -557,40 +558,52 @@ namespace Velivo
             brow.Children.Add(Mk(L.T("Zamknij"), AbCloseMonitor));
             root.Children.Add(brow);
             var foot = T(L.T("Ukrycie lub zamknięcie widżetu nie wyłącza Audio Balance – dźwięk dalej jest wyrównywany."), 10, dim); root.Children.Add(foot);
-            // układ „Zakładki” (wybór właściciela, wariant 2): okno ok. 450 px - nagłówek, zakładki Podgląd / Ustawienia / Korektor;
-            // każdy element root musi trafić na którąś zakładkę (Move)
-            var cols = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
+            // 🎨 układ jak w programie Velivo Audio Balance for Windows (właściciel 2026-11-15): szerokie okno, dwie kolumny kart -
+            // lewa: Podgląd, pod nim Ustawienia i Korektor obok siebie, Bardzo ciche nagrania; prawa: Kompresor wstępny, Wtyczki VST3;
+            // na dole karta z tym, co ma tylko Velivo (lektor, pomiary filmu, urządzenie, nauka). Każdy element root musi trafić na którąś kartę (Move).
+            win.Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40); win.MinWidth = Math.Min(1000, win.Width); win.ResizeMode = ResizeMode.CanResize;
+            var cardBg = AbBrush(0x1B, 0x1E, 0x2A);
+            Border Card(UIElement c) => new Border { Background = cardBg, CornerRadius = new CornerRadius(10), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), Child = c };
+            TextBlock HeadT(string t) => new TextBlock { Text = t, Foreground = fg, FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) };
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
+            var cols = new StackPanel { Margin = new Thickness(14, 10, 14, 12) };
             Move(cols, head, src);
-            var tabBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 8) };
-            var pages = new[] { new StackPanel(), new StackPanel(), new StackPanel(), new StackPanel(), new StackPanel() };
-            var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor"), "VST3", L.T("Kompresor") }; var tabBtn = new Button[5];
-            void ShowTab(int t)
-            {
-                for (int k = 0; k < 5; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : AbBtnBg; }
-                SetPref("ab-zakladka", t.ToString());
-            }
-            for (int k = 0; k < 5; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(9, 4, 9, 4); tabBar.Children.Add(tabBtn[k]); }
-            cols.Children.Add(tabBar);
-            // Podgląd: paski i V, lektor, wykres, widmo, wyłącznik
+            var two = new Grid(); two.ColumnDefinitions.Add(new ColumnDefinition()); two.ColumnDefinitions.Add(new ColumnDefinition());
+            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; var right = new StackPanel(); Grid.SetColumn(right, 1); two.Children.Add(left); two.Children.Add(right);
+            // Podgląd: paski ŹRÓDŁO / ZMIANA / WYNIK i V, wykres głośności, pasek pracy, widmo
+            var pv = new StackPanel(); pv.Children.Add(HeadT(L.T("Podgląd")));
             var live = new Grid();
             live.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); live.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var vCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; var tCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };   // paski po lewej, V po prawej - jak logo
-            bigVu.Height = 105; bigVu.Margin = new Thickness(0); vuLeg.Visibility = Visibility.Collapsed;
-            Move(vCol, bigVu); sum3.Margin = new Thickness(0); Move(tCol, sum3);
-            Grid.SetColumn(vCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); pages[0].Children.Add(live); Move(pages[0], lekRow);
-            hist.Height = 70;
-            Move(pages[0], leg, hist, spec, axis, numsHead, nums, info, bypassNote, bypassBtn);
-            // Ustawienia: tryb, intensywność, dialogi, poziom, urządzenie, nauka, pomiary szczegółowe, przyciski okna
-            Move(pages[1], prow, srow, drow, tgt, devBox, lrow, brow, foot);
-            tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 6);
-            // Korektor
-            eqExp.IsExpanded = true; Move(pages[2], eqExp);
-            pages[3].Children.Add(VstPanel(win, fg, dim, Mk));   // 🎛 Twoje wtyczki VST3
-            pages[4].Children.Add(AbPrePanel(fg, dim, Mk));   // 🎚 kompresor wstępny - osobna zakładka po VST3 (właściciel)
-            foreach (var pg in pages) cols.Children.Add(pg);
-            ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 5 ? t0 : 0);
-            win.Content = new Border { Background = bg, Child = new ScrollViewer { Content = cols, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 } };   // rozwinięty korektor + kompresor - przewijanie tylko, gdy nie mieści się na ekranie   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
+            bigVu.Height = 90; bigVu.Margin = new Thickness(0); vuLeg.Visibility = Visibility.Collapsed;
+            Move(vCol, bigVu, vuLeg); sum3.Margin = new Thickness(0); Move(tCol, sum3);
+            Grid.SetColumn(vCol, 1); live.Children.Add(vCol); live.Children.Add(tCol); pv.Children.Add(live);
+            hist.Height = 96; spec.Height = 70; work.Height = 54;
+            Move(pv, leg, hist, wLeg, work, spec, axis);
+            left.Children.Add(Card(pv));
+            // Ustawienia | Korektor
+            var lower = new Grid(); lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star) }); lower.ColumnDefinitions.Add(new ColumnDefinition());
+            var sets = new StackPanel(); sets.Children.Add(HeadT(L.T("⚙ Ustawienia")));
+            Move(sets, prow, srow, drow, tgt, bypassBtn);
+            tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 8);
+            var eqCard = new StackPanel(); eqCard.Children.Add(HeadT(L.T("🎛 Korektor (EQ)")));
+            eqExp.Content = null; root.Children.Remove(eqExp); eqCard.Children.Add(eqPanel);
+            var cSets = Card(sets); cSets.Margin = new Thickness(0, 0, 10, 10); var cEq = Card(eqCard); Grid.SetColumn(cEq, 1);
+            lower.Children.Add(cSets); lower.Children.Add(cEq); left.Children.Add(lower);
+            var quiet = new StackPanel(); quiet.Children.Add(HeadT(L.T("🔈 Bardzo ciche nagrania"))); Move(quiet, qRow, _abQuietSrc); left.Children.Add(Card(quiet));
+            // prawa kolumna: kompresor wstępny, wtyczki VST3
+            var comp = AbPrePanel(fg, dim, Mk); if (comp is Expander cx) cx.Header = new TextBlock { Text = L.T("🎚 Kompresor wstępny"), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = fg };
+            right.Children.Add(Card(comp));
+            var vst = new StackPanel(); vst.Children.Add(HeadT(L.T("🎛 Wtyczki VST3"))); vst.Children.Add(VstPanel(win, fg, dim, Mk)); right.Children.Add(Card(vst));
+            cols.Children.Add(two);
+            // tylko Velivo: doradca lektora, pomiary filmu, urządzenie wyjścia, nauka, przyciski okna
+            var extra = new StackPanel(); extra.Children.Add(HeadT(L.T("Velivo – film, lektor i urządzenie")));
+            var ex2 = new Grid(); ex2.ColumnDefinitions.Add(new ColumnDefinition()); ex2.ColumnDefinitions.Add(new ColumnDefinition());
+            var exL = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; var exR = new StackPanel(); Grid.SetColumn(exR, 1); ex2.Children.Add(exL); ex2.Children.Add(exR);
+            Move(exL, lekRow, numsHead, nums, info, bypassNote);
+            Move(exR, devBox, lrow, brow, foot);
+            extra.Children.Add(ex2); cols.Children.Add(Card(extra));
+            win.Content = new Border { Background = bg, Child = new ScrollViewer { Content = cols, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 } };   // przewijanie tylko, gdy nie mieści się na ekranie
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;
 

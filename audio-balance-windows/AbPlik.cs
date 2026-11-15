@@ -10,7 +10,8 @@ namespace Velivo
     //    wynik: „nazwa (Audio Balance).wav” obok oryginału, 32-bit float 48 kHz stereo (bez strat); liczone szybciej niż czas trwania
     static class AbPlik
     {
-        public static Task<string> Process(string src, string outDir, Action<AbProcessor> configure, Action<double> progress) => Task.Run(() =>
+        public static string DefaultName(string src) => Path.GetFileNameWithoutExtension(src) + " (Audio Balance).wav";
+        public static Task<string> Process(string src, string dst, Action<AbProcessor> configure, Action<double> progress) => Task.Run(() =>
         {
             using var rd = new MediaFoundationReader(src);   // dekodery Windows: WAV, MP3, AAC/M4A, FLAC, WMA
             ISampleProvider sp = rd.ToSampleProvider();
@@ -18,7 +19,6 @@ namespace Velivo
             else if (sp.WaveFormat.Channels > 2) sp = new AbEngine.Downmix(sp);
             if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
             var pr = new AbProcessor { NoVst = true }; configure(pr); pr.NewMedia();
-            var dst = Path.Combine(string.IsNullOrEmpty(outDir) || !Directory.Exists(outDir) ? Path.GetDirectoryName(src)! : outDir, Path.GetFileNameWithoutExtension(src) + " (Audio Balance).wav");
             using var w = new WaveFileWriter(dst, WaveFormat.CreateIeeeFloatWaveFormat(AbProcessor.Fs, 2));
             var buf = new float[AbProcessor.Fs / 10 * 2]; long total = Math.Max(1, rd.Length), last = 0;
             int n;

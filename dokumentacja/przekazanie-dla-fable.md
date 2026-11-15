@@ -48,3 +48,13 @@ Skompilowane, niesprawdzone na Windows.
 * Nie robić „ulepszeń” dźwięku bez prośby i bez możliwości odsłuchu.
 * Nie zmieniać UI bez makiety.
 * Nie tworzyć PR bez polecenia; `main` tylko na „scal”.
+
+## Stan po sesji Fable (2026-11-15)
+
+Zrobione (skompilowane, niesprawdzone na Windows):
+* Dwa programy Velivo naraz: `VelivoData.Jeden(nazwa)` – jedna czynność = jeden program (wznowienie TV po starcie, zaplanowane nagrania, Jellyfin, kopia, karteczki, widżet AB); klawiatura tylko w pełnym Velivo; pełne Velivo zawsze prowadzi sieć domową (`LanFilmyObok`, `LanOddajPorty`).
+* Audio Balance for Windows: głośność Windows („CABLE Input”) wyrównywana przed przetwarzaniem i stosowana po nim (`AbEngine.VolRead`, `preT`/`postT`) – kompresor i LUFS zawsze dostają pełny poziom; wpis „Głośność Windows: …” w dzienniku przy starcie. Strażnik `Pilnuj` (zmiana wyjścia w Windows nie omija programu; znak `aktualizacja.flag` na czas aktualizacji).
+
+Otwarte:
+* Velivo / Odtwarzacz: film włączony, ZANIM Audio Balance for Windows zaczął przetwarzać, gra dalej na urządzeniu z `ab-wyjscie` (może omijać kabel) – przy zmianie `_abWinOn` trzeba odłączyć własne wyjście (`AbDetach` + powrót do zwykłego wyjścia VLC).
+* Pozostałe z listy „Do zrobienia” punkt 2.

@@ -376,7 +376,7 @@ namespace Velivo
             { "Stopień ekspandera", "Expander ratio" },
             { "Jak mocno ściszać szum poniżej progu ciszy (1:1 – wcale).", "How strongly to lower noise below the noise floor (1:1 – not at all)." },
             { "Film / kino", "Film / cinema" },
-            { "Zbalansowany: RMS, próg -28 dB, 3,5:1, podbicie +4 dB.", "Balanced: RMS, threshold -28 dB, 3.5:1, makeup +4 dB." },
+            { "Dialog nietknięty, wybuchy i muzyka trzymane blisko niego: RMS, próg automatyczny (średnia +3 dB), 6:1, powrót 400 ms, podbicie +4 dB.", "Dialogue untouched, explosions and music kept close to it: RMS, auto threshold (average +3 dB), 6:1, release 400 ms, make-up +4 dB." },
             { "Noc / ciche nagrania", "Night / quiet recordings" },
             { "Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB.", "Strong levelling: RMS, threshold -42 dB, 6:1, makeup +12 dB, expander from -50 dB." },
             { "Delikatnie (równoległa)", "Gentle (parallel)" },

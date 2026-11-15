@@ -146,6 +146,7 @@ namespace Velivo
             { "📌 Zawsze dla: ", "📌 Always for: " },
             { "wyłączone", "off" },
             { "● Działa", "● Running" },
+            { "Dialog nietknięty, wybuchy i muzyka trzymane blisko niego: RMS, próg automatyczny (średnia +3 dB), 6:1, powrót 400 ms, podbicie +4 dB.", "Dialogue untouched, explosions and music kept close to it: RMS, auto threshold (average +3 dB), 6:1, release 400 ms, make-up +4 dB." },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

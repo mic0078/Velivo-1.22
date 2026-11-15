@@ -78,7 +78,7 @@ namespace Velivo
                 else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
                 if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
                 sp = new Elastic(sp, buf);   // elastyczny bufor: zapas stale ok. 100 ms, bez przerw i trzasków (zegary kabla i głośników się rozjeżdżają)
-                outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, 60);   // jw. - odpytywanie, 60 ms zapasu
+                outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, 100);   // jw. - odpytywanie, 100 ms zapasu
                 outp.Init(new Processing(sp, Proc));
                 outp.PlaybackStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
@@ -114,7 +114,7 @@ namespace Velivo
         sealed class Elastic : ISampleProvider
         {
             readonly ISampleProvider src; readonly BufferedWaveProvider b; readonly double bytesPerMs;
-            float[] inb = new float[48000 * 2]; int inLen; double pos, rate = 1, drift; bool filling = true;
+            float[] inb = new float[48000 * 2]; int inLen; double pos, rate = 1, drift; bool filling = true; float lastL, lastR; int fadeIn; public static int Gaps; static DateTime gapLog;
             readonly float[] pull = new float[960];
             public Elastic(ISampleProvider s, BufferedWaveProvider buf) { src = s; b = buf; bytesPerMs = buf.WaveFormat.AverageBytesPerSecond / 1000.0; }
             public WaveFormat WaveFormat => src.WaveFormat;
@@ -129,21 +129,29 @@ namespace Velivo
             public int Read(float[] buffer, int offset, int count)
             {
                 double lvl = LevelMs;
-                if (filling) { if (lvl < 100) { for (int i = 0; i < count; i++) buffer[offset + i] = 0; return count; } filling = false; }
+                if (filling) { if (lvl < 150) { Silence(buffer, offset, 0, count); return count; } filling = false; fadeIn = 240; }
                 // regulator PI: część P - bieżący zapas, część I - uczy się stałej różnicy zegarów kart (zapas wraca do 100 ms); razem najwyżej ±0,5 % (niesłyszalne)
-                double err = (lvl - 100) / 100; drift = Math.Max(-0.004, Math.Min(0.004, drift + err * 0.00005));
+                double err = (lvl - 150) / 150; drift = Math.Max(-0.004, Math.Min(0.004, drift + err * 0.00005));
                 double want = 1 + Math.Max(-0.005, Math.Min(0.005, err * 0.003 + drift));
                 rate += (want - rate) * 0.05;
                 int frames = count / 2;
                 for (int f = 0; f < frames; f++)
                 {
-                    while ((int)pos + 1 >= inLen) if (!Pull()) { for (int i = f * 2; i < count; i++) buffer[offset + i] = 0; filling = true; return count; }   // kabel milczy - cisza i ponowne zebranie zapasu
+                    while ((int)pos + 1 >= inLen) if (!Pull()) { Silence(buffer, offset, f * 2, count); filling = true; Gaps++; if ((DateTime.UtcNow - gapLog).TotalSeconds > 10) { gapLog = DateTime.UtcNow; App.LogInfo("Przerwa w dźwięku: zapas pusty (z kabla przyszło za mało), przerw od startu: " + Gaps); } return count; }   // kabel milczy - cisza i ponowne zebranie zapasu
                     int k = (int)pos; float fr = (float)(pos - k);
                     buffer[offset + 2 * f] = inb[2 * k] + (inb[2 * k + 2] - inb[2 * k]) * fr;
                     buffer[offset + 2 * f + 1] = inb[2 * k + 1] + (inb[2 * k + 3] - inb[2 * k + 1]) * fr;
+                    if (fadeIn > 0) { float g = 1 - fadeIn / 240f; buffer[offset + 2 * f] *= g; buffer[offset + 2 * f + 1] *= g; fadeIn--; }
+                    lastL = buffer[offset + 2 * f]; lastR = buffer[offset + 2 * f + 1];
                     pos += rate;
                 }
                 return count;
+            }
+            // przerwa: zamiast nagłego zera (pyknięcie) wyciszenie w 5 ms od ostatniej próbki
+            void Silence(float[] buffer, int offset, int from, int count)
+            {
+                for (int i = from, n = 0; i < count; i += 2, n++) { float g = n < 240 ? 1 - n / 240f : 0; buffer[offset + i] = lastL * g; if (i + 1 < count) buffer[offset + i + 1] = lastR * g; }
+                lastL = lastR = 0;
             }
         }
 

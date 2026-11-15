@@ -531,14 +531,18 @@ namespace Velivo
         static void Open(string url) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception) { } }
 
         // CABLE Input domyślny bez działającego programu = cisza; przywraca zapisane głośniki (także przy odinstalowaniu)
-        internal static void RestoreSpeakers()
+        internal static void RestoreSpeakers(bool back2 = false)
         {
             try
             {
                 var d = File.Exists(SetFile) ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SetFile)) : null; string back = null;
                 if (d != null && !d.TryGetValue("wyjscie", out back)) d.TryGetValue("poprzednie", out back);
                 var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput();
-                if (cin != null && did == cin) DefaultDevice.Set(back ?? AbEngine.Outputs().Select(x => x.id).FirstOrDefault());
+                if (cin != null && did == cin)
+                {
+                    DefaultDevice.Set(back ?? AbEngine.Outputs().Select(x => x.id).FirstOrDefault());
+                    if (back2) { d ??= new Dictionary<string, string>(); d["kieruj"] = "1"; File.WriteAllText(SetFile, JsonSerializer.Serialize(d)); }
+                }
             }
             catch (Exception ex) { App.LogError(ex); }
         }

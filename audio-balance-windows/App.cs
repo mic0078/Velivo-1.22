@@ -20,6 +20,7 @@ namespace Velivo
         [STAThread]
         static void Main(string[] args)
         {
+            if (Array.Exists(args, a => a == "--aktualizacja")) { AbMain.RestoreSpeakers(true); return; }   // budowa/aktualizacja: głośniki na czas przerwy, nowa wersja kieruje z powrotem
             if (Array.Exists(args, a => a == "--przywroc")) { AbMain.RestoreSpeakers(); return; }   // odinstalowanie: Windows wraca do głośników
             using var one = new Mutex(true, "VelivoAudioBalance.Jeden", out bool first);
             if (!first) { AbMain.SignalShow(); return; }   // drugie uruchomienie - pokaż okno działającej kopii

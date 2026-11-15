@@ -3512,6 +3512,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (!m.file && m.text.any { Palce.has(it) }) items.add(1, "🤟 " + t("Pokaż na palcach", "Show in fingerspelling"))
         if (m.mine && !m.file && !m.text.startsWith("🚫") && System.currentTimeMillis() - m.ts < 15 * 60000) items.add("✏ " + t("Edytuj", "Edit"))   // jak w WhatsApp: do 15 min
         if (m.path?.contains("Glosowa-") == true) items.add("⏩ " + t("Szybkość głosówek: ", "Voice speed: ") + speedText(k.voiceSpeed) + " → " + speedText(nextSpeed()))
+        if (photo != null || file != null) items.add("📤 " + t("Udostępnij (WhatsApp i inne)", "Share (WhatsApp and others)"))
         if (photo != null) items.add("💾 " + t("Zapisz w Galerii", "Save to Gallery"))
         if (file != null) items.add("💾 " + t("Zapisz w Pobranych", "Save to Downloads"))
         if (m.mine && !m.text.startsWith("🚫")) items.add("🚫 " + t("Usuń u wszystkich", "Delete for everyone"))
@@ -3526,6 +3527,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille") -> accessibility()
                 t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); Dlg().setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
                 t("Przekaż…", "Forward…") -> forward(c, m)
+                t("Udostępnij (WhatsApp i inne)", "Share (WhatsApp and others)") -> shareOut(photo ?: file!!)
                 t("Zaznacz kilka…", "Select several…") -> select(c, m)
                 t("Edytuj", "Edit") -> { val e = EditText(a).apply { setText(m.text.removeSuffix(" ✏")); setSelection(text.length) }
                     Dlg().setTitle("✏ " + t("Edytuj wiadomość", "Edit message")).setView(e)
@@ -3955,6 +3957,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .onFailure { Toast.makeText(a, t("Zapisano w Pobranych – brak aplikacji do otwarcia", "Saved to Downloads – no app to open it"), Toast.LENGTH_LONG).show() }
     }
 
+    // 📤 plik z rozmowy do innej aplikacji (WhatsApp, Gmail…) - jak „Udostępnij” w WhatsApp; ten sam adres co „Otwórz” (kopia w Pobranych, zapamiętana)
+    private fun shareOut(path: String) {
+        val uri = toDownloads(path) ?: run { Toast.makeText(a, t("Nie udało się udostępnić", "Could not share"), Toast.LENGTH_SHORT).show(); return }
+        val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase()) ?: "*/*"
+        runCatching { a.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType(mime).putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION), t("Udostępnij", "Share"))) }
+            .onFailure { Toast.makeText(a, t("Brak aplikacji do udostępnienia", "No app to share with"), Toast.LENGTH_LONG).show() }
+    }
     private fun saveToGallery(path: String) {
         val ok = runCatching {
             val f = java.io.File(path)

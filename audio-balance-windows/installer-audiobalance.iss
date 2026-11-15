@@ -78,6 +78,7 @@ Filename: "{app}\VelivoAudioBalance.exe"; Parameters: "--przywroc"; Flags: runhi
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoAudioBalance.exe"; Flags: runhidden; RunOnceId: "ZamknijAudioBalance"
 
 [UninstallDelete]
+Type: files; Name: "{app}\unins*.old-*"
 Type: dirifempty; Name: "{app}"
 
 [Registry]
@@ -90,6 +91,41 @@ Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; Val
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoAudioBalance"; Flags: uninsdeletevalue
 
 [Code]
+// plik deinstalatora (unins000.dat) trzymany przez antywirusa (Bitdefender) albo indeksowanie - „Proces nie może uzyskać dostępu”;
+// jak w instalatorze Velivo: stare pliki deinstalatora odkładane na bok przed instalacją
+procedure MoveAsideUninstallFiles;
+var FindRec: TFindRec; Dir, Stamp: String; Names: TStringList; I: Integer;
+begin
+  Dir := ExpandConstant('{app}');
+  if FindFirst(Dir + '\unins*.old-*', FindRec) then
+  begin
+    repeat DeleteFile(Dir + '\' + FindRec.Name); until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
+  Stamp := GetDateTimeString('yyyymmddhhnnss', #0, #0);
+  // najpierw lista, potem zmiana nazw - zmiana w trakcie przegladania katalogu moglaby trafic drugi raz na ten sam plik
+  Names := TStringList.Create;
+  try
+    if FindFirst(Dir + '\unins???.*', FindRec) then
+    begin
+      repeat
+        if Pos('.old-', FindRec.Name) = 0 then Names.Add(FindRec.Name);
+      until not FindNext(FindRec);
+      FindClose(FindRec);
+    end;
+    for I := 0 to Names.Count - 1 do
+      RenameFile(Dir + '\' + Names[I], Dir + '\' + Names[I] + '.old-' + Stamp);
+  finally
+    Names.Free;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  MoveAsideUninstallFiles;
+end;
+
 var CableDone: Boolean; CableWhy: String;
 
 // VB-CABLE już jest - sterownik w systemie (vbaudio_cable*.sys); instalator jest 32-bitowy - sprawdzamy System32 i Sysnative

@@ -74,6 +74,9 @@ Filename: "{app}\VelivoKomunikator.exe"; Description: "{cm:RunApp}"; Flags: nowa
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoKomunikator.exe"; Flags: runhidden; RunOnceId: "ZamknijKomunikator"
 
+[UninstallDelete]
+Type: files; Name: "{app}\unins*.old-*"
+
 [Code]
 function HasWebView2: Boolean;
 var v: String;
@@ -89,6 +92,34 @@ var Code: Integer;
 begin
   Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq ' + Exe + '" | find /I "' + Exe + '"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Result := Code = 0;
+end;
+
+// plik deinstalatora trzymany przez antywirusa (Bitdefender) - odkładany na bok jak w instalatorze Velivo
+procedure MoveAsideUninstallFiles;
+var FindRec: TFindRec; Dir, Stamp: String; Names: TStringList; I: Integer;
+begin
+  Dir := ExpandConstant('{app}');
+  if FindFirst(Dir + '\unins*.old-*', FindRec) then
+  begin
+    repeat DeleteFile(Dir + '\' + FindRec.Name); until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
+  Stamp := GetDateTimeString('yyyymmddhhnnss', #0, #0);
+  // najpierw lista, potem zmiana nazw - zmiana w trakcie przegladania katalogu moglaby trafic drugi raz na ten sam plik
+  Names := TStringList.Create;
+  try
+    if FindFirst(Dir + '\unins???.*', FindRec) then
+    begin
+      repeat
+        if Pos('.old-', FindRec.Name) = 0 then Names.Add(FindRec.Name);
+      until not FindNext(FindRec);
+      FindClose(FindRec);
+    end;
+    for I := 0 to Names.Count - 1 do
+      RenameFile(Dir + '\' + Names[I], Dir + '\' + Names[I] + '.old-' + Stamp);
+  finally
+    Names.Free;
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -112,6 +143,7 @@ begin
     if not Running('VelivoKomunikator.exe') then break;
   end;
   if Running('VelivoKomunikator.exe') then begin Result := CustomMessage('StillRunning'); exit; end;
+  MoveAsideUninstallFiles;
 end;
 
 // 🛡 zapora Windows: ten program przyjmuje połączenia w każdej sieci (kabel, Wi-Fi) - jedno „Tak” przy instalacji, gdy właściciel jest przy komputerze;

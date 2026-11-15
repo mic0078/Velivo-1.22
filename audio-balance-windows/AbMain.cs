@@ -54,6 +54,30 @@ namespace Velivo
             bw.Children.Add(Mk("OK", () => { res = tb.Text; w.Close(); })); bw.Children.Add(Mk(L.T("Anuluj"), () => w.Close())); p.Children.Add(bw);
             w.Content = p; w.Loaded += (s, e) => { tb.Focus(); tb.SelectAll(); }; w.ShowDialog(); return res;
         }
+        double[] EqDb() { var c = (Get("eq-db") ?? "").Split(','); var g = new double[10]; for (int i = 0; i < 10 && i < c.Length; i++) double.TryParse(c[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out g[i]); return g; }
+        // 🎛 korektor 10 pasm (jak w Velivo): włącznik, suwaki ±12 dB, presety
+        FrameworkElement EqPanel()
+        {
+            var p = new StackPanel();
+            p.Children.Add(T(L.T("🎛 Korektor (EQ)"), 14, Fg, true));
+            var on = new CheckBox { Content = L.T("Korektor włączony"), Foreground = Fg, IsChecked = Get("eq") == "1", Margin = new Thickness(0, 2, 0, 4) };
+            on.Click += (s, e) => { Put("eq", on.IsChecked == true ? "1" : "0"); eng.Proc.EqOn = on.IsChecked == true; }; p.Children.Add(on);
+            var grid = new Grid(); var cur = EqDb(); var sl = new Slider[10];
+            for (int i = 0; i < 10; i++)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition());
+                double fq = AbProcessor.EqFreq[i]; var sp = new StackPanel();
+                sl[i] = new Slider { Orientation = Orientation.Vertical, Minimum = -12, Maximum = 12, Value = cur[i], Height = 90, HorizontalAlignment = HorizontalAlignment.Center, TickFrequency = 1, IsSnapToTickEnabled = true, ToolTip = fq + " Hz" };
+                sp.Children.Add(sl[i]); var lab = T(fq >= 1000 ? (fq / 1000) + "k" : fq.ToString(), 9, Dim); lab.HorizontalAlignment = HorizontalAlignment.Center; sp.Children.Add(lab);
+                Grid.SetColumn(sp, i); grid.Children.Add(sp);
+                sl[i].ValueChanged += (s, e) => { var g = sl.Select(x => x.Value).ToArray(); eng.Proc.SetEq(g); Put("eq-db", string.Join(",", g.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)))); };
+            }
+            p.Children.Add(grid);
+            var pr = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+            foreach (var (nm, g) in new[] { (L.T("Płasko"), new double[10]), (L.T("Dialogi"), new double[] { -4, -3, -1, 0, 2, 4, 4, 2, 0, -1 }), (L.T("Bas"), new double[] { 6, 5, 3, 1, 0, 0, 0, 0, 0, 0 }), (L.T("Muzyka"), new double[] { 3, 2, 0, -1, -1, 0, 1, 2, 3, 3 }) })
+            { var gg = g; pr.Children.Add(Mk(nm, () => { for (int i = 0; i < 10; i++) sl[i].Value = gg[i]; })); }
+            p.Children.Add(pr); return p;
+        }
         void Apply()
         {
             eng.Latency = int.TryParse(Get("opoznienie"), out var lat) ? lat : 1;
@@ -63,6 +87,7 @@ namespace Velivo
             p.Dialog = int.TryParse(Get("dialogi"), out var d) ? d : 0;
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
             p.Bypass = Get("obejscie") == "1";
+            p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
             var pre = Get("kompresor"); p.Pre.Params = pre == null ? DynParams.Film() : DynParams.Load(pre);
         }
 
@@ -131,7 +156,8 @@ namespace Velivo
             var sets = new StackPanel(); var comp = new StackPanel();
             var c1 = Card(live.Root); var c2 = Card(sets); var c3 = Card(comp);   // lewa kolumna: podgląd, pod nim ustawienia; prawa: kompresor
             c1.Margin = new Thickness(0, 0, 0, 10); c3.Margin = new Thickness(10, 0, 0, 0);
-            var left = new StackPanel(); left.Children.Add(c1); left.Children.Add(c2);
+            var c4 = Card(EqPanel()); c2.Margin = new Thickness(0, 0, 0, 10);
+            var left = new StackPanel(); left.Children.Add(c1); left.Children.Add(c2); left.Children.Add(c4);
             Grid.SetColumn(c3, 1); cols.Children.Add(left); cols.Children.Add(c3);
             root.Children.Add(cols);
             var settingsRoot = root; root = sets;

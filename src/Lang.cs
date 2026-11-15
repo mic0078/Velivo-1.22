@@ -974,7 +974,7 @@ namespace Velivo
             { "   Błędy: ", "   Errors: " },
             { "Brak aktywnych peerów.", "No active peers." },
             { "Nie udało się uruchomić WebView2:\n", "Could not start WebView2:\n" },
-            { "Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n", "Could not open the tab.\nIf an older version of Velivo is still running, close it and try again.\n\n" },
+            { "Nie udało się otworzyć karty.\n\n", "Could not open the tab.\n\n" },
             { "Zamknij", "Close" },
             { "Wykryte media na stronie", "Media detected on the page" },
             { "🎬 Nie wykryto źródeł audio/wideo na tej stronie.", "🎬 No audio/video sources detected on this page." },

@@ -153,7 +153,7 @@ namespace Velivo
             };
             saveBtn.Click += (s, e) =>
             {
-                var cur = GetPref("ab-kompresor-nazwa"); var n = Prompt(L.T("Nazwa ustawienia kompresora:"), string.IsNullOrEmpty(cur) ? L.T("Moje ustawienie") : cur);
+                var cur = GetPref("ab-kompresor-nazwa"); var n = Prompt(L.T("Nazwa ustawienia kompresora:"), string.IsNullOrEmpty(cur) ? L.T("Moje ustawienie") : cur, Window.GetWindow(exp));   // nad oknem Audio Balance (było pod nim i blokowało)
                 n = (n ?? "").Replace("\n", " ").Replace("\r", " ").Replace("\u001F", " ").Trim(); if (n.Length == 0) return;
                 var l = Own(); l.RemoveAll(x => x.n == n); l.Add((n, AbProc.Pre.Params.Save())); SaveOwn(l); SetName(n);
             };

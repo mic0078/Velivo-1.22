@@ -700,7 +700,7 @@ namespace Velivo
             {
                 if (picked.Count == 0) return;
                 var def = L.T("Losowe – ") + (genre.SelectedIndex <= 0 ? L.T("różne") : genre.SelectedItem.ToString().Replace(L.T("Jak zaznaczony: "), "")) + (minRating.SelectedIndex > 0 ? " " + minRating.SelectedItem : "");
-                var n = Prompt(L.T("Nazwa playlisty:"), def); if (string.IsNullOrWhiteSpace(n)) return;
+                var n = Prompt(L.T("Nazwa playlisty:"), def, win);   // nad oknem losowania (może być na wierzchu) if (string.IsNullOrWhiteSpace(n)) return;
                 var p0 = LoadPlaylists(); p0.Named[n.Trim()] = picked.Select(v => v.Path).ToList(); SavePlaylists(p0);
                 ShowToast(L.T("🎞 Zapisano playlistę: ") + n.Trim() + " (" + picked.Count + ")", null);
             }));

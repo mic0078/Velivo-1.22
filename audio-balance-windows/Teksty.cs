@@ -62,6 +62,8 @@ namespace Velivo
             { "teraz", "now" },
             { "Audio Balance (LUFS): podgłaśnia ↑ / ścisza ↓", "Audio Balance (LUFS): boosts ↑ / lowers ↓" },
             { "Kompresor: ściszanie głośnych fragmentów", "Compressor: lowering loud parts" },
+            { "🔗 Velivo Audio Balance wykryte – czeka, a ten program poprawia cały dźwięk (przeglądarka Velivo, odtwarzacz, inne programy); filmy w odtwarzaczu Velivo zgrane z obrazem, wskaźniki widać też w Velivo", "🔗 Velivo Audio Balance detected – it waits while this program processes all sound (Velivo browser, player, other apps); films in the Velivo player stay in sync, meters also shown in Velivo" },
+            { "🔗 Velivo Audio Balance wykryte – poprawia dźwięk odtwarzacza Velivo samo (ten program teraz nie przetwarza całego dźwięku)", "🔗 Velivo Audio Balance detected – it processes the Velivo player sound itself (this program is not processing all sound now)" },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

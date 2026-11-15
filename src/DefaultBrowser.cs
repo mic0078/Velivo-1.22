@@ -41,10 +41,12 @@ namespace Velivo
             }
         }
 
+        static Mutex _velivoMark;
         internal static bool TryBecomePrimary()
         {
             bool created;
             _instanceMutex = new Mutex(true, @"Local\" + InstanceKey, out created);
+            if (created) try { _velivoMark = new Mutex(false, @"Local\VelivoAudioBalance.Velivo"); } catch (Exception) { }   // 🔗 znak dla Audio Balance for Windows: Velivo działa (wykrywają się nawzajem)
             return created;
         }
 

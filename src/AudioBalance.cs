@@ -232,7 +232,20 @@ namespace Velivo
         static string AbProfileName => GetPref("ab-profil") ?? "auto";   // domyślnie (właściciel): Audio Balance włączony - Auto Level, Normal, dialogi wył., cel Auto -23 LUFS, nauka wł.
         static bool AbEqOn => GetPref("ab-eq") == "1";
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
-        static bool AbBypass => GetPref("ab-wylacz") == "1";
+        static bool AbBypass => GetPref("ab-wylacz") == "1" || AbWinActive;
+        // 🔊 Velivo Audio Balance for Windows już przetwarza cały dźwięk Windows (znak: nazwany mutex, gdy działa i Windows gra przez CABLE) - Velivo nie poprawia drugi raz; sprawdzane najwyżej co 2 s
+        static bool _abWinOn; static DateTime _abWinAt;
+        internal static bool AbWinActive
+        {
+            get
+            {
+                if ((DateTime.UtcNow - _abWinAt).TotalSeconds < 2) return _abWinOn;
+                _abWinAt = DateTime.UtcNow; bool now = false;
+                try { if (System.Threading.Mutex.TryOpenExisting("VelivoAudioBalance.Przetwarza", out var m)) { m.Dispose(); now = true; } } catch (Exception) { now = true; }   // brak dostępu = istnieje
+                if (now != _abWinOn) { _abWinOn = now; AbProc.Bypass = GetPref("ab-wylacz") == "1" || now; }
+                return _abWinOn;
+            }
+        }
         internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbPreAnyOn);
 
         static void AbLoadSettings()
@@ -532,7 +545,7 @@ namespace Velivo
                 bigVuUpd(live); SumBars(live);
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
-                state.Text = AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
+                state.Text = AbWinActive ? L.T("● Audio Balance for Windows już wyrównuje cały dźwięk – w Velivo wyłączone, by nie poprawiać dwa razy") : AbBypass ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbProc.EqOn ? " + EQ" : "") + (AbProc.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");
                 state.Foreground = live ? acc2 : dim;
                 src.Text = live ? L.T("Źródło: ") + (string.IsNullOrEmpty(_abOut.Source) ? L.T("odtwarzacz Velivo") : _abOut.Source) + (AbLearnInfo(_abOut.Source) is string li && li.Length > 0 ? "   " + li : "") : AbWanted ? L.T("Włącz film, muzykę albo kanał TV w odtwarzaczu Velivo.") : L.T("Audio Balance i korektor są wyłączone – wybierz profil poniżej.");
                 if (src.ToolTip as string != src.Text) src.ToolTip = src.Text;   // pełny opis po najechaniu (w oknie najwyżej 2 linie)

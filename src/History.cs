@@ -18,17 +18,23 @@ namespace Velivo
         static readonly CultureInfo Pl = new CultureInfo("pl-PL");
 
         static readonly object HistoryLock = new object();   // historia zapisywana też w tle (synchronizacja) - jeden zapis naraz
+        static readonly Queue<string> HistQ = new Queue<string>(); static bool HistQBusy;
         static void AppendHistory(string url, string title)
         {
             if (string.IsNullOrEmpty(url) || url.StartsWith("about:")) return;
-            try
+            // zapis w tle: synchronizacja historii z innymi komputerami trzyma HistoryLock na czas czytania, kompresji i szyfrowania całego pliku -
+            // wątek okna czekał na nią po każdej wczytanej stronie (przycięcia całej przeglądarki); kolejność wpisów zachowana (jedna kolejka)
+            var line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + "\t" + url + "\t" +
+                    (title ?? "").Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ') + "\t" + SessionId + Environment.NewLine;
+            lock (HistQ) { HistQ.Enqueue(line); if (HistQBusy) return; HistQBusy = true; }
+            System.Threading.Tasks.Task.Run(() =>
             {
-                lock (HistoryLock)
-                File.AppendAllText(HistoryFile,
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + "\t" + url + "\t" +
-                    (title ?? "").Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ') + "\t" + SessionId + Environment.NewLine);
-            }
-            catch (IOException) { }
+                while (true)
+                {
+                    string l; lock (HistQ) { if (HistQ.Count == 0) { HistQBusy = false; return; } l = HistQ.Dequeue(); }
+                    try { lock (HistoryLock) File.AppendAllText(HistoryFile, l); } catch (IOException) { } catch (Exception ex) { App.LogError(ex); }
+                }
+            });
         }
 
         sealed class HistEntry

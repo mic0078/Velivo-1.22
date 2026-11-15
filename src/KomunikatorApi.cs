@@ -30,7 +30,14 @@ namespace Velivo
                 try
                 {
                     string name = "?"; var d = e.Operation.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(e.Operation) as Delegate;
-                    if (d != null) name = d.Method.DeclaringType?.Name + "." + d.Method.Name;
+                    if (d != null)
+                    {   // pełna nazwa: klasa zewnętrzna i biblioteka (samo „<>c.<Restart>” nie mówiło, czyj to kod); przy menu - podpis klikniętej pozycji
+                        var t = d.Method.DeclaringType; var outer = t; while (outer?.DeclaringType != null) outer = outer.DeclaringType;
+                        name = (outer != null && outer != t ? outer.Name + "+" : "") + t?.Name + "." + d.Method.Name;
+                        var asm = t?.Assembly.GetName().Name; if (asm != null && asm != "Velivo") name += " [" + asm + "]";
+                        if (d.Target is System.Windows.Controls.MenuItem mi) name += " „" + mi.Header + "”";
+                        else if (e.Operation.GetType().GetField("_args", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(e.Operation) is System.Windows.Controls.MenuItem ma) name += " „" + ma.Header + "”";
+                    }
                     if (_komUiLast.TryGetValue(name, out var lt) && DateTime.UtcNow - lt < TimeSpan.FromMinutes(1)) return; _komUiLast[name] = DateTime.UtcNow;
                     App.LogInfo("ZACIĘCIE okna Velivo: " + ms + " ms – " + name);
                 }

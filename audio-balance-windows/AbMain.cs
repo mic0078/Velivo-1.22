@@ -54,8 +54,27 @@ namespace Velivo
         }
 
         TextBlock cableTxt; bool cableBusy;
-        TextBlock status, srcV, chgV, outV, grV; ComboBox outBox; Border setupBox; Button defBtn;
-        Button Mk(string text, Action a, string tip = null) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 4, 10, 4), Foreground = Fg, Background = BtnBg, BorderThickness = new Thickness(0), ToolTip = tip }; b.Click += (s, e) => a(); return b; }
+        TextBlock status; AbLive live; ComboBox outBox; Border setupBox; Button defBtn;
+        // własny wygląd przycisku: tekst zawsze czytelny (zwykły szablon Windows robi biały przycisk po najechaniu)
+        static readonly ControlTemplate BtnTpl = MkTpl();
+        static ControlTemplate MkTpl()
+        {
+            var t = new ControlTemplate(typeof(Button)); var bd = new FrameworkElementFactory(typeof(Border), "bd");
+            bd.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+            bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+            bd.SetBinding(Border.PaddingProperty, new System.Windows.Data.Binding("Padding") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter)); cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center); cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            bd.AppendChild(cp); t.VisualTree = bd;
+            var hov = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; hov.Setters.Add(new Setter(UIElement.OpacityProperty, 0.82, "bd")); t.Triggers.Add(hov);
+            var pr = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; pr.Setters.Add(new Setter(UIElement.OpacityProperty, 0.65, "bd")); t.Triggers.Add(pr);
+            var dis = new Trigger { Property = UIElement.IsEnabledProperty, Value = false }; dis.Setters.Add(new Setter(UIElement.OpacityProperty, 0.4, "bd")); t.Triggers.Add(dis);
+            return t;
+        }
+        Button Mk(string text, Action a, string tip = null) { var b = new Button { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = Fg }, Template = BtnTpl, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(12, 6, 12, 6), Background = BtnBg, Cursor = System.Windows.Input.Cursors.Hand, ToolTip = tip }; b.Click += (s, e) => a(); return b; }
+        static void SetText(Button b, string t) { if (b.Content is TextBlock tb) tb.Text = t; }
+        static string GetText(Button b) => (b.Content as TextBlock)?.Text;
+        Border Card(UIElement c) => new Border { Background = Card2, CornerRadius = new CornerRadius(10), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), Child = c };
+        static readonly Brush Card2 = new SolidColorBrush(Color.FromRgb(0x1B, 0x1E, 0x2A));
         TextBlock T(string s, double size = 12, Brush c = null, bool bold = false) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? Fg, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) };
         WrapPanel Choice(string label, (string key, string text, string tip)[] items, Func<string> cur, Action<string> pick)
         {
@@ -68,7 +87,7 @@ namespace Velivo
 
         void BuildWindow()
         {
-            win = new Window { Title = "Velivo Audio Balance for Windows", Width = 470, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            win = new Window { Title = "Velivo Audio Balance for Windows", Width = 600, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")); } catch (Exception) { }
             var root = new StackPanel { Margin = new Thickness(14) };
             root.Children.Add(T("Velivo Audio Balance for Windows", 18, Fg, true));
@@ -92,12 +111,16 @@ namespace Velivo
             outBox = new ComboBox { Margin = new Thickness(0, 0, 0, 6) }; root.Children.Add(outBox);
             outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
             defBtn = Mk("", ToggleDefault); root.Children.Add(defBtn);
-            // mierniki
-            var meters = new Grid { Margin = new Thickness(0, 6, 0, 6) };
-            for (int i = 0; i < 4; i++) meters.ColumnDefinitions.Add(new ColumnDefinition());
-            TextBlock Cell(int col, string name) { var p = new StackPanel(); p.Children.Add(T(name, 10, Dim)); var v = T("–", 16, Fg, true); p.Children.Add(v); Grid.SetColumn(p, col); meters.Children.Add(p); return v; }
-            srcV = Cell(0, L.T("ŹRÓDŁO (LUFS)")); chgV = Cell(1, L.T("ZMIANA (dB)")); outV = Cell(2, L.T("WYNIK (LUFS)")); grV = Cell(3, L.T("KOMPRESOR (dB)"));
-            root.Children.Add(meters);
+            // zakładki: 📊 Podgląd (wskaźniki, widmo, wykres) / ⚙ Ustawienia
+            var tabs = new WrapPanel { Margin = new Thickness(0, 6, 0, 8) }; root.Children.Add(tabs);
+            var sets = new StackPanel(); Border setsCard = Card(sets), viewCard = null;
+            live = new AbLive(eng, Fg, Dim); viewCard = Card(live.Root);
+            Button tv = null, ts = null;
+            void Tab(bool v) { viewCard.Visibility = v ? Visibility.Visible : Visibility.Collapsed; setsCard.Visibility = v ? Visibility.Collapsed : Visibility.Visible; tv.Background = v ? Acc : BtnBg; ts.Background = v ? BtnBg : Acc; }
+            tv = Mk(L.T("📊 Podgląd"), () => Tab(true), L.T("Wskaźniki głośności, widmo i wykres z 30 s.")); ts = Mk(L.T("⚙ Ustawienia"), () => Tab(false), L.T("Wyrównywanie, kompresor, poziom docelowy."));
+            tabs.Children.Add(tv); tabs.Children.Add(ts);
+            root.Children.Add(viewCard); root.Children.Add(setsCard);
+            var settingsRoot = root; root = sets;
             // ustawienia (jak w Velivo)
             root.Children.Add(Choice(L.T("Wyrównywanie:"), new[] { ("off", L.T("Wył."), (string)null), ("auto", "Auto Level", L.T("Wyrównywanie odczuwalnej głośności.")), ("limit", "Limit Only", L.T("Tylko ograniczanie głośnych szczytów.")) },
                 () => Get("profil") ?? "auto", v => { Put("profil", v); Apply(); }));
@@ -114,6 +137,7 @@ namespace Velivo
             byp.Click += (s, e) => { Put("obejscie", byp.IsChecked == true ? "1" : "0"); Apply(); }; root.Children.Add(byp);
             var auto = new CheckBox { Content = L.T("Uruchamiaj razem z Windows (w zasobniku)"), Foreground = Fg, IsChecked = Autostart, Margin = new Thickness(0, 2, 0, 8) };
             auto.Click += (s, e) => Autostart = auto.IsChecked == true; root.Children.Add(auto);
+            root = settingsRoot; Tab(true);
             var bw = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
             bw.Children.Add(Mk(L.T("Do zasobnika"), () => win.Hide())); bw.Children.Add(Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")));
             root.Children.Add(bw);
@@ -136,9 +160,6 @@ namespace Velivo
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
             if (!win.IsVisible) return;
-            var p = eng.Proc; string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !eng.Running ? "–" : x.ToString("0.0");
-            srcV.Text = F(p.Raw.ShortTerm); outV.Text = F(p.Out.ShortTerm);
-            chgV.Text = eng.Running ? p.GainDb.ToString("+0.0;-0.0;0") : "–"; grV.Text = eng.Running && p.Pre.Params.IsEnabled ? p.Pre.CurrentGainReductionDb.ToString("0.0") : "–";
             UpdateDefBtn();
         }
 
@@ -154,13 +175,16 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        void UpdateDefBtn()
+        string cinC, didC, dnameC; DateTime devAt = DateTime.MinValue;
+        void UpdateDefBtn(bool fresh = false)
         {
-            var cin = AbEngine.CableInputId(); var (did, dname) = AbEngine.DefaultOutput();
+            // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
+            if (fresh || (DateTime.UtcNow - devAt).TotalSeconds >= 2) { devAt = DateTime.UtcNow; cinC = AbEngine.CableInputId(); (didC, dnameC) = AbEngine.DefaultOutput(); }
+            var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
             bool on = cin != null && did == cin;
             var txt = on ? L.T("✔ Windows gra przez Audio Balance – przywróć głośniki jako domyślne") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance (VB-Cable jako urządzenie domyślne)");
-            if ((string)defBtn.Content != txt) { defBtn.Content = txt; defBtn.Background = on ? BtnBg : Acc; }
+            if (GetText(defBtn) != txt) { SetText(defBtn, txt); defBtn.Background = on ? BtnBg : Acc; }
             if (!on && eng.Running && cin != null && did != null && status.Foreground == Ok) status.Text = L.T("● Działa, ale Windows gra prosto na ") + dname + L.T(" – kliknij przycisk niżej");
         }
         void ToggleDefault()
@@ -168,7 +192,7 @@ namespace Velivo
             var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput(); if (cin == null) return;
             if (did == cin) { var back = Get("wyjscie") ?? Get("poprzednie"); DefaultDevice.Set(back); }
             else { if (did != null) Put("poprzednie", did); if (Get("wyjscie") == null && did != null) Put("wyjscie", did); DefaultDevice.Set(cin); if (!eng.Running) StartEngine(); }
-            FillOutputs(); Status();
+            devAt = DateTime.MinValue; FillOutputs(); Status();   // przycisk od razu z nowym stanem
         }
 
         // ⬇ VB-CABLE: pobranie z serwera VB-Audio (nowy pakiet, zapasowo starszy), rozpakowanie i instalacja po cichu (-i -h) jako administrator; postęp słowami

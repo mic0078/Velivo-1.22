@@ -400,7 +400,7 @@ namespace Velivo
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
             if (quietSrc != null && quietShown != MainWindow.AbQuietSrc) { quietShown = MainWindow.AbQuietSrc; var q0 = quietShown; quietSrc.IsEnabled = q0 != null; quietSrc.Content = q0 == null ? L.T("📌 Zapamiętaj dla programu (nic nie gra)") : L.T("📌 Zawsze dla: ") + q0; quietSrc.IsChecked = MainWindow.AbQuietFor(q0); }
-            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; }
+            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = !eng.Proc.QuietOn ? L.T("wyłączone") : L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietOn && eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; }
             UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
         }
 
@@ -409,7 +409,7 @@ namespace Velivo
             bool cable = AbEngine.CableInstalled();
             setupBox.Visibility = cable ? Visibility.Collapsed : Visibility.Visible;
             if (!cable) { status.Text = L.T("● Brak VB-Audio Virtual Cable – zainstaluj go (niżej)"); status.Foreground = Bad; }
-            else if (eng.Running) { status.Text = L.T("● Działa → ") + eng.OutputName; status.Foreground = Ok; }
+            else if (eng.Running) { status.Text = L.T("● Działa"); status.ToolTip = L.T("● Działa → ") + eng.OutputName; status.Foreground = Ok;   // krótko - głośniki widać w polu obok }
             else { status.Text = L.T("● Zatrzymany") + (eng.Error == "output" ? L.T(" – nie znaleziono głośników") : eng.Error != null && eng.Error != "cable" ? " – " + eng.Error : Get("wlaczony") == "0" ? "" : L.T(" – ponawiam za chwilę")) + L.T(" (szczegóły: katalog „Poważne błędy” Velivo)"); status.Foreground = Bad; }
             UpdateDefBtn();
             if (tray != null) tray.Text = eng.Running ? "Velivo Audio Balance for Windows – " + L.T("działa") : "Velivo Audio Balance for Windows – " + L.T("zatrzymany");

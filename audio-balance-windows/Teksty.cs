@@ -144,6 +144,8 @@ namespace Velivo
             { "Zapamiętane tylko dla tego programu – włączy się samo, gdy znów zagra.", "Remembered only for this app – turns on by itself when it plays again." },
             { "📌 Zapamiętaj dla programu (nic nie gra)", "📌 Remember for app (nothing playing)" },
             { "📌 Zawsze dla: ", "📌 Always for: " },
+            { "wyłączone", "off" },
+            { "● Działa", "● Running" },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

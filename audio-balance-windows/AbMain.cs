@@ -41,7 +41,13 @@ namespace Velivo
         }
 
         DateTime retryAt = DateTime.MaxValue;
-        void StartEngine() { eng.Start(Get("wyjscie")); Status(); }
+        void StartEngine()
+        {
+            eng.Start(Get("wyjscie"));
+            // wybór „cały dźwięk przez Audio Balance” zapamiętany: po zamknięciu programu / aktualizacji / restarcie Windows wraca do głośników - przy starcie kierujemy z powrotem
+            if (eng.Running && Get("kieruj") == "1") try { var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput(); if (cin != null && did != cin) { if (did != null) Put("poprzednie", did); DefaultDevice.Set(cin); UpdateDefBtn(true); } } catch (Exception ex) { App.LogError(ex); }
+            Status();
+        }
 
         // ustawienia → silnik
         internal void Toast(string t) { status.Text = t; status.Foreground = Ok; }
@@ -276,8 +282,8 @@ namespace Velivo
         void ToggleDefault()
         {
             var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput(); if (cin == null) return;
-            if (did == cin) { var back = Get("wyjscie") ?? Get("poprzednie"); DefaultDevice.Set(back); }
-            else { if (did != null) Put("poprzednie", did); if (Get("wyjscie") == null && did != null) Put("wyjscie", did); DefaultDevice.Set(cin); if (!eng.Running) StartEngine(); }
+            if (did == cin) { var back = Get("wyjscie") ?? Get("poprzednie"); DefaultDevice.Set(back); Put("kieruj", "0"); }
+            else { if (did != null) Put("poprzednie", did); if (Get("wyjscie") == null && did != null) Put("wyjscie", did); DefaultDevice.Set(cin); Put("kieruj", "1"); if (!eng.Running) StartEngine(); }
             UpdateDefBtn(true); FillOutputs(); Status();   // przycisk od razu z nowym stanem
         }
 

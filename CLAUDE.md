@@ -326,6 +326,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-11: Audio Balance Normal – zmniejszyłem strefę komfortu (±3 → ±1 dB) i Amount (0,85 → 1), by filmy były równie głośne; strefa działa też w trakcie filmu, więc regulator poprawiał bez przerwy („raz ciszej, raz głośniej”) – cofnięte. Lektor dokładany na wyjściu bez głównej głośności (vS) – regulator Velivo „nie działał”. Zanim zmienisz parametr regulatora, sprawdź każde miejsce, które go używa; nowy tor dźwięku – przez główną głośność.
 * 2026-11-15: okienko „Zapisz jako…” kompresora otwierało się POD oknem Audio Balance (Owner = główne okno, a Audio Monitor na wierzchu) i blokowało wszystko; teraz Prompt(…, owner). Szósty raz komentarz w środku linii (sed wstawił `// …` przed `if (…) return;`) – po edycji sedem/skryptem: `git diff -U0 | grep "//"` i czytaj każdą zmienioną linię. Okienko z okna na wierzchu – zawsze z tym oknem jako właścicielem.
 
+* 2026-11-15: Audio Balance for Windows – słupki stawały co 2 s i pykał dźwięk: pytanie Windows o urządzenia (MMDevice) w wątku okna, bufor odbioru z VB-Cable 30 ms (spóźnione odpytanie gubiło próbki). Teraz urządzenia w tle, odbiór 100 ms, zegar 1 ms, wątki MMCSS „Pro Audio”, pomiar co 30 s w bledy.log; potwierdzone przez właściciela („działa”). Pytania o urządzenia systemu – nigdy w wątku okna.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

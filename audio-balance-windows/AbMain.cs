@@ -30,6 +30,7 @@ namespace Velivo
         public AbMain(bool hidden)
         {
             try { if (File.Exists(SetFile)) set = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SetFile)) ?? set; } catch (Exception ex) { App.LogError(ex); }
+            try { File.Delete(StopFlag); } catch (Exception) { }
             Apply();
             BuildWindow(); widget = new AbWidget(this); BuildTray();
             if (Get("widzet") == "1") widget.Show();   // widżet wraca na pulpit po ponownym uruchomieniu
@@ -430,6 +431,23 @@ namespace Velivo
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
         volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; string appCand; int appCandN; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
+        // 🔒 strażnik: „Cały dźwięk przez Audio Balance” włączone, a Windows przełączył się na inne wyjście (ręcznie, słuchawki, inny program) -
+        // wybrane urządzenie staje się wyjściem Audio Balance, a Windows wraca na VB-Cable: nic nie gra z pominięciem programu
+        static readonly string StopFlag = Path.Combine(App.DataDir, "aktualizacja.flag");   // znak od „--aktualizacja” / „--przywroc”: działający program nie zawraca Windows na kabel
+        void Pilnuj()
+        {
+            try
+            {
+                if (Get("kieruj") != "1" || !eng.Running) return;
+                try { if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(StopFlag)).TotalSeconds < 120) return; } catch (Exception) { }   // trwa aktualizacja / odinstalowanie - głośniki zostają
+                var cable = AbEngine.CableInputId(); var (chosen, name) = AbEngine.DefaultOutput();
+                if (cable == null || chosen == null || chosen == cable) return;
+                if (Get("wyjscie") != chosen) { Put("wyjscie", chosen); StartEngine(); FillOutputs(); }   // słuchawki / głośniki wybrane w Windows = tam gra Audio Balance
+                DefaultDevice.Set(cable); UpdateDefBtn(true);
+                App.LogInfo("Strażnik: Windows przełączył dźwięk na „" + name + "” – wraca przez Audio Balance (wyjście programu: " + name + ")");
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
@@ -438,7 +456,7 @@ namespace Velivo
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
                 // program zmienia się dopiero, gdy gra najgłośniej ~8 s - dwa programy naraz nie przełączają ustawień co 2 s (falowanie)
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } else appCandN = 0; } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; if (c != null && d != null && d != c && eng.Running && Get("kieruj") == "1") win.Dispatcher.BeginInvoke(new Action(Pilnuj)); velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } else appCandN = 0; } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
@@ -537,6 +555,7 @@ namespace Velivo
             {
                 var d = File.Exists(SetFile) ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SetFile)) : null; string back = null;
                 if (d != null && !d.TryGetValue("wyjscie", out back)) d.TryGetValue("poprzednie", out back);
+                try { Directory.CreateDirectory(App.DataDir); File.WriteAllText(StopFlag, "1"); } catch (Exception) { }
                 var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput();
                 if (cin != null && did == cin)
                 {

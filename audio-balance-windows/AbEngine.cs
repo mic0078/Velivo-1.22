@@ -18,6 +18,49 @@ namespace Velivo
         // ⏱ ile dźwięk spóźnia się przez ten program (kabel, zapas, karta, wtyczki VST3) - Velivo przesuwa o tyle dźwięk filmu, żeby obraz był równo z głosem
         public int DelayMs => Running ? lc / 2 + lt + lo + 5 + Vst3.Latency * 1000 / AbProcessor.Fs : 0;
         public volatile bool Running; public string OutputName, Error;
+        // 🎚 głośność Windows jak tłumik w studiu - ZA przetwarzaniem: suwak głośności „CABLE Input” (klawisze głośności, gdy kabel jest domyślny) ścisza dźwięk
+        // PRZED programem - kompresor i wyrównanie dostawały wtedy np. -50 dB (próg nigdy nieosiągany = „kompresor nie działa”, wyrównanie na limicie = „cicho”).
+        // Teraz: przed przetwarzaniem poziom wraca do pełnego (o tyle, o ile ściszył Windows), a po przetwarzaniu jest ściszany o tyle samo.
+        // Razem zawsze 1:1 - głośność z klawiszy działa jak dotąd, a przetwarzanie nie zależy od suwaka.
+        volatile float preT = 1, postT = 1; System.Threading.Timer volTm; volatile bool volDirty; int volN;
+        MMDevice volIn, volCap; string volInId, volCapId, volOutId; bool volLogged;
+        void VolStart(string cableOutId, string outId)
+        {
+            volCapId = cableOutId; volOutId = outId; volInId = null; volLogged = false; preT = postT = 1; volDirty = true; volN = 0;
+            volTm = new System.Threading.Timer(_ => VolRead(), null, 0, 100);
+        }
+        void VolStop()
+        {
+            var t = volTm; volTm = null; try { t?.Dispose(); } catch (Exception) { }
+            preT = postT = 1;
+        }
+        void VolRead()
+        {
+            if (volTm == null || !System.Threading.Monitor.TryEnter(this)) return;
+            try
+            {
+                if (!volDirty && ++volN % 10 != 0) return;   // od razu po zmianie (powiadomienie Windows), zapasowo co sekundę
+                volDirty = false;
+                if (volIn == null || volInId == null)
+                {
+                    volInId = CableInputId(); if (volInId == null) return;
+                    var en = new MMDeviceEnumerator(); volIn = en.GetDevice(volInId); volCap = en.GetDevice(volCapId);
+                    volIn.AudioEndpointVolume.OnVolumeNotification += d => volDirty = true;
+                    volCap.AudioEndpointVolume.OnVolumeNotification += d => volDirty = true;
+                }
+                double inDb = volIn.AudioEndpointVolume.MasterVolumeLevel, capDb = volCap.AudioEndpointVolume.MasterVolumeLevel;
+                double post = Math.Max(0, Math.Min(60, -inDb)), pre = Math.Max(0, Math.Min(60, post + Math.Max(0, -capDb)));   // suwak nagrywania „CABLE Output” też ścisza - wyrównany tylko przed przetwarzaniem
+                preT = (float)Math.Pow(10, pre / 20); postT = (float)Math.Pow(10, -post / 20);
+                if (!volLogged)
+                {
+                    volLogged = true; string spk = "?";
+                    try { using var o = new MMDeviceEnumerator().GetDevice(volOutId); spk = Math.Round(o.AudioEndpointVolume.MasterVolumeLevelScalar * 100) + "%" + (o.AudioEndpointVolume.Mute ? " (wyciszone)" : ""); } catch (Exception) { }
+                    App.LogInfo($"Głośność Windows: CABLE Input {Math.Round(volIn.AudioEndpointVolume.MasterVolumeLevelScalar * 100)}% ({inDb:0.0} dB), odbiór CABLE Output {Math.Round(volCap.AudioEndpointVolume.MasterVolumeLevelScalar * 100)}% ({capDb:0.0} dB), głośniki {spk} – przetwarzanie dostaje pełny poziom (+{pre:0.0} dB), głośność po przetwarzaniu ({-post:0.0} dB)");
+                }
+            }
+            catch (Exception ex) { if (!volLogged) { volLogged = true; App.LogError(ex); } volIn = null; volInId = null; preT = postT = 1; }   // bez odczytu - jak dotąd (1:1)
+            finally { System.Threading.Monitor.Exit(this); }
+        }
         public event Action Stopped;   // urządzenie zniknęło / błąd - okno spróbuje ponownie
 
         // VB-Cable w każdej wersji: „CABLE Input/Output (VB-Audio Virtual Cable)”, nowsze „Głośniki (VB-Audio Virtual Cable)”, „CABLE In 16 Ch”
@@ -106,6 +149,7 @@ namespace Velivo
                 outp.Init(new Processing(sp, Proc) { Owner = this });
                 outp.PlaybackStopped += (s, e) => { if (Running && ReferenceEquals(s, outp)) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
+                VolStart(cable.ID, dev.ID);
                 cap.StartRecording(); outp.Play();
                 App.LogInfo("Audio Balance (program z " + System.IO.File.GetLastWriteTime(Environment.ProcessPath).ToString("yyyy-MM-dd HH:mm") + ", pomiar co 30 s): CABLE Output (" + cf + ") → " + OutputName);
                 return true;
@@ -115,7 +159,7 @@ namespace Velivo
 
         public void Stop()
         {
-            Running = false;
+            Running = false; VolStop();
             try { cap?.StopRecording(); } catch (Exception) { }
             try { outp?.Stop(); } catch (Exception) { }
             try { cap?.Dispose(); } catch (Exception) { }
@@ -206,7 +250,7 @@ namespace Velivo
         // przetwarzanie w porcjach od głośników: dźwięk → Audio Balance (w miejscu)
         sealed class Processing : ISampleProvider
         {
-            readonly ISampleProvider src; readonly AbProcessor proc; float[] tmp = new float[9600]; public AbEngine Owner;
+            readonly ISampleProvider src; readonly AbProcessor proc; float[] tmp = new float[9600]; public AbEngine Owner; float pre = 1, post = 1;
             public Processing(ISampleProvider s, AbProcessor p) { src = s; proc = p; }
             public WaveFormat WaveFormat => src.WaveFormat;
             public int Read(float[] buffer, int offset, int count)
@@ -215,12 +259,15 @@ namespace Velivo
                 n -= n & 1;
                 if (tmp.Length < n) tmp = new float[n];
                 // kopiowanie próbka po próbce - NAudio podaje tu tablicę bajtów „udającą” float[] (WaveBuffer); Array.Copy jej odmawia („Source array type cannot be assigned…”)
-                for (int i = 0; i < n; i++) tmp[i] = buffer[offset + i];
+                // 🎚 pełny poziom przed przetwarzaniem (płynnie, 20 ms - bez trzasku przy zmianie głośności)
+                float pT = Owner?.preT ?? 1, qT = Owner?.postT ?? 1;
+                for (int i = 0; i < n; i += 2) { pre += (pT - pre) * 0.001f; tmp[i] = buffer[offset + i] * pre; tmp[i + 1] = buffer[offset + i + 1] * pre; }
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); Diag.Out();
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza
                 for (int i = 0; i < n; i++) buffer[offset + i] = tmp[i];
                 Diag.Proc(System.Diagnostics.Stopwatch.GetTimestamp() - t0);
-                Owner?.Rec?.Add(buffer, offset, n);   // ⏺ nagrywanie dźwięku po poprawkach
+                Owner?.Rec?.Add(buffer, offset, n);   // ⏺ nagrywanie dźwięku po poprawkach (przed tłumikiem głośności - pełny poziom, jak w studiu)
+                for (int i = 0; i < n; i += 2) { post += (qT - post) * 0.001f; buffer[offset + i] *= post; buffer[offset + i + 1] *= post; }   // 🎚 głośność Windows po przetwarzaniu
                 AbWidok.Write(proc, proc.Profile != null ? 1 : 0, Owner?.DelayMs ?? 0);   // 🔗 wskaźniki dla Velivo (pamięć współdzielona)
                 return n;
             }

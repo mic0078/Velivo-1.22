@@ -233,7 +233,7 @@ namespace Velivo
         static bool AbEqOn => GetPref("ab-eq") == "1";
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1";
-        internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active);
+        internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbProc.Pre.Params.IsEnabled);
 
         static void AbLoadSettings()
         {
@@ -243,6 +243,7 @@ namespace Velivo
             { SetPref("ab-profil", op == "limiter" ? "limit" : "auto"); SetPref("ab-sila", op == "light" ? "light" : op == "night" ? "strong" : "normal"); }
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
+            AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor"));   // 🎚 kompresor wstępny (domyślnie wył.)
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
             AbProc.SetEq(g.Take(10).ToArray());
@@ -510,6 +511,7 @@ namespace Velivo
             tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 6);
             // Korektor
             eqExp.IsExpanded = true; Move(pages[2], eqExp);
+            pages[2].Children.Add(AbPrePanel(fg, dim, Mk));   // 🎚 kompresor wstępny
             pages[3].Children.Add(VstPanel(win, fg, dim, Mk));   // 🎛 Twoje wtyczki VST3
             foreach (var pg in pages) cols.Children.Add(pg);
             ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 4 ? t0 : 0);

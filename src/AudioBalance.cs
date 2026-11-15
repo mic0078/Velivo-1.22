@@ -515,7 +515,7 @@ namespace Velivo
             pages[3].Children.Add(VstPanel(win, fg, dim, Mk));   // 🎛 Twoje wtyczki VST3
             foreach (var pg in pages) cols.Children.Add(pg);
             ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 4 ? t0 : 0);
-            win.Content = new Border { Background = bg, Child = cols };   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
+            win.Content = new Border { Background = bg, Child = new ScrollViewer { Content = cols, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 } };   // rozwinięty korektor + kompresor - przewijanie tylko, gdy nie mieści się na ekranie   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;
 

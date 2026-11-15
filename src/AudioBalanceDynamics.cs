@@ -58,12 +58,14 @@ namespace Velivo
         readonly double fs;
         volatile DynParams prm = new DynParams();
         public DynParams Params { get => prm; set => prm = (value ?? new DynParams()).Clamped(); }
-        public volatile float CurrentGainReductionDb;   // obecna redukcja (dB, ≤ 0; ujemna też przy ekspanderze) - miernik w oknie
+        public volatile float CurrentGainReductionDb;
+        public volatile float InputDb = -120, OutputDb = -120;   // poziom wykrywania na wejściu i wynik po kompresji (dB) - kropka na wykresie i mierniki
+        int mtrN;   // obecna redukcja (dB, ≤ 0; ujemna też przy ekspanderze) - miernik w oknie
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
         DynParams cp; double ca, cr, cRms, cAvg, cs;   // współczynniki liczone raz na zmianę ustawień (nie co próbkę)
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; }
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p)
@@ -112,6 +114,7 @@ namespace Velivo
             double gw = Math.Pow(10, (grDb + mkS) / 20);
             l = l * (1 - mixS) + l * gw * mixS; r = r * (1 - mixS) + r * gw * mixS;   // równoległa: suchy (bez zmian) + skompresowany
             CurrentGainReductionDb = (float)grDb;
+            if ((++mtrN & 63) == 0) { InputDb = (float)Math.Max(-120, xDb); OutputDb = (float)Math.Max(-120, xDb + 20 * Math.Log10(Math.Max(1e-6, 1 - mixS + mixS * gw))); }   // mierniki co 64 próbki (bez kosztu w każdej próbce)
         }
     }
 }

@@ -151,6 +151,7 @@ namespace Velivo
             { "⏹ Zatrzymaj eksport", "⏹ Stop export" },
             { "⏺ Eksport na żywo – gra od początku; zmiany ustawień i wtyczek słychać i zapisują się. Inne dźwięki Windows też się nagrają – wycisz je.", "⏺ Live export – plays from the start; setting and plug-in changes are heard and saved. Other Windows sounds are recorded too – mute them." },
             { "Gra utwór od początku przez Audio Balance z wtyczkami VST3 i zapisuje dokładnie to, co słyszysz (trwa tyle, co utwór).", "Plays the track from the start through Audio Balance with VST3 plug-ins and saves exactly what you hear (takes as long as the track)." },
+            { "Kolejność: oryginał → Twoje wtyczki po kolei → kompresor, korektor, dialogi i wyrównywanie Audio Balance → limiter. Wtyczki do barwy i przestrzeni (EQ, Imager) są bezpieczne; wtyczki ściskające głośność (Maximizer, kompresor) mogą pompować razem z Audio Balance. Wtyczka, która się wysypie, może zamknąć program.", "Order: original → your plug-ins in turn → Audio Balance compressor, EQ, dialogue and levelling → limiter. Tone and space plug-ins (EQ, Imager) are safe; plug-ins that squash loudness (Maximizer, compressor) may pump together with Audio Balance. A plug-in that crashes may close the program." },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

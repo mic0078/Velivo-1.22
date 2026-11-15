@@ -13,6 +13,9 @@ namespace Velivo
         public readonly AbProcessor Proc = new AbProcessor();
         WasapiCapture cap; WasapiOut outp; BufferedWaveProvider buf;
         public int Latency = 1;   // ⏱ opóźnienie: 0 niskie (~0,1 s), 1 normalne (~0,2 s), 2 bezpieczne (~0,35 s, bez pyknięć)
+        int lc, lt, lo;
+        // ⏱ ile dźwięk spóźnia się przez ten program (kabel, zapas, karta, wtyczki VST3) - Velivo przesuwa o tyle dźwięk filmu, żeby obraz był równo z głosem
+        public int DelayMs => Running ? lc / 2 + lt + lo + 5 + Vst3.Latency * 1000 / AbProcessor.Fs : 0;
         public volatile bool Running; public string OutputName, Error;
         public event Action Stopped;   // urządzenie zniknęło / błąd - okno spróbuje ponownie
 
@@ -65,7 +68,7 @@ namespace Velivo
                 if (dev == null) foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)) if (!IsCable(d.FriendlyName)) { dev = d; break; }
                 if (dev == null) { Error = "output"; return false; }
                 OutputName = dev.FriendlyName;
-                timeBeginPeriod(1); var (lc, lt, lo) = Latency == 0 ? (40, 40, 40) : Latency == 2 ? (100, 150, 100) : (60, 80, 60); cap = new WasapiCapture(cable, false, lc);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
+                timeBeginPeriod(1); (lc, lt, lo) = Latency == 0 ? (40, 40, 40) : Latency == 2 ? (100, 150, 100) : (60, 80, 60); cap = new WasapiCapture(cable, false, lc);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
                 var myBuf = buf; Diag.Reset();

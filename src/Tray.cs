@@ -73,6 +73,7 @@ namespace Velivo
                 var playerItem = menu.Items.Add(L.T("▶ Uruchom odtwarzacz wideo"), null, (s, e) => Dispatcher.Invoke(OpenEmptyPlayer));
                 var tvItem = menu.Items.Add(L.T("📺 Uruchom TV"), null, (s, e) => Dispatcher.Invoke(StartTv));
                 if (Wariant.MaFilmy) menu.Items.Add(L.T("🛋 Kanapa (telewizor)"), null, (s, e) => Dispatcher.Invoke(ShowKanapa));
+                if (!Wariant.MaKarty) menu.Items.Add(L.T("⚙ Ustawienia"), null, (s, e) => Dispatcher.Invoke(() => Settings_Click(null, null)));   // 🧩 Odtwarzacz: bez paska przeglądarki - Ustawienia (synchronizacja, parowanie telefonu) z zasobnika
                 if (Edycja.Premium && Wariant.MaFilmy) menu.Items.Add(L.T("🎚 Audio Monitor"), null, (s, e) => Dispatcher.Invoke(ShowAudioMonitor));   // 💎 Premium
                 menu.Items.Add(L.T("🧹 Porządki i kopia bezpieczeństwa"), null, (s, e) => Dispatcher.Invoke(ShowTidy));
                 menu.Items.Add(L.T("🕶 Otwórz kartę incognito"), null, (s, e) => Dispatcher.Invoke(() => { ShowFromTray(); PrivateTab_Click(this, new RoutedEventArgs()); }));

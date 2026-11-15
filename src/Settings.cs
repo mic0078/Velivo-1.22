@@ -411,6 +411,7 @@ namespace Velivo
                 ResizeMode = ResizeMode.CanResize,
                 Background = Brushes.White
             };
+            if (!Wariant.MaKarty) { win.Owner = null; win.WindowStartupLocation = WindowStartupLocation.CenterScreen; win.Topmost = true; }   // 🧩 Odtwarzacz: okno przeglądarki schowane - Ustawienia nad Kanapą
             var root = new StackPanel { Margin = new Thickness(16) };
             Func<string, TextBlock> Header = t => new TextBlock { Text = t, FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(0, 12, 0, 4) };
             Func<string, string, bool, CheckBox> Check = (t, tip, v) => new CheckBox { Content = t, ToolTip = tip, IsChecked = v, Margin = new Thickness(0, 3, 0, 3) };
@@ -1162,6 +1163,9 @@ namespace Velivo
             var leftCol = new StackPanel();
             var rightCol = new StackPanel();
             int leftWeight = 0, rightWeight = 0;
+            // 🧩 każdy program pokazuje tylko swoje działy: Odtwarzacz - filmy, dane, profile i synchronizacja (parowanie telefonu / Pilota); Przeglądarka - bez filmów
+            var tylkoOdtw = new HashSet<string> { L.T("Odtwarzacz filmów"), L.T("Dane"), L.T("Profile użytkownika"), L.T("Synchronizacja E2E") };
+            sections = sections.Where(sec => Wariant.Odtwarzacz ? tylkoOdtw.Contains(sec.Item1) : Wariant.MaFilmy || sec.Item1 != L.T("Odtwarzacz filmów")).ToList();
             foreach (var sec in sections)
             {
                 var card = MakeCard(sec.Item1, sec.Item2);

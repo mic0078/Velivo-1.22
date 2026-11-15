@@ -169,7 +169,11 @@ namespace Velivo
             root.Children.Add(Choice(L.T("Wyraźne dialogi:"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), (string)null), ("2", L.T("Mocno"), (string)null) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
             // 🎚 pełny kompresor wstępny z Velivo (ten sam kod: presety, własne ustawienia, wszystkie suwaki, charakterystyka, mierniki)
             MainWindow.Host = this; MainWindow.AbPreNoSrc = true;
-            comp.Children.Add(new MainWindow().AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)));
+            var mw = new MainWindow(); comp.Children.Add(mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)));
+            // 🎛 wtyczki VST3 (ten sam kod co w Velivo) - działają przed Audio Balance
+            comp.Children.Add(new Border { Height = 1, Background = Dim, Opacity = 0.3, Margin = new Thickness(0, 12, 0, 10) });
+            comp.Children.Add(T(L.T("🎛 Wtyczki VST3"), 14, Fg, true));
+            comp.Children.Add(mw.VstPanel(win, Fg, Dim, (t, a2) => Mk(t, a2)));
             root.Children.Add(Choice(L.T("Opóźnienie dźwięku:"), new[] { ("0", L.T("Niskie ~0,1 s"), L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", L.T("Normalne ~0,2 s"), (string)null), ("2", L.T("Bezpieczne ~0,35 s"), L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { Margin = new Thickness(0, 2, 0, 6), ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };

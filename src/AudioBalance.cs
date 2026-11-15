@@ -383,6 +383,13 @@ namespace Velivo
             var tl = new Line { Stroke = green, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 4, 3 }, Opacity = 0.6 }; var tlTxt = T("", 9, green);
             hist.Children.Add(tl); hist.Children.Add(tlTxt); hist.Children.Add(plIn); hist.Children.Add(plOut);
             root.Children.Add(hist);
+            // 📈 pasek pracy (jak w Audio Balance for Windows): turkus – wyrównanie LUFS podgłaśnia ↑ / ścisza ↓, żółty – kompresor ścisza; ±24 dB, ta sama oś czasu
+            var wLeg = new TextBlock { Text = L.T("■ turkus – wyrównanie LUFS (↑ podgłaśnia / ↓ ścisza)   ■ żółty – kompresor (ściszanie głośnych fragmentów)"), Foreground = dim, FontSize = 10, Margin = new Thickness(0, 4, 0, 2) }; root.Children.Add(wLeg);
+            var work = new Canvas { Height = 56, Background = AbDark, ClipToBounds = true }; var wZero = new System.Windows.Shapes.Line { Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1 };
+            var pgCo = new System.Windows.Shapes.Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), StrokeThickness = 1.4 };
+            var pgLu = new System.Windows.Shapes.Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x40, 0x2E, 0xD3, 0xC6)), Stroke = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), StrokeThickness = 1.4 };
+            work.Children.Add(wZero); work.Children.Add(pgCo); work.Children.Add(pgLu); root.Children.Add(work);
+            var hG = new double[150]; var hGr = new double[150];
             const int HN = 150; var hIn = new double[HN]; var hOut = new double[HN]; for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70; var hLast = DateTime.MinValue;
             // szczegóły pracy procesora: stała siatka 3×2 (podpis nad wartością), cyfry równej szerokości, odświeżanie 4×/s - nie skacze i nie mruga
             var info = new Grid { Margin = new Thickness(0, 10, 0, 0) }; var infoV = new TextBlock[6]; var infoL = new TextBlock[6];
@@ -634,6 +641,11 @@ namespace Velivo
                     var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
                     for (int i = 0; i < HN; i++) { double x = i * hw / (HN - 1); a1.Add(new Point(x, Y(hIn[i]))); a2.Add(new Point(x, Y(hOut[i]))); }
                     plIn.Points = a1; plOut.Points = a2;
+                    Array.Copy(hG, 1, hG, 0, HN - 1); Array.Copy(hGr, 1, hGr, 0, HN - 1); hG[HN - 1] = live ? AbV.GainDb : 0; hGr[HN - 1] = live && AbV.Pre.Params.IsEnabled ? Math.Min(0, AbV.Pre.CurrentGainReductionDb) : 0;
+                    { double ww = work.ActualWidth, wh = work.ActualHeight, mid = wh / 2; double W(double d) => mid - Math.Max(-24, Math.Min(24, d)) / 24 * (mid - 3);
+                      var q1 = new PointCollection(HN + 2) { new Point(0, mid) }; var q2 = new PointCollection(HN + 2) { new Point(0, mid) };
+                      for (int i = 0; i < HN; i++) { double x = i * ww / (HN - 1); q1.Add(new Point(x, W(hG[i]))); q2.Add(new Point(x, W(hGr[i]))); }
+                      q1.Add(new Point(ww, mid)); q2.Add(new Point(ww, mid)); pgLu.Points = q1; pgCo.Points = q2; wZero.X1 = 0; wZero.X2 = ww; wZero.Y1 = wZero.Y2 = mid; }
                     double ty = Y(AbV.EffTarget); tl.X1 = 0; tl.X2 = hw; tl.Y1 = tl.Y2 = ty; tlTxt.Text = (AbV.Target == 0 ? L.T("Auto ") : "") + AbV.EffTarget.ToString("0") + " LUFS"; Canvas.SetLeft(tlTxt, 4); Canvas.SetTop(tlTxt, ty - 14);
                 }
                 bool byp = live && AbBypassV;

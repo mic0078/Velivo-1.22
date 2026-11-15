@@ -493,6 +493,7 @@ namespace Velivo
             { "Zapamiętane tylko dla tego filmu / kanału – włączy się samo przy następnym odtworzeniu.", "Remembered only for this film / channel – turns on by itself next time it plays." },
             { "📌 Zapamiętaj dla filmu / kanału (nic nie gra)", "📌 Remember for film / channel (nothing playing)" },
             { "📌 Zawsze dla: ", "📌 Always for: " },
+            { "■ turkus – wyrównanie LUFS (↑ podgłaśnia / ↓ ścisza)   ■ żółty – kompresor (ściszanie głośnych fragmentów)", "■ teal – LUFS levelling (↑ boost / ↓ cut)   ■ yellow – compressor (lowering loud parts)" },
             { "● bez przetwarzania", "● no processing" },
             { " + dialogi", " + dialogue" },
             { "Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)", "No processing – the film's sound unchanged (measuring continues)" },

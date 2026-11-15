@@ -36,8 +36,10 @@ namespace Velivo
             for (int i = 0; i <= NB; i++) edges[i] = 40 * Math.Pow(16000.0 / 40, i / (double)NB);
             for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70;
             var hd = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-            var hr = new TextBlock { Text = L.T("widmo: słupki – oryginał, kreski – po poprawie · linie: głośność z 30 s (biała – po poprawie, szara – oryginał), zielona – cel"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(hr, Dock.Right);
-            hd.Children.Add(hr); hd.Children.Add(new TextBlock { Text = L.T("📊 Podgląd"), Foreground = fg, FontSize = 13, FontWeight = FontWeights.SemiBold });
+            var hr = new TextBlock { Text = L.T("widmo: słupki – oryginał, kreski – po poprawie · linie: głośność z 30 s (biała – po poprawie, szara – oryginał), zielona – cel"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
+            var ttl = new TextBlock { Text = L.T("📊 Podgląd"), Foreground = fg, FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 12, 0) }; DockPanel.SetDock(ttl, Dock.Left);
+            hr.TextTrimming = TextTrimming.CharacterEllipsis; hr.TextAlignment = TextAlignment.Right; hr.ToolTip = hr.Text;
+            hd.Children.Add(ttl); hd.Children.Add(hr);   // tytuł zawsze cały, opis skracany (pełny w podpowiedzi)
             Root.Children.Add(hd); Root.Children.Add(tiles);
             srcB = Bar(L.T("ŹRÓDŁO (LUFS)"), Red, L.T("Głośność dźwięku, który gra Windows (LUFS, przed poprawą)."));
             chgB = Bar(L.T("ZMIANA (dB)"), Teal, L.T("Ile Audio Balance teraz podgłaśnia (w prawo) albo ścisza (w lewo), dB."));

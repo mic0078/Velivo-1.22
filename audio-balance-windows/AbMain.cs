@@ -298,7 +298,7 @@ namespace Velivo
             var tr = Mk(L.T("Do zasobnika"), () => win.Hide()); tr.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(tr);
             var ex = Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")); ex.Margin = new Thickness(0); rightTop.Children.Add(ex);
             DockPanel.SetDock(rightTop, Dock.Right); top.Children.Add(rightTop);
-            status = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) };
+            status = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MinWidth = 90, Margin = new Thickness(0, 0, 12, 0) };
             top.Children.Add(status);
             root.Children.Add(top);
             velivoTxt = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontSize = 12, Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed }; root.Children.Add(velivoTxt);

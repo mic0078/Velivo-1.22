@@ -12,7 +12,7 @@ namespace Velivo
     {
         // (kopia src/AudioBalanceDynamicsUi.cs dla programu samodzielnego - zmiany przenoś w obie strony)
         // 🎚 ustawienia kompresora: domyślne (ab-kompresor) + własne dla filmu / kanału (ab-kompresor-zrodla: nazwa źródła → ustawienia), stosowane przy starcie źródła
-        static string _abPreSrc; static bool _abPreSrcTv, _abPreSrcOwn, _abPreSrcApp;   // _abPreSrcApp: źródło to program (Chrome, gra), nie kanał / film z odtwarzacza Velivo
+        static string _abPreSrc; static bool _abPreSrcTv, _abPreSrcOwn;
         static Dictionary<string, string> AbPreSrcLoad()
         {
             var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -28,16 +28,24 @@ namespace Velivo
         static bool? _abPreAnyOn;   // zapamiętane - AbWanted woła to nawet 50×/s; liczone od nowa po każdym zapisie ustawień
         internal static bool AbPreAnyOn { get { if (_abPreAnyOn == null) { bool any = DynParams.Load(GetPref("ab-kompresor")).IsEnabled; if (!any) foreach (var v in AbPreSrcLoad().Values) if (DynParams.Load(v).IsEnabled) { any = true; break; } _abPreAnyOn = any; } return _abPreAnyOn.Value; } }
         static void AbPreSetDefault(DynParams p) { SetPref("ab-kompresor", p.Save()); _abPreAnyOn = null; }
-        internal static void AbPreApplyFor(string src, bool tv, bool app = false)
+        internal static void AbPreApplyFor(string src, bool tv)
         {
-            _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv; _abPreSrcApp = app;
+            _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv;
             string own = null; _abPreSrcOwn = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own);
             AbProc.Pre.Params = DynParams.Load(_abPreSrcOwn ? own : GetPref("ab-kompresor"));
-
+            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc);   // 🔈 bardzo ciche nagrania: wszędzie (włącznik) albo tylko dla zapamiętanych filmów / kanałów / programów
         }
-        // ustawienia kompresora dla tego, co gra teraz (własne filmu / programu albo domyślne) - po każdej zmianie innych ustawień (nie nadpisuje własnych domyślnymi)
-        internal static void AbPreReapply() { string own = null; bool o = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own); AbProc.Pre.Params = DynParams.Load(o ? own : GetPref("ab-kompresor")); }
+        // 🔈 lista materiałów, które potrzebują „Bardzo ciche nagrania” (domyślnie wyłączone - włączane dla konkretnego filmu / kanału / programu)
         static bool AbWide => AbPreNoSrc || AbPreApps;   // program samodzielny: suwaki w dwóch kolumnach
+        internal static bool AbQuietGlobal => GetPref("ab-cichy") == "1";
+        internal static string AbQuietSrc => _abPreSrc;
+        internal static bool AbQuietFor(string src) => src != null && ("\n" + (GetPref("ab-cichy-zrodla") ?? "") + "\n").Contains("\n" + src + "\n", StringComparison.OrdinalIgnoreCase);
+        internal static void AbQuietSet(string src, bool on)
+        {
+            if (src == null) return; var l = new List<string>((GetPref("ab-cichy-zrodla") ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries));
+            l.RemoveAll(x => x.Equals(src, StringComparison.OrdinalIgnoreCase)); if (on) l.Add(src);
+            SetPref("ab-cichy-zrodla", string.Join("\n", l)); if (src.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase)) AbProc.QuietOn = AbQuietGlobal || on;
+        }
 
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji
         internal FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
@@ -55,7 +63,7 @@ namespace Velivo
             var srcBtns = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
             var toDef = mk(L.T("↺ Domyślne"), () => { }); toDef.ToolTip = L.T("Ten film / kanał wraca do ustawień domyślnych (własne dla niego są usuwane).");
             var setDef = mk(L.T("★ Ustaw jako domyślne"), () => { }); setDef.ToolTip = L.T("Obecne ustawienia stają się domyślnymi – dla filmów i kanałów bez własnych.");
-            var listBtn = mk(AbPreApps ? L.T("📋 Zapisane: programy, filmy, kanały…") : L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
+            var listBtn = mk(AbPreApps ? L.T("📋 Zapisane dla programów…") : L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
             srcBtns.Children.Add(toDef); srcBtns.Children.Add(setDef); srcBtns.Children.Add(listBtn);
             if (!AbPreNoSrc) { panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns); }   // program samodzielny: nie ma filmów / kanałów - tylko jedno ustawienie
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
@@ -213,17 +221,18 @@ namespace Velivo
                 var l = Own(); l.RemoveAll(x => x.n == n); SaveOwn(l); SetName(null);
             };
             foreach (var (nm, tip, mkP) in new (string, string, Func<DynParams>)[] {
-                (L.T("Film / kino"), L.T("RMS, próg automatyczny (średnia filmu +6 dB), 3,5:1, atak 30 ms, powrót 300 ms, podbicie +4 dB."), DynParams.Film),
+                (L.T("Film / kino"), L.T("Dialog nietknięty, wybuchy i muzyka trzymane blisko niego: RMS, próg automatyczny (średnia +3 dB), 6:1, powrót 400 ms, podbicie +4 dB."), DynParams.Film),
                 (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
+                (L.T("Bardzo ciche filmy"), L.T("Ekstremalnie cicho nagrane filmy: RMS, próg -52 dB, 4:1, podbicie +22 dB, ekspander od -68 dB (szum nie rośnie). Wyrównanie LUFS dociąga potem do celu."), DynParams.VeryQuiet),
                 (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
             { var f = mkP; var n0 = nm; var b = mk(nm, () => { Show(f()); Apply(); SetName(n0); }); b.ToolTip = tip; presets.Children.Add(b); }
             string shownSrc = "\u0000";
             void SrcUi()
             {
                 shownSrc = _abPreSrc;
-                string kind = AbPreApps && _abPreSrcApp ? L.T("Program: ") : _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");   // program samodzielny: aplikacja, która gra (Chrome, VLC, gra…)
+                string kind = AbPreApps ? L.T("Program: ") : _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");   // program samodzielny: aplikacja, która gra (Chrome, VLC, gra…)
                 srcText.Text = _abPreSrc == null ? L.T("Ustawienia domyślne (nic nie gra)") : kind + _abPreSrc + " – " + (_abPreSrcOwn ? L.T("ustawienia własne") : L.T("ustawienia domyślne"));
-                ownSrc.Content = AbPreApps && _abPreSrcApp ? L.T("Własne ustawienia dla tego programu") : _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
+                ownSrc.Content = AbPreApps ? L.T("Własne ustawienia dla tego programu") : _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
                 ownSrc.IsEnabled = _abPreSrc != null; ownSrc.IsChecked = _abPreSrcOwn; toDef.IsEnabled = _abPreSrcOwn;
             }
             ownSrc.Click += (s, e) =>
@@ -239,9 +248,9 @@ namespace Velivo
             listBtn.Click += (s, e) =>
             {   // 📋 lista zapisanych ustawień dla filmów i kanałów, każda pozycja z 🗑 Usuń
                 var own = Window.GetWindow(listBtn);
-                var w = new Window { Title = AbPreApps ? L.T("Kompresor – zapisane dla programów, filmów i kanałów") : L.T("Kompresor – zapisane dla filmów i kanałów"), Uid = "own-theme", Owner = own, Topmost = own?.Topmost == true, Background = AbDark, Foreground = fg, Width = 520, Height = 460, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.CanResize };
+                var w = new Window { Title = L.T("Kompresor – zapisane dla filmów i kanałów"), Uid = "own-theme", Owner = own, Topmost = own?.Topmost == true, Background = AbDark, Foreground = fg, Width = 520, Height = 460, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.CanResize };
                 var root = new DockPanel { Margin = new Thickness(12) };
-                var head = new TextBlock { Text = AbPreApps ? L.T("Programy oraz filmy i kanały z odtwarzacza Velivo z własnymi ustawieniami kompresora. Usunięcie = wraca do ustawień domyślnych.") : L.T("Filmy i kanały TV z własnymi ustawieniami kompresora. Usunięcie = ten film / kanał wraca do ustawień domyślnych."), Foreground = dim, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
+                var head = new TextBlock { Text = L.T("Filmy i kanały TV z własnymi ustawieniami kompresora. Usunięcie = ten film / kanał wraca do ustawień domyślnych."), Foreground = dim, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
                 DockPanel.SetDock(head, Dock.Top); root.Children.Add(head);
                 var bottom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
                 DockPanel.SetDock(bottom, Dock.Bottom); root.Children.Add(bottom);

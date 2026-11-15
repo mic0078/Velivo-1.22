@@ -227,6 +227,28 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); Toast(ex.Message); }
         }
         // 🔈 bardzo ciche nagrania (makieta zatwierdzona): włącznik, suwak dodatkowego podbicia ponad limit wyrównania LUFS, ile teraz
+        TextBlock quietNow; CheckBox quietSrc; string quietShown = "\0";
+        FrameworkElement QuietPanel()
+        {
+            var p = new StackPanel();
+            var on = new CheckBox { Style = AbStyl.Sw, IsChecked = Get("cichy") == "1", ToolTip = L.T("Wszędzie – dla każdego programu (domyślnie wyłączone)") };
+            on.Click += (s, e) => { Put("cichy", on.IsChecked == true ? "1" : "0"); eng.Proc.QuietOn = MainWindow.AbQuietGlobal || MainWindow.AbQuietFor(MainWindow.AbQuietSrc); };
+            p.Children.Add(Head(L.T("🔈 Bardzo ciche nagrania"), on));
+            p.Children.Add(T(L.T("Podciąga skrajnie cicho nagrane filmy do normalnej głośności – razem z wyrównaniem LUFS. Działa tylko, gdy całe nagranie jest dużo ciszej niż cel; limiter pilnuje szczytów."), 11, Dim));
+            var g = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.Children.Add(new TextBlock { Text = L.T("Dodatkowe podbicie"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center });
+            double v0 = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var q) ? q : 15;
+            var sl = new Slider { Minimum = 0, Maximum = 24, Value = v0, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(sl, 1);
+            var val = new TextBlock { Text = L.T("do +") + v0.ToString("0") + " dB", Foreground = Fg, VerticalAlignment = VerticalAlignment.Center };
+            var pill = new Border { Background = BtnBg, CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 12, 0), Child = val }; Grid.SetColumn(pill, 2);
+            quietNow = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, MinWidth = 92, ToolTip = L.T("Ile program teraz dodaje ponad zwykłe wyrównanie. „mniej – szum”: nagranie ma szum tła – podbija tylko tyle, żeby szum został niesłyszalny.") }; Grid.SetColumn(quietNow, 3);
+            sl.ValueChanged += (s, e) => { val.Text = L.T("do +") + sl.Value.ToString("0") + " dB"; Put("cichy-db", sl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); };
+            g.Children.Add(sl); g.Children.Add(pill); g.Children.Add(quietNow); p.Children.Add(g);
+            quietSrc = new CheckBox { Foreground = Fg, Margin = new Thickness(0, 6, 0, 0), ToolTip = L.T("Zapamiętane tylko dla tego programu – włączy się samo, gdy znów zagra.") };
+            quietSrc.Click += (s, e) => MainWindow.AbQuietSet(MainWindow.AbQuietSrc, quietSrc.IsChecked == true); p.Children.Add(quietSrc);
+            return p;
+        }
         void Apply()
         {
             eng.Latency = int.TryParse(Get("opoznienie"), out var lat) ? lat : 1;
@@ -237,12 +259,12 @@ namespace Velivo
         internal void Configure(AbProcessor p)
         {
             p.Profile = AbProfile.ByName(Get("profil") ?? "auto", Get("sila") ?? "normal");
-            p.Target = float.TryParse(Get("cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : -14f;   // domyślnie -14 LUFS (głośno jak serwisy muzyczne) - właściciel: przy -23 trzeba było głośniki na 50%
+            p.Target = float.TryParse(Get("cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             p.Dialog = int.TryParse(Get("dialogi"), out var d) ? d : 0;
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
+            p.QuietOn = Get("cichy") == "1" || MainWindow.AbQuietFor(MainWindow.AbQuietSrc); p.QuietMaxDb = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
             var pre = Get("kompresor"); p.Pre.Params = pre == null ? DynParams.Film() : DynParams.Load(pre);
-            if (p == eng.Proc && pre != null) MainWindow.AbPreReapply();   // dźwięk Windows: kompresor tego filmu / programu, nie domyślny po każdej zmianie celu czy korektora
         }
 
         TextBlock cableTxt; bool cableBusy;
@@ -343,8 +365,8 @@ namespace Velivo
             sets.Children.Add(Choice(L.T("Opóźnienie"), new[] { ("0", "0,1 s", L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", "0,2 s", (string)null), ("2", "0,35 s", L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
-            foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });   // te same opisy co w Velivo
-            var cur = Get("cel") ?? "-14"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
+            foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = v == 0 ? L.T("Auto (zalecane)") : v.ToString("0") + " LUFS", Tag = v });
+            var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { Put("cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); } };
             { var g = new Grid { Margin = new Thickness(0, 0, 0, 8) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
               g.Children.Add(new TextBlock { Text = L.T("Cel (LUFS)"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(tgt, 1); g.Children.Add(tgt); sets.Children.Add(g); }
@@ -357,7 +379,7 @@ namespace Velivo
             var c2 = Card(sets); c2.Margin = new Thickness(0, 0, 10, 0); var c4 = Card(EqPanel()); c4.Margin = new Thickness(0); Grid.SetColumn(c4, 1);
             lower.Children.Add(c2); lower.Children.Add(c4);
             var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower);
-            cols.Children.Add(left);
+            { var qc = Card(QuietPanel()); qc.Margin = new Thickness(0, 10, 0, 0); left.Children.Add(qc); } cols.Children.Add(left);
             // 🎚 kompresor wstępny i 🎛 VST3 z Velivo (ten sam kod)
             MainWindow.Host = this; MainWindow.AbPreNoSrc = false; MainWindow.AbPreApps = true; var mw = new MainWindow();   // własne ustawienia kompresora dla programu, który gra (jak filmy i kanały w Velivo)
             var comp = new StackPanel(); var cp = mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2));
@@ -390,6 +412,8 @@ namespace Velivo
             if (eng.Rec is { } rr && recBtn != null) SetText(recBtn, "⏹ " + TimeSpan.FromSeconds(rr.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss"));   // czas nagrania
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
+            if (quietSrc != null && quietShown != MainWindow.AbQuietSrc) { quietShown = MainWindow.AbQuietSrc; var q0 = quietShown; quietSrc.IsEnabled = q0 != null; quietSrc.Content = q0 == null ? L.T("📌 Zapamiętaj dla programu (nic nie gra)") : L.T("📌 Zawsze dla: ") + q0; quietSrc.IsChecked = MainWindow.AbQuietFor(q0); }
+            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = !eng.Proc.QuietOn ? L.T("wyłączone") : L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietOn && eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; }
             UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
         }
 
@@ -405,39 +429,6 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        // 🧩 co gra: program (Chrome, gra…) albo - gdy gra odtwarzacz Velivo - konkretny kanał / film z pliku wymiany %LOCALAPPDATA%\Velivo\teraz-gra.txt
-        // (zapisuje go Velivo / Velivo Odtwarzacz); ustawienia kompresora i „Bardzo ciche” pamiętane dla tego kanału / filmu, zmiana tytułu od razu
-        string srcNow;
-        // 🔒 strażnik: „Cały dźwięk przez Audio Balance” włączone, a Windows przełączył się na inne wyjście (ręcznie, słuchawki, inny program) -
-        // wybrane urządzenie staje się wyjściem Audio Balance, a Windows wraca na VB-Cable: nic nie gra z pominięciem programu
-        void Pilnuj(string cable, string chosen, string name)
-        {
-            try
-            {
-                if (Get("kieruj") != "1") return;
-                if (Get("wyjscie") != chosen) { Put("wyjscie", chosen); StartEngine(); }   // słuchawki / głośniki wybrane w Windows = tam gra Audio Balance
-                DefaultDevice.Set(cable); UpdateDefBtn(true);
-                App.LogInfo("Strażnik: Windows przełączył dźwięk na „" + name + "” – wraca przez Audio Balance (wyjście programu: " + name + ")");
-                Toast(L.T("Dźwięk dalej przez Audio Balance – gra na: ") + name);
-            }
-            catch (Exception ex) { App.LogError(ex); }
-        }
-        void SrcCheck()
-        {
-            var app = appNow; if (app == null) return;
-            string key = "A|" + app, name = app; bool tv = false, isApp = true;
-            if (app.StartsWith("Velivo", StringComparison.OrdinalIgnoreCase))
-                try
-                {
-                    var f = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "teraz-gra.txt");
-                    var p = File.Exists(f) ? File.ReadAllText(f).Split('\t') : new string[0];
-                    if (p.Length >= 3 && p[2].Trim().Equals(app, StringComparison.OrdinalIgnoreCase) && p[1].Length > 0) { tv = p[0] == "K"; name = p[1]; isApp = false; key = p[0] + "|" + name; }
-                }
-                catch (Exception) { }
-            if (key == srcNow) return;
-            srcNow = key;
-            win.Dispatcher.BeginInvoke(new Action(() => { MainWindow.AbPreApplyFor(name, tv, isApp); if (!isApp) eng.Proc.NewMedia(); }));   // nowy kanał / film = pomiar od nowa (jak w Velivo) - próg kompresora i poziom nie zostają po poprzednim filmie
-        }
         volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; string appCand; int appCandN; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
@@ -447,7 +438,7 @@ namespace Velivo
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
                 // program zmienia się dopiero, gdy gra najgłośniej ~8 s - dwa programy naraz nie przełączają ustawień co 2 s (falowanie)
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; if (c != null && d != null && d != c && eng.Running && Get("kieruj") == "1") win.Dispatcher.BeginInvoke(new Action(() => Pilnuj(c, d, n))); velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) appNow = app; } else appCandN = 0; } SrcCheck(); } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } else appCandN = 0; } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
@@ -536,7 +527,6 @@ namespace Velivo
             Toast(L.T("✔ Zapisano: ") + Path.GetFileName(r.Path) + " (" + TimeSpan.FromSeconds(r.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss") + ")");
             try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + r.Path + "\""); } catch (Exception) { }
         }
-        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – średnia materiału (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -20 ? L.T(" – ciszej (wieczór)") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");   // opisy poziomów jak w Velivo (AudioBalance.cs)
         void Show() { FillOutputs(); Status(); win.Show(); if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal; win.Activate(); }
         static void Open(string url) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception) { } }
 

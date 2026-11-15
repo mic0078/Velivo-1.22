@@ -286,7 +286,7 @@ namespace Velivo
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart; int sceneN;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
+        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart; int sceneN, loudN;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -442,13 +442,13 @@ namespace Velivo
                     //    (w obrębie sceny bez zmian: spokojna średnia 10 s - bez pompowania między zdaniami; pauzy i cisza nie przełączają - pomiar pomija ciszę)
                     bool scene = false;
                     double m15 = In.Median15 > double.NegativeInfinity && In.Median > double.NegativeInfinity ? Math.Min(In.Median15, In.Median + 3) : double.NegativeInfinity;   // głośniej - ta sama osłona co podstawa: krótki huk nie jest „sceną”
-                    if (!preOn && sinceStart > Fs * 6 && m15 > double.NegativeInfinity && Math.Abs(m15 - basis) > 5) { if (++sceneN > 2 * Fs) scene = true; } else sceneN = 0;   // 🤝 z kompresorem: głośne sceny to jego praca - wyrównanie LUFS nie przeskakuje razem z nim (nie „biją się”), trzyma spokojny poziom
+                    if (sinceStart > Fs * 6 && m15 > double.NegativeInfinity && Math.Abs(m15 - basis) > 5) { if (++sceneN > 2 * Fs) scene = true; } else sceneN = 0;   // zmiana sceny / programu (ponad 2 s) zostaje także z kompresorem - inaczej po cichym fragmencie głośny materiał był długo podbijany (zrzut właściciela: cel -23, wynik -10,9)
                     if (scene) basis = m15;
                     if (FilmLong && sinceStart > Fs * 30) { if (n % 4800 == 0) intC = In.Integrated; if (intC > -70) { basis = intC; scene = false; } }
                     if (!FilmLong && sinceStart > Fs * 10)
                     {   // 📺 TV: poziom kanału z ostatniej minuty (bramka -10 LU, jak BS.1770) - nadąża za zmianą programu; cicha scena NIE podgłaśnia (falowanie),
                         //    głośniejsza scena (reklama) dalej szybko w dół
-                        double lb = tvP < 0 ? tvP : double.NegativeInfinity; bool loud = scene && m15 > lb;   // głośna scena / reklama - nie wlicza się do średniej kanału
+                        double lb = tvP < 0 ? tvP : double.NegativeInfinity; if (m15 > lb + 5) loudN++; else loudN = 0; bool loud = (scene || loudN > 2 * Fs) && m15 > lb; if (loud) scene = true;   // głośniejszy program niż średnia kanału (ponad 5 dB przez 2 s) - porównanie z poziomem kanału, nie z oknem 10 s (było: głośny materiał po cichym długo za głośno)   // głośna scena / reklama - nie wlicza się do średniej kanału
                         if (n % 4800 == 0 && !loud) { double mo = In.Momentary; if (mo > -70 && (tvP >= 0 || mo > lb - 10)) { tvP = tvP >= 0 ? mo : tvP + (Math.Min(mo, lb + 3) - tvP) / (sinceStart < Fs * 60 ? 150 : 300); tvQ = 0; } else if (tvP < 0 && mo > -70 && ++tvQ > 150) tvP -= 0.05; }   // średnia w dB z ok. 30 s: cisza i tło (-10 LU) pominięte, głośne fragmenty liczą się najwyżej +3 dB; 15 s bez treści ponad progiem (cichszy program) - poziom schodzi 0,5 dB/s
                         if (tvP < 0) basis = loud ? m15 : lb;
                     }

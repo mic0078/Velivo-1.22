@@ -330,6 +330,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-15: Audio Balance for Windows – słupki stawały co 2 s i pykał dźwięk: pytanie Windows o urządzenia (MMDevice) w wątku okna, bufor odbioru z VB-Cable 30 ms (spóźnione odpytanie gubiło próbki). Teraz urządzenia w tle, odbiór 100 ms, zegar 1 ms, wątki MMCSS „Pro Audio”, pomiar co 30 s w bledy.log; potwierdzone przez właściciela („działa”). Pytania o urządzenia systemu – nigdy w wątku okna.
 
+* 2026-11-15: Audio Balance – moja „poprawka bicia się” (bez zmiany sceny przy kompresorze, szybka warstwa +6 dB) zrobiła gorzej: cel -23, wynik -10,9 (zrzut właściciela). Symulowałem tylko jeden scenariusz (bursty w dialogu), nie „głośny program po cichym”. Do tego wykrywanie głośniejszego programu w trybie TV porównywało z oknem 10 s zamiast z poziomem kanału. Zmiana w automatycznym wyrównaniu – zawsze symulacja kilku scenariuszy (cichy→głośny, głośny→cichy, wybuchy, szum), nie jednego.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

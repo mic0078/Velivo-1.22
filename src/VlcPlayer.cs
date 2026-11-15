@@ -182,16 +182,73 @@ namespace Velivo
             lock (LibraryLock)
                 for (int i = 0; ; i++)
                 {
-                    try { return File.Exists(LibraryFile) ? ParseLibrary(File.ReadAllText(LibraryFile)) : new List<LibraryVideo>(); }
+                    try
+                    {
+                        var text = File.Exists(LibraryFile) ? File.ReadAllText(LibraryFile) : null;
+                        var list = text != null ? ParseLibrary(text) : new List<LibraryVideo>();
+                        if (text != null) _libBase.AddOrUpdate(list, text);   // 🧩 stan z dysku dla tej listy - przy zapisie wiadomo, co zmienił ten program
+                        return list;
+                    }
                     catch (IOException) when (i < 40) { System.Threading.Thread.Sleep(25); }
                 }
         }
 
+        // 🧩 biblioteka wspólna dla Velivo i Velivo Odtwarzacza (i okien trzymających starszą listę): zapis wnosi tylko filmy zmienione
+        // przez tę listę od jej odczytu; zmiany innego programu (postęp, nowe filmy z Jellyfin) zostają, usunięte przez nas znikają
+        static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<LibraryVideo>, string> _libBase = new System.Runtime.CompilerServices.ConditionalWeakTable<List<LibraryVideo>, string>();
+        static string LibKey(LibraryVideo v) => (IsShared(v) ? "S|" : "P|") + v.Path;
+        static Dictionary<string, string> LibSnap(IEnumerable<LibraryVideo> l)
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var v in l) d[LibKey(v)] = JsonSerializer.Serialize(v);
+            return d;
+        }
+        internal static List<LibraryVideo> MergeLibrary(List<LibraryVideo> mine, List<LibraryVideo> baseList, List<LibraryVideo> disk)
+        {
+            var b = LibSnap(baseList); var m = LibSnap(mine);
+            var dk = new Dictionary<string, LibraryVideo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var v in disk) dk[LibKey(v)] = v;
+            var ds = LibSnap(disk);
+            var res = new List<LibraryVideo>(); var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var v in mine)
+            {
+                var k = LibKey(v); if (!seen.Add(k)) continue;
+                bool untouched = b.TryGetValue(k, out var bv) && bv == m[k];
+                if (untouched && dk.TryGetValue(k, out var dv)) res.Add(dv);          // nie ruszaliśmy - wersja z dysku (może nowszy postęp)
+                else if (untouched && !dk.ContainsKey(k)) continue;                  // inny program usunął, my nie zmienialiśmy
+                else res.Add(v);                                                     // zmiana tego programu
+            }
+            foreach (var v in disk)
+            {
+                var k = LibKey(v); if (seen.Contains(k)) continue;
+                if (b.TryGetValue(k, out var bv) && ds[k] == bv) continue;           // usunięty przez nas, nikt go nie zmieniał
+                seen.Add(k); res.Add(v);                                             // dodany / zmieniony przez inny program
+            }
+            return res;
+        }
         void SaveLibrary(List<LibraryVideo> lib)
         {
             lock (LibraryLock)
-                try { Directory.CreateDirectory(DataDir); VelivoData.SafeWrite(LibraryFile, JsonSerializer.Serialize(lib, new JsonSerializerOptions { WriteIndented = true })); }
-                catch (IOException ex) { App.LogError(ex); }
+                using (var mx = new System.Threading.Mutex(false, @"Local\Velivo.Biblioteka"))
+                {
+                    bool got = false;
+                    try { got = mx.WaitOne(5000); } catch (System.Threading.AbandonedMutexException) { got = true; }
+                    try
+                    {
+                        Directory.CreateDirectory(DataDir);
+                        var outList = lib;
+                        if (_libBase.TryGetValue(lib, out var baseText) && File.Exists(LibraryFile))
+                        {
+                            var diskText = File.ReadAllText(LibraryFile);
+                            if (diskText != baseText) outList = MergeLibrary(lib, ParseLibrary(baseText), ParseLibrary(diskText));   // inny program zapisał w międzyczasie
+                        }
+                        var json = JsonSerializer.Serialize(outList, new JsonSerializerOptions { WriteIndented = true });
+                        VelivoData.SafeWrite(LibraryFile, json);
+                        _libBase.AddOrUpdate(lib, JsonSerializer.Serialize(lib, new JsonSerializerOptions { WriteIndented = true }));   // to, co ta lista ma teraz, jest jej punktem odniesienia
+                    }
+                    catch (IOException ex) { App.LogError(ex); }
+                    finally { if (got) try { mx.ReleaseMutex(); } catch (Exception) { } }
+                }
         }
 
         // ⏱ miejsce w filmie zapisywane w tle, po kolei (kolejność zapisów zachowana - starsze miejsce nie nadpisze nowszego); odtwarzacz nie stoi przy zapisie

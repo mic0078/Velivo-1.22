@@ -45,3 +45,26 @@ namespace Velivo.Tests
         }
     }
 }
+
+namespace Velivo.Tests
+{
+    public class WspolnaBibliotekaTests
+    {
+        static MainWindow.LibraryVideo F(string p, long pos = 0) => new MainWindow.LibraryVideo { Path = p, Title = p, Pos = pos, Shared = false };
+
+        [Fact]
+        public void PostepZInnegoProgramu_NieGinie_NowyFilmZostaje_UsunietyZnika()
+        {
+            var baza = new List<MainWindow.LibraryVideo> { F(@"C:\a.mkv"), F(@"C:\b.mkv"), F(@"C:\c.mkv") };
+            // ten program (stara lista): zmienił postęp a, usunął c
+            var moje = new List<MainWindow.LibraryVideo> { F(@"C:\a.mkv", 100), F(@"C:\b.mkv") };
+            // inny program w międzyczasie: postęp b, nowy film d
+            var dysk = new List<MainWindow.LibraryVideo> { F(@"C:\a.mkv"), F(@"C:\b.mkv", 200), F(@"C:\c.mkv"), F(@"C:\d.mkv") };
+            var w = MainWindow.MergeLibrary(moje, baza, dysk);
+            Assert.Equal(100, w.Find(v => v.Path == @"C:\a.mkv").Pos);   // nasza zmiana
+            Assert.Equal(200, w.Find(v => v.Path == @"C:\b.mkv").Pos);   // zmiana innego programu
+            Assert.Null(w.Find(v => v.Path == @"C:\c.mkv"));              // usunięty przez nas
+            Assert.NotNull(w.Find(v => v.Path == @"C:\d.mkv"));           // dodany przez inny program
+        }
+    }
+}

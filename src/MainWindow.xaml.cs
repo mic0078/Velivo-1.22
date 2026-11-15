@@ -192,7 +192,7 @@ namespace Velivo
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
-                    StartJellyfinAutoSync();
+                    if (Wariant.MaFilmy) StartJellyfinAutoSync();   // 🧩 Przeglądarka nie pobiera biblioteki filmów
                     _ = VoiceUpdateCheckAsync(null);
                     if (Wariant.MaFilmy && GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1") ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
                     if (Wariant.MaFilmy && GetPref("ab-pulpitv") == "1") ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)

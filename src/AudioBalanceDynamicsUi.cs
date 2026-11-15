@@ -17,6 +17,7 @@ namespace Velivo
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });
             bool loading = false;
+            Action manual = null;   // ręczna zmiana suwaka - ustawienie już nie jest zapisanym presetem
             var on = new CheckBox { Content = L.T("Kompresor wstępny włączony"), Foreground = fg, Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(on);
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
@@ -81,7 +82,7 @@ namespace Velivo
                 var lab = new TextBlock { Text = name, Foreground = fg, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 var val = new TextBlock { Foreground = dim, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
                 var sl = new Slider { Minimum = min, Maximum = max, SmallChange = step, LargeChange = step * 5, TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
-                sl.ValueChanged += (s, e) => { val.Text = fmt(sl.Value); if (!loading) Apply(); };
+                sl.ValueChanged += (s, e) => { val.Text = fmt(sl.Value); if (!loading) { Apply(); manual?.Invoke(); } };
                 Grid.SetColumn(val, 1); Grid.SetColumn(sl, 2); g.Children.Add(lab); g.Children.Add(val); g.Children.Add(sl);
                 panel.Children.Add(g); rows[key] = sl;
             }
@@ -118,13 +119,51 @@ namespace Velivo
                 AbProc.Pre.Params = p; SetPref("ab-kompresor", p.Save()); DrawCurve(p);
                 if (p.IsEnabled && !was) AbNeedsRestartHint();
             }
-            on.Click += (s, e) => Apply(); auto.Click += (s, e) => Apply(); mode.SelectionChanged += (s, e) => { if (!loading) Apply(); };
+            on.Click += (s, e) => Apply(); auto.Click += (s, e) => { Apply(); manual?.Invoke(); }; mode.SelectionChanged += (s, e) => { if (!loading) { Apply(); manual?.Invoke(); } };
+            // 💾 własne ustawienia pod własnymi nazwami (zapamiętane na tym komputerze) + nazwa ostatnio wybranego
+            var nameText = new TextBlock { Foreground = dim, FontSize = 11, Margin = new Thickness(0, 0, 0, 4) };
+            var ownRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+            var own = new ComboBox { MinWidth = 140, ToolTip = L.T("Twoje zapisane ustawienia kompresora – wybierz, aby włączyć.") };
+            var saveBtn = mk(L.T("💾 Zapisz jako…"), () => { }); saveBtn.ToolTip = L.T("Zapisuje obecne ustawienia kompresora pod Twoją nazwą.");
+            var delBtn = mk(L.T("🗑 Usuń"), () => { }); delBtn.ToolTip = L.T("Usuwa wybrane własne ustawienie z listy.");
+            DockPanel.SetDock(saveBtn, Dock.Right); DockPanel.SetDock(delBtn, Dock.Right); saveBtn.Margin = delBtn.Margin = new Thickness(6, 0, 0, 0);
+            ownRow.Children.Add(delBtn); ownRow.Children.Add(saveBtn); ownRow.Children.Add(own);
+            int pi = panel.Children.IndexOf(presets); panel.Children.Insert(pi + 1, ownRow); panel.Children.Insert(pi + 1, nameText);
+            List<(string n, string p)> Own() { var l = new List<(string, string)>(); foreach (var ln in (GetPref("ab-kompresor-wlasne") ?? "").Split('\n')) { var k = ln.IndexOf('\u001F'); if (k > 0) l.Add((ln.Substring(0, k), ln.Substring(k + 1))); } return l; }
+            void SaveOwn(List<(string n, string p)> l) => SetPref("ab-kompresor-wlasne", string.Join("\n", l.ConvertAll(x => x.n + "\u001F" + x.p)));
+            bool ownLoading = false;
+            void FillOwn(string sel)
+            {
+                ownLoading = true; own.Items.Clear(); own.Items.Add(new ComboBoxItem { Content = L.T("(własne ustawienia)"), IsEnabled = false });
+                foreach (var (n, _) in Own()) own.Items.Add(new ComboBoxItem { Content = n, Tag = n });
+                own.SelectedIndex = 0; for (int k = 1; k < own.Items.Count; k++) if ((string)((ComboBoxItem)own.Items[k]).Tag == sel) own.SelectedIndex = k;
+                delBtn.IsEnabled = own.SelectedIndex > 0; ownLoading = false;
+            }
+            void SetName(string n) { SetPref("ab-kompresor-nazwa", n ?? ""); nameText.Text = string.IsNullOrEmpty(n) ? L.T("Ustawienie: własne (zmienione ręcznie)") : L.T("Ustawienie: ") + n; FillOwn(n); }
+            own.SelectionChanged += (s, e) =>
+            {
+                if (ownLoading || !(own.SelectedItem is ComboBoxItem it) || !(it.Tag is string n)) return;
+                foreach (var (on2, pp) in Own()) if (on2 == n) { Show(DynParams.Load(pp)); Apply(); SetName(n); return; }
+            };
+            saveBtn.Click += (s, e) =>
+            {
+                var cur = GetPref("ab-kompresor-nazwa"); var n = Prompt(L.T("Nazwa ustawienia kompresora:"), string.IsNullOrEmpty(cur) ? L.T("Moje ustawienie") : cur);
+                n = (n ?? "").Replace("\n", " ").Replace("\r", " ").Replace("\u001F", " ").Trim(); if (n.Length == 0) return;
+                var l = Own(); l.RemoveAll(x => x.n == n); l.Add((n, AbProc.Pre.Params.Save())); SaveOwn(l); SetName(n);
+            };
+            delBtn.Click += (s, e) =>
+            {
+                if (!(own.SelectedItem is ComboBoxItem it) || !(it.Tag is string n)) return;
+                var l = Own(); l.RemoveAll(x => x.n == n); SaveOwn(l); SetName(null);
+            };
             foreach (var (nm, tip, mkP) in new (string, string, Func<DynParams>)[] {
                 (L.T("Film / kino"), L.T("Zbalansowany: RMS, próg -28 dB, 3,5:1, podbicie +4 dB."), DynParams.Film),
                 (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
                 (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
-            { var f = mkP; var b = mk(nm, () => { Show(f()); Apply(); }); b.ToolTip = tip; presets.Children.Add(b); }
+            { var f = mkP; var n0 = nm; var b = mk(nm, () => { Show(f()); Apply(); SetName(n0); }); b.ToolTip = tip; presets.Children.Add(b); }
             Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params);
+            manual = () => { if (!string.IsNullOrEmpty(GetPref("ab-kompresor-nazwa"))) SetName(null); };
+            var lastName = GetPref("ab-kompresor-nazwa"); SetName(string.IsNullOrEmpty(lastName) ? null : lastName);
             var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             tm.Tick += (s, e) =>
             {

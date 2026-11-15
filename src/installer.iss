@@ -325,7 +325,9 @@ end;
 // dane uzytkownika: %LOCALAPPDATA%\Programs\Velivo\Dane; dawniej %LOCALAPPDATA%\Przegladarka (Velivo przenosi go przy starcie)
 function UserDataDir: String;
 begin
-  Result := ExpandConstant('{localappdata}\Programs\Velivo\Dane');
+  // 🧩 od 2026-11 dane wspólne poza folderem programu (%LOCALAPPDATA%\Velivo\Dane); starsze instalacje - w folderze Velivo (program przenosi je przy starcie)
+  Result := ExpandConstant('{localappdata}\Velivo\Dane');
+  if not DirExists(Result) and DirExists(ExpandConstant('{localappdata}\Programs\Velivo\Dane')) then Result := ExpandConstant('{localappdata}\Programs\Velivo\Dane');
 end;
 
 function LegacyDataDir: String;
@@ -379,7 +381,7 @@ procedure InitializeWizard;
 begin
   DownloadPage := CreateDownloadPage(SetupMessage(msgWizardPreparing), SetupMessage(msgPreparingDesc), nil);
 #ifdef Wariant
-  exit;   // dane wspólne z Velivo (Programs\Velivo\Dane) - osobny program nigdy ich nie czyści
+  exit;   // dane wspólne z Velivo (%LOCALAPPDATA%\Velivo\Dane) - osobny program nigdy ich nie czyści
 #endif
   if not HasOldData then exit;
   DataPage := CreateInputOptionPage(wpSelectTasks,
@@ -591,7 +593,7 @@ end;
 function InitializeUninstall: Boolean;
 begin
   Result := True;
-  if FileExists(ExpandConstant('{localappdata}\Programs\Velivo\Dane\komunikator.dat'))
+  if FileExists(UserDataDir + '\komunikator.dat')
      and not FileExists(ExpandConstant('{localappdata}\Programs\Velivo Komunikator\VelivoKomunikator.exe')) then
     Result := SuppressibleMsgBox(CustomMessage('KomGone'), mbConfirmation, MB_YESNO, IDYES) = IDYES;
 end;

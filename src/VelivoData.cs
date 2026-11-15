@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace Velivo
 {
-    // Folder danych uzytkownika: %LOCALAPPDATA%\Programs\Velivo\Dane - wszystko w folderze Velivo, ale osobno od plikow
+    // Folder danych uzytkownika: %LOCALAPPDATA%\Velivo\Dane (dawniej %LOCALAPPDATA%\Programs\Velivo\Dane) - osobno od plikow
     // programu (instalator nadpisuje tylko swoje pliki; dezinstalacja zostawia dane). Sciezka stala, niezalezna od tego,
     // skad uruchomiono Velivo.exe - inaczej powstawaly drugie, osobne dane.
     // Dawniej %LOCALAPPDATA%\Przegladarka - nazwa sprzed rozbudowy programu. Przy starcie przenosimy go
@@ -15,7 +15,10 @@ namespace Velivo
     static class VelivoData
     {
         static string Local { get { return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData); } }
-        public static string NewRoot { get { return Path.Combine(Local, "Programs", "Velivo", "Dane"); } }
+        // 🧩 dane wspólne wszystkich programów Velivo (pełne, Odtwarzacz, Przeglądarka, Komunikator) - POZA folderem któregokolwiek programu:
+        // odinstalowanie albo skasowanie folderu programu nigdy ich nie zabiera
+        public static string NewRoot { get { return Path.Combine(Local, "Velivo", "Dane"); } }
+        public static string MidRoot { get { return Path.Combine(Local, "Programs", "Velivo", "Dane"); } }   // do 2026-11: w folderze programu Velivo
         public static string OldRoot { get { return Path.Combine(Local, "Przegladarka"); } }
 
         // zapis „wszystko albo nic”: najpierw obok (.tmp), potem podmiana - wysypanie się / restart w trakcie nie zostawia obciętego pliku
@@ -70,15 +73,19 @@ namespace Velivo
         }
 
         // Dopoki stary folder istnieje, dane sa w nim (przeniesienie sie nie udalo albo jeszcze nie bylo).
-        public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : NewRoot; } }
+        public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) && !HasData(NewRoot) ? MidRoot : NewRoot; } }
+        static bool HasData(string d) { try { return Directory.Exists(d) && Directory.GetFileSystemEntries(d).Length > 0; } catch (Exception) { return false; } }
 
         public static void Migrate()
         {
             try
             {
-                if (!Directory.Exists(OldRoot)) return;
-                // inne okno Velivo (albo klawiatura) uzywa danych - nie ruszamy
-                if (Process.GetProcessesByName("Velivo").Length > 1) { Log("inne okno Velivo jest uruchomione"); return; }
+                var from = Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) ? MidRoot : null;
+                if (from == null) return;
+                _from = from;
+                // inny program Velivo używa danych - nie ruszamy (przeniesie pierwszy, który wystartuje sam); inaczej zapisywałby dalej w starym miejscu
+                int me = Process.GetCurrentProcess().Id;
+                if (new[] { "Velivo", "VelivoOdtwarzacz", "VelivoPrzegladarka", "VelivoKomunikator" }.SelectMany(Process.GetProcessesByName).Any(p => p.Id != me)) { Log("inny program Velivo jest uruchomiony"); return; }
                 if (Directory.Exists(NewRoot))
                 {
                     // pusty folder (np. utworzony przez cos innego) nie blokuje przeniesienia; z danymi - zostawiamy oba
@@ -86,8 +93,8 @@ namespace Velivo
                     Directory.Delete(NewRoot);
                 }
                 Directory.CreateDirectory(Path.GetDirectoryName(NewRoot));
-                Directory.Move(OldRoot, NewRoot);
-                FixPaths();
+                Directory.Move(from, NewRoot);
+                FixPaths(from);
             }
             // zostajemy na starym folderze - kolejna proba przy nastepnym starcie; przyczyna w bledy.log
             // (najczesciej: folder otwarty w Eksploratorze / Total Commanderze albo drugi proces Velivo)
@@ -96,12 +103,13 @@ namespace Velivo
 
         static void Log(string why)
         {
-            try { File.AppendAllText(Path.Combine(OldRoot, "bledy.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  Nie przeniesiono folderu danych do " + NewRoot + ": " + why + Environment.NewLine); }
+            try { File.AppendAllText(Path.Combine(_from ?? OldRoot, "bledy.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  Nie przeniesiono folderu danych do " + NewRoot + ": " + why + Environment.NewLine); }
             catch (Exception) { }
         }
 
         // Pelne sciezki zapisane w ustawieniach i w profilu silnika przegladarki (np. dodatki) wskazuja stary folder.
-        static void FixPaths()
+        static string _from;
+        static void FixPaths(string oldRoot)
         {
             var files = new System.Collections.Generic.List<string> { Path.Combine(NewRoot, "ustawienia.txt") };
             var profiles = Path.Combine(NewRoot, "Profiles");
@@ -116,7 +124,7 @@ namespace Velivo
                 {
                     if (!File.Exists(file)) continue;
                     var text = File.ReadAllText(file);
-                    var fixedText = Replace(Replace(text, OldRoot, NewRoot), OldRoot.Replace("\\", "\\\\"), NewRoot.Replace("\\", "\\\\"));
+                    var fixedText = Replace(Replace(text, oldRoot, NewRoot), oldRoot.Replace("\\", "\\\\"), NewRoot.Replace("\\", "\\\\"));
                     if (fixedText != text) File.WriteAllText(file, fixedText);
                 }
                 catch (Exception) { }

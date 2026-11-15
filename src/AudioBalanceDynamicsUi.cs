@@ -236,7 +236,7 @@ namespace Velivo
                 double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = 40; var pts = new PointCollection();
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
-                if (pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.3) { lastThr = pr.EffThresholdDb; DrawCurve(pr.Params, lastThr); }   // próg automatyczny - wykres na żywo
+                if (pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) { lastThr = pr.EffThresholdDb; DrawCurve(pr.Params, lastThr); }   // próg automatyczny - wykres na żywo
                 grText.Text = (pr.Params.AutoThreshold && act ? L.T("Próg teraz: ") + pr.EffThresholdDb.ToString("0.0") + " dB · " : "") + (!pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB");
             };
             exp.IsVisibleChanged += (s, e) => { if (exp.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy zakładka Kompresor jest na ekranie - nie zabiera czasu Audio Monitorowi

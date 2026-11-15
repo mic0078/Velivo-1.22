@@ -109,7 +109,7 @@ namespace Velivo
             if (p.DetectionMode == DynDetection.Peak) lvl = Math.Max(Math.Abs(l), Math.Abs(r));
             else { double e = (l * l + r * r) * 0.5; env += (e - env) * cRms; lvl = Math.Sqrt(env); }   // RMS z ok. 20 ms
             double xDb = lvl > 1e-9 ? 20 * Math.Log10(lvl) : -180;
-            if (p.AutoThreshold && (mtrN & 63) == 0 && xDb > -70)
+            if ((mtrN & 63) == 0 && xDb > -70)   // mierzone zawsze (nie tylko z zaznaczonym progiem automatycznym) - po zaznaczeniu próg od razu na właściwym miejscu, bez zależności od chwili kliknięcia
             {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
                 if (double.IsNaN(progDb)) progDb = xDb;
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)

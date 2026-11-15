@@ -271,6 +271,10 @@ namespace Velivo
         {
             try
             {
+                // ⚡ YouTube: lekki odtwarzacz (embed) zamiast całej strony - okienko gra po ok. 1 s zamiast kilku; film bez zgody na osadzenie (np. część VEVO) - sam wraca do pełnej strony
+                string first = page;
+                { var mm = System.Text.RegularExpressions.Regex.Match(page ?? "", @"^https?://(www\.|m\.)?youtube\.com/watch\?(?:.*&)?v=([\w-]{11})");
+                  if (mm.Success) first = "https://www.youtube.com/embed/" + mm.Groups[2].Value + "?autoplay=1&start=" + (int)Math.Max(0, time); }
                 var opts = _env.CreateCoreWebView2ControllerOptions();
                 opts.IsInPrivateModeEnabled = isPrivate;
                 await view.EnsureCoreWebView2Async(_env, opts);
@@ -305,12 +309,15 @@ namespace Velivo
                     // pelny ekran okienka (przycisk na pasku, F, dwuklik) - Esc wraca; okienko zostaje na wierzchu
                     else if (m == "velivo-float-full") fullScreen(true);
                     else if (m == "velivo-float-full:0") fullScreen(false);
+                    else if (m == "velivo-float-noembed" && first != page) { first = page; core.Navigate(page); }   // film nie pozwala na osadzenie - pełna strona
                 };
                 core.NavigationCompleted += async (s, e) =>
                 {
                     try { await core.ExecuteScriptAsync(FloatPageScript + "(" + time.ToString(CultureInfo.InvariantCulture) + ")"); } catch (Exception) { }
+                    if (first != page) try { await core.ExecuteScriptAsync("setTimeout(()=>{if(document.querySelector('.ytp-error,.ytp-embed-error'))chrome.webview.postMessage('velivo-float-noembed')},2500)"); } catch (Exception) { }
                 };
-                core.Navigate(page);
+                if (first != page) core.NavigateWithWebResourceRequest(_env.CreateWebResourceRequest(first, "GET", null, "Referer: https://www.youtube.com/"));   // osadzenie bez nadawcy YouTube odrzuca (błąd 153)
+                else core.Navigate(first);
             }
             catch (Exception ex) { App.LogError(ex); }
         }

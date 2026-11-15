@@ -18,6 +18,8 @@ namespace Velivo
         // 🧩 dane wspólne wszystkich programów Velivo (pełne, Odtwarzacz, Przeglądarka, Komunikator) - POZA folderem któregokolwiek programu:
         // odinstalowanie albo skasowanie folderu programu nigdy ich nie zabiera
         public static string NewRoot { get { return Path.Combine(Local, "Velivo", "Dane"); } }
+        // każdy program Velivo wie, gdzie są dane: spis w Windows (HKCU\Software\Velivo, „Dane”) - gdyby folder był kiedyś gdzie indziej, wszyscy idą za wpisem
+        static string SpisDane { get { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SpisKey)) { var d = k?.GetValue("Dane") as string; return !string.IsNullOrEmpty(d) && Directory.Exists(d) && d != MidRoot ? d : null; } } catch (Exception) { return null; } } }
         public static string MidRoot { get { return Path.Combine(Local, "Programs", "Velivo", "Dane"); } }   // do 2026-11: w folderze programu Velivo
         public static string OldRoot { get { return Path.Combine(Local, "Przegladarka"); } }
 
@@ -115,15 +117,15 @@ namespace Velivo
         }
 
         // Dopoki stary folder istnieje, dane sa w nim (przeniesienie sie nie udalo albo jeszcze nie bylo).
-        public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) && !HasData(NewRoot) ? MidRoot : NewRoot; } }
+        public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) && !IsLink(MidRoot) && !HasData(NewRoot) ? MidRoot : SpisDane ?? NewRoot; } }
         static bool HasData(string d) { try { return Directory.Exists(d) && Directory.GetFileSystemEntries(d).Length > 0; } catch (Exception) { return false; } }
 
         public static void Migrate()
         {
             try
             {
-                var from = Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) ? MidRoot : null;
-                if (from == null) return;
+                var from = Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) && !IsLink(MidRoot) ? MidRoot : null;
+                if (from == null) { EnsureLink(MidRoot, NewRoot); return; }   // już przeniesione - łącze w starym miejscu (stare wersje programów, ponowna instalacja starszego Velivo)
                 _from = from;
                 // inny program Velivo używa danych - nie ruszamy (przeniesie pierwszy, który wystartuje sam); inaczej zapisywałby dalej w starym miejscu
                 int me = Process.GetCurrentProcess().Id;
@@ -137,10 +139,26 @@ namespace Velivo
                 Directory.CreateDirectory(Path.GetDirectoryName(NewRoot));
                 Directory.Move(from, NewRoot);
                 FixPaths(from);
+                EnsureLink(MidRoot, NewRoot);
             }
             // zostajemy na starym folderze - kolejna proba przy nastepnym starcie; przyczyna w bledy.log
             // (najczesciej: folder otwarty w Eksploratorze / Total Commanderze albo drugi proces Velivo)
             catch (Exception ex) { Log(ex.GetType().Name + ": " + ex.Message); }
+        }
+
+        // 🧩 łącze (junction) w starym miejscu → nowy folder: starsze wersje programów Velivo i ponownie zainstalowane starsze Velivo
+        // czytają i zapisują w starym miejscu, a trafiają we wspólne dane; skasowanie folderu programu usuwa samo łącze, nie dane
+        public static bool IsLink(string d) { try { return Directory.Exists(d) && (File.GetAttributes(d) & FileAttributes.ReparsePoint) != 0; } catch (Exception) { return false; } }
+        public static void EnsureLink(string link, string target)
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows() || Directory.Exists(link) || !Directory.Exists(target)) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(link));
+                var psi = new ProcessStartInfo("cmd.exe", "/c mklink /J \"" + link + "\" \"" + target + "\"") { CreateNoWindow = true, UseShellExecute = false };
+                using (var p = Process.Start(psi)) p?.WaitForExit(5000);
+            }
+            catch (Exception) { }
         }
 
         static void Log(string why)

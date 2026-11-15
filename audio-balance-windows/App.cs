@@ -17,6 +17,8 @@ namespace Velivo
             try
             {
                 if (!Directory.Exists(nowy) && Directory.Exists(stary)) { Directory.CreateDirectory(Path.GetDirectoryName(nowy)); Directory.Move(stary, nowy); }
+                if (!Directory.Exists(stary) && Directory.Exists(nowy))   // łącze w starym miejscu - starsza wersja Audio Balance / Velivo trafia w te same dane
+                    using (var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c mklink /J \"" + stary + "\" \"" + nowy + "\"") { CreateNoWindow = true, UseShellExecute = false })) p?.WaitForExit(5000);
             }
             catch (Exception) { if (Directory.Exists(stary)) return stary; }   // nie udało się (plik otwarty) - zostajemy, próba przy następnym starcie
             return nowy;

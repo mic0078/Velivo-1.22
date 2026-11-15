@@ -51,7 +51,7 @@ namespace Velivo
                 if (dev == null) foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)) if (!IsCable(d.FriendlyName)) { dev = d; break; }
                 if (dev == null) { Error = "output"; return false; }
                 OutputName = dev.FriendlyName;
-                cap = new WasapiCapture(cable, true, 20);
+                cap = new WasapiCapture(cable, false, 30);   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(600), ReadFully = true };
                 var cf = cap.WaveFormat;
                 cap.DataAvailable += (s, e) =>
@@ -60,14 +60,14 @@ namespace Velivo
                     // zegary kabla i głośników nie chodzą idealnie razem - nadmiar (ponad 200 ms) odrzucany, opóźnienie nie rośnie
                     if (buf.BufferedDuration.TotalMilliseconds > 200) { int drop = cf.AverageBytesPerSecond / 1000 * 100 / cf.BlockAlign * cf.BlockAlign; var junk = new byte[drop]; buf.Read(junk, 0, drop); }
                 };
-                cap.RecordingStopped += (s, e) => { if (Running) { if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
+                cap.RecordingStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odbiór z CABLE Output" + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 ISampleProvider sp = buf.ToSampleProvider();
                 if (sp.WaveFormat.Channels == 1) sp = new MonoToStereoSampleProvider(sp);
                 else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
                 if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
-                outp = new WasapiOut(dev, AudioClientShareMode.Shared, true, 40);
+                outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, 60);   // jw. - odpytywanie, 60 ms zapasu
                 outp.Init(new Processing(sp, Proc));
-                outp.PlaybackStopped += (s, e) => { if (Running) { if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
+                outp.PlaybackStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
                 cap.StartRecording(); outp.Play();
                 App.LogInfo("Audio Balance: CABLE Output (" + cf + ") → " + OutputName);

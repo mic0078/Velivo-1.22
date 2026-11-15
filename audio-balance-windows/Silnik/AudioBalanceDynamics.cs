@@ -28,7 +28,7 @@ namespace Velivo
         static float C(float v, float lo, float hi) => float.IsNaN(v) ? lo : v < lo ? lo : v > hi ? hi : v;
 
         // gotowe ustawienia (presety)
-        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 6, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 3.5f, AttackMs = 30, ReleaseMs = 300, KneeDb = 10, MakeupGainDb = 4, MixPercent = 100 };
+        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 3, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 6f, AttackMs = 30, ReleaseMs = 400, KneeDb = 10, MakeupGainDb = 4, MixPercent = 100 };
         // 🔈 bardzo cicho nagrane filmy (dialog ledwo słyszalny): mocne podbicie cichego, ekspander niżej (szum nie rośnie); dalej wyrównanie LUFS dociąga do celu
         public static DynParams VeryQuiet() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -52, Ratio = 4, AttackMs = 15, ReleaseMs = 300, KneeDb = 12, MakeupGainDb = 22, ExpanderThresholdDb = -68, ExpanderRatio = 1.5f, MixPercent = 100 };
         public static DynParams Night() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -42, Ratio = 6, AttackMs = 20, ReleaseMs = 250, KneeDb = 10, MakeupGainDb = 12, ExpanderThresholdDb = -50, MixPercent = 100 };

@@ -10,3 +10,7 @@ src/UbolExtension/
 
 # darmowe wtyczki VST3 dolaczane do instalatora (pobrane recznie, z licencjami) - nie w repozytorium
 dodatki/
+
+# Velivo Audio Balance (samodzielny program) - pliki kompilacji
+audio-balance-windows/bin/
+audio-balance-windows/obj/

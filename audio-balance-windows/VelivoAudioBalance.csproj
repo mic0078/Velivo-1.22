@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Velivo Audio Balance na Windows: samodzielny program - cały dźwięk Windows (przeglądarka, serwisy, gry) przez silnik Audio Balance.
+       Dźwięk: Windows → VB-Audio Virtual Cable (CABLE Input) → ten program (CABLE Output) → kompresor, LUFS, limiter → Twoje głośniki.
+       Ten sam silnik co w Velivo (pliki z ..\src). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>VelivoAudioBalance</AssemblyName>
+    <Product>Velivo Audio Balance</Product>
+    <AssemblyTitle>Velivo Audio Balance</AssemblyTitle>
+    <Company>andro</Company>
+    <RootNamespace>Velivo</RootNamespace>
+    <ApplicationIcon>..\src\app.ico</ApplicationIcon>
+    <Version>1.22</Version>
+    <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <Compile Include="..\src\AudioBalanceDsp.cs" />
+    <Compile Include="..\src\AudioBalanceDynamics.cs" />
+    <Compile Include="..\src\AudioBalanceVst3.cs" />
+    <Compile Include="..\src\Lang.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\src\app.ico" Link="app.ico" />
+    <Content Include="..\src\app.ico" Link="app.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

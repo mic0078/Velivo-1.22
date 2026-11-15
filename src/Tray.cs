@@ -74,6 +74,13 @@ namespace Velivo
                 var tvItem = menu.Items.Add(L.T("📺 Uruchom TV"), null, (s, e) => Dispatcher.Invoke(StartTv));
                 if (Wariant.MaFilmy) menu.Items.Add(L.T("🛋 Kanapa (telewizor)"), null, (s, e) => Dispatcher.Invoke(ShowKanapa));
                 if (!Wariant.MaKarty) menu.Items.Add(L.T("⚙ Ustawienia"), null, (s, e) => Dispatcher.Invoke(() => Settings_Click(null, null)));   // 🧩 Odtwarzacz: bez paska przeglądarki - Ustawienia (synchronizacja, parowanie telefonu) z zasobnika
+                if (!Wariant.MaKarty)   // 🧩 Odtwarzacz: start z Windows (w Ustawieniach ta opcja jest w dziale przeglądarki)
+                {
+                    var auto = new System.Windows.Forms.ToolStripMenuItem(L.T("Uruchamiaj z Windows")) { CheckOnClick = true };
+                    menu.Opening += (s, e) => auto.Checked = ReadAutostart() >= 0;
+                    auto.Click += (s, e) => Dispatcher.Invoke(() => WriteAutostart(auto.Checked, 30));
+                    menu.Items.Add(auto);
+                }
                 if (Edycja.Premium && Wariant.MaFilmy) menu.Items.Add(L.T("🎚 Audio Monitor"), null, (s, e) => Dispatcher.Invoke(ShowAudioMonitor));   // 💎 Premium
                 menu.Items.Add(L.T("🧹 Porządki i kopia bezpieczeństwa"), null, (s, e) => Dispatcher.Invoke(ShowTidy));
                 menu.Items.Add(L.T("🕶 Otwórz kartę incognito"), null, (s, e) => Dispatcher.Invoke(() => { ShowFromTray(); PrivateTab_Click(this, new RoutedEventArgs()); }));

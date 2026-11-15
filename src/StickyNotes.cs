@@ -134,8 +134,10 @@ namespace Velivo
             return string.Join("\n", lines);
         }
 
+        bool _notesObce;   // 🧩 karteczki pokazuje inny program Velivo na tym komputerze - tu ich nie ruszamy (zapis stąd skasowałby tamte)
         void LoadNotes()
         {
+            if (!Wariant.MaKarty || !VelivoData.Jeden("karteczki")) { _notesObce = true; return; }
             try { if (File.Exists(NotesFile)) _notes.AddRange(ParseNotes(File.ReadAllText(NotesFile))); } catch (IOException) { }
             foreach (var n in _notes.ToList()) ShowNote(n);
         }
@@ -152,6 +154,7 @@ namespace Velivo
 
         void SaveNotes()
         {
+            if (_notesObce) return;
             try
             {
                 Directory.CreateDirectory(DataDir);
@@ -163,6 +166,8 @@ namespace Velivo
 
         void NewNote(string kind)
         {
+            if (_notesObce && Wariant.MaKarty && VelivoData.Jeden("karteczki")) { _notesObce = false; LoadNotes(); }   // tamten program zamknięty - przejmujemy
+            if (_notesObce) { ShowToast(L.T("Karteczki prowadzi teraz inny program Velivo na tym komputerze."), null); return; }
             var k = NoteKind(kind);
             var wa = SystemParameters.WorkArea;
             int i = _notes.Count % 8;

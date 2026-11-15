@@ -35,6 +35,24 @@ namespace Velivo
         // 🧩 kilka programów Velivo (pełne, Odtwarzacz, Przeglądarka) na jednym folderze danych: zapis pliku „klucz<sep>wartość”
         // bez kasowania cudzych zmian. Na dysk trafia aktualny plik + tylko to, co TEN program zmienił od ostatniego odczytu
         // (baseline); usunięty u nas klucz znika tylko, gdy nikt go w międzyczasie nie zmienił. Zwraca to, co zapisano (nowy baseline).
+        // 🧩 czynność, którą na komputerze wykonuje tylko JEDEN program Velivo (wznowienie TV, zaplanowane nagrania, karteczki, widżet na pulpicie…):
+        // pierwszy program ją bierze i trzyma do zamknięcia; drugi dostaje „nie” i może pytać ponownie (przejmie po zamknięciu pierwszego).
+        // Wołać zawsze z wątku okna (muteks należy do wątku).
+        static readonly System.Collections.Generic.Dictionary<string, System.Threading.Mutex> _jeden = new System.Collections.Generic.Dictionary<string, System.Threading.Mutex>();
+        public static bool Jeden(string co)
+        {
+            if (_jeden.ContainsKey(co)) return true;
+            try
+            {
+                var m = new System.Threading.Mutex(false, @"Local\Velivo.Jeden." + co);
+                bool got;
+                try { got = m.WaitOne(0); } catch (System.Threading.AbandonedMutexException) { got = true; }
+                if (got) { _jeden[co] = m; return true; }
+                m.Dispose(); return false;
+            }
+            catch (Exception) { return true; }   // bez muteksu (brak uprawnień) - jak dawniej, pojedynczy program
+        }
+
         public static System.Collections.Generic.Dictionary<string, string> MergeWrite(string path, char sep,
             System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> mine,
             System.Collections.Generic.Dictionary<string, string> baseline)

@@ -974,6 +974,7 @@ namespace Velivo
             { "   Błędy: ", "   Errors: " },
             { "Brak aktywnych peerów.", "No active peers." },
             { "Nie udało się uruchomić WebView2:\n", "Could not start WebView2:\n" },
+            { "Karteczki prowadzi teraz inny program Velivo na tym komputerze.", "Sticky notes are now handled by another Velivo program on this computer." },
             { "Nie udało się otworzyć karty.\n\n", "Could not open the tab.\n\n" },
             { "Zamknij", "Close" },
             { "Wykryte media na stronie", "Media detected on the page" },

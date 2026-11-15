@@ -194,8 +194,8 @@ namespace Velivo
                     LoadBookmarks();
                     if (Wariant.MaFilmy) StartJellyfinAutoSync();   // 🧩 Przeglądarka nie pobiera biblioteki filmów
                     _ = VoiceUpdateCheckAsync(null);
-                    if (Wariant.MaFilmy && GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1") ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
-                    if (Wariant.MaFilmy && GetPref("ab-pulpitv") == "1") ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
+                    if (Wariant.MaFilmy && GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1" && VelivoData.Jeden("ab-pulpit")) ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
+                    if (Wariant.MaFilmy && GetPref("ab-pulpitv") == "1" && VelivoData.Jeden("ab-pulpit")) ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
                     LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
                     if (Wariant.MaKarty)   // 🧩 Velivo Odtwarzacz: bez kart i bez zapisu sesji (nie nadpisuje kart Velivo we wspólnym folderze danych)
                     {
@@ -399,6 +399,7 @@ namespace Velivo
         static bool ZamknijInneVelivo()
         {
             bool any = false;
+            if (!Wariant.Pelne) return false;   // osobne programy mają własne profile - nie zamykają pełnego Velivo
             foreach (var n in new[] { "VelivoOdtwarzacz", "VelivoPrzegladarka", "Velivo" })
                 foreach (var p in System.Diagnostics.Process.GetProcessesByName(n))
                     try { if (p.Id != Environment.ProcessId) { p.Kill(true); p.WaitForExit(5000); any = true; } } catch { } finally { p.Dispose(); }

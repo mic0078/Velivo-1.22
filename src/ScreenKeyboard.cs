@@ -288,6 +288,7 @@ namespace Velivo
         internal static volatile bool _kbdUserHid;   // schowana przyciskiem: dziala w tle (poprawki przy pisaniu), klik w pole jej nie wyciaga   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
         internal static void StartGlobalKeyboardHook()
         {
+            if (!Wariant.Pelne) return;   // 🧩 klawiatura należy do pełnego Velivo (dwa programy = podwójne poprawki)
             _kbdAuto = GetPref("klawiatura-sama") == "1";
             EnsureKbdTray();
             if (_hookStarted) return;

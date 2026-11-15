@@ -78,6 +78,7 @@ namespace Velivo
 
         void IptvTick()
         {
+            if (!VelivoData.Jeden("tv")) return;   // 🧩 zaplanowane nagrania i przełączenia wykonuje jeden program Velivo (drugi przejmie po jego zamknięciu)
             var st = IptvSt; var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             bool changed = false;
             foreach (var j in st.Jobs.ToList())
@@ -141,7 +142,7 @@ namespace Velivo
         {
             try
             {
-                if (!IptvInstalled || _vlcWin != null || !File.Exists(TvResumeFile)) return;
+                if (!IptvInstalled || _vlcWin != null || !File.Exists(TvResumeFile) || !VelivoData.Jeden("tv")) return;   // 🧩 dwa programy Velivo po starcie Windows nie włączają tego samego kanału dwa razy
                 var r = JsonSerializer.Deserialize<TvResume>(File.ReadAllText(TvResumeFile));
                 if (r?.Chans == null || r.Chans.Count == 0) return;
                 _iptvPlaying.Clear();

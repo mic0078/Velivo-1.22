@@ -222,7 +222,7 @@ namespace Velivo
             int bank = TabBarPanel.Children.IndexOf(_bankBtn);
             TabBarPanel.Children.Insert(bank >= 0 ? bank : 1, _tidyBtn);
             var auto = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };   // kopia chwile po starcie, nie w trakcie
-            auto.Tick += (s, e) => { auto.Stop(); try { AutoBackup(); } catch (Exception ex) { App.LogError(ex); } };
+            auto.Tick += (s, e) => { auto.Stop(); try { if (VelivoData.Jeden("kopia")) AutoBackup(); } catch (Exception ex) { App.LogError(ex); } };
             auto.Start();
         }
 

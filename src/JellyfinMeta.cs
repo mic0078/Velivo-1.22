@@ -630,6 +630,7 @@ namespace Velivo
             _jellyfinTimer.Tick += async (s, e) =>
             {
                 _jellyfinTimer.Interval = TimeSpan.FromMinutes(10);
+                if (!VelivoData.Jeden("jellyfin")) return;   // 🧩 bibliotekę z Jellyfin odświeża jeden program Velivo
                 ShowJellyfinRemoved();   // decyzja o usuniętych z Jellyfin - dymek aż do odpowiedzi (także po ponownym uruchomieniu)
                 var c = LoadJellyfinConf();
                 if (_jellyfinSyncing || c == null || c.AutoHours <= 0 || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key)) return;

@@ -462,7 +462,7 @@ namespace Velivo
                 _lanTick.Tick += (s, e) =>
                 {
                     if (_lanApplying) return;
-                    if (!Wariant.MaFilmy && ++_lanFilmyCheck % 10 == 0 && LanFilmyObok()) { StopLanSync(); LanLeadWait(); return; }   // 🧩 co 30 s: Odtwarzacz / pełne Velivo wystartowały - oddajemy im sieć
+                    if (!Wariant.Pelne && ++_lanFilmyCheck % 3 == 0 && LanFilmyObok()) { StopLanSync(); LanOddajPorty(); LanLeadWait(); return; }   // 🧩 co 9 s: ważniejszy program Velivo wystartował - oddajemy mu sieć
                     ExpireLanPairings();
                     if (_lanLegacyNoKeyMode)
                     {
@@ -553,7 +553,7 @@ namespace Velivo
         Mutex _lanLead; DispatcherTimer _lanLeadWait; int _lanFilmyCheck;
         bool LanLeadTake()
         {
-            if (!Wariant.MaFilmy && LanFilmyObok()) { LanLeadWait(); return false; }   // Pilot z telefonu steruje filmami - przy Odtwarzaczu / pełnym Velivo prowadzą one
+            if (LanFilmyObok()) { LanLeadWait(); return false; }   // Pilot z telefonu steruje filmami - przy Odtwarzaczu / pełnym Velivo prowadzą one
             if (_lanLead != null) return true;
             var m = new Mutex(false, @"Local\Velivo.SiecDomowa");
             bool got;
@@ -563,16 +563,35 @@ namespace Velivo
             LanLeadWait();
             return false;
         }
-        static bool LanFilmyObok() => System.Diagnostics.Process.GetProcessesByName("VelivoOdtwarzacz").Length + System.Diagnostics.Process.GetProcessesByName("Velivo").Length > 0;
+        // 🧩 kolejność: pełne Velivo > Odtwarzacz > Przeglądarka - mniej ważny oddaje sieć domową ważniejszemu (pełne Velivo działa wtedy jak przed podziałem)
+        static bool LanFilmyObok()
+        {
+            if (Wariant.Pelne) return false;
+            return ProcesDziala("Velivo") || (Wariant.Przegladarka && ProcesDziala("VelivoOdtwarzacz"));
+        }
+        static bool ProcesDziala(string nazwa)
+        {
+            var ps = System.Diagnostics.Process.GetProcessesByName(nazwa);
+            foreach (var p in ps) p.Dispose();
+            return ps.Length > 0;
+        }
         void LanLeadWait()
         {
             if (_lanLeadWait == null || !_lanLeadWait.IsEnabled) LanLog(L.T("Sieć domową prowadzi inny program Velivo na tym komputerze – przejmę ją, gdy się zamknie."));
             if (_lanLeadWait == null)
             {
-                _lanLeadWait = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-                _lanLeadWait.Tick += (s, e) => { if (_lanLead == null && _settings != null && _settings.LanSync) StartLanSync(); };
+                _lanLeadWait = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Wariant.Pelne ? 5 : 30) };   // pełne Velivo przejmuje w kilka sekund
+                _lanLeadWait.Tick += (s, e) => { if (_lanLead == null && _settings != null && _settings.LanSync && !LanFilmyObok()) StartLanSync(); };
             }
             _lanLeadWait.Start();
+        }
+        // 🧩 porty Pilota (41916) i filmów w sieci (41917) wolne dla programu, który przejmuje sieć domową (trwające połączenia zostają)
+        void LanOddajPorty()
+        {
+            try { _pilotTcp?.Stop(); } catch (Exception) { }
+            _pilotTcp = null;
+            try { _filmServer?.Stop(); } catch (Exception) { }
+            _filmServer = null;
         }
         void LanLeadFree()
         {

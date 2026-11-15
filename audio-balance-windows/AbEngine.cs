@@ -64,7 +64,7 @@ namespace Velivo
                 if (dev == null) foreach (var d in en.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active)) if (!IsCable(d.FriendlyName)) { dev = d; break; }
                 if (dev == null) { Error = "output"; return false; }
                 OutputName = dev.FriendlyName;
-                cap = new WasapiCapture(cable, false, 30);   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
+                timeBeginPeriod(1); cap = new WasapiCapture(cable, false, 100);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
                 cap.DataAvailable += (s, e) =>
@@ -103,6 +103,7 @@ namespace Velivo
         // 🎚 elastyczny bufor: kabel i głośniki mają osobne zegary (zawsze trochę różne) - odtwarzanie minimalnie szybciej / wolniej (najwyżej ±0,3 %,
         // niesłyszalne), żeby zapas stał przy ok. 100 ms: bez przerw (brak dźwięku) i bez przycinania (nadmiar). Start po zebraniu zapasu.
         // wątki dźwięku jak w programach audio: harmonogram „Pro Audio” Windows (MMCSS) i najwyższy priorytet - obciążenie okna / komputera nie przerywa dźwięku (trzaski)
+        [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint ms);   // dokładny zegar (1 ms) dla odpytywania WASAPI
         [ThreadStatic] static bool rtDone;
         [DllImport("avrt.dll", CharSet = CharSet.Unicode)] static extern IntPtr AvSetMmThreadCharacteristics(string task, ref int index);
         internal static void RtThread()

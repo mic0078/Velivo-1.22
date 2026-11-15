@@ -442,7 +442,7 @@ namespace Velivo
                     //    (w obrębie sceny bez zmian: spokojna średnia 10 s - bez pompowania między zdaniami; pauzy i cisza nie przełączają - pomiar pomija ciszę)
                     bool scene = false;
                     double m15 = In.Median15 > double.NegativeInfinity && In.Median > double.NegativeInfinity ? Math.Min(In.Median15, In.Median + 3) : double.NegativeInfinity;   // głośniej - ta sama osłona co podstawa: krótki huk nie jest „sceną”
-                    if (sinceStart > Fs * 6 && m15 > double.NegativeInfinity && Math.Abs(m15 - basis) > 5) { if (++sceneN > 2 * Fs) scene = true; } else sceneN = 0;
+                    if (!preOn && sinceStart > Fs * 6 && m15 > double.NegativeInfinity && Math.Abs(m15 - basis) > 5) { if (++sceneN > 2 * Fs) scene = true; } else sceneN = 0;   // 🤝 z kompresorem: głośne sceny to jego praca - wyrównanie LUFS nie przeskakuje razem z nim (nie „biją się”), trzyma spokojny poziom
                     if (scene) basis = m15;
                     if (FilmLong && sinceStart > Fs * 30) { if (n % 4800 == 0) intC = In.Integrated; if (intC > -70) { basis = intC; scene = false; } }
                     if (!FilmLong && sinceStart > Fs * 10)
@@ -469,13 +469,13 @@ namespace Velivo
                     // osobne, chwilowe sciszenie (fastDb): szybko w dol, a gdy zgloszenie minie - wraca w ok. 1–2 s; powolny poziom (levDb)
                     // zostaje nietkniety, wiec po wybuchu dialog od razu jest znowu glosny (nie czeka na powolne podglosnianie)
                     double fastIn = Math.Max(In.Fast, In.Momentary);   // 100 ms - reakcja w ok. 0,1 s
-                    double fastWant = pr.FastDownDbS > 0 && fastIn > double.NegativeInfinity ? Math.Min(0, Math.Max(-pr.MaxCut, Tg + pr.FastHead - (fastIn + levDb)))   /* zapas ponad poziom dialogu - huk zostaje hukiem, tylko bez skoku */ : 0;
+                    double fastWant = pr.FastDownDbS > 0 && fastIn > double.NegativeInfinity ? Math.Min(0, Math.Max(-pr.MaxCut, Tg + pr.FastHead + (preOn ? 6 : 0) - (fastIn + levDb)))   /* zapas ponad poziom dialogu - huk zostaje hukiem, tylko bez skoku */ : 0;
                     fastDb = fastWant < fastDb ? Math.Max(fastWant, fastDb - pr.FastDownDbS * FastMul / Fs) : Math.Min(fastWant, fastDb + pr.FastDownDbS / 5 / Fs);
                     if (fastDb < FastMinDb) FastMinDb = fastDb;
                     // 2) kompresor: szybki detektor mocy K (10 ms) po wyrównaniu, miękkie kolano 6 dB
                     double pl = p * Math.Pow(10, (levDb + fastDb) / 10);   // kompresor widzi już ściszony huk - warstwy nie ściszają tego samego dwa razy
                     detP = pl + detC * (detP - pl);
-                    double lev = AbMeter.Lufs(detP), thr = Tg + pr.ThrOff, over = lev - thr, want2 = 0;
+                    double lev = AbMeter.Lufs(detP), thr = Tg + pr.ThrOff + (preOn ? 8 : 0), over = lev - thr, want2 = 0;   // 🤝 z kompresorem wstępnym: ten stopień tylko jako zabezpieczenie (+8 dB wyżej) - nie ściska drugi raz tego, co ścisnął kompresor
                     if (over > 3) want2 = -over * (1 - 1 / pr.Ratio);
                     else if (over > -3) want2 = -(1 - 1 / pr.Ratio) * (over + 3) * (over + 3) / 12;
                     if (over > 8) want2 -= (over - 8) * (1 / pr.Ratio - 0.05);   // powyżej progu + 8 dB prawie twarda granica (wybuchy nie przeskakują poziomu)

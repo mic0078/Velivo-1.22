@@ -20,7 +20,7 @@ namespace Velivo
         <Track.Thumb><Thumb Style='{StaticResource Knob}'/></Track.Thumb></Track></Grid>
     </ControlTemplate></Setter.Value></Setter>
     <Style.Triggers><Trigger Property='Orientation' Value='Vertical'><Setter Property='Foreground' Value='#2ED3C6'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Slider'>
-      <Grid Width='18' Background='Transparent'><Track x:Name='PART_Track' HorizontalAlignment='Center' IsDirectionReversed='True'>
+      <Grid Width='18' Background='Transparent'><Track x:Name='PART_Track' HorizontalAlignment='Center'>
         <Track.DecreaseRepeatButton><RepeatButton Style='{StaticResource Fill}' Width='5' Background='{TemplateBinding Foreground}' Command='Slider.DecreaseLarge'/></Track.DecreaseRepeatButton>
         <Track.IncreaseRepeatButton><RepeatButton Style='{StaticResource Fill}' Width='5' Background='#2A2E3D' Command='Slider.IncreaseLarge'/></Track.IncreaseRepeatButton>
         <Track.Thumb><Thumb Style='{StaticResource Knob}'/></Track.Thumb></Track></Grid>

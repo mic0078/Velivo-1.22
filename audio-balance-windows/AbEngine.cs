@@ -41,6 +41,7 @@ namespace Velivo
             try { var d = new MMDeviceEnumerator().GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia); return (d.ID, d.FriendlyName); } catch (Exception) { return (null, null); }
         }
         // 🎮 która aplikacja gra teraz przez kabel (najgłośniejsza sesja dźwięku Windows na „CABLE Input”) - do osobnych ustawień kompresora dla programu
+        static readonly string[] NotApps = { "VelivoAudioBalance", "SnippingTool", "ScreenClippingHost", "ScreenSketch", "GameBar", "obs64", "ShareX", "audiodg", "SystemSounds" };
         public static string PlayingApp(string cableId)
         {
             try
@@ -50,7 +51,7 @@ namespace Velivo
                 {
                     var x = ss[i]; float pk = x.AudioMeterInformation.MasterPeakValue; if (pk <= bp) continue;
                     string n = null; try { n = System.Diagnostics.Process.GetProcessById((int)x.GetProcessID).ProcessName; } catch (Exception) { }
-                    if (string.IsNullOrEmpty(n) || n.Equals("VelivoAudioBalance", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (string.IsNullOrEmpty(n) || Array.Exists(NotApps, x => x.Equals(n, StringComparison.OrdinalIgnoreCase))) continue;   // nagrywanie ekranu i dźwięki systemu to nie „program, który gra”
                     best = n; bp = pk;
                 }
                 return best;

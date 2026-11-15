@@ -6,7 +6,7 @@ using NAudio.Wave.SampleProviders;
 
 namespace Velivo
 {
-    // 🎵 poprawianie pliku (WAV, MP3, FLAC, M4A…): te same ustawienia co dźwięk Windows (wyrównanie, kompresor, korektor, dialogi), bez wtyczek VST3;
+    // 🎵 poprawianie pliku (WAV, MP3, FLAC, M4A, także dźwięk z filmów MP4/MOV/WMV/AVI/MKV…): te same ustawienia co dźwięk Windows (wyrównanie, kompresor, korektor, dialogi), bez wtyczek VST3;
     //    wynik: „nazwa (Audio Balance).wav” obok oryginału, 32-bit float 48 kHz stereo (bez strat); liczone szybciej niż czas trwania
     static class AbPlik
     {

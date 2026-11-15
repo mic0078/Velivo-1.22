@@ -99,10 +99,10 @@ namespace Velivo
         {
             var p = new StackPanel(); var st = T(L.T("Wynik: plik „nazwa (Audio Balance).wav” obok oryginału – WAV 32-bit, 48 kHz, bez strat. Te same ustawienia co wyżej (bez wtyczek VST3)."), 11, Dim);
             Button b = null, dirB = null; bool busy = false;
-            b = Mk(L.T("📂 Wybierz pliki (WAV, MP3, FLAC, M4A)…"), async () =>
+            b = Mk(L.T("📂 Wybierz pliki (dźwięk i wideo)…"), async () =>
             {
                 if (busy) return;
-                var dlg = new Microsoft.Win32.OpenFileDialog { Multiselect = true, Filter = L.T("Dźwięk") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma|*.*|*.*" };
+                var dlg = new Microsoft.Win32.OpenFileDialog { Multiselect = true, Filter = L.T("Dźwięk i wideo") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma;*.mp4;*.m4v;*.mov;*.wmv;*.avi;*.mkv;*.3gp|*.*|*.*" };
                 if (Directory.Exists(Get("plik-z") ?? "")) dlg.InitialDirectory = Get("plik-z");   // ostatni folder z utworami
                 if (dlg.ShowDialog(filesWin ?? win) != true) return;
                 Put("plik-z", Path.GetDirectoryName(dlg.FileNames[0]));
@@ -131,9 +131,9 @@ namespace Velivo
             var pos = new Slider { Minimum = 0, Maximum = 1, Margin = new Thickness(0, 4, 0, 4) }; var tt = T("", 11, Dim);
             Button play = null, exp = null; bool drag = false;
             pos.PreviewMouseDown += (s2, e2) => drag = true; pos.PreviewMouseUp += (s2, e2) => { drag = false; if (od != null) od.Pos = TimeSpan.FromSeconds(pos.Value * od.Len.TotalSeconds); };
-            var open = Mk(L.T("📂 Otwórz utwór…"), () =>
+            var open = Mk(L.T("📂 Otwórz utwór lub film…"), () =>
             {
-                var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Dźwięk") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma|*.*|*.*" };
+                var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Dźwięk i wideo") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma;*.mp4;*.m4v;*.mov;*.wmv;*.avi;*.mkv;*.3gp|*.*|*.*" };
                 if (Directory.Exists(Get("plik-z") ?? "")) d.InitialDirectory = Get("plik-z");
                 if (d.ShowDialog(filesWin ?? win) != true) return;
                 Put("plik-z", Path.GetDirectoryName(d.FileName));

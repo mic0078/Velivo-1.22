@@ -237,6 +237,7 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
+        public bool QuietOn = true; public double QuietMaxDb = 15, QuietNow;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
         public bool NoVst;   // poprawianie pliku (osobny obiekt) - bez wtyczek VST3, które gra właśnie dźwięk Windows
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
@@ -454,8 +455,8 @@ namespace Velivo
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double xb = film > -70 && film < Tg - 12 ? Math.Min(15, Tg - 12 - film) : 0;   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
-                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev));
+                        double xb = QuietOn && film > -70 && film < Tg - 12 ? Math.Min(QuietMaxDb, Tg - 12 - film) : 0;   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
+                        double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
                         double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie

@@ -1,7 +1,7 @@
 ﻿# Velivo Audio Balance for Windows - budowa OSOBNO od Velivo (własny program, własny instalator).
 # Użycie: PowerShell w folderze repozytorium ->  .\audio-balance-windows\zbuduj.ps1
 # Wymagane raz: winget install Git.Git Microsoft.DotNet.SDK.10 JRSoftware.InnoSetup
-# VB-Audio Virtual Cable pobiera się sam (raz) z serwera VB-Audio i trafia do instalatora - niczego nie trzeba wrzucać ręcznie.
+# VB-Audio Virtual Cable pobiera instalator (podczas instalacji) albo program (przycisk „Zainstaluj VB-Cable automatycznie”).
 $ErrorActionPreference = 'Stop'
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 $repo = Split-Path $PSScriptRoot -Parent
@@ -18,16 +18,10 @@ dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Audio Balance for Windows nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 
 Write-Host "3/4 VB-Audio Virtual Cable..." -ForegroundColor Cyan
-# pobierany raz do audio-balance-windows\vbcable (poza repozytorium) - przy następnych budowach już jest
+# skrypt NICZEGO nie pobiera (antywirus brał pobieranie + rozpakowanie za wirusa); VB-Cable pobiera instalator albo program.
+# Gdy rozpakowany pakiet jest w audio-balance-windows\vbcable - trafia do instalatora (instalacja bez internetu).
 $vb = Join-Path $PSScriptRoot 'vbcable'
-if (-not (Test-Path (Join-Path $vb 'VBCABLE_Setup_x64.exe'))) {
-    $zip = Join-Path $env:TEMP 'VBCABLE_Driver_Pack.zip'; $ok = $false
-    foreach ($u in 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip', 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip') {
-        try { Write-Host "Pobieram $u" ; Invoke-WebRequest -Uri $u -OutFile $zip -UseBasicParsing; $ok = $true; break } catch { Write-Host ("  nie udalo sie: " + $_.Exception.Message) -ForegroundColor Yellow }
-    }
-    if ($ok) { Remove-Item -Recurse -Force $vb -ErrorAction SilentlyContinue; Expand-Archive -LiteralPath $zip -DestinationPath $vb -Force; Remove-Item $zip -Force -ErrorAction SilentlyContinue }
-}
-if (Test-Path (Join-Path $vb 'VBCABLE_Setup_x64.exe')) { Copy-Item -Recurse -Force $vb 'build\audiobalance\VBCABLE'; Write-Host "VB-Cable w instalatorze: tak" -ForegroundColor Green } else { Write-Host "VB-Cable w instalatorze: nie (nie udalo sie pobrac) - instalator sprobuje pobrac go podczas instalacji" -ForegroundColor Yellow }
+if (Test-Path (Join-Path $vb 'VBCABLE_Setup_x64.exe')) { Copy-Item -Recurse -Force $vb 'build\audiobalance\VBCABLE'; Write-Host "VB-Cable w instalatorze: tak" -ForegroundColor Green } else { Write-Host "VB-Cable pobierze instalator albo program (z serwera VB-Audio)" -ForegroundColor Cyan }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1

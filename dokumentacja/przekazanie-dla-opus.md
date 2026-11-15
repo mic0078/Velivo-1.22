@@ -1,4 +1,4 @@
-# Przekazanie dla Claude Opus – co naprawił Fable (2026-11-15)
+# Przekazanie dla Claude Opus 5.5 – co naprawił Fable (2026-11-15)
 
 Gałąź: `audio-balance` (wnioski w `CLAUDE.md` na `rozwoj`). Wszystko skompilowane (Velivo ×3 warianty, Audio Balance for Windows), **nic nie było uruchamiane na Windows ani odsłuchiwane** – potwierdza właściciel.
 
@@ -27,6 +27,7 @@ Gałąź: `audio-balance` (wnioski w `CLAUDE.md` na `rozwoj`). Wszystko skompilo
 | Zmiana wyjścia w Windows omijała program | Strażnik `Pilnuj`: wybrane urządzenie staje się wyjściem programu, Windows wraca na kabel. `aktualizacja.flag` wstrzymuje strażnika na czas aktualizacji / odinstalowania | `AbMain.cs` |
 | „Próg automatyczny zamiast wyciągać, ścisza” | Przy progu automatycznym kompresor doprowadza typową MOC dźwięku (`progP`) do celu LUFS (`AutoTargetDb` ustawia `AbProcessor`), zakres −20…+30 dB, w górę 6 dB/s, w dół 20 dB/s; suwak „Podbicie” wtedy nieużywany; w oknie „do celu: ±dB”. Symulacja: wejście −50 / −25 / −8 dB → wyjście −24,2 dB (cel −23 LUFS) | `Silnik/AudioBalanceDynamics.cs`, `Silnik/AudioBalanceDsp.cs`, `Silnik/AudioBalanceDynamicsUi.cs` |
 | Podgląd pusty przy wyłączonym kierowaniu | Podsłuch wyjścia Windows (loopback) tylko do wskaźników: `AbEngine.Monitor(id)`, osobny `MonProc` (Bypass), `Shown` wybiera, co pokazać | `AbEngine.cs`, `AbLive.cs`, `AbWidget.cs`, `AbMain.cs` |
+| Okno wymagało przewijania | Niższe wskaźniki tylko w programie samodzielnym (`AbWide`): widmo 96, wykres pracy 54, krzywa 112, mierniki 70, historia 24, suwaki EQ 84; opis kompresora w podpowiedzi. Niepotwierdzone, czy już bez przewijania – następny do skrócenia: opis pod „VST3 aktywne” | `Silnik/AudioBalanceDynamicsUi.cs`, `AbLive.cs`, `AbMain.cs` |
 
 ## Otwarte (niezrobione)
 

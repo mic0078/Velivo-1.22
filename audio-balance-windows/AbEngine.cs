@@ -14,6 +14,7 @@ namespace Velivo
         WasapiCapture cap; WasapiOut outp; BufferedWaveProvider buf;
         public int Latency = 1;   // ⏱ opóźnienie: 0 niskie (~0,1 s), 1 normalne (~0,2 s), 2 bezpieczne (~0,35 s, bez pyknięć)
         int lc, lt, lo;
+        public volatile AbRecorder Rec;   // ⏺ nagrywanie wyjścia (WAV)
         // ⏱ ile dźwięk spóźnia się przez ten program (kabel, zapas, karta, wtyczki VST3) - Velivo przesuwa o tyle dźwięk filmu, żeby obraz był równo z głosem
         public int DelayMs => Running ? lc / 2 + lt + lo + 5 + Vst3.Latency * 1000 / AbProcessor.Fs : 0;
         public volatile bool Running; public string OutputName, Error;
@@ -201,6 +202,7 @@ namespace Velivo
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza
                 for (int i = 0; i < n; i++) buffer[offset + i] = tmp[i];
                 Diag.Proc(System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+                Owner?.Rec?.Add(buffer, offset, n);   // ⏺ nagrywanie dźwięku po poprawkach
                 AbWidok.Write(proc, proc.Profile != null ? 1 : 0, Owner?.DelayMs ?? 0);   // 🔗 wskaźniki dla Velivo (pamięć współdzielona)
                 return n;
             }

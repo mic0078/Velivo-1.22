@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -49,7 +50,8 @@ namespace Velivo
             var srcBtns = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
             var toDef = mk(L.T("↺ Domyślne"), () => { }); toDef.ToolTip = L.T("Ten film / kanał wraca do ustawień domyślnych (własne dla niego są usuwane).");
             var setDef = mk(L.T("★ Ustaw jako domyślne"), () => { }); setDef.ToolTip = L.T("Obecne ustawienia stają się domyślnymi – dla filmów i kanałów bez własnych.");
-            srcBtns.Children.Add(toDef); srcBtns.Children.Add(setDef);
+            var listBtn = mk(L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
+            srcBtns.Children.Add(toDef); srcBtns.Children.Add(setDef); srcBtns.Children.Add(listBtn);
             panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns);
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
             var vis = new Grid { Margin = new Thickness(0, 0, 0, 8) };
@@ -219,6 +221,46 @@ namespace Velivo
             toDef.Click += (s, e) => { if (_abPreSrc == null) return; var d = AbPreSrcLoad(); d.Remove(_abPreSrc); AbPreSrcSave(d); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); };
             setDef.Click += (s, e) => { AbPreSetDefault(AbProc.Pre.Params); ShowToast(L.T("★ Ustawienia kompresora zapisane jako domyślne"), null); };
             SrcUi();
+            listBtn.Click += (s, e) =>
+            {   // 📋 lista zapisanych ustawień dla filmów i kanałów, każda pozycja z 🗑 Usuń
+                var own = Window.GetWindow(listBtn);
+                var w = new Window { Title = L.T("Kompresor – zapisane dla filmów i kanałów"), Uid = "own-theme", Owner = own, Topmost = own?.Topmost == true, Background = AbDark, Foreground = fg, Width = 520, Height = 460, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.CanResize };
+                var root = new DockPanel { Margin = new Thickness(12) };
+                var head = new TextBlock { Text = L.T("Filmy i kanały TV z własnymi ustawieniami kompresora. Usunięcie = ten film / kanał wraca do ustawień domyślnych."), Foreground = dim, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
+                DockPanel.SetDock(head, Dock.Top); root.Children.Add(head);
+                var bottom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+                DockPanel.SetDock(bottom, Dock.Bottom); root.Children.Add(bottom);
+                var rowsPanel = new StackPanel(); root.Children.Add(new ScrollViewer { Content = rowsPanel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+                void Fill()
+                {
+                    rowsPanel.Children.Clear(); var d = AbPreSrcLoad();
+                    if (d.Count == 0) { rowsPanel.Children.Add(new TextBlock { Text = L.T("Brak – żaden film ani kanał nie ma własnych ustawień."), Foreground = dim, FontSize = 12 }); return; }
+                    foreach (var kv in d.OrderBy(x => x.Key, StringComparer.CurrentCultureIgnoreCase))
+                    {
+                        var q = DynParams.Load(kv.Value); string key = kv.Key;
+                        var g = new Grid { Margin = new Thickness(0, 0, 0, 6) }; g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        var info = new StackPanel();
+                        info.Children.Add(new TextBlock { Text = key + (key.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase) ? L.T("  (gra teraz)") : ""), Foreground = fg, FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = key });
+                        info.Children.Add(new TextBlock { Foreground = dim, FontSize = 11, Text = !q.IsEnabled ? L.T("kompresor wyłączony") : (q.AutoThreshold ? L.T("próg automatyczny +") + q.AutoOffsetDb.ToString("0.#") + " dB" : L.T("próg ") + q.ThresholdDb.ToString("0.#") + " dB") + ", " + q.Ratio.ToString("0.#") + ":1, " + L.T("podbicie ") + q.MakeupGainDb.ToString("+0.#;-0.#;0") + " dB, Mix " + q.MixPercent.ToString("0") + "%" });
+                        var del = mk(L.T("🗑 Usuń"), () =>
+                        {
+                            var dd = AbPreSrcLoad(); dd.Remove(key); AbPreSrcSave(dd);
+                            if (key.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase)) { _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); }
+                            Fill();
+                        });
+                        del.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(del, 1);
+                        g.Children.Add(info); g.Children.Add(del); rowsPanel.Children.Add(g);
+                    }
+                }
+                var delAll = mk(L.T("Usuń wszystkie"), () =>
+                {
+                    if (MessageBox.Show(w, L.T("Usunąć własne ustawienia kompresora wszystkich filmów i kanałów? Wrócą do ustawień domyślnych."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    AbPreSrcSave(new Dictionary<string, string>()); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); Fill();
+                });
+                var close = mk(L.T("Zamknij"), () => w.Close());
+                bottom.Children.Add(delAll); bottom.Children.Add(close);
+                Fill(); w.Content = root; w.Show();
+            };
             Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params);
             manual = () => { if (!string.IsNullOrEmpty(GetPref("ab-kompresor-nazwa"))) SetName(null); };
             var lastName = GetPref("ab-kompresor-nazwa"); SetName(string.IsNullOrEmpty(lastName) ? null : lastName);

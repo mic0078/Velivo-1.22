@@ -67,12 +67,16 @@ namespace Velivo
         public volatile float InputDb = -120, OutputDb = -120;   // poziom wykrywania na wejściu i wynik po kompresji (dB) - kropka na wykresie i mierniki
         public volatile float EffExpanderDb = -52;   // próg ciszy w tej chwili (dopasowany do filmu)
         public volatile float EffThresholdDb = -32;   // próg w tej chwili (przy progu automatycznym - liczony z filmu)
+        // 🎯 próg automatyczny współpracuje z wyrównaniem LUFS (właściciel): typowy poziom filmu jest doprowadzany do celu LUFS - bardzo cichy film w górę,
+        // głośny w dół; regulator LUFS za kompresorem dostaje dźwięk już blisko celu i tylko dopracowuje. AutoTargetDb ustawia Audio Balance (cel LUFS).
+        public volatile float AutoTargetDb = float.NaN, AutoLiftDb;
+        double liftS, progP = double.NaN;   // progP - typowa MOC dźwięku (ta sama bramka co progDb) - do celu LUFS liczy się moc, nie średnia z dB
         int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
         DynParams cp; double ca, cr, cRms, cAvg, cs;   // współczynniki liczone raz na zmianę ustawień (nie co próbkę)
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progN = 0; }
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progP = double.NaN; progN = 0; liftS = 0; AutoLiftDb = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);
@@ -116,6 +120,10 @@ namespace Velivo
             double xDb = lvl > 1e-9 ? 20 * Math.Log10(lvl) : -180;
             if ((mtrN & 63) == 0 && xDb > -70)   // mierzone zawsze (nie tylko z zaznaczonym progiem automatycznym) - po zaznaczeniu próg od razu na właściwym miejscu, bez zależności od chwili kliknięcia
             {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
+                double e2 = lvl * lvl;
+                if (double.IsNaN(progP)) progP = e2;
+                else if (progN + 1 < 3 * fs / 64) progP += (e2 - progP) / (0.5 * fs / 64);
+                else if (xDb > progDb - 20) progP += (Math.Min(e2, Math.Pow(10, (progDb + 3) / 10)) - progP) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);
                 if (double.IsNaN(progDb)) progDb = xDb;
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
                 else if (xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);   // po 30 s średnia z ok. 60 s - próg stoi, nie jeździ za uderzeniami i frazami muzyki (falowanie zgłoszone przez właściciela)
@@ -127,13 +135,18 @@ namespace Velivo
             double want = GainComputer(xDb, p, thr, expThr);
             grDb = want < grDb ? want + ca * (grDb - want) : want + cr * (grDb - want);   // mocniej - czas ataku, słabiej - czas powrotu
             if (xDb > expThr) avgGr += (grDb - avgGr) * cAvg;   // średnia redukcja z ok. 3 s (bez ciszy) - do automatycznego podbicia
-            double mkWant = p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0), mixWant = p.MixPercent / 100.0;
+            // 🎯 do celu LUFS: typowa moc dźwięku (w LUFS ok. +2,3 dB) → cel, z uwzględnieniem tego, co kompresor ściszył; w górę spokojnie (6 dB/s - cichy
+            // początek nie wybucha), w dół szybko (20 dB/s). Przy progu automatycznym suwak „Podbicie” nie jest potrzebny - poziom ustala cel LUFS.
+            double tgA = AutoTargetDb; bool toTarget = p.AutoThreshold && !double.IsNaN(progP) && progP > 1e-12 && !double.IsNaN(tgA);
+            double liftWant = toTarget ? Math.Max(-20, Math.Min(30, tgA - (10 * Math.Log10(progP) + 2.3) - avgGr)) : 0;
+            liftS += Math.Max(-20 / fs, Math.Min(6 / fs, liftWant - liftS));
+            double mkWant = toTarget ? liftS : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS, mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
             mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * cs; mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;
             double gw = Math.Pow(10, (grDb + mkS) / 20);
             l = l * (1 - mixS) + l * gw * mixS; r = r * (1 - mixS) + r * gw * mixS;   // równoległa: suchy (bez zmian) + skompresowany
             CurrentGainReductionDb = (float)grDb;
-            if ((++mtrN & 63) == 0) { InputDb = (float)Math.Max(-120, xDb); OutputDb = (float)Math.Max(-120, xDb + 20 * Math.Log10(Math.Max(1e-6, 1 - mixS + mixS * gw))); }   // mierniki co 64 próbki (bez kosztu w każdej próbce)
+            if ((++mtrN & 63) == 0) { AutoLiftDb = (float)liftS; InputDb = (float)Math.Max(-120, xDb); OutputDb = (float)Math.Max(-120, xDb + 20 * Math.Log10(Math.Max(1e-6, 1 - mixS + mixS * gw))); }   // mierniki co 64 próbki (bez kosztu w każdej próbce)
         }
     }
 }

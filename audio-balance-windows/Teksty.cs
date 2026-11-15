@@ -15,6 +15,8 @@ namespace Velivo
             { "Kliknij „Zainstaluj VB-Cable automatycznie”. Albo ręcznie: pobierz ze strony producenta, uruchom VBCABLE_Setup_x64.exe jako administrator → Install Driver, uruchom komputer ponownie i kliknij „Sprawdź ponownie”.", "Click “Install VB-Cable automatically”. Or manually: download it from the maker’s website, run VBCABLE_Setup_x64.exe as administrator → Install Driver, restart the computer and click “Check again”." },
             { "Pobierz VB-Cable (strona producenta)", "Download VB-Cable (maker’s website)" },
             { "Sprawdź ponownie", "Check again" },
+            { "Kompresor sam mierzy typowy poziom dźwięku i ustawia próg ponad nim, a całość doprowadza do celu LUFS: bardzo cichy film podgłaśnia, głośny ścisza. Wyrównanie LUFS potem tylko dopracowuje.", "The compressor measures the typical sound level, sets the threshold above it and brings the whole to the LUFS target: a very quiet film is raised, a loud one lowered. LUFS levelling then only fine-tunes." },
+            { "do celu: ", "to target: " },
             { "Głośniki / słuchawki (tu trafia poprawiony dźwięk):", "Speakers / headphones (where the corrected sound goes):" },
             { "Opóźnienie dźwięku:", "Sound delay:" },
             { "Niskie ~0,1 s", "Low ~0.1 s" },

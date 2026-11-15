@@ -773,7 +773,7 @@ namespace Velivo
                 _komRelayAutoTimer.Tick += async (s, e) =>
                 {   // 🔎 co godzinę: pamięć i wątki pośrednika (szukanie przyczyny zawieszania / zamykania Velivo na NUCBOX)
                     using (var me = System.Diagnostics.Process.GetCurrentProcess())
-                        App.LogInfo("Pośrednik: pamięć " + me.PrivateMemorySize64 / 1048576 + " MB, wątki " + me.Threads.Count + ", uchwyty " + me.HandleCount + ", połączenia " + _komRemote.Count);
+                        App.LogInfo("Pośrednik: pamięć " + me.WorkingSet64 / 1048576 + " MB (jak w Menedżerze zadań; zarezerwowana " + me.PrivateMemorySize64 / 1048576 + " MB), wątki " + me.Threads.Count + ", uchwyty " + me.HandleCount + ", połączenia " + _komRemote.Count);
                     await KomRelayAutoAsync(); KomFirewallCheck();
                 };
             }

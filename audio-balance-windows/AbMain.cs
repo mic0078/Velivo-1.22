@@ -86,11 +86,11 @@ namespace Velivo
             p.Children.Add(pr); return p;
         }
         // 🎵 poprawianie własnych plików (dla muzyka): WAV / MP3 / FLAC / M4A → „(Audio Balance).wav” 32-bit 48 kHz, te same ustawienia co dźwięk Windows
-        Window filesWin; AbOdsluch od;
+        Window filesWin; AbOdsluch od; Dictionary<string, string> lastSnap; readonly Stack<Dictionary<string, string>> hist = new Stack<Dictionary<string, string>>(); bool undoing;
         void ShowFiles()
         {   // 🎵 osobne okno (właściciel): poprawianie plików niezależnie od okna podglądu
             if (filesWin != null) { filesWin.Show(); filesWin.Activate(); return; }
-            filesWin = new Window { Title = L.T("Velivo Audio Balance – popraw pliki"), Width = 620, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI"), Icon = win.Icon };
+            filesWin = new Window { Title = L.T("Velivo Audio Balance – popraw pliki"), Width = Math.Min(1100, SystemParameters.WorkArea.Width - 60), SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI"), Icon = win.Icon };
             filesWin.Resources.MergedDictionaries.Add(AbStyl.Res);
             var c = Card(FilePanel()); c.Margin = new Thickness(14); filesWin.Content = c;
             filesWin.Closed += (s, e) => { filesWin = null; od?.Dispose(); od = null; }; filesWin.Show();
@@ -128,9 +128,9 @@ namespace Velivo
             // 🎧 słuchasz → podoba się → 💾 eksport (właściciel): utwór gra przez Audio Balance z bieżącymi ustawieniami, eksport zapisuje dokładnie to brzmienie
             p.Children.Add(Head(L.T("🎧 Odsłuch i eksport")));
             var nameT = T(L.T("Otwórz utwór, posłuchaj i zmieniaj ustawienia w głównym oknie – słyszysz od razu. Gdy brzmi dobrze: Eksportuj."), 11, Dim);
-            var pos = new Slider { Minimum = 0, Maximum = 1, Margin = new Thickness(0, 4, 0, 4) }; var tt = T("", 11, Dim);
-            Button play = null, exp = null; bool drag = false;
-            pos.PreviewMouseDown += (s2, e2) => drag = true; pos.PreviewMouseUp += (s2, e2) => { drag = false; if (od != null) od.Pos = TimeSpan.FromSeconds(pos.Value * od.Len.TotalSeconds); };
+            var fala = new AbFala { Margin = new Thickness(0, 6, 0, 4) }; var tt = T("", 11, Dim);   // 〰 fala jak w Audacity
+            fala.Seek = t => { if (od != null) { od.Pos = TimeSpan.FromSeconds(t); fala.SetPlay(t); } };
+            Button play = null, exp = null, undo = null;
             var open = Mk(L.T("📂 Otwórz utwór lub film…"), () =>
             {
                 var d = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Dźwięk i wideo") + "|*.wav;*.mp3;*.flac;*.m4a;*.aac;*.wma;*.mp4;*.m4v;*.mov;*.wmv;*.avi;*.mkv;*.3gp|*.*|*.*" };
@@ -138,7 +138,7 @@ namespace Velivo
                 if (d.ShowDialog(filesWin ?? win) != true) return;
                 Put("plik-z", Path.GetDirectoryName(d.FileName));
                 od?.Dispose(); od = null;
-                try { od = new AbOdsluch(d.FileName); od.Toggle(); nameT.Text = "🎵 " + Path.GetFileName(d.FileName); nameT.Foreground = Fg; play.IsEnabled = exp.IsEnabled = true; }
+                try { od = new AbOdsluch(d.FileName); fala.Load(d.FileName); lastSnap = SoundKeys.ToDictionary(k => k, k => Get(k)); hist.Clear(); undo.IsEnabled = false; od.Toggle(); nameT.Text = "🎵 " + Path.GetFileName(d.FileName); nameT.Foreground = Fg; play.IsEnabled = exp.IsEnabled = true; }
                 catch (Exception ex) { App.LogError(ex); nameT.Text = "✖ " + ex.Message; nameT.Foreground = Bad; }
                 if (!eng.Running || GetText(defBtn)?.StartsWith("▶") == true) nameT.Text += L.T("  (uwaga: Windows nie gra przez Audio Balance – słyszysz bez poprawek, eksport i tak je zastosuje)");
             });
@@ -154,10 +154,24 @@ namespace Velivo
                 catch (Exception ex) { App.LogError(ex); st.Text = "✖ " + ex.Message; st.Foreground = Bad; }
                 busy = false;
             }, L.T("Zapisuje utwór z bieżącymi poprawkami do WAV 32-bit, 48 kHz (wybierasz nazwę i miejsce).")); exp.IsEnabled = false;
-            var prow = new WrapPanel(); prow.Children.Add(open); prow.Children.Add(play); prow.Children.Add(stop); prow.Children.Add(exp);
-            p.Children.Add(nameT); p.Children.Add(prow); p.Children.Add(pos); p.Children.Add(tt);
-            var ptm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            ptm.Tick += (s2, e2) => { if (od == null) return; var L0 = od.Len.TotalSeconds; if (!drag && L0 > 0) pos.Value = od.Pos.TotalSeconds / L0; tt.Text = od.Pos.ToString(@"m\:ss") + " / " + od.Len.ToString(@"m\:ss"); };
+            // 🅰🅱 oryginał / po poprawkach (jak porównanie w Audacity) i ↺ cofnięcie ustawień do chwili otwarcia utworu; plik źródłowy nigdy nie jest zmieniany
+            Button ab = null; ab = Mk(L.T("🅰🅱 Oryginał"), () => { ToggleBypass(); SetText(ab, eng.Proc.Bypass ? L.T("🅰🅱 Słyszysz ORYGINAŁ") : L.T("🅰🅱 Oryginał")); ab.Background = eng.Proc.Bypass ? Bad : BtnBg; },
+                L.T("Przełącza: oryginał bez poprawek ↔ po poprawkach (porównanie)."));
+            // ↶ cofanie krok po kroku (jak Ctrl+Z w Audacity): każda zmiana ustawień w czasie odsłuchu trafia na stos, „Cofnij” wraca do poprzedniej
+            undo = Mk(L.T("↶ Cofnij"), () =>
+            {
+                if (hist.Count == 0) return; var prev = hist.Pop(); undoing = true;
+                foreach (var kv in prev) { if (kv.Value == null) set.Remove(kv.Key); else Put(kv.Key, kv.Value); }
+                lastSnap = prev; Apply(); undoing = false;
+                st.Text = L.T("↶ Cofnięto do poprzednich ustawień (zostało kroków: ") + hist.Count + ")"; st.Foreground = Ok; undo.IsEnabled = hist.Count > 0;
+            }, L.T("Cofa ostatnią zmianę ustawień (krok po kroku, także Ctrl+Z). Oryginalny plik nigdy nie jest zmieniany – eksport to zawsze nowy plik.")); undo.IsEnabled = false;
+            (filesWin ?? win).PreviewKeyDown += (s2, e2) => { if (e2.Key == System.Windows.Input.Key.Z && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control) { undo.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); e2.Handled = true; } };
+            var prow = new WrapPanel(); prow.Children.Add(open); prow.Children.Add(play); prow.Children.Add(stop); prow.Children.Add(ab); prow.Children.Add(undo); prow.Children.Add(exp);
+            p.Children.Add(nameT); p.Children.Add(prow); p.Children.Add(fala); p.Children.Add(tt);
+            var ptm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            ptm.Tick += (s2, e2) => {
+                if (lastSnap != null && !undoing) { var now = SoundKeys.ToDictionary(k => k, k => Get(k)); if (now.Any(kv => lastSnap[kv.Key] != kv.Value)) { hist.Push(lastSnap); lastSnap = now; undo.IsEnabled = true; } }   // zmiana ustawień → krok do cofnięcia
+                if (od == null) return; fala.SetPlay(od.Pos.TotalSeconds); tt.Text = od.Pos.ToString(@"m\:ss") + " / " + od.Len.ToString(@"m\:ss"); };
             ptm.Start(); p.Unloaded += (s2, e2) => { ptm.Stop(); od?.Dispose(); od = null; };
             p.Children.Add(new Border { Height = 1, Background = Dim, Opacity = 0.3, Margin = new Thickness(0, 10, 0, 10) });
             p.Children.Add(Head(L.T("🎵 Wiele plików naraz"), b)); p.Children.Add(st);

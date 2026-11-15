@@ -12,8 +12,9 @@ $galaz = (git rev-parse --abbrev-ref HEAD).Trim()
 git pull origin $galaz
 Write-Host ("Budowana wersja: " + (git log --oneline -1)) -ForegroundColor Cyan
 
-# działający program kieruje cały dźwięk na CABLE - przed zamknięciem Windows wraca do głośników (inaczej cisza do ponownego uruchomienia)
-$ab = Get-Process VelivoAudioBalance -ErrorAction SilentlyContinue | Select-Object -First 1
+# działający Audio Balance ZOSTAJE włączony na czas budowy (muzyka gra dalej bez zmian) - budowa nie rusza zainstalowanego programu; zamyka go dopiero instalator.
+# Wyjątek: program uruchomiony wprost z folderu budowy (build\audiobalance) - trzeba go zamknąć, bo folder jest budowany od nowa (dźwięk wraca wtedy do głośników).
+$ab = Get-Process VelivoAudioBalance -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith((Join-Path $repo 'build\audiobalance'), [StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
 if ($ab) { try { Start-Process $ab.Path -ArgumentList '--aktualizacja' -Wait } catch {}; Stop-Process -Id $ab.Id -Force -ErrorAction SilentlyContinue; Write-Host "Audio Balance zamkniety, dzwiek wrocil do glosnikow (po instalacji wroci przez Audio Balance)" -ForegroundColor Yellow }
 
 Write-Host "2/4 Kompilacja Velivo Audio Balance for Windows..." -ForegroundColor Cyan

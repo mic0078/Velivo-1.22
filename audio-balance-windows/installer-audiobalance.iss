@@ -121,8 +121,17 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Code: Integer; Exe: String;
 begin
   Result := '';
+  // aktualizacja: działający program kieruje cały dźwięk na kabel - najpierw Windows wraca do głośników (muzyka gra dalej, bez ciszy),
+  // potem program jest zamykany; nowa wersja po uruchomieniu sama kieruje dźwięk z powrotem przez Audio Balance
+  Exe := ExpandConstant('{app}\VelivoAudioBalance.exe');
+  if FileExists(Exe) then
+  begin
+    Exec(Exe, '--aktualizacja', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM VelivoAudioBalance.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  end;
   MoveAsideUninstallFiles;
 end;
 

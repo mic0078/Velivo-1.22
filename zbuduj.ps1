@@ -32,6 +32,14 @@ if (-not $Podstawowa -and (Test-Path "dodatki\VST3")) { Copy-Item -Recurse -Forc
 Remove-Item -Recurse -Force build\komunikator -ErrorAction SilentlyContinue
 dotnet publish komunikator-windows\VelivoKomunikator.csproj -c Release -r win-x64 --self-contained true -o build\komunikator
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
+# 🧩 Velivo Odtwarzacz i Velivo Przeglądarka - osobne programy z tego samego kodu (zawsze ta sama wersja co Velivo - wspólne dane)
+foreach ($w in @('Odtwarzacz', 'Przegladarka')) {
+    $d = 'build\' + $w.ToLower()
+    Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
+    dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o $d $edycja "-p:Wariant=$w"
+    if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo $w nie powiodla sie." -ForegroundColor Red; exit 1 }
+    if ($w -eq 'Odtwarzacz' -and -not $Podstawowa -and (Test-Path "dodatki\VST3")) { Copy-Item -Recurse -Force "dodatki\VST3" "$d\VST3" }   # Audio Balance z wtyczkami jak w Velivo
+}
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -53,7 +61,15 @@ $oldK = Join-Path $outDir 'Velivo-Komunikator-Setup-1.22.exe'
 for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
 for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
+foreach ($w in @('Odtwarzacz', 'Przegladarka')) {
+    $oldW = Join-Path $outDir ("Velivo-$w-Setup-1.22.exe")
+    for ($i = 0; $i -lt 10 -and (Test-Path $oldW); $i++) { try { Remove-Item $oldW -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
+    for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/D$w" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora $w ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+    if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Velivo $w nie powiodla sie." -ForegroundColor Red; exit 1 }
+}
 
 Write-Host ("Gotowe: build\instalator\" + $nazwa + ".exe (" + $(if ($Podstawowa) { "Velivo bezplatne" } else { "Velivo Premium" }) + "; zamknij Velivo calkowicie przed instalacja)") -ForegroundColor Green
 Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-1.22.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green
+Write-Host "Gotowe: build\instalator\Velivo-Odtwarzacz-Setup-1.22.exe (filmy, TV, Kanapa, Pilot, lektor - bez przegladarki)" -ForegroundColor Green
+Write-Host "Gotowe: build\instalator\Velivo-Przegladarka-Setup-1.22.exe (sama przegladarka - filmy otwiera Velivo Odtwarzacz)" -ForegroundColor Green
 Start-Process $outDir

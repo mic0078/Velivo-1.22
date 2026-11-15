@@ -10,7 +10,7 @@ namespace Velivo
     public partial class MainWindow
     {
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string RunName = "Velivo";
+        const string RunName = Wariant.Pid;   // 🧩 każdy program własny autostart (instalator: ValueName {#Pid})
         internal static readonly int[] AutostartDelays = { 0, 10, 30, 60, 120, 300 };
 
         internal static string AutostartCommand(string exe, int delaySec)

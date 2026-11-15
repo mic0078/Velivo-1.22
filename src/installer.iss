@@ -1,6 +1,31 @@
 ﻿; Instalator Velivo - kompilacja: ISCC.exe installer.iss (po dotnet publish do ..\build\velivo)
-#define AppName "Velivo"
 #define AppVer "1.22"
+; 🧩 jeden instalator, kilka programów: ISCC /DOdtwarzacz albo /DPrzegladarka (bez = pełne Velivo Premium)
+#ifdef Odtwarzacz
+  #define Wariant
+  #define AppName "Velivo Odtwarzacz"
+  #define Exe "VelivoOdtwarzacz.exe"
+  #define Pid "VelivoOdtwarzacz"
+  #define Ikona "odtwarzacz.ico"
+  #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}"
+  #define SrcDir "..\build\odtwarzacz"
+  #define OutName "Velivo-Odtwarzacz-Setup-" + AppVer
+#elif defined(Przegladarka)
+  #define Wariant
+  #define AppName "Velivo Przeglądarka"
+  #define Exe "VelivoPrzegladarka.exe"
+  #define Pid "VelivoPrzegladarka"
+  #define Ikona "przegladarka.ico"
+  #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA02}"
+  #define SrcDir "..\build\przegladarka"
+  #define OutName "Velivo-Przegladarka-Setup-" + AppVer
+#else
+  #define AppName "Velivo"
+  #define Exe "Velivo.exe"
+  #define Pid "Velivo"
+  #define Ikona "app.ico"
+  #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}"
+#endif
 #ifndef SrcDir
   #define SrcDir "..\build\velivo"
 #endif
@@ -10,12 +35,12 @@
 
 [Setup]
 ; AppId bez zmian od czasow nazwy "Przegladarka" - dzieki temu instalator aktualizuje stara wersje
-AppId={{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}
+AppId={#AppIdV}
 AppName={#AppName}
 AppVersion={#AppVer}
 AppVerName={#AppName} {#AppVer} By MichAel
 AppPublisher=MichAel
-DefaultDirName={localappdata}\Programs\Velivo
+DefaultDirName={localappdata}\Programs\{#AppName}
 UsePreviousAppDir=no
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
@@ -24,8 +49,8 @@ OutputBaseFilename={#OutName}
 Compression=lzma2/ultra
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=app.ico
-UninstallDisplayIcon={app}\Velivo.exe
+SetupIconFile={#Ikona}
+UninstallDisplayIcon={app}\{#Exe}
 DisableProgramGroupPage=yes
 ShowLanguageDialog=yes
 ArchitecturesAllowed=x64compatible
@@ -88,12 +113,19 @@ en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included i
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
+#ifndef Wariant
 Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{cm:Shortcuts}"
+#endif
 Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
+#ifdef Odtwarzacz
+Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
+Name: "videoplayer\iptv"; Description: "{cm:Iptv}"
+#elif !defined(Przegladarka)
 ; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
 ; telewizja IPTV - osobny modul na odtwarzaczu filmow (bez wlasnego pobierania)
 Name: "videoplayer\iptv"; Description: "{cm:Iptv}"; Flags: unchecked
+#endif
 
 [InstallDelete]
 ; pozostalosci po poprzednich nazwach programu ("Przegladarka", "Tarcza") - tylko pliki programu i skroty,
@@ -124,86 +156,107 @@ Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cre
 Source: "{srcexe}"; DestDir: "{app}"; DestName: "Velivo-instalator.exe"; Flags: external ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Velivo.exe"
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#Exe}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#Exe}"; Tasks: desktopicon
+#ifndef Wariant
 ; sama klawiatura ekranowa - osobny identyfikator, wiec po przypieciu ma wlasna ikone na pasku zadan
-Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\Velivo.exe"; Parameters: "--klawiatura"; AppUserModelID: "Velivo.Klawiatura"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Velivo.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Parameters: "--klawiatura"; AppUserModelID: "Velivo.Klawiatura"
 ; 💬 sam komunikator - wlasna ikona i osobny identyfikator (po przypieciu wlasna ikona na pasku zadan)
-Name: "{autoprograms}\Komunikator {#AppName}"; Filename: "{app}\Velivo.exe"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"
-Name: "{autodesktop}\Komunikator {#AppName}"; Filename: "{app}\Velivo.exe"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"; Tasks: komunikatoricon
+Name: "{autoprograms}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"
+Name: "{autodesktop}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"; Tasks: komunikatoricon
+#endif
 
 [Registry]
 ; autostart wlaczany w Ustawieniach Velivo - przy odinstalowaniu wpis znika (ValueType none = instalator go nie tworzy)
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Velivo"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#Pid}"; Flags: uninsdeletevalue
 ; rejestracja jako przegladarka (pojawia sie na liscie "Aplikacje domyslne"); wybor robi uzytkownik w Ustawieniach
-Root: HKCU; Subkey: "Software\Classes\VelivoHTML"; ValueType: string; ValueName: ""; ValueData: "Velivo HTML Document"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\VelivoHTML\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Classes\VelivoHTML\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo"; ValueType: string; ValueName: ""; ValueData: "Velivo"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"""
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Velivo"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "{cm:AppDesc}"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\URLAssociations"; ValueType: string; ValueName: "http"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\URLAssociations"; ValueType: string; ValueName: "https"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".htm"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".html"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".shtml"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".xhtml"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".svg"; ValueData: "VelivoHTML"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\StartMenu"; ValueType: string; ValueName: "StartMenuInternet"; ValueData: "Velivo"
+#ifndef Odtwarzacz
+Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML"; ValueType: string; ValueName: ""; ValueData: "Velivo HTML Document"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}"; ValueType: string; ValueName: ""; ValueData: "{#AppName}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"""
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#AppName}"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "{cm:AppDesc}"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\URLAssociations"; ValueType: string; ValueName: "http"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\URLAssociations"; ValueType: string; ValueName: "https"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".htm"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".html"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".shtml"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".xhtml"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".svg"; ValueData: "{#Pid}HTML"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\StartMenu"; ValueType: string; ValueName: "StartMenuInternet"; ValueData: "{#AppName}"
+#endif
 ; PDF: Velivo na liscie "Otworz za pomoca" i w Aplikacjach domyslnych (wbudowany czytnik PDF silnika)
-Root: HKCU; Subkey: "Software\Classes\VelivoPDF"; ValueType: string; ValueName: ""; ValueData: "Velivo PDF Document"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\VelivoPDF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Classes\VelivoPDF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
-Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "VelivoPDF"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".pdf"; ValueData: "VelivoPDF"
+#ifndef Odtwarzacz
+Root: HKCU; Subkey: "Software\Classes\{#Pid}PDF"; ValueType: string; ValueName: ""; ValueData: "Velivo PDF Document"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\{#Pid}PDF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Classes\{#Pid}PDF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}PDF"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".pdf"; ValueData: "{#Pid}PDF"
+#endif
 ; filmy z dysku: odtwarzacz Velivo w "Otworz za pomoca" i w Aplikacjach domyslnych
-Root: HKCU; Subkey: "Software\Classes\VelivoVideo"; ValueType: string; ValueName: ""; ValueData: "Velivo Video"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\VelivoVideo\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Classes\VelivoVideo\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
-Root: HKCU; Subkey: "Software\Classes\.mp4\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mp4"; ValueData: "VelivoVideo"
-Root: HKCU; Subkey: "Software\Classes\.m4v\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".m4v"; ValueData: "VelivoVideo"
-Root: HKCU; Subkey: "Software\Classes\.webm\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".webm"; ValueData: "VelivoVideo"
-Root: HKCU; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mkv"; ValueData: "VelivoVideo"
-Root: HKCU; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mov"; ValueData: "VelivoVideo"
-Root: HKCU; Subkey: "Software\Classes\.ogv\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ogv"; ValueData: "VelivoVideo"
+#ifndef Przegladarka
+Root: HKCU; Subkey: "Software\Classes\{#Pid}Video"; ValueType: string; ValueName: ""; ValueData: "Velivo Video"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\{#Pid}Video\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Classes\{#Pid}Video\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.mp4\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mp4"; ValueData: "{#Pid}Video"
+Root: HKCU; Subkey: "Software\Classes\.m4v\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".m4v"; ValueData: "{#Pid}Video"
+Root: HKCU; Subkey: "Software\Classes\.webm\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".webm"; ValueData: "{#Pid}Video"
+Root: HKCU; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mkv"; ValueData: "{#Pid}Video"
+Root: HKCU; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mov"; ValueData: "{#Pid}Video"
+Root: HKCU; Subkey: "Software\Classes\.ogv\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ogv"; ValueData: "{#Pid}Video"
+#endif
 ; lista "Otworz za pomoca" w Eksploratorze (filmy i PDF)
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "Velivo"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mp4"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".m4v"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".webm"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mkv"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mov"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".ogv"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
+#ifndef Odtwarzacz
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""
+#endif
+#ifndef Przegladarka
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".mp4"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".m4v"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".webm"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".mkv"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".mov"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".ogv"; ValueData: ""
+#endif
 ; torrenty: plik .torrent i linki magnet: (pobiera tylko, gdy torrenty sa wlaczone w Ustawieniach)
-Root: HKCU; Subkey: "Software\Classes\VelivoTorrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
-Root: HKCU; Subkey: "Software\Classes\.torrent"; ValueType: string; ValueName: ""; ValueData: "VelivoTorrent"
-Root: HKCU; Subkey: "Software\Classes\.torrent\OpenWithProgids"; ValueType: string; ValueName: "VelivoTorrent"; ValueData: ""; Flags: uninsdeletevalue
+#ifndef Odtwarzacz
+Root: HKCU; Subkey: "Software\Classes\{#Pid}Torrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\{#Pid}Torrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Classes\{#Pid}Torrent\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
+#ifndef Wariant
+Root: HKCU; Subkey: "Software\Classes\.torrent"; ValueType: string; ValueName: ""; ValueData: "{#Pid}Torrent"
+#endif
+Root: HKCU; Subkey: "Software\Classes\.torrent\OpenWithProgids"; ValueType: string; ValueName: "{#Pid}Torrent"; ValueData: ""; Flags: uninsdeletevalue
+; magnet: jeden wpis w Windows dla wszystkich - tylko pełne Velivo (odinstalowanie innego programu go nie skasuje)
+#ifndef Wariant
 Root: HKCU; Subkey: "Software\Classes\magnet"; ValueType: string; ValueName: ""; ValueData: "URL:Magnet Link"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\magnet"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
-Root: HKCU; Subkey: "Software\Classes\magnet\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
-Root: HKCU; Subkey: "Software\Classes\magnet\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".torrent"; ValueData: "VelivoTorrent"
-Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\URLAssociations"; ValueType: string; ValueName: "magnet"; ValueData: "VelivoTorrent"
-Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "Velivo"; ValueData: "Software\Clients\StartMenuInternet\Velivo\Capabilities"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\magnet\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
+Root: HKCU; Subkey: "Software\Classes\magnet\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
+#endif
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".torrent"; ValueData: "{#Pid}Torrent"
+#ifndef Wariant
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\URLAssociations"; ValueType: string; ValueName: "magnet"; ValueData: "{#Pid}Torrent"
+#endif
+Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "{#AppName}"; ValueData: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities"; Flags: uninsdeletevalue
+#endif
 
 [Run]
-Filename: "{app}\Velivo.exe"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#Exe}"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowait postinstall skipifsilent
 ; ciche instalowanie (aktualizacja serwera) - Velivo, które działało przed instalacją, wraca samo (serwer nie zostaje wyłączony)
-Filename: "{app}\Velivo.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent and WasRunning
+Filename: "{app}\{#Exe}"; Flags: nowait runasoriginaluser; Check: WizardSilent and WasRunning
 
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"
@@ -311,6 +364,9 @@ end;
 procedure InitializeWizard;
 begin
   DownloadPage := CreateDownloadPage(SetupMessage(msgWizardPreparing), SetupMessage(msgPreparingDesc), nil);
+#ifdef Wariant
+  exit;   // dane wspólne z Velivo (Programs\Velivo\Dane) - osobny program nigdy ich nie czyści
+#endif
   if not HasOldData then exit;
   DataPage := CreateInputOptionPage(wpSelectTasks,
     CustomMessage('OldDataTitle'), CustomMessage('OldDataDesc'), CustomMessage('OldDataQuestion'), True, False);
@@ -364,7 +420,7 @@ begin
   if CurStep = ssPostInstall then
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('firewall') then
-    OpenFirewall(ExpandConstant('{app}\Velivo.exe'));
+    OpenFirewall(ExpandConstant('{app}\{#Exe}'));
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then
     InstallVlc;
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer\iptv') then
@@ -450,15 +506,15 @@ var Code, I: Integer;
 begin
   Result := InstallPrereqs;
   if Result <> '' then exit;
-  Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq Velivo.exe" | find /I "Velivo.exe"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq {#Exe}" | find /I "{#Exe}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   VelivoWasRunning := Code = 0;
   // ukryte procesy Velivo (np. sprzatanie przy zamykaniu) razem z ich procesami WebView2
   // czekamy, aż Velivo naprawdę zniknie (pliki zwolnione) - do 10 s; nie da się zamknąć (Velivo jako administrator) - jasny komunikat zamiast „Odmowa dostępu”
   for I := 1 to 20 do
   begin
-    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Velivo.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM {#Exe}', '', SW_HIDE, ewWaitUntilTerminated, Code);
     Sleep(500);
-    Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq Velivo.exe" | find /I "Velivo.exe"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq {#Exe}" | find /I "{#Exe}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
     if Code <> 0 then break;
   end;
   if Code = 0 then begin Result := CustomMessage('VelivoRunning'); exit; end;

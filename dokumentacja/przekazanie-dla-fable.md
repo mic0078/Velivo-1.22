@@ -1,5 +1,7 @@
 # Przekazanie pracy – Velivo (dla Claude Fable)
 
+**Zadanie:** rozwiąż problem do końca – po podziale Velivo na osobne programy (Premium, Odtwarzacz, Przeglądarka) wszystko ma działać jak przed podziałem, także gdy kilka programów Velivo działa naraz i po restarcie Windows. Najpierw znajdź wszystkie przyczyny w kodzie (punkt 1 i 2 „Do zrobienia”), napraw, skompiluj trzy warianty, wyślij na `audio-balance` i podaj właścicielowi jedno polecenie budowy. Nie pytaj go o testy ani nie dawaj rad do wykonania ręcznie.
+
 Czytaj najpierw `CLAUDE.md` na gałęzi `rozwoj` – to zasady właściciela (Michał) i wnioski z błędów. Odpowiadaj po polsku, krótko, bez pouczania. Gdy właściciel mówi „nie działa” – nie działa: nie dyskutuj, nie każ mu testować ponownie, szukaj błędu w ostatnich zmianach. Program ma sam naprawiać sytuacje (zamykać, przenosić, otwierać) – nie dawaj rad „zamknij X”.
 
 ## Gałąź i budowa

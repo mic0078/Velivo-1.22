@@ -70,6 +70,7 @@ namespace Velivo
         // 🎯 próg automatyczny współpracuje z wyrównaniem LUFS (właściciel): typowy poziom filmu jest doprowadzany do celu LUFS - bardzo cichy film w górę,
         // głośny w dół; regulator LUFS za kompresorem dostaje dźwięk już blisko celu i tylko dopracowuje. AutoTargetDb ustawia Audio Balance (cel LUFS).
         public volatile float AutoTargetDb = float.NaN, AutoLiftDb;
+        bool fastLvl; double stP, fP; int hiN, loN, bigN, trk;   // 🔀 zmiana programu / kanału: moc z ok. 0,4 s i licznik „dłużej głośniej / ciszej niż typowy poziom” - szybkie przejście na nowy poziom
         double liftS, progP = double.NaN;   // progP - typowa MOC dźwięku (ta sama bramka co progDb) - do celu LUFS liczy się moc, nie średnia z dB
         int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
@@ -77,7 +78,7 @@ namespace Velivo
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
         public bool KeepLevel;   // dźwięk Windows na żywo: ponowny start toru (zmiana urządzenia, przerwa) to dalej ten sam materiał - zmierzony poziom i podbicie „do celu” zostają (bez nagłego ściszenia)
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; liftS = 0; AutoLiftDb = 0; }
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; stP = 0; fP = 0; hiN = loN = bigN = trk = 0; liftS = 0; AutoLiftDb = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);
@@ -121,13 +122,26 @@ namespace Velivo
             double xDb = lvl > 1e-9 ? 20 * Math.Log10(lvl) : -180;
             if ((mtrN & 63) == 0 && xDb > -70)   // mierzone zawsze (nie tylko z zaznaczonym progiem automatycznym) - po zaznaczeniu próg od razu na właściwym miejscu, bez zależności od chwili kliknięcia
             {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
-                double e2 = lvl * lvl;
+                double e2 = lvl * lvl; fP += (e2 - fP) / (0.05 * fs / 64); if (e2 > fP) fP = e2 * 0.5 + fP * 0.5;   /* w górę prawie od razu (ok. 20 ms) */   // moc z ok. 0,1 s - bezpiecznik głośności
                 if (double.IsNaN(progP)) progP = e2;
                 else if (progN + 1 < 3 * fs / 64) progP += (e2 - progP) / (0.5 * fs / 64);
-                else if (xDb > progDb - 20) progP += (Math.Min(e2, Math.Pow(10, (progDb + 3) / 10)) - progP) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);
+                else
+                {   // 🔀 inny program / kanał / głośniejsza reklama: ponad 6 dB głośniej przez 1,5 s albo ponad 8 dB ciszej przez 1,2 s (cisza pominięta) -
+                    // typowy poziom idzie do nowego w ok. 1 s (głośniej) / 2 s (ciszej), zamiast średniej z minuty (właściciel: „przełączam i jest głośno”)
+                    stP += (e2 - stP) / (0.4 * fs / 64);
+                    double pDb = 10 * Math.Log10(progP + 1e-20), sDb = 10 * Math.Log10(stP + 1e-20), fDb0 = 10 * Math.Log10(fP + 1e-20);
+                    hiN = sDb > pDb + 6 ? hiN + 1 : 0; loN = sDb < pDb - 8 && sDb > -60 ? loN + 1 : 0; bigN = fDb0 > pDb + 12 ? bigN + 1 : 0;
+                    // dużo głośniej (ponad 12 dB przez 0,2 s - inny program / kanał): nowy poziom od razu; głośniej o 6–12 dB przez 1,5 s: w ok. 1 s; ciszej przez 1,2 s: w ok. 0,5 s
+                    // raz zaczęte przejście trwa, aż typowy poziom dojdzie do nowego (2 dB) - nie zatrzymuje się w połowie drogi
+                    if (hiN > 1.5 * fs / 64 || bigN > 0.2 * fs / 64) trk = 1; else if (loN > 1.2 * fs / 64) trk = -1;
+                    if (trk > 0 && sDb < pDb + 2 || trk < 0 && (sDb > pDb - 2 || sDb < -60)) trk = 0;
+                    double tc = trk == 0 ? 0 : bigN > 0.2 * fs / 64 ? 0.2 : trk > 0 ? 0.7 : 0.5;
+                    if (tc > 0) { double np = progP + (stP - progP) / (tc * fs / 64); progDb += 10 * Math.Log10((np + 1e-20) / (progP + 1e-20)); progP = np; fastLvl = true; }
+                    else { fastLvl = false; if (xDb > progDb - 20) progP += (Math.Min(e2, Math.Pow(10, (progDb + 3) / 10)) - progP) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64); }
+                }
                 if (double.IsNaN(progDb)) progDb = xDb;
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
-                else if (xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);   // po 30 s średnia z ok. 60 s - próg stoi, nie jeździ za uderzeniami i frazami muzyki (falowanie zgłoszone przez właściciela)
+                else if (!fastLvl && xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);   // po 30 s średnia z ok. 60 s - próg stoi, nie jeździ za uderzeniami i frazami muzyki (falowanie zgłoszone przez właściciela)
             }
             double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
             // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)
@@ -140,10 +154,12 @@ namespace Velivo
             // początek nie wybucha), w dół szybko (20 dB/s). Przy progu automatycznym suwak „Podbicie” nie jest potrzebny - poziom ustala cel LUFS.
             double tgA = AutoTargetDb; bool toTarget = p.AutoThreshold && !double.IsNaN(progP) && progP > 1e-12 && !double.IsNaN(tgA);
             double liftWant = toTarget ? Math.Max(-20, Math.Min(30, tgA - (10 * Math.Log10(progP) + 2.3) - avgGr)) : 0;
-            liftS += Math.Max(-20 / fs, Math.Min(6 / fs, liftWant - liftS));
+            // 🛡 bezpiecznik: wynik z ostatnich 0,1 s nigdy więcej niż 8 dB ponad cel - przełączenie na głośniejszy program / reklama ściszane od razu, bez czekania na pomiar
+            if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + 8 - (10 * Math.Log10(fP) + 2.3));
+            liftS += Math.Max(-400 / fs, Math.Min(10 / fs, liftWant - liftS));
             double mkWant = toTarget ? liftS : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS, mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
-            mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * cs; mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;
+            mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * (mkWant < mkS - 3 ? cs * 10 : cs);   /* duże ściszenie (bezpiecznik) w ok. 5 ms, reszta płynnie 50 ms */ mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;
             double gw = Math.Pow(10, (grDb + mkS) / 20);
             l = l * (1 - mixS) + l * gw * mixS; r = r * (1 - mixS) + r * gw * mixS;   // równoległa: suchy (bez zmian) + skompresowany
             CurrentGainReductionDb = (float)grDb;

@@ -482,6 +482,8 @@ namespace Velivo
             { "🎚 Przetwarzanie dźwięku włączone", "🎚 Sound processing on" },
             { "● Audio Balance for Windows przetwarza cały dźwięk Windows – wskaźniki pokazują jego pracę (Velivo nie poprawia drugi raz)", "● Audio Balance for Windows processes all Windows sound – meters show its work (Velivo does not process twice)" },
             { "Źródło: cały dźwięk Windows – przetwarza Audio Balance for Windows", "Source: all Windows sound – processed by Audio Balance for Windows" },
+            { "Bardzo ciche filmy", "Very quiet films" },
+            { "Ekstremalnie cicho nagrane filmy: RMS, próg -52 dB, 4:1, podbicie +22 dB, ekspander od -68 dB (szum nie rośnie). Wyrównanie LUFS dociąga potem do celu.", "Extremely quiet recordings: RMS, threshold -52 dB, 4:1, make-up +22 dB, expander from -68 dB (noise not boosted). LUFS levelling then pulls to the target." },
             { "● bez przetwarzania", "● no processing" },
             { " + dialogi", " + dialogue" },
             { "Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)", "No processing – the film's sound unchanged (measuring continues)" },

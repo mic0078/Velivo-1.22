@@ -211,6 +211,7 @@ namespace Velivo
             foreach (var (nm, tip, mkP) in new (string, string, Func<DynParams>)[] {
                 (L.T("Film / kino"), L.T("Zbalansowany: RMS, próg -28 dB, 3,5:1, podbicie +4 dB."), DynParams.Film),
                 (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
+                (L.T("Bardzo ciche filmy"), L.T("Ekstremalnie cicho nagrane filmy: RMS, próg -52 dB, 4:1, podbicie +22 dB, ekspander od -68 dB (szum nie rośnie). Wyrównanie LUFS dociąga potem do celu."), DynParams.VeryQuiet),
                 (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
             { var f = mkP; var n0 = nm; var b = mk(nm, () => { Show(f()); Apply(); SetName(n0); }); b.ToolTip = tip; presets.Children.Add(b); }
             string shownSrc = "\u0000";

@@ -53,6 +53,7 @@ namespace Velivo
             var pre = Get("kompresor"); p.Pre.Params = pre == null ? DynParams.Film() : DynParams.Load(pre);
         }
 
+        TextBlock cableTxt; bool cableBusy;
         TextBlock status, srcV, chgV, outV, grV; ComboBox outBox; Border setupBox; Button defBtn;
         Button Mk(string text, Action a, string tip = null) { var b = new Button { Content = text, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(10, 4, 10, 4), Foreground = Fg, Background = BtnBg, BorderThickness = new Thickness(0), ToolTip = tip }; b.Click += (s, e) => a(); return b; }
         TextBlock T(string s, double size = 12, Brush c = null, bool bold = false) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? Fg, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) };
@@ -76,11 +77,14 @@ namespace Velivo
             // kreator: brak VB-Audio Virtual Cable
             var sp = new StackPanel();
             sp.Children.Add(T(L.T("Potrzebny jest darmowy VB-Audio Virtual Cable (wirtualna karta dźwiękowa). Windows gra na nią, a Audio Balance przetwarza dźwięk i wysyła go na Twoje głośniki."), 12));
-            sp.Children.Add(T(L.T("1. Pobierz i rozpakuj VB-Cable. 2. Uruchom VBCABLE_Setup_x64.exe jako administrator → Install Driver. 3. Uruchom komputer ponownie. 4. Kliknij „Sprawdź ponownie”."), 11, Dim));
+            sp.Children.Add(T(L.T("Kliknij „Zainstaluj VB-Cable automatycznie”. Albo ręcznie: pobierz ze strony producenta, uruchom VBCABLE_Setup_x64.exe jako administrator → Install Driver, uruchom komputer ponownie i kliknij „Sprawdź ponownie”."), 11, Dim));
             var sw = new WrapPanel();
+            sw.Children.Add(Mk(L.T("⬇ Zainstaluj VB-Cable automatycznie"), () => _ = InstallCableAsync(), L.T("Pobiera VB-CABLE z serwera VB-Audio i instaluje go. Windows zapyta raz o zgodę (Tak) i o sterownik (Zainstaluj).")));
             sw.Children.Add(Mk(L.T("Pobierz VB-Cable (strona producenta)"), () => Open("https://vb-audio.com/Cable/")));
             sw.Children.Add(Mk(L.T("Sprawdź ponownie"), () => { StartEngine(); }));
             sp.Children.Add(sw);
+            cableTxt = T("", 11, Ok); sp.Children.Add(cableTxt);
+            sp.Children.Add(T(L.T("VB-CABLE to darmowy program firmy VB-Audio (donationware) – vb-audio.com."), 10, Dim));
             setupBox = new Border { Background = BtnBg, CornerRadius = new CornerRadius(6), Padding = new Thickness(10), Margin = new Thickness(0, 4, 0, 8), Child = sp };
             root.Children.Add(setupBox);
             // urządzenia
@@ -165,6 +169,35 @@ namespace Velivo
             if (did == cin) { var back = Get("wyjscie") ?? Get("poprzednie"); DefaultDevice.Set(back); }
             else { if (did != null) Put("poprzednie", did); if (Get("wyjscie") == null && did != null) Put("wyjscie", did); DefaultDevice.Set(cin); if (!eng.Running) StartEngine(); }
             FillOutputs(); Status();
+        }
+
+        // ⬇ VB-CABLE: pobranie z serwera VB-Audio (nowy pakiet, zapasowo starszy), rozpakowanie i instalacja po cichu (-i -h) jako administrator; postęp słowami
+        async System.Threading.Tasks.Task InstallCableAsync()
+        {
+            if (cableBusy) return; cableBusy = true;
+            void Say(string t, bool bad = false) { cableTxt.Text = t; cableTxt.Foreground = bad ? Bad : Ok; }
+            try
+            {
+                var dir = Path.Combine(Path.GetTempPath(), "VelivoAudioBalance-vbcable"); var zip = dir + ".zip"; byte[] data = null; string why = "";
+                Say(L.T("Pobieram VB-CABLE z serwera VB-Audio…"));
+                using (var h = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(3) })
+                    foreach (var u in new[] { "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip", "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip" })
+                        try { data = await h.GetByteArrayAsync(u); break; } catch (Exception ex) { why += "\n" + u + ": " + ex.Message; }
+                if (data == null) { Say(L.T("Nie udało się pobrać VB-CABLE (internet, zapora albo antywirus blokuje download.vb-audio.com):") + why, true); return; }
+                Say(L.T("Rozpakowuję…"));
+                await System.Threading.Tasks.Task.Run(() => { File.WriteAllBytes(zip, data); if (Directory.Exists(dir)) Directory.Delete(dir, true); System.IO.Compression.ZipFile.ExtractToDirectory(zip, dir); });
+                var setup = Path.Combine(dir, "VBCABLE_Setup_x64.exe");
+                if (!File.Exists(setup)) { Say(L.T("W pobranym pakiecie nie ma instalatora VBCABLE_Setup_x64.exe."), true); return; }
+                Say(L.T("Instaluję – kliknij „Tak” i „Zainstaluj” w oknach Windows…"));
+                System.Diagnostics.Process p;
+                try { p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(setup, "-i -h") { UseShellExecute = true, Verb = "runas", WorkingDirectory = dir }); }
+                catch (Exception ex) { Say(L.T("Instalacja nie ruszyła (odmowa w oknie Kontrola konta użytkownika?): ") + ex.Message, true); return; }
+                await System.Threading.Tasks.Task.Run(() => p?.WaitForExit());
+                if (AbEngine.CableInstalled()) { Say(L.T("✔ VB-CABLE zainstalowany.")); StartEngine(); }
+                else Say(L.T("✔ Instalacja zakończona – uruchom komputer ponownie, potem kliknij „Sprawdź ponownie”."));
+            }
+            catch (Exception ex) { App.LogError(ex); Say(ex.Message, true); }
+            finally { cableBusy = false; }
         }
 
         static bool Autostart

@@ -18,6 +18,40 @@ namespace Velivo
         // ⏱ ile dźwięk spóźnia się przez ten program (kabel, zapas, karta, wtyczki VST3) - Velivo przesuwa o tyle dźwięk filmu, żeby obraz był równo z głosem
         public int DelayMs => Running ? lc / 2 + lt + lo + 5 + Vst3.Latency * 1000 / AbProcessor.Fs : 0;
         public volatile bool Running; public string OutputName, Error;
+        // 👁 podgląd bez przetwarzania: gdy Windows gra prosto na głośniki (nie przez kabel), wskaźniki pokazują ten dźwięk (podsłuch wyjścia Windows, tylko pomiar -
+        // nic nie jest zmieniane ani odtwarzane drugi raz). Osobny procesor pomiarowy: dźwięk programów skierowanych wprost na kabel dalej idzie przez Proc.
+        public readonly AbProcessor MonProc = new AbProcessor { Bypass = true };
+        WasapiLoopbackCapture mon; string monId; System.Threading.Timer monTm; long monLast; readonly object monLk = new object(); float[] monTmp = new float[9600];
+        public AbProcessor Shown => mon != null && !(Proc.Raw.ShortTerm > -69) ? MonProc : Proc;
+        public void Monitor(string renderId)
+        {
+            if (renderId == monId) return;
+            var old = mon; mon = null; monId = renderId; var t = monTm; monTm = null;
+            try { t?.Dispose(); } catch (Exception) { }
+            if (old != null) System.Threading.Tasks.Task.Run(() => { try { old.StopRecording(); } catch (Exception) { } try { old.Dispose(); } catch (Exception) { } });
+            if (renderId == null) return;
+            try
+            {
+                var dev = new MMDeviceEnumerator().GetDevice(renderId); var c = new WasapiLoopbackCapture(dev);
+                var b = new BufferedWaveProvider(c.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(500), ReadFully = false };
+                ISampleProvider sp = b.ToSampleProvider();
+                if (sp.WaveFormat.Channels == 1) sp = new MonoToStereoSampleProvider(sp); else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
+                if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
+                c.DataAvailable += (s, e) =>
+                {
+                    if (!ReferenceEquals(s, mon)) return;
+                    lock (monLk)
+                    {
+                        b.AddSamples(e.Buffer, 0, e.BytesRecorded); monLast = Environment.TickCount64; int n;
+                        try { while ((n = sp.Read(monTmp, 0, monTmp.Length)) >= 2) MonProc.Process(monTmp, n / 2); } catch (Exception) { }
+                    }
+                };
+                mon = c; c.StartRecording();
+                // nic nie gra = Windows nie daje próbek: wskaźniki opadają do ciszy zamiast stać na ostatniej wartości
+                monTm = new System.Threading.Timer(_ => { if (mon == null || Environment.TickCount64 - monLast < 250) return; lock (monLk) { Array.Clear(monTmp, 0, monTmp.Length); try { MonProc.Process(monTmp, monTmp.Length / 2); } catch (Exception) { } } }, null, 100, 100);
+            }
+            catch (Exception ex) { App.LogError(ex); mon = null; }   // bez podglądu - reszta działa jak dotąd (monId zostaje: nie ponawia co chwilę)
+        }
         // 🎚 głośność Windows jak tłumik w studiu - ZA przetwarzaniem: suwak głośności „CABLE Input” (klawisze głośności, gdy kabel jest domyślny) ścisza dźwięk
         // PRZED programem - kompresor i wyrównanie dostawały wtedy np. -50 dB (próg nigdy nieosiągany = „kompresor nie działa”, wyrównanie na limicie = „cicho”).
         // Teraz: przed przetwarzaniem poziom wraca do pełnego (o tyle, o ile ściszył Windows), a po przetwarzaniu jest ściszany o tyle samo.
@@ -159,7 +193,7 @@ namespace Velivo
 
         public void Stop()
         {
-            Running = false; VolStop();
+            Running = false; VolStop(); Monitor(null);
             try { cap?.StopRecording(); } catch (Exception) { }
             try { outp?.Stop(); } catch (Exception) { }
             try { cap?.Dispose(); } catch (Exception) { }

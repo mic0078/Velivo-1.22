@@ -99,7 +99,7 @@ namespace Velivo
         void Tick()
         {
             if (Window.GetWindow(Root)?.WindowState == WindowState.Minimized) return;   // zminimalizowane okno nic nie rysuje
-            var p = eng.Proc; bool live = eng.Running && p.Raw.ShortTerm > -69;   // w ciszy „–” zamiast mylących liczb
+            var p = eng.Shown; bool live = eng.Running && p.Raw.ShortTerm > -69;   // w ciszy „–” zamiast mylących liczb
             double src = p.Raw.Gated10 > -70 ? p.Raw.Gated10 : p.Raw.ShortTerm, outp = p.Out.Gated10 > -70 ? p.Out.Gated10 : p.Out.ShortTerm,   /* poziom z 10 s (jak w Velivo) - to, co trzyma wyrównanie; 3 s skakało z każdą sceną */ g = p.GainDb, gr = p.Pre.Params.IsEnabled ? p.Pre.CurrentGainReductionDb : 0;
             Set(srcB, live ? (src + 60) / 60 : 0, live ? src.ToString("0.0") : "–");
             Set(outB, live ? (outp + 60) / 60 : 0, live ? outp.ToString("0.0") : "–");

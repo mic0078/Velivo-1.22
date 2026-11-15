@@ -412,7 +412,7 @@ namespace Velivo
         {
             if (eng.Rec is { } rr && recBtn != null) SetText(recBtn, "⏹ " + TimeSpan.FromSeconds(rr.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss"));   // czas nagrania
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
-            { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
+            { var ic = AbIcon.Frame(eng.Running && !eng.Shown.Bypass ? eng.Proc.Out.Momentary : eng.Running && ReferenceEquals(eng.Shown, eng.MonProc) ? eng.MonProc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
             if (quietSrc != null && quietShown != MainWindow.AbQuietSrc) { quietShown = MainWindow.AbQuietSrc; var q0 = quietShown; quietSrc.IsEnabled = q0 != null; quietSrc.Content = q0 == null ? L.T("📌 Zapamiętaj dla programu (nic nie gra)") : L.T("📌 Zawsze dla: ") + q0; quietSrc.IsChecked = MainWindow.AbQuietFor(q0); }
             if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = !eng.Proc.QuietOn ? L.T("wyłączone") : L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietOn && eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; }
             UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
@@ -461,6 +461,7 @@ namespace Velivo
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
             bool on = cin != null && did == cin;
+            eng.Monitor(!on && eng.Running && cin != null && did != null ? did : null);   // 👁 Windows gra prosto na głośniki - podgląd pokazuje ten dźwięk (bez przetwarzania)
             // znak dla Velivo: gdy cały dźwięk Windows idzie przez ten program, Audio Balance w Velivo się wyłącza (nie poprawia drugi raz)
             bool proc = on && eng.Running && !eng.Proc.Bypass;   // „Bez przetwarzania” - Velivo może wtedy poprawiać sam
             if (proc && busyMx == null) busyMx = new Mutex(true, "VelivoAudioBalance.Przetwarza");

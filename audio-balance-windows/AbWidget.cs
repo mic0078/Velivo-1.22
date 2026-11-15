@@ -57,7 +57,7 @@ namespace Velivo
             int k = 0;
             tm.Tick += (s, e) =>
             {
-                var p = m.Eng.Proc; bool on = m.Eng.Running && p.Raw.ShortTerm > -69;
+                var p = m.Eng.Shown; bool on = m.Eng.Running && p.Raw.ShortTerm > -69;
                 double target = on ? Math.Max(0, Math.Min(1, (p.Out.Momentary + 50) / 45)) : 0; lvl += (target - lvl) * (target > lvl ? 0.6 : 0.25); k++;
                 for (int i = 0; i < 7; i++) { double h = 6 + 56 * lvl * (0.55 + 0.45 * Math.Abs(Math.Sin(k * 0.23 + i * 1.1))); bars[i].Height = h; Canvas.SetTop(bars[i], 64 - h); }
                 if (k % 5 == 0)

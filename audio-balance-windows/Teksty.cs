@@ -60,6 +60,8 @@ namespace Velivo
             { "Mowa średnio podbita, gdy przykrywa ją muzyka lub efekty.", "Speech boosted moderately when music or effects cover it." },
             { "Mowa mocno podbita, gdy przykrywa ją muzyka lub efekty.", "Speech boosted strongly when music or effects cover it." },
             { "teraz", "now" },
+            { "Audio Balance (LUFS): podgłaśnia ↑ / ścisza ↓", "Audio Balance (LUFS): boosts ↑ / lowers ↓" },
+            { "Kompresor: ściszanie głośnych fragmentów", "Compressor: lowering loud parts" },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

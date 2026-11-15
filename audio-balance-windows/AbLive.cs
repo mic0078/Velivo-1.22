@@ -23,6 +23,7 @@ namespace Velivo
         Canvas spec, hist; const int NB = 28; readonly Rectangle[] bars = new Rectangle[NB], peaks = new Rectangle[NB]; readonly double[] sm = new double[NB], smO = new double[NB];
         readonly double[] edges = new double[NB + 1]; readonly double[] re = new double[2048], im = new double[2048], re2 = new double[2048], im2 = new double[2048];
         Polyline plIn, plOut; Line tgt; TextBlock tgtTxt; readonly TextBlock[] scale = new TextBlock[4], times = new TextBlock[4]; readonly Line[] gridH = new Line[4], gridV = new Line[2];
+        Canvas work; Line zero; Polygon pgLu, pgCo; readonly TextBlock[] wScale = new TextBlock[3]; readonly double[] hG = new double[HN], hGr = new double[HN];
         const double GL = 40, GB = 16, GT = 6;   // marginesy: skala dB z lewej, czas pod wykresem (makieta) - napisy nie giną za słupkami
 
         const int HN = 300; readonly double[] hIn = new double[HN], hOut = new double[HN]; DateTime hLast;
@@ -48,6 +49,18 @@ namespace Velivo
                 spec.Children.Add(bars[b]); spec.Children.Add(peaks[b]);
             }
             Root.Children.Add(spec);
+            // 📈 pasek pracy (makieta): turkus – Audio Balance (LUFS) podgłaśnia ↑ / ścisza ↓, żółty – kompresor ścisza głośne fragmenty; ta sama oś czasu
+            var leg = new WrapPanel { Margin = new Thickness(GL, 8, 0, 4) };
+            leg.Children.Add(new TextBlock { Text = "■ ", Foreground = Teal, FontSize = 11 }); leg.Children.Add(new TextBlock { Text = L.T("Audio Balance (LUFS): podgłaśnia ↑ / ścisza ↓"), Foreground = dim, FontSize = 10, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center });
+            leg.Children.Add(new TextBlock { Text = "■ ", Foreground = Gold, FontSize = 11 }); leg.Children.Add(new TextBlock { Text = L.T("Kompresor: ściszanie głośnych fragmentów"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center });
+            Root.Children.Add(leg);
+            work = new Canvas { Height = 70, Background = Well, ClipToBounds = true };
+            var zl = new Line { Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1 }; zero = zl; work.Children.Add(zl);
+            pgLu = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x55, 0x2E, 0xD3, 0xC6)), Stroke = Teal, StrokeThickness = 1.4 };
+            pgCo = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = Gold, StrokeThickness = 1.4 };
+            work.Children.Add(pgLu); work.Children.Add(pgCo);
+            for (int k = 0; k < 3; k++) { wScale[k] = new TextBlock { Foreground = dim, FontSize = 10, Width = GL - 6, TextAlignment = TextAlignment.Right, Text = k == 0 ? "+12" : k == 1 ? "0 dB" : "-12" }; work.Children.Add(wScale[k]); }
+            Root.Children.Add(work);
             // wykres głośności z 30 s rysowany na widmie (makieta): biała – po poprawie, szara – oryginał, żółta – cel
             hist = spec;
             plIn = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x8A, 0x90, 0xA8)), StrokeThickness = 1.2 }; plOut = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1.6 };
@@ -108,11 +121,18 @@ namespace Velivo
             if ((DateTime.UtcNow - hLast).TotalMilliseconds >= 100)
             {
                 hLast = DateTime.UtcNow;
-                Array.Copy(hIn, 1, hIn, 0, HN - 1); Array.Copy(hOut, 1, hOut, 0, HN - 1);
+                Array.Copy(hIn, 1, hIn, 0, HN - 1); Array.Copy(hG, 1, hG, 0, HN - 1); Array.Copy(hGr, 1, hGr, 0, HN - 1);
+                bool on = eng.Running && p.Raw.ShortTerm > -69; hG[HN - 1] = on ? p.GainDb : 0; hGr[HN - 1] = on && p.Pre.Params.IsEnabled ? Math.Min(0, p.Pre.CurrentGainReductionDb) : 0; Array.Copy(hOut, 1, hOut, 0, HN - 1);
                 hIn[HN - 1] = eng.Running ? Math.Max(-70, p.Raw.Momentary) : -70; hOut[HN - 1] = eng.Running ? Math.Max(-70, p.Out.Momentary) : -70;
                 double hw = hist.ActualWidth, hh = hist.ActualHeight, ph = hh - GB - GT, pw = hw - GL; double Y(double d) => GT + (-Math.Max(-60, Math.Min(0, d))) / 60 * ph;
                 var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
                 for (int i = 0; i < HN; i++) { double x = GL + i * pw / (HN - 1); a1.Add(new Point(x, Y(hIn[i]))); a2.Add(new Point(x, Y(hOut[i]))); }
+                { double ww = work.ActualWidth, wh = work.ActualHeight, mid = wh / 2, wp = ww - GL; double W(double d) => mid - Math.Max(-12, Math.Min(12, d)) / 12 * (mid - 4);
+                  var q1 = new PointCollection(HN + 2) { new Point(GL, mid) }; var q2 = new PointCollection(HN + 2) { new Point(GL, mid) };
+                  for (int i = 0; i < HN; i++) { double x = GL + i * wp / (HN - 1); q1.Add(new Point(x, W(hG[i]))); q2.Add(new Point(x, W(hGr[i]))); }
+                  q1.Add(new Point(ww, mid)); q2.Add(new Point(ww, mid)); pgLu.Points = q1; pgCo.Points = q2;
+                  zero.X1 = GL; zero.X2 = ww; zero.Y1 = zero.Y2 = mid;
+                  for (int k = 0; k < 3; k++) { Canvas.SetLeft(wScale[k], 0); Canvas.SetTop(wScale[k], W(12 - 12 * k) - 7); } }
                 plIn.Points = a1; plOut.Points = a2; tgt.X1 = GL; tgt.X2 = hw; tgt.Y1 = tgt.Y2 = Y(p.EffTarget);
                 // podpis celu (zielony) i skala dB - wiadomo, co pokazuje wykres
                 tgtTxt.Text = L.T("cel ") + p.EffTarget.ToString("0.0") + " LUFS"; Canvas.SetRight(tgtTxt, 4); Canvas.SetTop(tgtTxt, Math.Max(0, Y(p.EffTarget) - 16));

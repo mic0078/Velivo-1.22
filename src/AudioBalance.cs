@@ -488,14 +488,14 @@ namespace Velivo
             void Move(Panel to, params UIElement[] els) { foreach (var el in els) { root.Children.Remove(el); to.Children.Add(el); } }
             Move(cols, head, src);
             var tabBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 8) };
-            var pages = new[] { new StackPanel(), new StackPanel(), new StackPanel(), new StackPanel() };
-            var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor"), "VST3" }; var tabBtn = new Button[4];
+            var pages = new[] { new StackPanel(), new StackPanel(), new StackPanel(), new StackPanel(), new StackPanel() };
+            var tabNames = new[] { L.T("Podgląd"), L.T("Ustawienia"), L.T("Korektor"), "VST3", L.T("Kompresor") }; var tabBtn = new Button[5];
             void ShowTab(int t)
             {
-                for (int k = 0; k < 4; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : AbBtnBg; }
+                for (int k = 0; k < 5; k++) { pages[k].Visibility = k == t ? Visibility.Visible : Visibility.Collapsed; tabBtn[k].Background = k == t ? acc : AbBtnBg; }
                 SetPref("ab-zakladka", t.ToString());
             }
-            for (int k = 0; k < 4; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(14, 4, 14, 4); tabBar.Children.Add(tabBtn[k]); }
+            for (int k = 0; k < 5; k++) { int kk = k; tabBtn[k] = Mk(tabNames[k], () => ShowTab(kk)); tabBtn[k].Padding = new Thickness(9, 4, 9, 4); tabBar.Children.Add(tabBtn[k]); }
             cols.Children.Add(tabBar);
             // Podgląd: paski i V, lektor, wykres, widmo, wyłącznik
             var live = new Grid();
@@ -511,10 +511,10 @@ namespace Velivo
             tgt.Width = double.NaN; tgt.HorizontalAlignment = HorizontalAlignment.Stretch; tgt.Margin = new Thickness(0, 0, 0, 6);
             // Korektor
             eqExp.IsExpanded = true; Move(pages[2], eqExp);
-            pages[2].Children.Add(AbPrePanel(fg, dim, Mk));   // 🎚 kompresor wstępny
             pages[3].Children.Add(VstPanel(win, fg, dim, Mk));   // 🎛 Twoje wtyczki VST3
+            pages[4].Children.Add(AbPrePanel(fg, dim, Mk));   // 🎚 kompresor wstępny - osobna zakładka po VST3 (właściciel)
             foreach (var pg in pages) cols.Children.Add(pg);
-            ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 4 ? t0 : 0);
+            ShowTab(int.TryParse(GetPref("ab-zakladka"), out var t0) && t0 >= 0 && t0 < 5 ? t0 : 0);
             win.Content = new Border { Background = bg, Child = new ScrollViewer { Content = cols, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 } };   // rozwinięty korektor + kompresor - przewijanie tylko, gdy nie mieści się na ekranie   // ciemne tlo zawsze (motyw okien Velivo moze ustawic jasne tlo okna)
             win.Loaded += (s, e) => win.Background = bg;   // po motywie okien Velivo (ustawia tlo przy wczytaniu)
             _abWin = win;

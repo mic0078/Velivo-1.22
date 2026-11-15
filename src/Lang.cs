@@ -300,6 +300,7 @@ namespace Velivo
             { "%, film podczas czytania ", "%, film while reading " },
             { "Głos „", "Voice “" },
             { "▶ Odtwórz w Velivo", "▶ Play in Velivo" },
+            { "Kompresor", "Compressor" },
             { "Charakterystyka: poziom wejścia (poziomo) → wyjścia (pionowo). Kropka – obecny dźwięk; przekątna – bez zmian.", "Transfer curve: input level (horizontal) → output (vertical). Dot – current sound; diagonal – unchanged." },
             { "Redukcja", "Reduction" },
             { "Wejście", "Input" },

@@ -55,7 +55,7 @@ for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Fo
 if (Test-Path $old) { try { Rename-Item $old ("Velivo-Setup-stary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".exe") -ErrorAction Stop } catch { } }
 if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno instalacji Velivo i uruchom skrypt ponownie." -ForegroundColor Red; exit 1 }
 # antywirus skanuje nowy plik w chwili wstawiania ikony (EndUpdateResource failed) - do 6 prob, coraz dluzsza przerwa (dziala bez wykluczen w antywirusie)
-for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny $(if ($Podstawowa) { "/DBezplatna" } else { "/DPremium" }) "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 $oldK = Join-Path $outDir 'Velivo-Komunikator-Setup-1.22.exe'
 for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -Force -ErrorAction Stop } catch { Start-Sleep 2 } }

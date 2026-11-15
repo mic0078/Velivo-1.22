@@ -38,7 +38,12 @@
 AppId={#AppIdV}
 AppName={#AppName}
 AppVersion={#AppVer}
+; 💎 pełne Velivo: zbuduj.ps1 podaje /DPremium (wersja bezpłatna -Podstawowa bez tego napisu)
+#ifdef Premium
+AppVerName={#AppName} Premium {#AppVer} By MichAel
+#else
 AppVerName={#AppName} {#AppVer} By MichAel
+#endif
 AppPublisher=MichAel
 DefaultDirName={localappdata}\Programs\{#AppName}
 UsePreviousAppDir=no

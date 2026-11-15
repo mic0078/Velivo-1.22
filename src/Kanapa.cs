@@ -21,6 +21,7 @@ namespace Velivo
 
         internal void ShowKanapa()
         {
+            if (!Wariant.MaFilmy) { if (!Wariant.Odtworz()) ShowToast(L.T("Kanapa jest w programie Velivo Odtwarzacz – zainstaluj go, a otworzy się stąd."), null); return; }   // 🧩 Przeglądarka
             if (!PremiumOk(L.T("🛋 Kanapa"))) return;
             if (_kanapa != null) { _kanapa.Activate(); return; }
             var w = new Window

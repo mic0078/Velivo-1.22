@@ -2477,6 +2477,7 @@ namespace Velivo
             { "Serwery pytają: wymienić teraz wszystkie kontakty i klucze z nimi między moimi serwerami?", "Servers ask: exchange all contacts and their keys between my servers now?" },
             { "Tak – każdy serwer dostaje osoby znane innym serwerom i może do nich pisać w imieniu serwera, który znają (np. mama zna tylko NUCBOX). Nie – nic się nie zmienia.", "Yes – every server gets the people known to the other servers and can write to them on behalf of the server they know. No – nothing changes." },
             { "Zamknij Velivo całkowicie", "Exit Velivo completely" },
+            { "Kanapa jest w programie Velivo Odtwarzacz – zainstaluj go, a otworzy się stąd.", "The Couch is in the Velivo Player program – install it and it will open from here." },
             { "Velivo – synchronizacja…", "Velivo – syncing…" },
             { "Wygląd czytnika", "Reader look" },
             { "☀ Jasny", "☀ Light" },

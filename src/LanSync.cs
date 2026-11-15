@@ -462,6 +462,7 @@ namespace Velivo
                 _lanTick.Tick += (s, e) =>
                 {
                     if (_lanApplying) return;
+                    if (!Wariant.MaFilmy && ++_lanFilmyCheck % 10 == 0 && LanFilmyObok()) { StopLanSync(); LanLeadWait(); return; }   // 🧩 co 30 s: Odtwarzacz / pełne Velivo wystartowały - oddajemy im sieć
                     ExpireLanPairings();
                     if (_lanLegacyNoKeyMode)
                     {
@@ -549,23 +550,29 @@ namespace Velivo
 
         // 🧩 jeden program Velivo na komputerze prowadzi sieć domową (port 41919 z ReuseAddress słyszą wszystkie - bez tego podwójne odpowiedzi telefonom);
         // pozostałe co minutę sprawdzają, czy prowadzący się zamknął, i przejmują
-        Mutex _lanLead; DispatcherTimer _lanLeadWait;
+        Mutex _lanLead; DispatcherTimer _lanLeadWait; int _lanFilmyCheck;
         bool LanLeadTake()
         {
+            if (!Wariant.MaFilmy && LanFilmyObok()) { LanLeadWait(); return false; }   // Pilot z telefonu steruje filmami - przy Odtwarzaczu / pełnym Velivo prowadzą one
             if (_lanLead != null) return true;
             var m = new Mutex(false, @"Local\Velivo.SiecDomowa");
             bool got;
             try { got = m.WaitOne(0); } catch (AbandonedMutexException) { got = true; }
             if (got) { _lanLead = m; _lanLeadWait?.Stop(); return true; }
             m.Dispose();
-            LanLog(L.T("Sieć domową prowadzi inny program Velivo na tym komputerze – przejmę ją, gdy się zamknie."));
+            LanLeadWait();
+            return false;
+        }
+        static bool LanFilmyObok() => System.Diagnostics.Process.GetProcessesByName("VelivoOdtwarzacz").Length + System.Diagnostics.Process.GetProcessesByName("Velivo").Length > 0;
+        void LanLeadWait()
+        {
+            if (_lanLeadWait == null || !_lanLeadWait.IsEnabled) LanLog(L.T("Sieć domową prowadzi inny program Velivo na tym komputerze – przejmę ją, gdy się zamknie."));
             if (_lanLeadWait == null)
             {
                 _lanLeadWait = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
                 _lanLeadWait.Tick += (s, e) => { if (_lanLead == null && _settings != null && _settings.LanSync) StartLanSync(); };
             }
             _lanLeadWait.Start();
-            return false;
         }
         void LanLeadFree()
         {

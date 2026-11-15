@@ -312,6 +312,7 @@ namespace Velivo
         void OpenArg(string a)
         {
             var video = VideoArg(a);
+            if (video != null && Wariant.Odtworz(video)) return;   // 🧩 Velivo Przeglądarka: film w Velivo Odtwarzaczu
             if (video != null && VlcInstalled) { PlayVideos(new[] { video }, 0); return; }   // dodatek "jak VLC" - wszystkie formaty
             if (video != null && _settings.VideoPlayer) { AddTab(PlayerUrl(video)); return; }
             var t = TorrentArg(a);

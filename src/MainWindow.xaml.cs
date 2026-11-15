@@ -161,11 +161,11 @@ namespace Velivo
             LoadZoom();
             LoadSiteModes();
             InitBankMode();
-            InitVlcFeature();   // 🎬 odtwarzacz filmow - tylko gdy dodatek wybrany w instalatorze
-            InitIptvFeature();  // 📺 telewizja IPTV - osobny modul z instalatora (wymaga odtwarzacza filmow)
+            if (Wariant.MaFilmy) InitVlcFeature();   // 🎬 odtwarzacz filmow - tylko gdy dodatek wybrany w instalatorze
+            if (Wariant.MaFilmy) InitIptvFeature();  // 📺 telewizja IPTV - osobny modul z instalatora (wymaga odtwarzacza filmow)
             InitTidyButton();   // 🧹 porzadki i kopia bezpieczenstwa danych
             InitSendFileButton();   // 📎 pliki do telefonu / komputera
-            InitMessengerButton();   // 💬 komunikator w sieci domowej
+            if (Wariant.MaKomunikator) InitMessengerButton();   // 💬 komunikator w sieci domowej
             StartDialogGuard(); // okna wyboru pliku / folderu zawsze w calosci na ekranie
             InitZoomMenu();
             UpdateDarkButton();
@@ -194,8 +194,8 @@ namespace Velivo
                     LoadBookmarks();
                     StartJellyfinAutoSync();
                     _ = VoiceUpdateCheckAsync(null);
-                    if (GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1") ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
-                    if (GetPref("ab-pulpitv") == "1") ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
+                    if (Wariant.MaFilmy && GetPref("ab-pulpit") != "0" && GetPref("ab-pulpitv") != "1") ShowAbDesk();   // 📌 Audio Monitor na pulpicie domyślnie od startu (widać, że Audio Balance pracuje); znika tylko po zamknięciu ręcznie
+                    if (Wariant.MaFilmy && GetPref("ab-pulpitv") == "1") ShowAbDesk(true);   // 📌 samo „V” na pulpicie (opcja)   // nowe wersje pobranych glosow (raz na dobe, w tle)   // biblioteka filmow z Jellyfin co wybrany czas (gdy wlaczone)
                     LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
                     if (Wariant.MaKarty)   // 🧩 Velivo Odtwarzacz: bez kart i bez zapisu sesji (nie nadpisuje kart Velivo we wspólnym folderze danych)
                     {

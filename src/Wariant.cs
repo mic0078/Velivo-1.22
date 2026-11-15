@@ -19,5 +19,20 @@ namespace Velivo
         internal const bool MaKarty = Pelne || Przegladarka;
         internal const bool MaFilmy = Pelne || Odtwarzacz;
         internal const bool MaKomunikator = Pelne;
+
+        // 🤝 współpraca: Przeglądarka oddaje filmy Odtwarzaczowi (gdy zainstalowany); Odtwarzacz strony - przeglądarce domyślnej
+        internal static string OdtwarzaczExe => System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "Programs", "Velivo Odtwarzacz", "VelivoOdtwarzacz.exe");
+        internal static bool Odtworz(params string[] args)
+        {
+            if (MaFilmy || !System.IO.File.Exists(OdtwarzaczExe)) return false;
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo(OdtwarzaczExe) { UseShellExecute = false };
+                foreach (var a in args) psi.ArgumentList.Add(a);
+                System.Diagnostics.Process.Start(psi);
+                return true;
+            }
+            catch (System.Exception ex) { App.LogError(ex); return false; }
+        }
     }
 }

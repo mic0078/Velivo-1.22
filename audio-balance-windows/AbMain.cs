@@ -124,14 +124,15 @@ namespace Velivo
             outBox = new ComboBox { Margin = new Thickness(0, 0, 0, 6) }; root.Children.Add(outBox);
             outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
             defBtn = Mk("", ToggleDefault); root.Children.Add(defBtn);
-            // układ poziomy (właściciel: nie lista w pionie): 📊 podgląd | ⚙ ustawienia | 🎚 kompresor - wszystko widoczne naraz
+            // układ poziomy (właściciel): lewa kolumna 📊 podgląd + ⚙ ustawienia, prawa 🎚 kompresor - wszystko widoczne naraz
             var cols = new Grid { Margin = new Thickness(0, 8, 0, 0) };
-            foreach (var w0 in new[] { 1.0, 1.0, 1.25 }) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w0, GridUnitType.Star) });
+            foreach (var w0 in new[] { 1.0, 1.0 }) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w0, GridUnitType.Star) });
             live = new AbLive(eng, Fg, Dim);
             var sets = new StackPanel(); var comp = new StackPanel();
-            var c1 = Card(live.Root); var c2 = Card(sets); var c3 = Card(comp);
-            c1.Margin = c2.Margin = new Thickness(0, 0, 10, 0); c3.Margin = new Thickness(0);
-            Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
+            var c1 = Card(live.Root); var c2 = Card(sets); var c3 = Card(comp);   // lewa kolumna: podgląd, pod nim ustawienia; prawa: kompresor
+            c1.Margin = new Thickness(0, 0, 0, 10); c3.Margin = new Thickness(10, 0, 0, 0);
+            var left = new StackPanel(); left.Children.Add(c1); left.Children.Add(c2);
+            Grid.SetColumn(c3, 1); cols.Children.Add(left); cols.Children.Add(c3);
             root.Children.Add(cols);
             var settingsRoot = root; root = sets;
             root.Children.Add(T(L.T("⚙ Ustawienia"), 14, Fg, true));

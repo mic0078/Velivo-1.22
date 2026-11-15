@@ -56,6 +56,7 @@ namespace Velivo
         }
         void Apply()
         {
+            eng.Latency = int.TryParse(Get("opoznienie"), out var lat) ? lat : 1;
             var p = eng.Proc;
             p.Profile = AbProfile.ByName(Get("profil") ?? "auto", Get("sila") ?? "normal");
             p.Target = float.TryParse(Get("cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
@@ -141,6 +142,8 @@ namespace Velivo
             // 🎚 pełny kompresor wstępny z Velivo (ten sam kod: presety, własne ustawienia, wszystkie suwaki, charakterystyka, mierniki)
             MainWindow.Host = this; MainWindow.AbPreNoSrc = true;
             root.Children.Add(new Border { Background = Card2, CornerRadius = new CornerRadius(8), Padding = new Thickness(10), Margin = new Thickness(0, 6, 0, 6), Child = new MainWindow().AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)) });
+            root.Children.Add(Choice(L.T("Opóźnienie dźwięku:"), new[] { ("0", L.T("Niskie ~0,1 s"), L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", L.T("Normalne ~0,2 s"), (string)null), ("2", L.T("Bezpieczne ~0,35 s"), L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
+                () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { Margin = new Thickness(0, 2, 0, 6), ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
             foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS", Tag = v });
             var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];

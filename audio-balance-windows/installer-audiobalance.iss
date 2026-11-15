@@ -105,6 +105,15 @@ var Code: Integer; Zip, Dir, Ps: String;
 begin
   Result := False; CableWhy := '';
   Zip := ExpandConstant('{tmp}\vbcable.zip'); Dir := ExpandConstant('{tmp}\vbcable');
+  // 1) VB-Cable w instalatorze (dodatki\VBCABLE przy budowie) - bez internetu, jak w innych programach
+  if FileExists(ExpandConstant('{app}\VBCABLE\VBCABLE_Setup_x64.exe')) then
+  begin
+    Dir := ExpandConstant('{app}\VBCABLE');
+    WizardForm.StatusLabel.Caption := CustomMessage('CableInst');
+    if not ShellExec('runas', Dir + '\VBCABLE_Setup_x64.exe', '-i -h', Dir, SW_SHOW, ewWaitUntilTerminated, Code) then begin CableWhy := CustomMessage('WhyRun') + ' ' + SysErrorMessage(Code); exit; end;
+    Result := True; exit;
+  end;
+  // 2) zapas: pobranie z serwera VB-Audio
   WizardForm.StatusLabel.Caption := CustomMessage('CableDl');
   try
     DownloadTemporaryFile('https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip', 'vbcable.zip', '', nil);

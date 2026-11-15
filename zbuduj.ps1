@@ -36,6 +36,8 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Komunikatora nie powiodla sie.
 Remove-Item -Recurse -Force build\audiobalance -ErrorAction SilentlyContinue
 dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win-x64 --self-contained true -o build\audiobalance
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Audio Balance nie powiodla sie." -ForegroundColor Red; exit 1 }
+# VB-Audio Virtual Cable w instalatorze (rozpakowany pakiet VBCABLE_Driver_Pack z vb-audio.com w dodatki\VBCABLE - poza repozytorium); bez folderu instalator pobiera go z serwera VB-Audio
+if (Test-Path "dodatki\VBCABLE\VBCABLE_Setup_x64.exe") { Copy-Item -Recurse -Force "dodatki\VBCABLE" "build\audiobalance\VBCABLE"; Write-Host "VB-Cable w instalatorze Audio Balance: tak" -ForegroundColor Green } else { Write-Host "VB-Cable w instalatorze Audio Balance: nie (instalator pobierze go z vb-audio.com) - rozpakuj VBCABLE_Driver_Pack45.zip do dodatki\VBCABLE" -ForegroundColor Yellow }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1

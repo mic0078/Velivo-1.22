@@ -38,7 +38,7 @@ namespace Velivo
         static readonly string[] SubtitleExts = { ".srt", ".ass", ".ssa", ".sub", ".vtt", ".smi" };
 
         static string VlcDir { get { return Path.Combine(AppContext.BaseDirectory, "vlc"); } }
-        static string VlcRemoveFlag { get { return Path.Combine(DataDir, "odtwarzacz-usun.flag"); } }
+        static string VlcRemoveFlag { get { return Path.Combine(DataDir, (Wariant.Pelne ? "" : Wariant.Pid + "-") + "odtwarzacz-usun.flag"); } }   // 🧩 każdy program własny (wspólny folder danych)
         static string LibraryFile { get { return Path.Combine(DataDir, "filmy.json"); } }
 
         // dodatek zainstalowany (i nie czeka na usuniecie)

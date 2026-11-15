@@ -60,14 +60,14 @@ namespace Velivo
                     // zegary kabla i głośników nie chodzą idealnie razem - nadmiar (ponad 200 ms) odrzucany, opóźnienie nie rośnie
                     if (buf.BufferedDuration.TotalMilliseconds > 200) { int drop = cf.AverageBytesPerSecond / 1000 * 100 / cf.BlockAlign * cf.BlockAlign; var junk = new byte[drop]; buf.Read(junk, 0, drop); }
                 };
-                cap.RecordingStopped += (s, e) => { if (Running) { if (e.Exception != null) App.LogError(e.Exception); Running = false; Stopped?.Invoke(); } };
+                cap.RecordingStopped += (s, e) => { if (Running) { if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 ISampleProvider sp = buf.ToSampleProvider();
                 if (sp.WaveFormat.Channels == 1) sp = new MonoToStereoSampleProvider(sp);
                 else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
                 if (sp.WaveFormat.SampleRate != AbProcessor.Fs) sp = new WdlResamplingSampleProvider(sp, AbProcessor.Fs);
                 outp = new WasapiOut(dev, AudioClientShareMode.Shared, true, 40);
                 outp.Init(new Processing(sp, Proc));
-                outp.PlaybackStopped += (s, e) => { if (Running) { if (e.Exception != null) App.LogError(e.Exception); Running = false; Stopped?.Invoke(); } };
+                outp.PlaybackStopped += (s, e) => { if (Running) { if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
                 cap.StartRecording(); outp.Play();
                 App.LogInfo("Audio Balance: CABLE Output (" + cf + ") → " + OutputName);

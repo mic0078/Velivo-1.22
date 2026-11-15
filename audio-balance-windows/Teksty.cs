@@ -64,6 +64,10 @@ namespace Velivo
             { "Instalacja nie ruszyła (odmowa w oknie Kontrola konta użytkownika?): ", "Installation did not start (refused in User Account Control?): " },
             { "✔ VB-CABLE zainstalowany.", "✔ VB-CABLE installed." },
             { "✔ Instalacja zakończona – uruchom komputer ponownie, potem kliknij „Sprawdź ponownie”.", "✔ Installation finished – restart the computer, then click “Check again”." },
+            { "odbiór z CABLE Output przerwany", "capture from CABLE Output stopped" },
+            { "odtwarzanie na głośnikach przerwane", "playback on the speakers stopped" },
+            { " – ponawiam za chwilę", " – retrying shortly" },
+            { " (szczegóły: bledy.log w folderze ustawień)", " (details: bledy.log in the settings folder)" },
         };
     }
 }

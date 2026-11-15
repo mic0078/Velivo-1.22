@@ -210,7 +210,7 @@ namespace Velivo
         {
             int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
             var p = new AbProfile { LimitOnly = lim, Name = (lim ? "limit" : "auto") + "-" + new[] { "light", "normal", "strong" }[k],
-                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 2.0, 2, 1.5 }[k], FastHead = new[] { 12.0, 10, 8 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
+                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 12.0, 10, 8 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
                 UpDbS = new[] { 0.7, 1.0, 1.5 }[k], DownDbS = new[] { 1.0, 1.5, 2.5 }[k], Gate = new[] { -25.0, -30, -35 }[k],
                 ThrOff = lim ? new[] { 8.0, 6, 4 }[k] : new[] { 8.0, 6, 5 }[k], Ratio = new[] { 1.5, 2, 2.5 }[k],
                 AttackMs = new[] { 25.0, 15, 8 }[k], ReleaseMs = new[] { 400.0, 300, 200 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
@@ -293,7 +293,7 @@ namespace Velivo
         public readonly AbMeter In = new AbMeter(), Out = new AbMeter();
         public readonly AbMeter Raw = new AbMeter();   // prawdziwe źródło (przed korektorem i dialogami) - do wyświetlania „ŹRÓDŁO” i ORIGINAL
         readonly AbTruePeak tpIn = new AbTruePeak(), tpOut = new AbTruePeak();
-        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart; int sceneN, loudN, boostN;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
+        double levDb, detP, grDb, fastDb, wantS, vS = 1; long sinceStart; int sceneN, loudN;   // vS - głośność odtwarzacza wygładzona (ok. 80 ms): ściszanie pod lektora i powrót bez skoku
         // limiter z wyprzedzeniem: opóźnienie sygnału, minimum w oknie i wygładzenie średnią z okna tej samej długości
         const int La = 240, Dl = La + AbTruePeak.Delay;
         public const int LatencyFrames = Dl;   // opóźnienie przetwarzania (ok. 5 ms) - uwzględniane przy zgrywaniu z obrazem   // okno 5 ms; sygnał opóźniony dodatkowo o opóźnienie filtra True Peak
@@ -470,8 +470,6 @@ namespace Velivo
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
                         double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));
-                        // ⚡ reset podbicia: głośny program (momentary > cel + 4 dB przez 0,3 s) - dodatnie podbicie (np. po cichym filmie) znika w ~0,3 s, nie po 5 s rozpoznania programu
-                        if (In.Momentary > Tg + 4) { if (++boostN > Fs * 3 / 10 && levDb > 0) { levDb = Math.Max(0, levDb - 30.0 / Fs); if (wantS > levDb) wantS = levDb; } } else boostN = 0;
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,
                     // ściszamy szybko (30–60 dB/s, czyli kilka dB w ok. 0,1 s) - bez czekania na powolne wyrównanie z 10 s

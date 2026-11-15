@@ -118,7 +118,7 @@ namespace Velivo
             {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
                 if (double.IsNaN(progDb)) progDb = xDb;
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
-                else if (xDb > progDb - 20 && (xDb > -45 || progDb < -35)) progDb += (Math.Min(xDb, progDb + 3) - progDb) / (10.0 * fs / 64);   // cisza (< -45 dBFS) nie zaniża progu - pierwszy dialog po pauzie nie zgnieciony (bardzo cichy film poniżej -35: bez tej blokady)
+                else if (xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / (10.0 * fs / 64);
             }
             double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
             // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)

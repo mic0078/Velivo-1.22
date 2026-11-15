@@ -1,7 +1,7 @@
-﻿; Instalator „Velivo Audio Balance” (Windows) - samodzielny program: cały dźwięk Windows przez silnik Audio Balance (kompresor, LUFS, limiter).
+﻿; Instalator „Velivo Audio Balance for Windows” - całkowicie samodzielny program (bez przeglądarki Velivo): cały dźwięk Windows przez silnik Audio Balance (kompresor, LUFS, limiter).
 ; Potrzebny VB-Audio Virtual Cable (osobno, ze strony producenta - licencja nie pozwala dołączyć go do instalatora); program prowadzi przez instalację.
 ; Kompilacja: ISCC.exe installer-audiobalance.iss (po dotnet publish do ..\build\audiobalance)
-#define AppName "Velivo Audio Balance"
+#define AppName "Velivo Audio Balance for Windows"
 #define AppVer "1.22"
 #ifndef SrcDir
   #define SrcDir "..\build\audiobalance"
@@ -13,17 +13,17 @@ AppName={#AppName}
 AppVersion={#AppVer}
 AppVerName={#AppName} {#AppVer} By MichAel
 AppPublisher=MichAel
-DefaultDirName={localappdata}\Programs\Velivo Audio Balance
+DefaultDirName={localappdata}\Programs\Velivo Audio Balance for Windows
 UsePreviousAppDir=no
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
 PrivilegesRequired=lowest
-OutputBaseFilename=Velivo-AudioBalance-Setup-{#AppVer}
+OutputBaseFilename=Velivo-AudioBalance-for-Windows-Setup-{#AppVer}
 Compression=lzma2/ultra
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=..\src\audiobalance.ico
+SetupIconFile=audiobalance.ico
 UninstallDisplayIcon={app}\VelivoAudioBalance.exe
 ShowLanguageDialog=yes
 ArchitecturesAllowed=x64compatible
@@ -37,7 +37,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 pl.DesktopIcon=Skrót na pulpicie
 en.DesktopIcon=Desktop shortcut
-pl.RunApp=Uruchom Velivo Audio Balance
+pl.RunApp=Uruchom Velivo Audio Balance for Windows
 pl.Cable=Pobierz i zainstaluj VB-Audio Virtual Cable (polecane – bez niego program nie działa). VB-CABLE to darmowy program firmy VB-Audio (donationware, vb-audio.com). Windows zapyta raz o zgodę na sterownik – kliknij „Zainstaluj”.
 en.Cable=Download and install VB-Audio Virtual Cable (recommended – the program does not work without it). VB-CABLE is free software by VB-Audio (donationware, vb-audio.com). Windows will ask once to allow the driver – click "Install".
 pl.CableGroup=Wirtualna karta dźwiękowa:
@@ -56,7 +56,7 @@ pl.WhyRun=Powód: instalator VB-Cable nie uruchomił się (odmowa w oknie Kontro
 en.WhyRun=Reason: the VB-Cable installer did not start (refused in the User Account Control window?).
 pl.WhySetup=Powód: instalator VB-Cable zakończył się kodem
 en.WhySetup=Reason: the VB-Cable installer ended with code
-en.RunApp=Launch Velivo Audio Balance
+en.RunApp=Launch Velivo Audio Balance for Windows
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"

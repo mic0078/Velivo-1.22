@@ -5,10 +5,10 @@ using System.Windows;
 
 namespace Velivo
 {
-    // Velivo Audio Balance (samodzielny program): start, jedna kopia, dziennik błędów, folder danych
+    // Velivo Audio Balance for Windows (całkowicie samodzielny program, bez przeglądarki Velivo): start, jedna kopia, dziennik błędów, folder danych
     public partial class App : Application
     {
-        internal static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance");
+        internal static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows");
         static readonly object LogLock = new object();
 
         static void Line(string s)

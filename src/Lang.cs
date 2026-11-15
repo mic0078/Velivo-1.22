@@ -259,7 +259,7 @@ namespace Velivo
             { "Brak wtyczek. Dodaj pierwszą przyciskiem poniżej.", "No plugins. Add the first one with the button below." },
             { "Dodaj z folderu VST3…", "Add from the VST3 folder…" },
             { "Dodaj z pliku…", "Add from file…" },
-            { "Gdy VST3 jest aktywne: oryginał → Twoje wtyczki po kolei → głośność odtwarzacza. Korektor, dialogi i wyrównywanie Velivo są wtedy pominięte (bez podwójnego przetwarzania). Wtyczka, która się wysypie, może zamknąć Velivo.", "When VST3 is active: original → your plugins in order → player volume. Velivo's equalizer, dialogue boost and levelling are bypassed (no double processing). A plugin that crashes may close Velivo." },
+            { "Kolejność: oryginał → Twoje wtyczki po kolei → kompresor, korektor, dialogi i wyrównywanie Audio Balance → limiter. Wtyczki do barwy i przestrzeni (EQ, Imager) są bezpieczne; wtyczki ściskające głośność (Maximizer, kompresor) mogą pompować razem z Audio Balance. Wtyczka, która się wysypie, może zamknąć program.", "Order: original → your plug-ins in turn → Audio Balance compressor, EQ, dialogue and levelling → limiter. Tone and space plug-ins (EQ, Imager) are safe; plug-ins that squash loudness (Maximizer, compressor) may pump together with Audio Balance. A plug-in that crashes may close the program." },
             { "Nie wczytano: ", "Not loaded: " },
             { "Nie znaleziono wtyczek VST3 w folderze Common Files\\VST3", "No VST3 plugins found in Common Files\\VST3" },
             { "Niżej w łańcuchu", "Lower in the chain" },

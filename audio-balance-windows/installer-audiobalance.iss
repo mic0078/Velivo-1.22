@@ -48,6 +48,14 @@ pl.CableInst=Instalowanie VB-Audio Virtual Cable – Windows zapyta o zgodę na 
 en.CableInst=Installing VB-Audio Virtual Cable – Windows will ask to allow the driver, click "Install"…
 pl.CableFail=Nie udało się pobrać albo zainstalować VB-Audio Virtual Cable. Program pokaże, jak zainstalować go ręcznie (vb-audio.com/Cable).
 en.CableFail=VB-Audio Virtual Cable could not be downloaded or installed. The program will show how to install it manually (vb-audio.com/Cable).
+pl.WhyDl=Powód: pobieranie z serwera VB-Audio nie udało się (internet, zapora albo antywirus blokuje download.vb-audio.com).
+en.WhyDl=Reason: download from the VB-Audio server failed (internet, firewall or antivirus blocks download.vb-audio.com).
+pl.WhyZip=Powód: nie udało się rozpakować pobranego pakietu.
+en.WhyZip=Reason: the downloaded package could not be unpacked.
+pl.WhyRun=Powód: instalator VB-Cable nie uruchomił się (odmowa w oknie Kontrola konta użytkownika?).
+en.WhyRun=Reason: the VB-Cable installer did not start (refused in the User Account Control window?).
+pl.WhySetup=Powód: instalator VB-Cable zakończył się kodem
+en.WhySetup=Reason: the VB-Cable installer ended with code
 en.RunApp=Launch Velivo Audio Balance
 
 [Tasks]
@@ -77,37 +85,46 @@ Type: dirifempty; Name: "{app}"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoAudioBalance"; Flags: uninsdeletevalue
 
 [Code]
-var CableDone: Boolean;
+var CableDone: Boolean; CableWhy: String;
 
-// VB-CABLE już jest - sterownik w systemie (pliki vbaudio_cable*.sys)
-function CableInstalled: Boolean;
+// VB-CABLE już jest - sterownik w systemie (vbaudio_cable*.sys); instalator jest 32-bitowy - sprawdzamy System32 i Sysnative
+function CableFile(Dir: String): Boolean;
 var F: TFindRec;
 begin
-  Result := FindFirst(ExpandConstant('{sys}\drivers\vbaudio_cable*.sys'), F);
+  Result := FindFirst(Dir + '\drivers\vbaudio_cable*.sys', F);
   if Result then FindClose(F);
 end;
-
-// pobranie z serwera VB-Audio (najpierw nowy pakiet, zapasowo starszy), rozpakowanie (PowerShell - działa też na starszym Windows 10) i instalacja po cichu (-i -h) jako administrator
-function InstallCable: Boolean;
-var Code: Integer; Zip, Dir: String;
+function CableInstalled: Boolean;
 begin
-  Result := False;
+  Result := CableFile(ExpandConstant('{sys}')) or CableFile(ExpandConstant('{win}\Sysnative')) or CableFile(ExpandConstant('{win}\System32'));
+end;
+
+// pobranie z serwera VB-Audio (najpierw nowy pakiet, zapasowo starszy), rozpakowanie (PowerShell) i instalacja po cichu (-i -h) jako administrator; CableWhy - powód błędu słowami
+function InstallCable: Boolean;
+var Code: Integer; Zip, Dir, Ps: String;
+begin
+  Result := False; CableWhy := '';
   Zip := ExpandConstant('{tmp}\vbcable.zip'); Dir := ExpandConstant('{tmp}\vbcable');
   WizardForm.StatusLabel.Caption := CustomMessage('CableDl');
   try
     DownloadTemporaryFile('https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip', 'vbcable.zip', '', nil);
   except
+    CableWhy := 'Pack45: ' + GetExceptionMessage;
     try
       DownloadTemporaryFile('https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip', 'vbcable.zip', '', nil);
     except
+      CableWhy := CustomMessage('WhyDl') + #13#10 + CableWhy + #13#10 + 'Pack43: ' + GetExceptionMessage;
       exit;
     end;
   end;
-  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), '-NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath ''' + Zip + ''' -DestinationPath ''' + Dir + ''' -Force"', '', SW_HIDE, ewWaitUntilTerminated, Code);
-  if not FileExists(Dir + '\VBCABLE_Setup_x64.exe') then exit;
+  Ps := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if not FileExists(Ps) then Ps := 'powershell.exe';
+  Exec(Ps, '-NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath ''' + Zip + ''' -DestinationPath ''' + Dir + ''' -Force"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  if not FileExists(Dir + '\VBCABLE_Setup_x64.exe') then begin CableWhy := CustomMessage('WhyZip') + ' (PowerShell: ' + IntToStr(Code) + ')'; exit; end;
   WizardForm.StatusLabel.Caption := CustomMessage('CableInst');
-  if not ShellExec('runas', Dir + '\VBCABLE_Setup_x64.exe', '-i -h', Dir, SW_SHOW, ewWaitUntilTerminated, Code) then exit;
-  Result := CableInstalled;
+  if not ShellExec('runas', Dir + '\VBCABLE_Setup_x64.exe', '-i -h', Dir, SW_SHOW, ewWaitUntilTerminated, Code) then begin CableWhy := CustomMessage('WhyRun') + ' ' + SysErrorMessage(Code); exit; end;
+  Result := (Code = 0) or CableInstalled;
+  if not Result then CableWhy := CustomMessage('WhySetup') + ' ' + IntToStr(Code);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -115,7 +132,7 @@ begin
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('vbcable') and not CableInstalled then
   begin
     CableDone := InstallCable;
-    if not CableDone then MsgBox(CustomMessage('CableFail'), mbInformation, MB_OK);
+    if not CableDone then MsgBox(CustomMessage('CableFail') + #13#10#13#10 + CableWhy, mbInformation, MB_OK);
   end;
 end;
 

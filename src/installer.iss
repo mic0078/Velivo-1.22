@@ -100,6 +100,8 @@ pl.AppDesc=Velivo – lekka i prywatna przeglądarka
 en.AppDesc=Velivo – a light and private browser
 pl.Upgrade=Velivo Premium zawiera w sobie %1.%n%nUsunąć osobny program %1? Twoje ustawienia, biblioteka, postęp filmów, lektorzy i parowanie telefonu zostają (są wspólne).
 en.Upgrade=Velivo Premium already includes %1.%n%nRemove the separate %1 program? Your settings, library, playback progress, voices and phone pairing stay (they are shared).
+pl.KomGone=Velivo prowadzi na tym komputerze komunikator (rozmowy, a na serwerze także skrzynkę i pośrednika dla innych osób), a osobny Velivo Komunikator nie jest zainstalowany.%n%nPo odinstalowaniu rozmowy na tym komputerze przestaną działać. Najpierw zainstaluj Velivo Komunikator – przejmie rozmowy i serwer z tymi samymi danymi.%n%nOdinstalować Velivo mimo to?
+en.KomGone=Velivo runs the messenger on this computer (chats, and on a server also the mailbox and relay for other people), and the separate Velivo Messenger is not installed.%n%nAfter uninstalling, chats on this computer will stop working. Install Velivo Messenger first – it takes over chats and the server with the same data.%n%nUninstall Velivo anyway?
 pl.OldDataTitle=Poprzednie ustawienia
 en.OldDataTitle=Previous settings
 pl.OldDataDesc=Wykryto dane z wcześniejszej instalacji Velivo.
@@ -583,6 +585,17 @@ begin
   Sleep(500);
   MoveAsideUninstallFiles;
 end;
+
+#ifndef Wariant
+// 🧩 odinstalowanie pełnego Velivo: komunikator (i serwer) prowadzi tylko Velivo albo osobny Komunikator - bez Komunikatora ostrzeżenie
+function InitializeUninstall: Boolean;
+begin
+  Result := True;
+  if FileExists(ExpandConstant('{localappdata}\Programs\Velivo\Dane\komunikator.dat'))
+     and not FileExists(ExpandConstant('{localappdata}\Programs\Velivo Komunikator\VelivoKomunikator.exe')) then
+    Result := SuppressibleMsgBox(CustomMessage('KomGone'), mbConfirmation, MB_YESNO, IDYES) = IDYES;
+end;
+#endif
 
 function InitializeSetup: Boolean;
 var Err: Integer;

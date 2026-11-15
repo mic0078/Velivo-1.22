@@ -51,7 +51,7 @@ namespace Velivo
             var srcBtns = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
             var toDef = mk(L.T("↺ Domyślne"), () => { }); toDef.ToolTip = L.T("Ten film / kanał wraca do ustawień domyślnych (własne dla niego są usuwane).");
             var setDef = mk(L.T("★ Ustaw jako domyślne"), () => { }); setDef.ToolTip = L.T("Obecne ustawienia stają się domyślnymi – dla filmów i kanałów bez własnych.");
-            var listBtn = mk(L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
+            var listBtn = mk(AbPreApps ? L.T("📋 Zapisane dla programów…") : L.T("📋 Zapisane dla filmów i kanałów…"), () => { }); listBtn.ToolTip = L.T("Lista filmów i kanałów TV z własnymi ustawieniami kompresora – z usuwaniem.");
             srcBtns.Children.Add(toDef); srcBtns.Children.Add(setDef); srcBtns.Children.Add(listBtn);
             if (!AbPreNoSrc) { panel.Children.Add(srcText); panel.Children.Add(ownSrc); panel.Children.Add(srcBtns); }   // program samodzielny: nie ma filmów / kanałów - tylko jedno ustawienie
             // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
@@ -218,9 +218,9 @@ namespace Velivo
             void SrcUi()
             {
                 shownSrc = _abPreSrc;
-                string kind = _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");
+                string kind = AbPreApps ? L.T("Program: ") : _abPreSrcTv ? L.T("Kanał: ") : L.T("Film: ");   // program samodzielny: aplikacja, która gra (Chrome, VLC, gra…)
                 srcText.Text = _abPreSrc == null ? L.T("Ustawienia domyślne (nic nie gra)") : kind + _abPreSrc + " – " + (_abPreSrcOwn ? L.T("ustawienia własne") : L.T("ustawienia domyślne"));
-                ownSrc.Content = _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
+                ownSrc.Content = AbPreApps ? L.T("Własne ustawienia dla tego programu") : _abPreSrcTv ? L.T("Własne ustawienia dla tego kanału") : L.T("Własne ustawienia dla tego filmu");
                 ownSrc.IsEnabled = _abPreSrc != null; ownSrc.IsChecked = _abPreSrcOwn; toDef.IsEnabled = _abPreSrcOwn;
             }
             ownSrc.Click += (s, e) =>

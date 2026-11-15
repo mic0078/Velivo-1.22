@@ -24,6 +24,7 @@ namespace Velivo
         Canvas spec, hist; const int NB = 28; readonly Rectangle[] bars = new Rectangle[NB], peaks = new Rectangle[NB]; readonly double[] sm = new double[NB], smO = new double[NB];
         readonly double[] edges = new double[NB + 1]; readonly double[] re = new double[2048], im = new double[2048], re2 = new double[2048], im2 = new double[2048];
         Polyline plIn, plOut; Line tgt; TextBlock tgtTxt; readonly TextBlock[] scale = new TextBlock[4], times = new TextBlock[4]; readonly Line[] gridH = new Line[4], gridV = new Line[2];
+        public double Extra { get => spec.Height - 150; set => spec.Height = 150 + Math.Max(0, value); }   // wolne miejsce pod lewą kolumną → większe widmo
         Canvas work; Line zero; Polygon pgLu, pgCo; readonly TextBlock[] wScale = new TextBlock[3]; readonly double[] hG = new double[HN], hGr = new double[HN];
         const double GL = 40, GB = 16, GT = 6;   // marginesy: skala dB z lewej, czas pod wykresem (makieta) - napisy nie giną za słupkami
 

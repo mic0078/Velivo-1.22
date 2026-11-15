@@ -343,13 +343,15 @@ namespace Velivo
             lower.Children.Add(c2); lower.Children.Add(c4);
             var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower); cols.Children.Add(left);
             // 🎚 kompresor wstępny i 🎛 VST3 z Velivo (ten sam kod)
-            MainWindow.Host = this; MainWindow.AbPreNoSrc = true; var mw = new MainWindow();
+            MainWindow.Host = this; MainWindow.AbPreNoSrc = false; MainWindow.AbPreApps = true; var mw = new MainWindow();   // własne ustawienia kompresora dla programu, który gra (jak filmy i kanały w Velivo)
             var comp = new StackPanel(); var cp = mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2));
             if (cp is Expander exq) { exq.Header = new TextBlock { Text = L.T("🎚 Kompresor wstępny"), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Fg }; }
             comp.Children.Add(cp);
             var vst = new StackPanel(); vst.Children.Add(Head(L.T("🎛 Wtyczki VST3"))); vst.Children.Add(mw.VstPanel(win, Fg, Dim, (t, a2) => Mk(t, a2)));
             var right = new StackPanel(); var c3 = Card(comp); c3.Margin = new Thickness(0, 0, 0, 10); right.Children.Add(c3); var c5 = Card(vst); c5.Margin = new Thickness(0); right.Children.Add(c5);
             Grid.SetColumn(right, 1); cols.Children.Add(right);
+            void Fill() { double free = right.ActualHeight - (left.ActualHeight - live.Extra); if (Math.Abs(free - live.Extra) > 2) live.Extra = free; }   // kolumny równej wysokości - bez pustego miejsca na dole
+            right.SizeChanged += (s3, e3) => Fill(); left.SizeChanged += (s3, e3) => Fill();
             root.Children.Add(cols);
             win.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 40 };
             // po pierwszym ułożeniu stała wysokość: przy SizeToContent każda zmiana liczby na wskaźnikach przeliczała układ całego okna (zacięcia przy przesuwaniu)
@@ -387,7 +389,7 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
+        volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
@@ -395,7 +397,7 @@ namespace Velivo
             else if (!devBusy && (DateTime.UtcNow - devAt).TotalSeconds >= 2)
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;

@@ -331,6 +331,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-15: Audio Balance for Windows – słupki stawały co 2 s i pykał dźwięk: pytanie Windows o urządzenia (MMDevice) w wątku okna, bufor odbioru z VB-Cable 30 ms (spóźnione odpytanie gubiło próbki). Teraz urządzenia w tle, odbiór 100 ms, zegar 1 ms, wątki MMCSS „Pro Audio”, pomiar co 30 s w bledy.log; potwierdzone przez właściciela („działa”). Pytania o urządzenia systemu – nigdy w wątku okna.
 
 * 2026-11-15: Audio Balance – moja „poprawka bicia się” (bez zmiany sceny przy kompresorze, szybka warstwa +6 dB) zrobiła gorzej: cel -23, wynik -10,9 (zrzut właściciela). Symulowałem tylko jeden scenariusz (bursty w dialogu), nie „głośny program po cichym”. Do tego wykrywanie głośniejszego programu w trybie TV porównywało z oknem 10 s zamiast z poziomem kanału. Zmiana w automatycznym wyrównaniu – zawsze symulacja kilku scenariuszy (cichy→głośny, głośny→cichy, wybuchy, szum), nie jednego.
+* 2026-11-15: oceniłem Velivo jako „ciężkie” (1730 MB) i „testowane przez jedną osobę” – dziennik pokazywał pamięć zarezerwowaną (PrivateMemorySize64), a Menedżer zadań 110 MB (TV + film PiP + lektor: 708 MB, 5,4% procesora, bez zacięć – sprawdzone przez właściciela); Velivo używa kilkanaście osób. Teraz dziennik pokazuje zestaw roboczy jak Menedżer zadań. Ocena tylko z pomiaru, który znaczy to samo, co widzi właściciel – nie z jednej liczby i nie z założeń.
 
 ## Zrobione (pamięć)
 

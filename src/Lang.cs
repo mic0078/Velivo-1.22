@@ -927,6 +927,7 @@ namespace Velivo
             { "Nie udało się odtworzyć parowania:\n", "Could not restore pairing:\n" },
             { "LAN sync uruchomiona na porcie ", "LAN sync started on port " },
             { "LAN sync czeka na sparowanie – dane nie są wysyłane (profil: ", "LAN sync is waiting for pairing – no data is sent (profile: " },
+            { "Sieć domową prowadzi inny program Velivo na tym komputerze – przejmę ją, gdy się zamknie.", "Another Velivo program on this computer runs the home network – I will take over when it closes." },
             { "Błąd startu LAN sync: ", "LAN sync start error: " },
             { "Błąd odbioru LAN: ", "LAN receive error: " },
             { "Wykryto urządzenie: ", "Device detected: " },

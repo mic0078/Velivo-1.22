@@ -435,6 +435,7 @@ namespace Velivo
         {
             StopLanSync(); KomVelivoProwadzi();
             if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
+            if (!LanLeadTake()) { KomStartOwn(); return; }   // 🧩 sieć domową na tym komputerze prowadzi już inny program Velivo (Odtwarzacz / Przeglądarka / pełne) - przejmiemy po jego zamknięciu
             KomStopOld(); KomStartOwn(false);   // 💬 komunikator na własnym porcie; 41919 zajmie synchronizacja (pakiety komunikatora przekazuje dalej)
             bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);
             _lanLegacyNoKeyMode = !hasKey;
@@ -546,8 +547,36 @@ namespace Velivo
             _lanDebounce = null;
         }
 
+        // 🧩 jeden program Velivo na komputerze prowadzi sieć domową (port 41919 z ReuseAddress słyszą wszystkie - bez tego podwójne odpowiedzi telefonom);
+        // pozostałe co minutę sprawdzają, czy prowadzący się zamknął, i przejmują
+        Mutex _lanLead; DispatcherTimer _lanLeadWait;
+        bool LanLeadTake()
+        {
+            if (_lanLead != null) return true;
+            var m = new Mutex(false, @"Local\Velivo.SiecDomowa");
+            bool got;
+            try { got = m.WaitOne(0); } catch (AbandonedMutexException) { got = true; }
+            if (got) { _lanLead = m; _lanLeadWait?.Stop(); return true; }
+            m.Dispose();
+            LanLog(L.T("Sieć domową prowadzi inny program Velivo na tym komputerze – przejmę ją, gdy się zamknie."));
+            if (_lanLeadWait == null)
+            {
+                _lanLeadWait = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+                _lanLeadWait.Tick += (s, e) => { if (_lanLead == null && _settings != null && _settings.LanSync) StartLanSync(); };
+            }
+            _lanLeadWait.Start();
+            return false;
+        }
+        void LanLeadFree()
+        {
+            if (_lanLead == null) return;
+            try { _lanLead.ReleaseMutex(); } catch (Exception) { }
+            _lanLead.Dispose(); _lanLead = null;
+        }
+
         void StopLanSync()
         {
+            LanLeadFree();
             StopLanWatch();
             try { _lanTick?.Stop(); } catch (Exception) { }
             _lanTick = null;

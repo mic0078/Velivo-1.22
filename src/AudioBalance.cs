@@ -234,7 +234,9 @@ namespace Velivo
         static int AbDialog => int.TryParse(GetPref("ab-dialogi"), out var d) ? d : 0;
         static bool AbBypass => GetPref("ab-wylacz") == "1" || AbWinActive;
         // 🔊 Velivo Audio Balance for Windows już przetwarza cały dźwięk Windows (znak: nazwany mutex, gdy działa i Windows gra przez CABLE) - Velivo nie poprawia drugi raz; sprawdzane najwyżej co 2 s
-        static bool _abWinOn; static DateTime _abWinAt;
+        static bool _abWinOn; static DateTime _abWinAt; static int _abWinMs;
+        // o ile Audio Balance for Windows spóźnia dźwięk (ms) - odtwarzacz Velivo gra dźwięk o tyle wcześniej (obraz równo z głosem); 0, gdy program nie działa
+        internal static int AbWinDelayMs => AbWinActive ? _abWinMs : 0;
         internal static bool AbWinActive
         {
             get
@@ -243,6 +245,8 @@ namespace Velivo
                 _abWinAt = DateTime.UtcNow; bool now = false;
                 try { if (System.Threading.Mutex.TryOpenExisting("VelivoAudioBalance.Przetwarza", out var m)) { m.Dispose(); now = true; } } catch (Exception) { now = true; }   // brak dostępu = istnieje
                 if (now != _abWinOn) { _abWinOn = now; AbProc.Bypass = GetPref("ab-wylacz") == "1" || now; }
+                _abWinMs = 0;
+                if (now) try { var f = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows", "opoznienie-ms.txt"); if (System.IO.File.Exists(f) && int.TryParse(System.IO.File.ReadAllText(f).Trim(), out var ms)) _abWinMs = Math.Max(0, Math.Min(1000, ms)); } catch (Exception) { }
                 return _abWinOn;
             }
         }

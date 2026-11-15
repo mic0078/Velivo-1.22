@@ -2350,6 +2350,8 @@ namespace Velivo
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
             DateTime dFixed = DateTime.MinValue;   // ⏱ zapis zmierzonej różnicy dźwięku do vlc.log
             int aDelayMs = 0;   // zawsze od 0 - ręczne przesunięcie J/K tylko do zamknięcia odtwarzacza (zapamiętane dawało stałe opóźnienie na każdym kanale)
+            int extMs = 0;   // 🔊 Audio Balance for Windows spóźnia cały dźwięk Windows - VLC gra dźwięk o tyle wcześniej
+            Action applyADelay = () => { try { mp.SetAudioDelay((aDelayMs - extMs) * 1000L); } catch (Exception) { } };
             Func<string> aDelayText = () => L.T("Dźwięk: ") + (aDelayMs > 0 ? "+" : "") + aDelayMs + " ms" + (aDelayMs > 0 ? L.T("  (później)") : aDelayMs < 0 ? L.T("  (wcześniej)") : "");
             Action aDelayTips = () =>
             {
@@ -2360,7 +2362,7 @@ namespace Velivo
             Action<int> setADelay = ms =>
             {
                 aDelayMs = Math.Max(-5000, Math.Min(5000, ms));
-                try { mp.SetAudioDelay(aDelayMs * 1000L); } catch (Exception) { }
+                applyADelay();
                 aDelayTips(); showOsd(aDelayText());
             };
             // ⇆ wyrównanie obrazu z dźwiękiem: film - skok w to samo miejsce (VLC opróżnia bufory i zaczyna synchronizację od nowa), TV - odświeżenie kanału
@@ -2374,10 +2376,11 @@ namespace Velivo
             aEarly.Click += (s, e) => setADelay(aDelayMs - 50); aLate.Click += (s, e) => setADelay(aDelayMs + 50);
             MouseButtonEventHandler aReset = (s, e) => { e.Handled = true; setADelay(0); resync(); };
             aEarly.MouseRightButtonUp += aReset; aLate.MouseRightButtonUp += aReset; aDelayTips();
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { try { if (aDelayMs != 0) { mp.SetAudioDelay(aDelayMs * 1000L); showOsd(aDelayText()); } } catch (Exception) { } }));   // zapamiętane przesunięcie widoczne przy starcie - inaczej wygląda jak stałe opóźnienie   // każdy film / kanał z tym samym przesunięciem
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { try { extMs = AbWinDelayMs; if (aDelayMs != 0 || extMs != 0) applyADelay(); if (aDelayMs != 0) showOsd(aDelayText()); } catch (Exception) { } }));   // zapamiętane przesunięcie widoczne przy starcie - inaczej wygląda jak stałe opóźnienie   // każdy film / kanał z tym samym przesunięciem
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {
+                { int ex = AbWinDelayMs; if (ex != extMs) { extMs = ex; applyADelay(); } }   // Audio Balance for Windows włączony / wyłączony / inne opóźnienie w trakcie
                 var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 // opcja: ogladany kanal zaczal sie nagrywac - przejscie na plik nagrania (zostaje jedno polaczenie)
                 if (pth != null && _iptvPlaying.ContainsKey(pth) && IptvSt.WatchFromRec && curRecFile == null && !userStopped && mp.State == VLCState.Playing && RecFileFor(pth) != null)

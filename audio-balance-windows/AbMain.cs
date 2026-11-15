@@ -243,7 +243,7 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        volatile string cinC, didC, dnameC; volatile bool devBusy; Mutex busyMx; DateTime devAt = DateTime.MinValue;
+        volatile string cinC, didC, dnameC; volatile bool devBusy; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
@@ -259,6 +259,7 @@ namespace Velivo
             // znak dla Velivo: gdy cały dźwięk Windows idzie przez ten program, Audio Balance w Velivo się wyłącza (nie poprawia drugi raz)
             bool proc = on && eng.Running && !eng.Proc.Bypass;   // „Bez przetwarzania” - Velivo może wtedy poprawiać sam
             if (proc && busyMx == null) busyMx = new Mutex(true, "VelivoAudioBalance.Przetwarza");
+            if (proc && eng.DelayMs != delayShown) { delayShown = eng.DelayMs; try { File.WriteAllText(Path.Combine(App.DataDir, "opoznienie-ms.txt"), delayShown.ToString()); } catch (Exception ex) { App.LogError(ex); } }   // dla Velivo: obraz równo z dźwiękiem
             else if (!proc && busyMx != null) { try { busyMx.ReleaseMutex(); } catch (Exception) { } busyMx.Dispose(); busyMx = null; }
             var txt = on ? L.T("✔ Cały dźwięk przez Audio Balance") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance");
             defBtn.ToolTip = on ? L.T("Kliknij, aby Windows znów grał prosto na głośniki.") : L.T("VB-Cable staje się urządzeniem domyślnym – cały dźwięk Windows przechodzi przez Audio Balance.");

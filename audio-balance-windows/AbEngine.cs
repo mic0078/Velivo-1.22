@@ -141,7 +141,7 @@ namespace Velivo
                 int frames = count / 2;
                 for (int f = 0; f < frames; f++)
                 {
-                    while ((int)pos + 1 >= inLen) if (!Pull()) { Silence(buffer, offset, f * 2, count); filling = true; Gaps++; if ((DateTime.UtcNow - gapLog).TotalSeconds > 10) { gapLog = DateTime.UtcNow; App.LogInfo("Przerwa w dźwięku: zapas pusty (z kabla przyszło za mało), przerw od startu: " + Gaps); } return count; }   // kabel milczy - cisza i ponowne zebranie zapasu
+                    while ((int)pos + 1 >= inLen) if (!Pull()) { Silence(buffer, offset, f * 2, count); filling = true; Gaps++; if ((DateTime.UtcNow - gapLog).TotalSeconds > 10) { gapLog = DateTime.UtcNow; var gn = Gaps; System.Threading.Tasks.Task.Run(() => App.LogInfo("Przerwa w dźwięku: zapas pusty (z kabla przyszło za mało), przerw od startu: " + gn)); } return count; }   // kabel milczy - cisza i ponowne zebranie zapasu
                     int k = (int)pos; float fr = (float)(pos - k);
                     buffer[offset + 2 * f] = inb[2 * k] + (inb[2 * k + 2] - inb[2 * k]) * fr;
                     buffer[offset + 2 * f + 1] = inb[2 * k + 1] + (inb[2 * k + 3] - inb[2 * k + 1]) * fr;
@@ -172,7 +172,7 @@ namespace Velivo
                 if ((now - start) * tick >= 30000)
                 {
                     double sec = (now - start) * tick / 1000, pct = samples / (sec * sr) * 100;
-                    App.LogInfo($"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms");
+                    var line = $"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms"; System.Threading.Tasks.Task.Run(() => App.LogInfo(line));   // zapis na dysk poza wątkiem dźwięku
                     start = now; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0;
                 }
             }

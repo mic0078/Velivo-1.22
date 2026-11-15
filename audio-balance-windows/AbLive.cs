@@ -16,7 +16,8 @@ namespace Velivo
             Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)), Gold = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), Grey = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA8));
         readonly AbEngine eng; readonly Brush fg, dim;
         public readonly StackPanel Root = new StackPanel();
-        readonly DispatcherTimer tm = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(40) };
+        // zwykły priorytet (nie Render): przesuwanie okna i kliknięcia mają pierwszeństwo przed wskaźnikami
+        readonly DispatcherTimer tm = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(40) };
 
         // paski
         (Border fill, TextBlock val, Grid track) srcB, chgB, outB, grB;
@@ -94,6 +95,7 @@ namespace Velivo
 
         void Tick()
         {
+            if (Window.GetWindow(Root)?.WindowState == WindowState.Minimized) return;   // zminimalizowane okno nic nie rysuje
             var p = eng.Proc; bool live = eng.Running && p.Raw.ShortTerm > -69;   // w ciszy „–” zamiast mylących liczb
             double src = p.Raw.ShortTerm, outp = p.Out.ShortTerm, g = p.GainDb, gr = p.Pre.Params.IsEnabled ? p.Pre.CurrentGainReductionDb : 0;
             Set(srcB, live ? (src + 60) / 60 : 0, live ? src.ToString("0.0") : "–");

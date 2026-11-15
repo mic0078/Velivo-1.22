@@ -392,6 +392,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 💾 Kopia zapasowa przez internet (2026-10-28, właściciel): odtwarzanie kopii z NUCBOX/serwera także poza domem – przez pośrednika, jak synchronizacja (934db57 – synchronizacja przez internet już jest).
 * Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).
 
+* 2026-11-15 (właściciel, zasada stała): `%LOCALAPPDATA%\Velivo` to JEDYNY wspólny folder wszystkich programów i modułów Velivo, niezależnie od tego, z czego korzystają: `Dane` (wspólne dane Velivo/Odtwarzacza/Przeglądarki/Komunikatora), `Audio Balance for Windows`, `Poważne błędy`. Nigdy w folderze programu (odinstalowanie / skasowanie folderu programu nie może zabrać danych). Programy wiedzą o sobie przez spis `HKCU\Software\Velivo\Programy\<Pid>` (instalator + każdy start; deinstalator wykreśla siebie).
+
 ## Gałęzie
 
 * Pracuj tylko na `rozwoj`. Nie twórz innych gałęzi.

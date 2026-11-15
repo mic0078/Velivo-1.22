@@ -407,6 +407,20 @@ namespace Velivo
         // 🧩 co gra: program (Chrome, gra…) albo - gdy gra odtwarzacz Velivo - konkretny kanał / film z pliku wymiany %LOCALAPPDATA%\Velivo\teraz-gra.txt
         // (zapisuje go Velivo / Velivo Odtwarzacz); ustawienia kompresora i „Bardzo ciche” pamiętane dla tego kanału / filmu, zmiana tytułu od razu
         string srcNow;
+        // 🔒 strażnik: „Cały dźwięk przez Audio Balance” włączone, a Windows przełączył się na inne wyjście (ręcznie, słuchawki, inny program) -
+        // wybrane urządzenie staje się wyjściem Audio Balance, a Windows wraca na VB-Cable: nic nie gra z pominięciem programu
+        void Pilnuj(string cable, string chosen, string name)
+        {
+            try
+            {
+                if (Get("kieruj") != "1") return;
+                if (Get("wyjscie") != chosen) { Put("wyjscie", chosen); StartEngine(); }   // słuchawki / głośniki wybrane w Windows = tam gra Audio Balance
+                DefaultDevice.Set(cable); UpdateDefBtn(true);
+                App.LogInfo("Strażnik: Windows przełączył dźwięk na „" + name + "” – wraca przez Audio Balance (wyjście programu: " + name + ")");
+                Toast(L.T("Dźwięk dalej przez Audio Balance – gra na: ") + name);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
         void SrcCheck()
         {
             var app = appNow; if (app == null) return;
@@ -432,7 +446,7 @@ namespace Velivo
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
                 // program zmienia się dopiero, gdy gra najgłośniej ~8 s - dwa programy naraz nie przełączają ustawień co 2 s (falowanie)
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) appNow = app; } else appCandN = 0; } SrcCheck(); } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; if (c != null && d != null && d != c && eng.Running && Get("kieruj") == "1") win.Dispatcher.BeginInvoke(new Action(() => Pilnuj(c, d, n))); velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) appNow = app; } else appCandN = 0; } SrcCheck(); } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;

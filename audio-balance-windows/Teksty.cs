@@ -138,6 +138,7 @@ namespace Velivo
             { "Własne ustawienia dla tego programu", "Own settings for this app" },
             { "📋 Zapisane: programy, filmy, kanały…", "📋 Saved: apps, films, channels…" },
             { "Kanał: ", "Channel: " },
+            { "Dźwięk dalej przez Audio Balance – gra na: ", "Sound still goes through Audio Balance – playing on: " },
             { "RMS, próg automatyczny (średnia filmu +6 dB), 3,5:1, atak 30 ms, powrót 300 ms, podbicie +4 dB.", "RMS, automatic threshold (film average +6 dB), 3.5:1, attack 30 ms, release 300 ms, make-up +4 dB." },
             { "działa – film na celu", "working – film at target" },
             { "wstrzymane – szum tła", "paused – background noise" },

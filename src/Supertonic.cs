@@ -68,6 +68,24 @@ namespace Velivo
         readonly Dictionary<string, Style> _stStyles = new Dictionary<string, Style>();
         readonly SemaphoreSlim _stLock = new SemaphoreSlim(1, 1);
 
+        // 🗣 model wczytywany w tle już przy otwarciu filmu z lektorem - pierwsza kwestia bez czekania (dawniej kilkanaście sekund: wczytanie na kartę przy pierwszym zdaniu)
+        void SupertonicWarm()
+        {
+            if (_stTts != null || !File.Exists(SupertonicPath("onnx/tts.json"))) return;
+            _ = Task.Run(async () =>
+            {
+                await _stLock.WaitAsync();
+                try
+                {
+                    if (_stTts != null) return;
+                    try { _stTts = Helper.LoadTextToSpeech(SupertonicPath("onnx"), true); _stGpu = true; }
+                    catch (Exception ex) { App.LogError(ex); _stTts = Helper.LoadTextToSpeech(SupertonicPath("onnx"), false); _stGpu = false; }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                finally { _stLock.Release(); }
+            });
+        }
+
         // synteza w tle; jedna naraz (model trzymany w pamięci po pierwszym użyciu)
         async Task<string> SupertonicSynthesizeAsync(PiperVoice v, string text, double rate, int steps)
         {

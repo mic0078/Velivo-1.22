@@ -219,7 +219,7 @@ namespace Velivo
                     else SilentStart = true;   // okno przeglądarki zawsze schowane, widać Kanapę / odtwarzacz
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
-                    if (!SilentStart) AskDefaultBrowserOnce();
+                    if (!SilentStart && Wariant.MaKarty) AskDefaultBrowserOnce();
                     EnsureFileTypes();
                     StartSleepTabs();
                     TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart

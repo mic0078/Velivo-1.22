@@ -19,9 +19,9 @@ namespace Velivo
     public partial class MainWindow
     {
         internal const string AppName = Wariant.Nazwa;   // osobny program = osobna kopia, osobny wpis przeglądarki
-        const string ProgId = "VelivoHTML";
-        const string PdfProgId = "VelivoPDF";
-        const string VideoProgId = "VelivoVideo";
+        const string ProgId = Wariant.Pid + "HTML";
+        const string PdfProgId = Wariant.Pid + "PDF";
+        const string VideoProgId = Wariant.Pid + "Video";
         const string ClientKey = @"Software\Clients\StartMenuInternet\" + AppName;
 
         // ---------- jedno okno ----------
@@ -193,7 +193,7 @@ namespace Velivo
                     using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
                     using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
                 }
-            var types = new[] { ".pdf" }.Concat(VideoExts).Concat(VlcInstalled ? VlcExtraExts : new string[0]).ToArray();
+            var types = (Wariant.MaKarty ? new[] { ".pdf" } : new string[0]).Concat(VideoExts).Concat(VlcInstalled ? VlcExtraExts : new string[0]).ToArray();
             // odtwarzacz filmow odinstalowany: AVI, WMV i inne znikaja z "Otworz za pomoca"
             if (!VlcInstalled)
                 using (var t = Registry.CurrentUser.OpenSubKey(appKey + @"\SupportedTypes", true))

@@ -1228,6 +1228,7 @@ namespace Velivo
         {
             if (files == null || files.Length == 0 || !EnsureLibVlc()) return;
             _playlist = files.ToList();
+            if (_settings.VlcLector) SupertonicWarm();   // lektor gotowy, zanim pojawi się pierwszy napis
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));
             // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC); film z rozmowy komunikatora - nie
             var lib = LoadLibrary();
@@ -2252,6 +2253,7 @@ namespace Velivo
             lectorOn.Click += (s, e) =>
             {
                 _settings.VlcLector = lectorOn.IsChecked == true;
+                if (_settings.VlcLector) SupertonicWarm();
                 if (!_settings.VlcLector) LectorStopVoice(lc, mp);
                 showLector(); saveLector();
                 showOsd(!_settings.VlcLector ? L.T("Lektor: wyłączony")

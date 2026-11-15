@@ -6,13 +6,13 @@ namespace Velivo
     static class Wariant
     {
 #if WARIANT_ODTWARZACZ
-        internal const string Nazwa = "Velivo Odtwarzacz";
+        internal const string Nazwa = "Velivo Odtwarzacz", Pid = "VelivoOdtwarzacz";
         internal const bool Odtwarzacz = true, Przegladarka = false, Pelne = false;
 #elif WARIANT_PRZEGLADARKA
-        internal const string Nazwa = "Velivo Przeglądarka";
+        internal const string Nazwa = "Velivo Przeglądarka", Pid = "VelivoPrzegladarka";
         internal const bool Odtwarzacz = false, Przegladarka = true, Pelne = false;
 #else
-        internal const string Nazwa = "Velivo";
+        internal const string Nazwa = "Velivo", Pid = "Velivo";   // Pid: przedrostek wpisów Windows (VelivoHTML, VelivoVideo…) - każdy program własne
         internal const bool Odtwarzacz = false, Przegladarka = false, Pelne = true;
 #endif
         // co ma ten program: przeglądarka (karty), odtwarzacz (filmy, TV, Kanapa, Pilot), komunikator

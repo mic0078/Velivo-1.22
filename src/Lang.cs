@@ -513,6 +513,7 @@ namespace Velivo
             { " – ATSC A/85 (cicho)", " – ATSC A/85 (quiet)" },
             { " – EBU R128 (telewizja)", " – EBU R128 (television)" },
             { " – głośniej", " – louder" },
+            { " – ciszej (wieczór)", " – quieter (evening)" },
             { " – głośno (serwisy muzyczne)", " – loud (music services)" },
             { " – zalecane do filmów", " – recommended for films" },
             { "3 s", "3 s" },

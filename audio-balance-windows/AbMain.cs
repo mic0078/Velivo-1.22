@@ -365,7 +365,7 @@ namespace Velivo
             sets.Children.Add(Choice(L.T("Opóźnienie"), new[] { ("0", "0,1 s", L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", "0,2 s", (string)null), ("2", "0,35 s", L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
-            foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = v == 0 ? L.T("Auto (zalecane)") : v.ToString("0") + " LUFS", Tag = v });
+            foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });   // te same opisy co w Velivo
             var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { Put("cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); } };
             { var g = new Grid { Margin = new Thickness(0, 0, 0, 8) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
@@ -527,6 +527,7 @@ namespace Velivo
             Toast(L.T("✔ Zapisano: ") + Path.GetFileName(r.Path) + " (" + TimeSpan.FromSeconds(r.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss") + ")");
             try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + r.Path + "\""); } catch (Exception) { }
         }
+        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -20 ? L.T(" – ciszej (wieczór)") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");   // opisy poziomów jak w Velivo (AudioBalance.cs)
         void Show() { FillOutputs(); Status(); win.Show(); if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal; win.Activate(); }
         static void Open(string url) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception) { } }
 

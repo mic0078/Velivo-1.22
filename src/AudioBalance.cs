@@ -670,7 +670,7 @@ namespace Velivo
         }
 
         static readonly float[] AbTargets = { 0, -14, -16, -18, -20, -23, -24 };   // 0 = Auto (średnia źródła)
-        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
+        static string AbTargetLabel(float v) => v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS" + (v == -14 ? L.T(" – głośno (serwisy muzyczne)") : v == -16 ? L.T(" – głośniej") : v == -18 ? L.T(" – zalecane do filmów") : v == -20 ? L.T(" – ciszej (wieczór)") : v == -23 ? L.T(" – EBU R128 (telewizja)") : v == -24 ? L.T(" – ATSC A/85 (cicho)") : "");
         static string AbProfileTip(string p) => p == "auto" ? L.T("Auto Level – wyrównywanie odczuwalnej głośności.") : p == "limit" ? L.T("Limit Only – ograniczanie głośnych szczytów bez podbijania cichych fragmentów.") : L.T("Wył. – oryginalny dźwięk bez ingerencji.");
 
         internal void AbSetBypass(bool on)

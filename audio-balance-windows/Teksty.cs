@@ -201,7 +201,7 @@ namespace Velivo
             { "Delikatnie", "Gentle" },
             { "Tylko szczyty, równoległa.", "Peaks only, parallel." },
             { "Poziom docelowy – do jakiej głośności wyrównywać.", "Target level – the loudness to level to." },
-            { "Auto – inteligentnie (odniesienie -23 LUFS, zalecane)", "Auto – smart (reference -23 LUFS, recommended)" },
+            { "Auto – średnia materiału (odniesienie -23 LUFS, zalecane)", "Auto – material average (reference -23 LUFS, recommended)" },
             { "Bez przetwarzania (dźwięk bez zmian, do porównania)", "No processing (sound unchanged, for comparison)" },
             { "Uruchamiaj razem z Windows (w zasobniku)", "Start with Windows (in the tray)" },
             { "Do zasobnika", "To tray" },

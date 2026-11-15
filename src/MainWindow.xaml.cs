@@ -189,7 +189,7 @@ namespace Velivo
                     MigrateQuickAccessProfilePath();
                     // smieci sprzatamy tylko, gdy nie dziala inne okno przegladarki (jego silnik trzyma te pliki)
                     if (System.Diagnostics.Process.GetProcessesByName("Velivo").Length <= 1) CleanJunkAtStartup();
-                    _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),
+                    _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, WebViewProfil),
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
                     if (Wariant.MaFilmy) StartJellyfinAutoSync();   // 🧩 Przeglądarka nie pobiera biblioteki filmów
@@ -251,7 +251,7 @@ namespace Velivo
                 // Nie resetuj, gdy dziala inne okno procesu - profile moga byc zablokowane.
                 if (System.Diagnostics.Process.GetProcessesByName("Velivo").Length > 1) return;
 
-                var profileRoot = Path.Combine(DataDir, "Profil", "EBWebView");
+                var profileRoot = Path.Combine(DataDir, WebViewProfil, "EBWebView");
                 if (Directory.Exists(profileRoot))
                 {
                     try { Directory.Delete(profileRoot, true); }
@@ -305,7 +305,7 @@ namespace Velivo
                 var bundled = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, L.T("Dodatki"), "Szybki Dostęp"));
                 if (!File.Exists(Path.Combine(bundled, "manifest.json"))) return;
 
-                var profileDir = Path.Combine(DataDir, "Profil", "EBWebView", "Default");
+                var profileDir = Path.Combine(DataDir, WebViewProfil, "EBWebView", "Default");
                 bool repaired = false;
                 foreach (var fileName in new[] { "Secure Preferences", "Preferences" })
                 {
@@ -394,6 +394,8 @@ namespace Velivo
 
         // ---------- zakladki ----------
 
+        // 🧩 profil silnika stron: każdy program Velivo własny (dwa programy naraz na jednym profilu = „Żądane zasoby są w użyciu” 0x800700AA); pełne Velivo bez zmian
+        static string WebViewProfil => Wariant.Pelne ? "Profil" : "Profil-" + Wariant.Pid;
         bool _sessionReady;   // 🧩 start skończony (Odtwarzacz: od teraz pokazanie okna = Kanapa)
         void AddTab(string url) { AddTab(url, false); }
 
@@ -474,7 +476,7 @@ namespace Velivo
                         await System.Threading.Tasks.Task.Delay(attempt == 1 ? 300 : 1500);
                         // silnik przeglądarki padł (np. aktualizacja WebView2 w tle) - stare środowisko już nie otworzy karty: nowe, z tymi samymi ustawieniami
                         envRenewed = true;
-                        try { _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"), new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() }); } catch (Exception ex2) { App.LogError(ex2); }
+                        try { _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, WebViewProfil), new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() }); } catch (Exception ex2) { App.LogError(ex2); }
                     }
                 }
             }

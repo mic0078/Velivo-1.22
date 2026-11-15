@@ -16,7 +16,7 @@ namespace Velivo
         const string JunkSubfolder = "Velivo-smieci";
         static readonly string[] OldJunkSubfolders = { "Przegladarka-smieci", "Tarcza-smieci" }; // nazwy sprzed zmian nazwy programu
         static string JunkFlagFile { get { return Path.Combine(DataDir, "wyczysc-smieci.flag"); } }
-        static string ProfileDir { get { return Path.Combine(DataDir, "Profil", "EBWebView"); } }
+        static string ProfileDir { get { return Path.Combine(DataDir, WebViewProfil, "EBWebView"); } }
 
         string CustomJunkDir
         {

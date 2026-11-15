@@ -77,7 +77,7 @@ namespace Velivo
             // 1) co zapisal Chromium w profilu (dodatki wczytane wczesniej)
             foreach (var name in new[] { "Secure Preferences", "Preferences" })
             {
-                var f = Path.Combine(DataDir, "Profil", "EBWebView", "Default", name);
+                var f = Path.Combine(DataDir, WebViewProfil, "EBWebView", "Default", name);
                 try
                 {
                     if (!File.Exists(f)) continue;

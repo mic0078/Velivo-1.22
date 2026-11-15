@@ -27,7 +27,7 @@ namespace Velivo
         static float C(float v, float lo, float hi) => float.IsNaN(v) ? lo : v < lo ? lo : v > hi ? hi : v;
 
         // gotowe ustawienia (presety)
-        public static DynParams Film() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 3.5f, AttackMs = 30, ReleaseMs = 300, KneeDb = 10, MakeupGainDb = 4, MixPercent = 100 };
+        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 6, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 3.5f, AttackMs = 30, ReleaseMs = 300, KneeDb = 10, MakeupGainDb = 4, MixPercent = 100 };
         public static DynParams Night() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -42, Ratio = 6, AttackMs = 20, ReleaseMs = 250, KneeDb = 10, MakeupGainDb = 12, ExpanderThresholdDb = -50, MixPercent = 100 };
         public static DynParams Parallel() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Peak, ThresholdDb = -20, Ratio = 4, AttackMs = 10, ReleaseMs = 150, KneeDb = 6, MakeupGainDb = 2, MixPercent = 60 };
 
@@ -62,6 +62,7 @@ namespace Velivo
         public DynParams Params { get => prm; set => prm = (value ?? new DynParams()).Clamped(); }
         public volatile float CurrentGainReductionDb;   // obecna redukcja (dB, ≤ 0; ujemna też przy ekspanderze) - miernik w oknie
         public volatile float InputDb = -120, OutputDb = -120;   // poziom wykrywania na wejściu i wynik po kompresji (dB) - kropka na wykresie i mierniki
+        public volatile float EffExpanderDb = -52;   // próg ciszy w tej chwili (dopasowany do filmu)
         public volatile float EffThresholdDb = -32;   // próg w tej chwili (przy progu automatycznym - liczony z filmu)
         int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
@@ -71,13 +72,14 @@ namespace Velivo
         public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progN = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
-        public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb);
-        public static double GainComputer(double x, DynParams p, double thr)
+        public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);
+        public static double GainComputer(double x, DynParams p, double thr) => GainComputer(x, p, thr, p.ExpanderThresholdDb);
+        public static double GainComputer(double x, DynParams p, double thr, double expThr)
         {
             double t = thr, r = Math.Max(1, p.Ratio), w = Math.Max(0, p.KneeDb), d = x - t, g = 0;
             if (w > 0 && Math.Abs(d) <= w / 2) g = (1 / r - 1) * (d + w / 2) * (d + w / 2) / (2 * w);   // miękkie kolano - płynne wejście kompresji
             else if (d > 0) g = (1 / r - 1) * d;
-            if (x < p.ExpanderThresholdDb && p.ExpanderRatio > 1) g += Math.Max(-40, (x - p.ExpanderThresholdDb) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół, nie w górę
+            if (x < expThr && p.ExpanderRatio > 1) g += Math.Max(-40, (x - expThr) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół, nie w górę
             return g;
         }
 
@@ -116,10 +118,12 @@ namespace Velivo
                 else if (xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / (10.0 * fs / 64);
             }
             double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
-            EffThresholdDb = (float)thr;
-            double want = GainComputer(xDb, p, thr);
+            // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)
+            double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progDb - 20);
+            EffThresholdDb = (float)thr; EffExpanderDb = (float)expThr;
+            double want = GainComputer(xDb, p, thr, expThr);
             grDb = want < grDb ? want + ca * (grDb - want) : want + cr * (grDb - want);   // mocniej - czas ataku, słabiej - czas powrotu
-            if (xDb > p.ExpanderThresholdDb) avgGr += (grDb - avgGr) * cAvg;   // średnia redukcja z ok. 3 s (bez ciszy) - do automatycznego podbicia
+            if (xDb > expThr) avgGr += (grDb - avgGr) * cAvg;   // średnia redukcja z ok. 3 s (bez ciszy) - do automatycznego podbicia
             double mkWant = p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0), mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
             mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * cs; mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;

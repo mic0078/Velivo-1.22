@@ -209,7 +209,7 @@ namespace Velivo
         }
 
         // 5.1 / 7.1 → stereo (centrum i tylne -3 dB, LFE pominięty)
-        sealed class Downmix : ISampleProvider
+        internal sealed class Downmix : ISampleProvider
         {
             readonly ISampleProvider src; readonly int ch; float[] b = new float[0];
             public Downmix(ISampleProvider s) { src = s; ch = s.WaveFormat.Channels; WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(s.WaveFormat.SampleRate, 2); }

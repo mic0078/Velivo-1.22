@@ -29,6 +29,7 @@ namespace Velivo
             eng = e; this.fg = fg; this.dim = dim;
             for (int i = 0; i <= NB; i++) edges[i] = 40 * Math.Pow(16000.0 / 40, i / (double)NB);
             for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70;
+            Root.Children.Add(new TextBlock { Text = L.T("📊 Podgląd"), Foreground = fg, FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
             srcB = Bar(L.T("ŹRÓDŁO"), Red, L.T("Głośność dźwięku, który gra Windows (LUFS, przed poprawą)."));
             chgB = Bar(L.T("ZMIANA"), Teal, L.T("Ile Audio Balance teraz podgłaśnia (w prawo) albo ścisza (w lewo), dB."));
             outB = Bar(L.T("WYNIK"), Green, L.T("Głośność po poprawie – to słyszysz (LUFS)."));

@@ -19,11 +19,53 @@ namespace Velivo
             bool loading = false;
             var on = new CheckBox { Content = L.T("Kompresor wstępny włączony"), Foreground = fg, Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(on);
-            // miernik: ile kompresor teraz ścisza (albo ekspander w ciszy)
-            var grText = new TextBlock { Foreground = fg, FontSize = 12, Margin = new Thickness(0, 0, 0, 2) };
-            var grBar = new ProgressBar { Minimum = 0, Maximum = 24, Height = 8, Foreground = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)), Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2D, 0x3A)), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 8),
-                ToolTip = L.T("Redukcja wzmocnienia teraz – im dłuższy pasek, tym mocniej kompresor ścisza.") };
-            panel.Children.Add(grText); panel.Children.Add(grBar);
+            // 📈 wskaźniki jak w Ozone: charakterystyka z kropką obecnego poziomu, mierniki Wejście / Redukcja / Wyjście, historia redukcji (6 s)
+            var vis = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            vis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); vis.ColumnDefinitions.Add(new ColumnDefinition());
+            const double W = 150, H = 150, Lo = -60;   // oś: -60..0 dB
+            double X(double db) => (Math.Max(Lo, Math.Min(0, db)) - Lo) / -Lo * W; double Y(double db) => H - (Math.Max(Lo, Math.Min(0, db)) - Lo) / -Lo * H;
+            var plot = new Canvas { Width = W, Height = H, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true,
+                ToolTip = L.T("Charakterystyka: poziom wejścia (poziomo) → wyjścia (pionowo). Kropka – obecny dźwięk; przekątna – bez zmian.") };
+            var grid = new SolidColorBrush(Color.FromRgb(0x2A, 0x2D, 0x3A));
+            for (int k = -50; k < 0; k += 10) { plot.Children.Add(new System.Windows.Shapes.Line { X1 = X(k), X2 = X(k), Y1 = 0, Y2 = H, Stroke = grid, StrokeThickness = 1 }); plot.Children.Add(new System.Windows.Shapes.Line { X1 = 0, X2 = W, Y1 = Y(k), Y2 = Y(k), Stroke = grid, StrokeThickness = 1 }); }
+            plot.Children.Add(new System.Windows.Shapes.Line { X1 = 0, Y1 = H, X2 = W, Y2 = 0, Stroke = new SolidColorBrush(Color.FromRgb(0x44, 0x48, 0x58)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 3 } });
+            var thrLine = new System.Windows.Shapes.Line { Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0xFA, 0xCC, 0x15)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 2 } };
+            var expLine = new System.Windows.Shapes.Line { Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x2E, 0xD3, 0xC6)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 2 } };
+            var curve = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)), StrokeThickness = 2 };
+            var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), Stroke = Brushes.White, StrokeThickness = 1 };
+            plot.Children.Add(thrLine); plot.Children.Add(expLine); plot.Children.Add(curve); plot.Children.Add(dot);
+            vis.Children.Add(plot);
+            void DrawCurve(DynParams p)
+            {
+                var pts = new PointCollection(); double mk = p.MakeupGainDb, mix = p.MixPercent / 100.0;
+                for (double x = Lo; x <= 0.001; x += 0.5) { double g = VelivoDynamicsProcessor.GainComputer(x, p) + mk, y = x + 20 * Math.Log10(Math.Max(1e-6, 1 - mix + mix * Math.Pow(10, g / 20))); pts.Add(new Point(X(x), Y(y))); }
+                curve.Points = pts; thrLine.X1 = thrLine.X2 = X(p.ThresholdDb); expLine.X1 = expLine.X2 = X(p.ExpanderThresholdDb);
+            }
+            var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) }; Grid.SetColumn(right, 1); vis.Children.Add(right);
+            var bars = new Grid { Height = 104 };
+            (Border bar, TextBlock val) Meter(int col, string name, Color c, string tip)
+            {
+                bars.ColumnDefinitions.Add(new ColumnDefinition());
+                var sp = new DockPanel { Margin = new Thickness(3, 0, 3, 0), ToolTip = tip }; Grid.SetColumn(sp, col);
+                var nm = new TextBlock { Text = name, Foreground = dim, FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center }; DockPanel.SetDock(nm, Dock.Bottom);
+                var v = new TextBlock { Foreground = fg, FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center }; DockPanel.SetDock(v, Dock.Top);
+                var well = new Border { Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), Width = 14, HorizontalAlignment = HorizontalAlignment.Center };
+                var b = new Border { Background = new SolidColorBrush(c), VerticalAlignment = name == L.T("Redukcja") ? VerticalAlignment.Top : VerticalAlignment.Bottom, Height = 0 };
+                well.Child = b; sp.Children.Add(nm); sp.Children.Add(v); sp.Children.Add(well); bars.Children.Add(sp);
+                return (b, v);
+            }
+            var mIn = Meter(0, L.T("Wejście"), Color.FromRgb(0x8A, 0x90, 0xA8), L.T("Poziom dźwięku przed kompresorem (dB)."));
+            var mGr = Meter(1, L.T("Redukcja"), Color.FromRgb(0xFA, 0xCC, 0x15), L.T("Ile kompresor teraz ścisza (dB) – pasek rośnie w dół."));
+            var mOut = Meter(2, L.T("Wyjście"), Color.FromRgb(0x2E, 0xD3, 0xC6), L.T("Poziom po kompresorze, przed wyrównywaniem Audio Balance (dB)."));
+            right.Children.Add(bars);
+            var hist = new Canvas { Height = 40, Background = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)), ClipToBounds = true, Margin = new Thickness(0, 4, 0, 0),
+                ToolTip = L.T("Historia redukcji z ostatnich 6 sekund – im głębiej, tym mocniej kompresor ściszał.") };
+            var histLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), StrokeThickness = 1.5 };
+            hist.Children.Add(histLine); right.Children.Add(hist);
+            var grText = new TextBlock { Foreground = fg, FontSize = 11, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap };
+            right.Children.Add(grText);
+            panel.Children.Add(vis);
+            var grHist = new double[120]; int grPos = 0;
             var presets = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(presets);
             var mode = new ComboBox { Margin = new Thickness(0, 0, 0, 6), ToolTip = L.T("RMS – średnia energia (naturalnie dla dialogów i muzyki); Peak – reaguje na każdy szczyt (strzały, trzaski).") };
@@ -73,7 +115,7 @@ namespace Velivo
                     ThresholdDb = (float)rows["thr"].Value, Ratio = (float)rows["ratio"].Value, AttackMs = (float)rows["att"].Value, ReleaseMs = (float)rows["rel"].Value, KneeDb = (float)rows["knee"].Value,
                     MakeupGainDb = (float)rows["mk"].Value, MixPercent = (float)rows["mix"].Value, ExpanderThresholdDb = (float)rows["et"].Value, ExpanderRatio = (float)rows["er"].Value
                 };
-                AbProc.Pre.Params = p; SetPref("ab-kompresor", p.Save());
+                AbProc.Pre.Params = p; SetPref("ab-kompresor", p.Save()); DrawCurve(p);
                 if (p.IsEnabled && !was) AbNeedsRestartHint();
             }
             on.Click += (s, e) => Apply(); auto.Click += (s, e) => Apply(); mode.SelectionChanged += (s, e) => { if (!loading) Apply(); };
@@ -82,13 +124,22 @@ namespace Velivo
                 (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
                 (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
             { var f = mkP; var b = mk(nm, () => { Show(f()); Apply(); }); b.ToolTip = tip; presets.Children.Add(b); }
-            Show(AbProc.Pre.Params);
-            var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params);
+            var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             tm.Tick += (s, e) =>
             {
-                bool act = AbProc.Pre.Params.IsEnabled; float gr = act ? AbProc.Pre.CurrentGainReductionDb : 0;
-                grText.Text = act ? L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB" : L.T("Kompresor wyłączony – dźwięk bez zmian");
-                grBar.Value = Math.Min(24, Math.Max(0, -gr));
+                var pr = AbProc.Pre; bool act = pr.Params.IsEnabled && AbFlowing();
+                double xi = act ? pr.InputDb : -120, xo = act ? pr.OutputDb : -120, gr = act ? pr.CurrentGainReductionDb : 0;
+                Canvas.SetLeft(dot, X(xi) - 5); Canvas.SetTop(dot, Y(xo) - 5); dot.Visibility = act && xi > Lo ? Visibility.Visible : Visibility.Hidden;
+                double bh = bars.ActualHeight - 30; if (bh < 10) bh = 74;
+                mIn.bar.Height = Math.Max(0, (Math.Max(Lo, xi) - Lo) / -Lo * bh); mIn.val.Text = act ? xi.ToString("0") : "–";
+                mOut.bar.Height = Math.Max(0, (Math.Max(Lo, xo) - Lo) / -Lo * bh); mOut.val.Text = act ? xo.ToString("0") : "–";
+                mGr.bar.Height = Math.Min(bh, Math.Max(0, -gr) / 24 * bh); mGr.val.Text = act ? gr.ToString("0.0") : "–";
+                grHist[grPos++ % grHist.Length] = gr;
+                double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = 40; var pts = new PointCollection();
+                for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
+                histLine.Points = pts;
+                grText.Text = !pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB";
             };
             exp.Loaded += (s, e) => tm.Start(); exp.Unloaded += (s, e) => tm.Stop();
             return exp;

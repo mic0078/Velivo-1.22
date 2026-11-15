@@ -69,11 +69,29 @@ namespace Velivo
             var t = volTm; volTm = null; try { t?.Dispose(); } catch (Exception) { }
             preT = postT = 1;
         }
+        // 🗣 łącze z lektorem Velivo: (1) znak „lektor czyta” (zdarzenie Windows ustawiane przez Velivo) → zamrożenie pomiaru programu, przytrzymane 0,8 s po kwestii;
+        // (2) dla Velivo: ile ten program teraz podgłaśnia i jaki ma cel - lektor gra o tyle ciszej / głośniej, żeby po przetwarzaniu każdy głos (jest ich wiele)
+        // wychodził tak samo głośno względem celu, niezależnie od filmu
+        System.Threading.EventWaitHandle lekEv; long lekAt, lekSince; System.IO.MemoryMappedFiles.MemoryMappedFile lacze; System.IO.MemoryMappedFiles.MemoryMappedViewAccessor laczeV;
+        void LekPoll()
+        {
+            try
+            {
+                lekEv ??= new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, @"Local\Velivo.Lektor.Czyta");
+                // znak ustawiony bez przerwy ponad 40 s = Velivo zamknięte w trakcie kwestii (żadna kwestia tyle nie trwa) - kasujemy go, pomiar wraca
+                if (lekEv.WaitOne(0)) { if (lekSince == 0) lekSince = Environment.TickCount64; if (Environment.TickCount64 - lekSince > 40000) { lekEv.Reset(); lekSince = 0; } else lekAt = Environment.TickCount64; } else lekSince = 0;
+                Proc.Pre.Hold = Environment.TickCount64 - lekAt < 800;
+                if (laczeV == null) { lacze = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.AudioBalance.Lacze", 16); laczeV = lacze.CreateViewAccessor(); }
+                laczeV.Write(0, Proc.Bypass ? 0f : Proc.Pre.MakeupNowDb * (Proc.Pre.Params.IsEnabled ? 1 : 0) + (float)Proc.GainDb); laczeV.Write(4, (float)Proc.EffTarget); laczeV.Write(8, Environment.TickCount64);
+            }
+            catch (Exception) { }
+        }
         void VolRead()
         {
             if (volTm == null || !System.Threading.Monitor.TryEnter(this)) return;
             try
             {
+                LekPoll();
                 if (!volDirty && ++volN % 10 != 0) return;   // od razu po zmianie (powiadomienie Windows), zapasowo co sekundę
                 volDirty = false;
                 if (volIn == null || volInId == null)

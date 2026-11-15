@@ -346,6 +346,7 @@ namespace Velivo
             lc.VoiceDone?.TrySetResult(false);
             if (lc.AbVoice) { AbProc.LekStop(); lc.AbVoice = false; }
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
+            LektorZnak(false);
             AbProc.LekOn = false;   // inteligentny lektor: film wraca płynnie (przytrzymanie 0,8 s - między kwestiami bez pompowania)
         }
 
@@ -443,6 +444,14 @@ namespace Velivo
                 }
                 var done = new TaskCompletionSource<bool>();
                 var voice = new System.Windows.Media.MediaPlayer { Volume = LectorDynVol(lc) };
+                // 🗣 Audio Balance for Windows przetwarza cały dźwięk: każdy głos lektora (jest ich wiele, różnie głośne) wychodzi po przetwarzaniu 5 dB nad celem LUFS
+                // (suwak „Głośność lektora” = Twoja poprawka, 99% = 0 dB) - niezależnie od tego, jak mocno program podgłaśnia cichy film; znak „lektor czyta” wstrzymuje tam pomiar filmu
+                if (AbWinGain(out var abG, out var abT))
+                {
+                    double wdb = await Task.Run(() => LectorWavDb(wav));
+                    if (!double.IsNaN(wdb) && !double.IsInfinity(wdb)) voice.Volume = WpfVol(Math.Max(0.02, Math.Pow(10, (abT + 5 + 20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99) - (wdb + 2.3) - abG) / 20)));
+                    LektorZnak(true);
+                }
                 lc.Voice = voice; lc.VoiceDone = done;
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);

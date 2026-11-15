@@ -256,6 +256,25 @@ namespace Velivo
                 return _abWinOn;
             }
         }
+        // 🗣 łącze lektora z Audio Balance for Windows (gdy ten przetwarza cały dźwięk): ile teraz podgłaśnia i jaki ma cel (LUFS) - świeże (do 1,5 s); znak „lektor czyta”
+        static System.IO.MemoryMappedFiles.MemoryMappedViewAccessor _abLacze; static System.Threading.EventWaitHandle _lekEv;
+        internal static bool AbWinGain(out double gainDb, out double targetDb)
+        {
+            gainDb = 0; targetDb = -23;
+            try
+            {
+                if (!AbWinActive) return false;
+                _abLacze ??= System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\Velivo.AudioBalance.Lacze").CreateViewAccessor();
+                if (Environment.TickCount64 - _abLacze.ReadInt64(8) > 1500) return false;
+                gainDb = _abLacze.ReadSingle(0); targetDb = _abLacze.ReadSingle(4);
+                return !double.IsNaN(gainDb) && !double.IsNaN(targetDb);
+            }
+            catch (Exception) { _abLacze = null; return false; }   // starsze Audio Balance for Windows - bez łącza, lektor jak dotąd
+        }
+        internal static void LektorZnak(bool czyta)
+        {
+            try { _lekEv ??= new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, @"Local\Velivo.Lektor.Czyta"); if (czyta) _lekEv.Set(); else _lekEv.Reset(); } catch (Exception) { }
+        }
         internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbPreAnyOn);
 
         static void AbLoadSettings()

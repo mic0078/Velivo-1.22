@@ -69,7 +69,10 @@ namespace Velivo
         public volatile float EffThresholdDb = -32;   // próg w tej chwili (przy progu automatycznym - liczony z filmu)
         // 🎯 próg automatyczny współpracuje z wyrównaniem LUFS (właściciel): typowy poziom filmu jest doprowadzany do celu LUFS - bardzo cichy film w górę,
         // głośny w dół; regulator LUFS za kompresorem dostaje dźwięk już blisko celu i tylko dopracowuje. AutoTargetDb ustawia Audio Balance (cel LUFS).
-        public volatile float AutoTargetDb = float.NaN, AutoLiftDb;
+        public volatile float AutoTargetDb = float.NaN, AutoLiftDb, MakeupNowDb;
+        // 🗣 lektor Velivo czyta kwestię (znak od Velivo): typowy poziom programu jest wtedy zamrożony - głos lektora nie jest „nowym, głośniejszym programem”,
+        // więc film nie jest ściszany na czas kwestii ani podciągany po niej (bez pompowania); bezpiecznik zostaje, z większym zapasem
+        public volatile bool Hold;
         bool fastLvl; double stP, fP; int hiN, loN, bigN, trk; double mMx = -200, mMn = 200;   // mMx/mMn - zakres poziomu z ok. 0,6 s: mowa i muzyka „falują” (≥ 8 dB), szum tła w pauzie stoi   // 🔀 zmiana programu / kanału: moc z ok. 0,2 s i licznik „dłużej głośniej / ciszej niż typowy poziom” - szybkie przejście na nowy poziom
         double liftS, progP = double.NaN;   // progP - typowa MOC dźwięku (ta sama bramka co progDb) - do celu LUFS liczy się moc, nie średnia z dB
         int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
@@ -125,6 +128,7 @@ namespace Velivo
                 double e2 = lvl * lvl; fP += (e2 - fP) / (0.05 * fs / 64); if (e2 > fP) fP = e2 * 0.5 + fP * 0.5;   /* w górę prawie od razu (ok. 20 ms) */   // moc z ok. 0,1 s - bezpiecznik głośności
                 if (double.IsNaN(progP)) progP = e2;
                 else if (progN + 1 < 3 * fs / 64) progP += (e2 - progP) / (0.5 * fs / 64);
+                else if (Hold) { hiN = loN = bigN = trk = 0; fastLvl = true; }
                 else
                 {   // 🔀 inny program / kanał / głośniejsza reklama: ponad 6 dB głośniej przez 1,5 s albo ponad 8 dB ciszej (treść po 0,3 s, równy szum po 3 s) -
                     // typowy poziom idzie do nowego w ok. 1 s (głośniej) / 2 s (ciszej), zamiast średniej z minuty (właściciel: „przełączam i jest głośno”)
@@ -158,7 +162,7 @@ namespace Velivo
             double tgA = AutoTargetDb; bool toTarget = p.AutoThreshold && !double.IsNaN(progP) && progP > 1e-12 && !double.IsNaN(tgA);
             double liftWant = toTarget ? Math.Max(-20, Math.Min(30, tgA - (10 * Math.Log10(progP) + 2.3) - avgGr)) : 0;
             // 🛡 bezpiecznik: wynik z ostatnich 0,1 s nigdy więcej niż 8 dB ponad cel - przełączenie na głośniejszy program / reklama ściszane od razu, bez czekania na pomiar
-            if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + 8 - (10 * Math.Log10(fP) + 2.3));
+            if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + (Hold ? 16 : 8) - (10 * Math.Log10(fP) + 2.3));
             liftS += Math.Max(-400 / fs, Math.Min(20 / fs, liftWant - liftS));
             double mkWant = toTarget ? liftS : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS, mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
@@ -166,7 +170,7 @@ namespace Velivo
             double gw = Math.Pow(10, (grDb + mkS) / 20);
             l = l * (1 - mixS) + l * gw * mixS; r = r * (1 - mixS) + r * gw * mixS;   // równoległa: suchy (bez zmian) + skompresowany
             CurrentGainReductionDb = (float)grDb;
-            if ((++mtrN & 63) == 0) { AutoLiftDb = (float)liftS; InputDb = (float)Math.Max(-120, xDb); OutputDb = (float)Math.Max(-120, xDb + 20 * Math.Log10(Math.Max(1e-6, 1 - mixS + mixS * gw))); }   // mierniki co 64 próbki (bez kosztu w każdej próbce)
+            if ((++mtrN & 63) == 0) { AutoLiftDb = (float)liftS; MakeupNowDb = (float)(mkS * mixS); InputDb = (float)Math.Max(-120, xDb); OutputDb = (float)Math.Max(-120, xDb + 20 * Math.Log10(Math.Max(1e-6, 1 - mixS + mixS * gw))); }   // mierniki co 64 próbki (bez kosztu w każdej próbce)
         }
     }
 }

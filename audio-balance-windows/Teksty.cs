@@ -59,6 +59,7 @@ namespace Velivo
             { "Wyrównuje głośność najmocniej – cichy szept i głośny wybuch prawie tak samo głośne.", "Strongest levelling – a whisper and an explosion almost equally loud." },
             { "Mowa średnio podbita, gdy przykrywa ją muzyka lub efekty.", "Speech boosted moderately when music or effects cover it." },
             { "Mowa mocno podbita, gdy przykrywa ją muzyka lub efekty.", "Speech boosted strongly when music or effects cover it." },
+            { "teraz", "now" },
             { "ŹRÓDŁO", "SOURCE" },
             { "ZMIANA", "CHANGE" },
             { "WYNIK", "RESULT" },

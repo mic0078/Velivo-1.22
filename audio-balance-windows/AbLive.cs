@@ -22,7 +22,7 @@ namespace Velivo
         (Border fill, TextBlock val, Grid track) srcB, chgB, outB, grB;
         Canvas spec, hist; const int NB = 28; readonly Rectangle[] bars = new Rectangle[NB], peaks = new Rectangle[NB]; readonly double[] sm = new double[NB], smO = new double[NB];
         readonly double[] edges = new double[NB + 1]; readonly double[] re = new double[2048], im = new double[2048], re2 = new double[2048], im2 = new double[2048];
-        Polyline plIn, plOut; Line tgt; TextBlock tgtTxt; readonly TextBlock[] scale = new TextBlock[3]; const int HN = 300; readonly double[] hIn = new double[HN], hOut = new double[HN]; DateTime hLast;
+        Polyline plIn, plOut; Line tgt; TextBlock tgtTxt; readonly TextBlock[] scale = new TextBlock[3], times = new TextBlock[4]; readonly Line[] gridH = new Line[3], gridV = new Line[3]; const int HN = 300; readonly double[] hIn = new double[HN], hOut = new double[HN]; DateTime hLast;
 
         public AbLive(AbEngine e, Brush fg, Brush dim)
         {
@@ -50,6 +50,9 @@ namespace Velivo
             plIn = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x8A, 0x90, 0xA8)), StrokeThickness = 1.2 }; plOut = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1.6 };
             tgt = new Line { Stroke = Green, StrokeThickness = 1.2, StrokeDashArray = new DoubleCollection { 4, 3 } };
             tgtTxt = new TextBlock { Foreground = Green, FontSize = 11, FontWeight = FontWeights.SemiBold, Background = new SolidColorBrush(Color.FromArgb(0xC0, 0x10, 0x12, 0x1A)), Padding = new Thickness(4, 0, 4, 0) };
+            var gb = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+            for (int k = 0; k < 3; k++) { gridH[k] = new Line { Stroke = gb, StrokeThickness = 1 }; gridV[k] = new Line { Stroke = gb, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 4 } }; spec.Children.Insert(0, gridH[k]); spec.Children.Insert(0, gridV[k]); }
+            for (int k = 0; k < 4; k++) { times[k] = new TextBlock { Foreground = dim, FontSize = 9, Text = k == 3 ? L.T("teraz") : "-" + (30 - 10 * k) + " s" }; spec.Children.Add(times[k]); }
             for (int k = 0; k < 3; k++) { scale[k] = new TextBlock { Foreground = dim, FontSize = 9, Text = (-20 * (k + 1)).ToString() + " dB" }; spec.Children.Add(scale[k]); }
             spec.Children.Add(tgt); spec.Children.Add(plIn); spec.Children.Add(plOut); spec.Children.Add(tgtTxt);
             tm.Tick += (s, a) => Tick();
@@ -109,7 +112,9 @@ namespace Velivo
                 plIn.Points = a1; plOut.Points = a2; tgt.X1 = 0; tgt.X2 = hw; tgt.Y1 = tgt.Y2 = Y(p.EffTarget);
                 // podpis celu (zielony) i skala dB - wiadomo, co pokazuje wykres
                 tgtTxt.Text = L.T("cel ") + p.EffTarget.ToString("0.0") + " LUFS"; Canvas.SetRight(tgtTxt, 4); Canvas.SetTop(tgtTxt, Math.Max(0, Y(p.EffTarget) - 16));
-                for (int k = 0; k < 3; k++) { Canvas.SetLeft(scale[k], 3); Canvas.SetTop(scale[k], Y(-20 * (k + 1)) - 12); }
+                for (int k = 0; k < 3; k++) { double y = Y(-20 * (k + 1)); Canvas.SetLeft(scale[k], 3); Canvas.SetTop(scale[k], y - 12); gridH[k].X1 = 0; gridH[k].X2 = hw; gridH[k].Y1 = gridH[k].Y2 = y;
+                    double x = hw * (k + 1) / 3; gridV[k].X1 = gridV[k].X2 = x; gridV[k].Y1 = 0; gridV[k].Y2 = hh; }
+                for (int k = 0; k < 4; k++) { double x = hw * k / 3; Canvas.SetLeft(times[k], k == 0 ? 3 : k == 3 ? hw - 32 : x + 3); Canvas.SetTop(times[k], hh - 13); }   // podziałka czasu: -30 s … teraz
             }
         }
 

@@ -100,7 +100,7 @@ namespace Velivo
 
         void BuildWindow()
         {
-            win = new Window { Title = "Velivo Audio Balance for Windows", Width = 600, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            win = new Window { Title = "Velivo Audio Balance for Windows", Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40), SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanResize, MinWidth = 900, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")); } catch (Exception) { }
             var root = new StackPanel { Margin = new Thickness(14) };
             root.Children.Add(T("Velivo Audio Balance for Windows", 18, Fg, true));
@@ -124,16 +124,17 @@ namespace Velivo
             outBox = new ComboBox { Margin = new Thickness(0, 0, 0, 6) }; root.Children.Add(outBox);
             outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
             defBtn = Mk("", ToggleDefault); root.Children.Add(defBtn);
-            // zakładki: 📊 Podgląd (wskaźniki, widmo, wykres) / ⚙ Ustawienia
-            var tabs = new WrapPanel { Margin = new Thickness(0, 6, 0, 8) }; root.Children.Add(tabs);
-            var sets = new StackPanel(); Border setsCard = Card(sets), viewCard = null;
-            live = new AbLive(eng, Fg, Dim); viewCard = Card(live.Root);
-            Button tv = null, ts = null;
-            void Tab(bool v) { viewCard.Visibility = v ? Visibility.Visible : Visibility.Collapsed; setsCard.Visibility = v ? Visibility.Collapsed : Visibility.Visible; tv.Background = v ? Acc : BtnBg; ts.Background = v ? BtnBg : Acc; }
-            tv = Mk(L.T("📊 Podgląd"), () => Tab(true), L.T("Wskaźniki głośności, widmo i wykres z 30 s.")); ts = Mk(L.T("⚙ Ustawienia"), () => Tab(false), L.T("Wyrównywanie, kompresor, poziom docelowy."));
-            tabs.Children.Add(tv); tabs.Children.Add(ts);
-            root.Children.Add(viewCard); root.Children.Add(setsCard);
+            // układ poziomy (właściciel: nie lista w pionie): 📊 podgląd | ⚙ ustawienia | 🎚 kompresor - wszystko widoczne naraz
+            var cols = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            foreach (var w0 in new[] { 1.0, 1.0, 1.25 }) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w0, GridUnitType.Star) });
+            live = new AbLive(eng, Fg, Dim);
+            var sets = new StackPanel(); var comp = new StackPanel();
+            var c1 = Card(live.Root); var c2 = Card(sets); var c3 = Card(comp);
+            c1.Margin = c2.Margin = new Thickness(0, 0, 10, 0); c3.Margin = new Thickness(0);
+            Grid.SetColumn(c2, 1); Grid.SetColumn(c3, 2); cols.Children.Add(c1); cols.Children.Add(c2); cols.Children.Add(c3);
+            root.Children.Add(cols);
             var settingsRoot = root; root = sets;
+            root.Children.Add(T(L.T("⚙ Ustawienia"), 14, Fg, true));
             // ustawienia (jak w Velivo)
             root.Children.Add(Choice(L.T("Wyrównywanie:"), new[] { ("off", L.T("Wył."), (string)null), ("auto", "Auto Level", L.T("Wyrównywanie odczuwalnej głośności.")), ("limit", "Limit Only", L.T("Tylko ograniczanie głośnych szczytów.")) },
                 () => Get("profil") ?? "auto", v => { Put("profil", v); Apply(); }));
@@ -141,7 +142,7 @@ namespace Velivo
             root.Children.Add(Choice(L.T("Wyraźne dialogi:"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), (string)null), ("2", L.T("Mocno"), (string)null) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
             // 🎚 pełny kompresor wstępny z Velivo (ten sam kod: presety, własne ustawienia, wszystkie suwaki, charakterystyka, mierniki)
             MainWindow.Host = this; MainWindow.AbPreNoSrc = true;
-            root.Children.Add(new Border { Background = Card2, CornerRadius = new CornerRadius(8), Padding = new Thickness(10), Margin = new Thickness(0, 6, 0, 6), Child = new MainWindow().AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)) });
+            comp.Children.Add(new MainWindow().AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)));
             root.Children.Add(Choice(L.T("Opóźnienie dźwięku:"), new[] { ("0", L.T("Niskie ~0,1 s"), L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", L.T("Normalne ~0,2 s"), (string)null), ("2", L.T("Bezpieczne ~0,35 s"), L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { Margin = new Thickness(0, 2, 0, 6), ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
@@ -153,7 +154,7 @@ namespace Velivo
             byp.Click += (s, e) => { Put("obejscie", byp.IsChecked == true ? "1" : "0"); Apply(); }; root.Children.Add(byp);
             var auto = new CheckBox { Content = L.T("Uruchamiaj razem z Windows (w zasobniku)"), Foreground = Fg, IsChecked = Autostart, Margin = new Thickness(0, 2, 0, 8) };
             auto.Click += (s, e) => Autostart = auto.IsChecked == true; root.Children.Add(auto);
-            root = settingsRoot; Tab(true);
+            root = settingsRoot;
             var bw = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
             bw.Children.Add(Mk(L.T("Do zasobnika"), () => win.Hide())); bw.Children.Add(Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")));
             root.Children.Add(bw);

@@ -12,7 +12,7 @@ namespace Velivo
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji
         FrameworkElement AbPrePanel(Brush fg, Brush dim, Func<string, Action, Button> mk)
         {
-            var exp = new Expander { Header = L.T("Kompresor wstępny"), Foreground = fg, Margin = new Thickness(0, 10, 0, 0),
+            var exp = new Expander { Header = L.T("Kompresor wstępny"), Foreground = fg, Margin = new Thickness(0, 0, 0, 0), IsExpanded = true,
                 ToolTip = L.T("Działa przed wyrównywaniem głośności: łagodzi różnicę między szeptem a wybuchem, zanim Audio Balance ją zobaczy – mniej „pompowania”. Domyślnie wyłączony.") };
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = L.T("Spłaszcza skrajne różnice głośności (szept – wybuch) przed wyrównywaniem Audio Balance. Szum w ciszy łagodnie ścisza zamiast go wzmacniać."), Foreground = dim, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) });

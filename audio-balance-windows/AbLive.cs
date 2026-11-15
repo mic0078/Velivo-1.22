@@ -60,9 +60,9 @@ namespace Velivo
             Root.Children.Add(leg);
             work = new Canvas { Height = 70, Background = Well, ClipToBounds = true };
             var zl = new Line { Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1 }; zero = zl; work.Children.Add(zl);
-            pgLu = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x55, 0x2E, 0xD3, 0xC6)), Stroke = Teal, StrokeThickness = 1.4 };
+            pgLu = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x40, 0x2E, 0xD3, 0xC6)), Stroke = Teal, StrokeThickness = 1.4 };
             pgCo = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = Gold, StrokeThickness = 1.4 };
-            work.Children.Add(pgLu); work.Children.Add(pgCo);
+            work.Children.Add(pgCo); work.Children.Add(pgLu);   // turkus (LUFS) nad żółtym (kompresor) - gdy oba ściszają, widać oba, nie tylko żółty
             for (int k = 0; k < 3; k++) { wScale[k] = new TextBlock { Foreground = dim, FontSize = 10, Width = GL - 6, TextAlignment = TextAlignment.Right, Text = k == 0 ? "+24" : k == 1 ? "0 dB" : "-24" }; work.Children.Add(wScale[k]); }
             Root.Children.Add(work);
             // wykres głośności z 30 s rysowany na widmie (makieta): biała – po poprawie, szara – oryginał, żółta – cel

@@ -32,12 +32,6 @@ if (-not $Podstawowa -and (Test-Path "dodatki\VST3")) { Copy-Item -Recurse -Forc
 Remove-Item -Recurse -Force build\komunikator -ErrorAction SilentlyContinue
 dotnet publish komunikator-windows\VelivoKomunikator.csproj -c Release -r win-x64 --self-contained true -o build\komunikator
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
-# Velivo Audio Balance - samodzielny program (caly dzwiek Windows przez Audio Balance, przez VB-Audio Virtual Cable)
-Remove-Item -Recurse -Force build\audiobalance -ErrorAction SilentlyContinue
-dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win-x64 --self-contained true -o build\audiobalance
-if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Audio Balance nie powiodla sie." -ForegroundColor Red; exit 1 }
-# VB-Audio Virtual Cable w instalatorze (rozpakowany pakiet VBCABLE_Driver_Pack z vb-audio.com w dodatki\VBCABLE - poza repozytorium); bez folderu instalator pobiera go z serwera VB-Audio
-if (Test-Path "dodatki\VBCABLE\VBCABLE_Setup_x64.exe") { Copy-Item -Recurse -Force "dodatki\VBCABLE" "build\audiobalance\VBCABLE"; Write-Host "VB-Cable w instalatorze Audio Balance: tak" -ForegroundColor Green } else { Write-Host "VB-Cable w instalatorze Audio Balance: nie (instalator pobierze go z vb-audio.com) - rozpakuj VBCABLE_Driver_Pack45.zip do dodatki\VBCABLE" -ForegroundColor Yellow }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -59,12 +53,7 @@ $oldK = Join-Path $outDir 'Velivo-Komunikator-Setup-1.22.exe'
 for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
 for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
-$oldA = Join-Path $outDir 'Velivo-AudioBalance-Setup-1.22.exe'
-for ($i = 0; $i -lt 10 -and (Test-Path $oldA); $i++) { try { Remove-Item $oldA -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
-for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" audio-balance-windows\installer-audiobalance.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Audio Balance ($i/6)..." -ForegroundColor Yellow; Start-Sleep ($i * 3) } }
-if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Velivo Audio Balance nie powiodla sie." -ForegroundColor Red; exit 1 }
 
 Write-Host ("Gotowe: build\instalator\" + $nazwa + ".exe (" + $(if ($Podstawowa) { "Velivo bezplatne" } else { "Velivo Premium" }) + "; zamknij Velivo calkowicie przed instalacja)") -ForegroundColor Green
 Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-1.22.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green
-Write-Host "Gotowe: build\instalator\Velivo-AudioBalance-Setup-1.22.exe (Audio Balance dla calego Windows - potrzebny VB-Audio Virtual Cable)" -ForegroundColor Green
 Start-Process $outDir

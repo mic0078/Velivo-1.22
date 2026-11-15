@@ -129,7 +129,7 @@ namespace Velivo
             { "odbiór z CABLE Output przerwany", "capture from CABLE Output stopped" },
             { "odtwarzanie na głośnikach przerwane", "playback on the speakers stopped" },
             { " – ponawiam za chwilę", " – retrying shortly" },
-            { " (szczegóły: bledy.log w folderze ustawień)", " (details: bledy.log in the settings folder)" },
+            { " (szczegóły: katalog „Poważne błędy” Velivo)", " (details: Velivo “Poważne błędy” folder)" },
         };
     }
 }

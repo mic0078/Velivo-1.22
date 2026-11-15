@@ -2262,12 +2262,12 @@ namespace Velivo
             // bledy.log: wpis = linia z czasem, treść (bywa wielowierszowa), pusta linia - jeden wiersz tabeli na wpis (wcześniej czas i treść w osobnych wierszach)
             List<string[]> ErrRows()
             {
-                var p = Path.Combine(DataDir, "bledy.log"); if (!File.Exists(p)) return new List<string[]>();
+                var p = VelivoBledy.File; if (!File.Exists(p)) return new List<string[]>();   // ⚠ wspólny katalog „Poważne błędy” (wszystkie programy Velivo)
                 string txt; try { txt = File.ReadAllText(p).Replace("\r\n", "\n"); } catch (Exception) { return new List<string[]>(); }
                 return txt.Split("\n\n", StringSplitOptions.RemoveEmptyEntries).Reverse().Take(3000).Select(b =>
                 {
                     var ls = b.Trim('\n').Split('\n'); bool t = ls[0].Length >= 19 && DateTime.TryParse(ls[0].Substring(0, 19), out _);
-                    var msg = string.Join("  ⏎ ", (t ? ls.Skip(1) : ls).Select(x => x.Trim()).Where(x => x.Length > 0));
+                    var tag = t ? ls[0].Substring(19).Trim() : ""; var msg = (tag.Length > 0 ? tag + " " : "") + string.Join("  ⏎ ", (t ? ls.Skip(1) : ls).Select(x => x.Trim()).Where(x => x.Length > 0));   // [Velivo] / [Velivo Audio Balance for Windows] …
                     return new[] { t ? ls[0].Substring(0, 19) : "", msg.Length > 500 ? msg.Substring(0, 500) + "…" : msg };
                 }).Where(r => r[1].Length > 0).ToList();
             }
@@ -2551,14 +2551,14 @@ namespace Velivo
                     if (MessageBox.Show(w, L.T("Usunąć zaznaczone wpisy dziennika: ") + sel.Count + "?", "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                     if (tab == tErr)
                     {   // ⚠ bledy.log - wpisy blokami (czas, treść, pusta linia): usuwane całe wpisy o zaznaczonym czasie
-                        var times = new HashSet<string>(sel.Select(r => r[0]).Where(x => x.Length > 0)); var ep = Path.Combine(DataDir, "bledy.log");
+                        var times = new HashSet<string>(sel.Select(r => r[0]).Where(x => x.Length > 0)); var ep = VelivoBledy.File;
                         try { if (File.Exists(ep)) { var bl = File.ReadAllText(ep).Replace("\r\n", "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries).Where(b => { var f = b.Trim('\n'); return !(f.Length >= 19 && times.Contains(f.Substring(0, 19))); }).ToList();
                             VelivoData.SafeWrite(ep, bl.Count == 0 ? "" : string.Join("\n\n", bl.Select(b => b.Trim('\n'))) + "\n\n"); } } catch (Exception ex) { App.LogError(ex); }
                         All(); return;
                     }
                     var gone = new HashSet<string>(sel.Select(r => r[0] + "|" + r[r.Length - 1]));
                     foreach (var p in tab == tLog ? new[] { "skrzynka.log", "skrzynka-serwery.log" } : new[] { "bledy.log" })
-                        KomLogKeep(Path.Combine(DataDir, p), l => !(l.Length > 19 && gone.Contains(l.Substring(0, 19) + "|" + System.Text.RegularExpressions.Regex.Replace(l.Substring(19).Trim(), @"^\[[^\]]+\]\s+", ""))) && !gone.Contains("|" + l));
+                        KomLogKeep(p == "bledy.log" ? VelivoBledy.File : Path.Combine(DataDir, p), l => !(l.Length > 19 && gone.Contains(l.Substring(0, 19) + "|" + System.Text.RegularExpressions.Regex.Replace(l.Substring(19).Trim(), @"^\[[^\]]+\]\s+", ""))) && !gone.Contains("|" + l));
                     All(); return;
                 }
                 if (tab == tPeople)
@@ -2600,7 +2600,7 @@ namespace Velivo
                 var tab = (FrameworkElement)((TabItem)tabs.SelectedItem).Content;
                 if (tab != tLog && tab != tErr) { MessageBox.Show(w, L.T("Otwórz zakładkę Dziennik skrzynki albo Błędy Velivo."), "🧹"); return; }
                 if (MessageBox.Show(w, tab == tLog ? L.T("Wyczyścić dziennik skrzynki na wszystkich moich serwerach?") : L.T("Wyczyścić dziennik błędów Velivo na tym komputerze?"), "🧹", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                foreach (var p in tab == tLog ? new[] { "skrzynka.log", "skrzynka-serwery.log" } : new[] { "bledy.log" }) try { File.Delete(Path.Combine(DataDir, p)); } catch (Exception) { }
+                foreach (var p in tab == tLog ? new[] { "skrzynka.log", "skrzynka-serwery.log" } : new[] { "bledy.log" }) try { File.Delete(p == "bledy.log" ? VelivoBledy.File : Path.Combine(DataDir, p)); } catch (Exception) { }
                 if (tab == tLog) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxlogclr", ["id"] = _komId, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
                 All();
             };

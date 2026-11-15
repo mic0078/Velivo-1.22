@@ -82,7 +82,7 @@ namespace Velivo
                 try
                 {
                     MessageBox.Show(L.T("Wystąpił nieoczekiwany błąd, ale Velivo działa dalej.\n\n") + a.Exception.Message +
-                                    L.T("\n\nSzczegóły zapisano w pliku bledy.log w folderze danych."), "Velivo");
+                                    L.T("\n\nSzczegóły zapisano w katalogu „Poważne błędy” (%LOCALAPPDATA%\\Velivo\\Poważne błędy)."), "Velivo");
                 }
                 finally { _errorShowing = false; _lastErrorShown = DateTime.Now; }
             };
@@ -190,8 +190,7 @@ namespace Velivo
         {
             try
             {
-                File.AppendAllText(Path.Combine(Velivo.MainWindow.DataFolder, "bledy.log"),
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\n" + text + "\n\n");
+                VelivoBledy.Write("Velivo", text);   // ⚠ wspólny katalog „Poważne błędy” wszystkich programów Velivo
             }
             catch (Exception) { }
         }

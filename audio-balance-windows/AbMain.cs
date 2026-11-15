@@ -238,7 +238,7 @@ namespace Velivo
             setupBox.Visibility = cable ? Visibility.Collapsed : Visibility.Visible;
             if (!cable) { status.Text = L.T("● Brak VB-Audio Virtual Cable – zainstaluj go (niżej)"); status.Foreground = Bad; }
             else if (eng.Running) { status.Text = L.T("● Działa → ") + eng.OutputName; status.Foreground = Ok; }
-            else { status.Text = L.T("● Zatrzymany") + (eng.Error == "output" ? L.T(" – nie znaleziono głośników") : eng.Error != null && eng.Error != "cable" ? " – " + eng.Error : Get("wlaczony") == "0" ? "" : L.T(" – ponawiam za chwilę")) + L.T(" (szczegóły: bledy.log w folderze ustawień)"); status.Foreground = Bad; }
+            else { status.Text = L.T("● Zatrzymany") + (eng.Error == "output" ? L.T(" – nie znaleziono głośników") : eng.Error != null && eng.Error != "cable" ? " – " + eng.Error : Get("wlaczony") == "0" ? "" : L.T(" – ponawiam za chwilę")) + L.T(" (szczegóły: katalog „Poważne błędy” Velivo)"); status.Foreground = Bad; }
             UpdateDefBtn();
             if (tray != null) tray.Text = eng.Running ? "Velivo Audio Balance for Windows – " + L.T("działa") : "Velivo Audio Balance for Windows – " + L.T("zatrzymany");
         }

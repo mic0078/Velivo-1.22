@@ -777,7 +777,7 @@ namespace Velivo
 
             // ---- etapy 3-4: hasla, synchronizacja, pobieranie, okna pomocnicze ----
             { "Wystąpił nieoczekiwany błąd, ale Velivo działa dalej.\n\n", "An unexpected error occurred, but Velivo keeps running.\n\n" },
-            { "\n\nSzczegóły zapisano w pliku bledy.log w folderze danych.", "\n\nDetails were saved to bledy.log in the data folder." },
+            { "\n\nSzczegóły zapisano w katalogu „Poważne błędy” (%LOCALAPPDATA%\\Velivo\\Poważne błędy).", "\n\nDetails were saved in the “Poważne błędy” (serious errors) folder (%LOCALAPPDATA%\\Velivo\\Poważne błędy)." },
             { "Wykryto wypełniony formularz adresowy.", "A filled-in address form was detected." },
             { "Wykryto dane karty płatniczej.", "Payment card data was detected." },
             { "\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nKod CVC nigdy nie jest zapisywany.", "\nSave locally in Velivo's encrypted offline database?\n\nThe CVC code is never saved." },

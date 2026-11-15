@@ -209,6 +209,8 @@ namespace Velivo
             Grid.SetColumn(right, 1); cols.Children.Add(right);
             root.Children.Add(cols);
             win.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 40 };
+            // po pierwszym ułożeniu stała wysokość: przy SizeToContent każda zmiana liczby na wskaźnikach przeliczała układ całego okna (zacięcia przy przesuwaniu)
+            win.ContentRendered += (s, e) => { if (win.SizeToContent != SizeToContent.Manual) { var h = win.ActualHeight; win.SizeToContent = SizeToContent.Manual; win.Height = h; } };
             win.Closing += (s, e) => { if (!exiting) { e.Cancel = true; win.Hide(); } };   // ✕ = do zasobnika (dźwięk dalej przetwarzany)
             tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };   // 10×/s - ikona w zasobniku płynnie (jak w Velivo)
             tm.Tick += (s, e) => Tick(); tm.Start();

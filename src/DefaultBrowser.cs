@@ -224,11 +224,54 @@ namespace Velivo
         [System.Runtime.InteropServices.DllImport("shell32.dll")]
         static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
 
+        static bool DomyslnaSierota()
+        {
+            var cur = CurrentBrowserProgId();
+            if (string.IsNullOrEmpty(cur) || cur == ProgId || !cur.StartsWith("Velivo", StringComparison.Ordinal)) return false;
+            using (var c = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + cur + @"\shell\open\command"))
+            {
+                var cmd = c?.GetValue("") as string;
+                return string.IsNullOrEmpty(cmd) || !File.Exists(cmd.Trim().TrimStart('"').Split('"')[0]);
+            }
+        }
+
+        // 🧩 linki magnet: i pliki .torrent rejestruje instalator pełnego Velivo (jeden wpis w Windows); po jego odinstalowaniu
+        // (albo bez niego) Velivo Przeglądarka przejmuje je sama - wpis bez programu albo brak wpisu
+        static bool MagnetSierota()
+        {
+            using (var c = Registry.CurrentUser.OpenSubKey(@"Software\Classes\magnet\shell\open\command"))
+            {
+                var cmd = c?.GetValue("") as string;
+                if (string.IsNullOrEmpty(cmd)) return true;
+                var exe = cmd.StartsWith("\"") ? cmd.Substring(1, Math.Max(0, cmd.IndexOf('"', 1) - 1)) : cmd.Split(' ')[0];
+                return !File.Exists(exe);
+            }
+        }
+        static void RegisterMagnet(string exe)
+        {
+            string open = "\"" + exe + "\" \"%1\"";
+            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\magnet"))
+            {
+                k.SetValue("", "URL:Magnet Link"); k.SetValue("URL Protocol", "");
+                using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
+                using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
+            }
+            using (var t = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.torrent"))
+            {
+                var cur = t.GetValue("") as string;
+                bool dead = string.IsNullOrEmpty(cur);
+                if (!dead) using (var c = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + cur + @"\shell\open\command")) { var cmd = c?.GetValue("") as string; dead = string.IsNullOrEmpty(cmd) || !File.Exists(cmd.Trim('"').Split('"')[0]); }
+                if (dead) t.SetValue("", Wariant.Pid + "Torrent");
+            }
+        }
+
         static void EnsureFileTypes()
         {
             Task.Run(() =>
             {
                 try { if (RegisterFileTypes(Process.GetCurrentProcess().MainModule.FileName)) SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); }   // SHCNE_ASSOCCHANGED
+                catch (Exception ex) { App.LogError(ex); }
+                try { if (Wariant.Przegladarka && MagnetSierota()) { RegisterMagnet(Process.GetCurrentProcess().MainModule.FileName); SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); } }
                 catch (Exception ex) { App.LogError(ex); }
             });
         }
@@ -258,7 +301,10 @@ namespace Velivo
         // Pierwsze uruchomienie (takze po instalacji): jedno pytanie o domyslna przegladarke; potem tylko w Ustawieniach.
         void AskDefaultBrowserOnce()
         {
-            if (_settings.AskedDefaultBrowser) return;
+            // 🧩 przejście między programami (Przeglądarka ↔ pełne Velivo): domyślną był drugi program Velivo, którego już nie ma - pytamy raz, choć wspólne ustawienia mówią „już pytano”
+            bool sierota = DomyslnaSierota() && GetPref("domyslna-sierota-" + Wariant.Pid) != "1";
+            if (_settings.AskedDefaultBrowser && !sierota) return;
+            if (sierota) SetPref("domyslna-sierota-" + Wariant.Pid, "1");
             _settings.AskedDefaultBrowser = true;
             try { _settings.Save(DataDir); } catch (Exception) { }
             if (IsDefaultBrowser()) return;

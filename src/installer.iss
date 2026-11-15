@@ -26,6 +26,11 @@
   #define Ikona "app.ico"
   #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}"
 #endif
+#ifdef Wariant
+  #define VlcFlag Pid + "-odtwarzacz-usun.flag"
+#else
+  #define VlcFlag "odtwarzacz-usun.flag"
+#endif
 #ifndef SrcDir
   #define SrcDir "..\build\velivo"
 #endif
@@ -93,6 +98,8 @@ pl.RunApp=Uruchom %1
 en.RunApp=Launch %1
 pl.AppDesc=Velivo – lekka i prywatna przeglądarka
 en.AppDesc=Velivo – a light and private browser
+pl.Upgrade=Velivo Premium zawiera w sobie %1.%n%nUsunąć osobny program %1? Twoje ustawienia, biblioteka, postęp filmów, lektorzy i parowanie telefonu zostają (są wspólne).
+en.Upgrade=Velivo Premium already includes %1.%n%nRemove the separate %1 program? Your settings, library, playback progress, voices and phone pairing stay (they are shared).
 pl.OldDataTitle=Poprzednie ustawienia
 en.OldDataTitle=Previous settings
 pl.OldDataDesc=Wykryto dane z wcześniejszej instalacji Velivo.
@@ -347,7 +354,7 @@ begin
     DelTree(ExpandConstant('{app}\vlc'), True, True, True);
     if not RenameFile(Tmp + '\build\x64', ExpandConstant('{app}\vlc')) then MsgBox(CustomMessage('VideoPlayerUnpack'), mbError, MB_OK);
     // odinstalowanie zlecone wczesniej w Velivo - ponowna instalacja je odwoluje
-    DeleteFile(UserDataDir + '\odtwarzacz-usun.flag');
+    DeleteFile(UserDataDir + '\{#VlcFlag}');
     DeleteFile(LegacyDataDir + '\odtwarzacz-usun.flag');
   end
   else
@@ -418,12 +425,62 @@ begin
   ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name="' + ExtractFileName(Exe) + ' - Velivo" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any' + ' & netsh advfirewall firewall delete rule name="Velivo - porty TCP" & netsh advfirewall firewall add rule name="Velivo - porty TCP" dir=in action=allow protocol=TCP localport=41917-41929,443 enable=yes profile=any' + ' & netsh advfirewall firewall delete rule name="Velivo - porty UDP" & netsh advfirewall firewall add rule name="Velivo - porty UDP" dir=in action=allow protocol=UDP localport=41917-41919 enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);   // porty Velivo i komunikatora zawsze otwarte (każda sieć), także niezależnie od ścieżki programu
 end;
 
+#ifndef Wariant
+// 🧩 przejście na Velivo Premium: osobna Przeglądarka / Odtwarzacz są w nim zawarte - za zgodą usuwamy je (dane wspólne zostają)
+function OtherUninstall(AppIdV: String): String;
+begin
+  Result := '';
+  if not RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + AppIdV + '_is1', 'UninstallString', Result) then Result := '';
+end;
+
+procedure RemoveOther(AppIdV, Name, Exe, Pid: String);
+var U, V, RunKey: String; Code, P: Integer;
+begin
+  U := OtherUninstall(AppIdV);
+  if U = '' then exit;
+  if SuppressibleMsgBox(FmtMessage(CustomMessage('Upgrade'), [Name]), mbConfirmation, MB_YESNO, IDNO) <> IDYES then exit;
+  // usuwany program uruchamiał się z Windows - autostart przechodzi na Velivo (to samo opóźnienie)
+  RunKey := 'Software\Microsoft\Windows\CurrentVersion\Run';
+  if RegQueryStringValue(HKCU, RunKey, Pid, V) and not RegValueExists(HKCU, RunKey, 'Velivo') then
+  begin
+    P := Pos(' --autostart', V);
+    if P > 0 then RegWriteStringValue(HKCU, RunKey, 'Velivo', '"' + ExpandConstant('{app}\{#Exe}') + '"' + Copy(V, P, 100));
+  end;
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM ' + Exe, '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Sleep(500);
+  Exec(RemoveQuotes(U), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
+function OdtwarzaczDir: String;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\Velivo Odtwarzacz');
+end;
+
+// był Odtwarzacz albo jest biblioteka filmów - odtwarzacz i TV zaznaczone same (nikt nie traci filmów przez niezaznaczone pole)
+var Preselected: Boolean;
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID <> wpSelectTasks) or Preselected then exit;
+  Preselected := True;
+  if FileExists(ExpandConstant('{app}\vlc\libvlc.dll')) then exit;
+  if FileExists(OdtwarzaczDir + '\VelivoOdtwarzacz.exe') or FileExists(UserDataDir + '\filmy.json') then WizardSelectTasks('videoplayer,!videoplayer\iptv');   // sam odtwarzacz - TV tylko, gdy było włączone
+  if FileExists(OdtwarzaczDir + '\iptv.on') then WizardSelectTasks('videoplayer\iptv');
+end;
+#endif
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var Stamp: String;
 begin
   // jezyk wybrany w instalatorze = jezyk programu (Velivo czyta go, gdy w ustawieniach jest "automatycznie")
   if CurStep = ssPostInstall then
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);
+#ifndef Wariant
+  if CurStep = ssPostInstall then
+  begin
+    RemoveOther('{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA02}', 'Velivo Przeglądarka', 'VelivoPrzegladarka.exe', 'VelivoPrzegladarka');
+    RemoveOther('{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}', 'Velivo Odtwarzacz', 'VelivoOdtwarzacz.exe', 'VelivoOdtwarzacz');
+  end;
+#endif
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('firewall') then
     OpenFirewall(ExpandConstant('{app}\{#Exe}'));
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then

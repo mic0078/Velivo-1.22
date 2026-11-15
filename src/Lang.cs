@@ -480,6 +480,7 @@ namespace Velivo
             { "Jednym kliknięciem: dźwięk filmu bez żadnych zmian (Audio Balance, korektor, dialogi). Ustawienia zostają.", "One click: the film's sound with no changes at all (Audio Balance, equalizer, dialogue). Settings are kept." },
             { "⏻ Przetwarzanie dźwięku wyłączone – film gra bez zmian", "⏻ Sound processing off – the film plays unchanged" },
             { "🎚 Przetwarzanie dźwięku włączone", "🎚 Sound processing on" },
+            { "● Audio Balance for Windows już wyrównuje cały dźwięk – w Velivo wyłączone, by nie poprawiać dwa razy", "● Audio Balance for Windows already levels all sound – off in Velivo to avoid processing twice" },
             { "● bez przetwarzania", "● no processing" },
             { " + dialogi", " + dialogue" },
             { "Bez przetwarzania – dźwięk filmu bez zmian (pomiar działa dalej)", "No processing – the film's sound unchanged (measuring continues)" },

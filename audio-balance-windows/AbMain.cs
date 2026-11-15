@@ -16,8 +16,9 @@ namespace Velivo
     {
         static readonly string SetFile = Path.Combine(App.DataDir, "ustawienia.json");
         Dictionary<string, string> set = new Dictionary<string, string>();
-        string Get(string k) => set.TryGetValue(k, out var v) ? v : null;
-        void Put(string k, string v) { set[k] = v; try { Directory.CreateDirectory(App.DataDir); File.WriteAllText(SetFile, JsonSerializer.Serialize(set)); } catch (Exception ex) { App.LogError(ex); } }
+        internal AbEngine Eng => eng;
+        internal string Get(string k) => set.TryGetValue(k, out var v) ? v : null;
+        internal void Put(string k, string v) { set[k] = v; try { Directory.CreateDirectory(App.DataDir); File.WriteAllText(SetFile, JsonSerializer.Serialize(set)); } catch (Exception ex) { App.LogError(ex); } }
 
         readonly AbEngine eng = new AbEngine();
         Window win; System.Windows.Forms.NotifyIcon tray; DispatcherTimer tm; EventWaitHandle showEv;
@@ -42,6 +43,17 @@ namespace Velivo
         void StartEngine() { eng.Start(Get("wyjscie")); Status(); }
 
         // ustawienia → silnik
+        internal void Toast(string t) { status.Text = t; status.Foreground = Ok; }
+        // okienko z polem tekstowym (nazwa ustawienia) - nad oknem, z którego wywołane
+        internal string Ask(string text, string def, Window owner)
+        {
+            var w = new Window { Title = "Velivo Audio Balance", Owner = owner ?? win, Topmost = (owner ?? win)?.Topmost == true, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Background = Bg, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var p = new StackPanel { Margin = new Thickness(14), MinWidth = 300 }; p.Children.Add(T(text));
+            var tb = new TextBox { Text = def ?? "", Margin = new Thickness(0, 4, 0, 10) }; p.Children.Add(tb);
+            string res = null; var bw = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+            bw.Children.Add(Mk("OK", () => { res = tb.Text; w.Close(); })); bw.Children.Add(Mk(L.T("Anuluj"), () => w.Close())); p.Children.Add(bw);
+            w.Content = p; w.Loaded += (s, e) => { tb.Focus(); tb.SelectAll(); }; w.ShowDialog(); return res;
+        }
         void Apply()
         {
             var p = eng.Proc;
@@ -126,8 +138,9 @@ namespace Velivo
                 () => Get("profil") ?? "auto", v => { Put("profil", v); Apply(); }));
             root.Children.Add(Choice(L.T("Intensywność:"), new[] { ("light", "Light", (string)null), ("normal", "Normal", (string)null), ("strong", "Strong", (string)null) }, () => Get("sila") ?? "normal", v => { Put("sila", v); Apply(); }));
             root.Children.Add(Choice(L.T("Wyraźne dialogi:"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), (string)null), ("2", L.T("Mocno"), (string)null) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
-            root.Children.Add(Choice(L.T("Kompresor:"), new[] { ("off", L.T("Wył."), (string)null), ("film", L.T("Film / kino"), L.T("Próg automatyczny z poziomu dźwięku.")), ("noc", L.T("Noc"), L.T("Mocne wyrównanie cichych nagrań.")), ("del", L.T("Delikatnie"), L.T("Tylko szczyty, równoległa.")) },
-                () => Get("kompresor-preset") ?? "film", v => { Put("kompresor-preset", v); var q = v == "noc" ? DynParams.Night() : v == "del" ? DynParams.Parallel() : DynParams.Film(); if (v == "off") q.IsEnabled = false; Put("kompresor", q.Save()); Apply(); }));
+            // 🎚 pełny kompresor wstępny z Velivo (ten sam kod: presety, własne ustawienia, wszystkie suwaki, charakterystyka, mierniki)
+            MainWindow.Host = this; MainWindow.AbPreNoSrc = true;
+            root.Children.Add(new Border { Background = Card2, CornerRadius = new CornerRadius(8), Padding = new Thickness(10), Margin = new Thickness(0, 6, 0, 6), Child = new MainWindow().AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)) });
             var tgt = new ComboBox { Margin = new Thickness(0, 2, 0, 6), ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
             foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS", Tag = v });
             var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
@@ -175,7 +188,7 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        volatile string cinC, didC, dnameC; volatile bool devBusy; DateTime devAt = DateTime.MinValue;
+        volatile string cinC, didC, dnameC; volatile bool devBusy; Mutex busyMx; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
@@ -188,6 +201,10 @@ namespace Velivo
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
             bool on = cin != null && did == cin;
+            // znak dla Velivo: gdy cały dźwięk Windows idzie przez ten program, Audio Balance w Velivo się wyłącza (nie poprawia drugi raz)
+            bool proc = on && eng.Running;
+            if (proc && busyMx == null) busyMx = new Mutex(true, "VelivoAudioBalance.Przetwarza");
+            else if (!proc && busyMx != null) { try { busyMx.ReleaseMutex(); } catch (Exception) { } busyMx.Dispose(); busyMx = null; }
             var txt = on ? L.T("✔ Windows gra przez Audio Balance – przywróć głośniki jako domyślne") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance (VB-Cable jako urządzenie domyślne)");
             if (GetText(defBtn) != txt) { SetText(defBtn, txt); defBtn.Background = on ? BtnBg : Acc; }
             if (!on && eng.Running && cin != null && did != null && status.Foreground == Ok) status.Text = L.T("● Działa, ale Windows gra prosto na ") + dname + L.T(" – kliknij przycisk niżej");

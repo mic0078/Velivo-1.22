@@ -14,7 +14,7 @@ Write-Host ("Budowana wersja: " + (git log --oneline -1)) -ForegroundColor Cyan
 
 # działający program kieruje cały dźwięk na CABLE - przed zamknięciem Windows wraca do głośników (inaczej cisza do ponownego uruchomienia)
 $ab = Get-Process VelivoAudioBalance -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($ab) { try { Start-Process $ab.Path -ArgumentList '--przywroc' -Wait } catch {}; Stop-Process -Id $ab.Id -Force -ErrorAction SilentlyContinue; Write-Host "Audio Balance zamkniety, dzwiek wrocil do glosnikow (po instalacji wroci przez Audio Balance)" -ForegroundColor Yellow }
+if ($ab) { try { Start-Process $ab.Path -ArgumentList '--aktualizacja' -Wait } catch {}; Stop-Process -Id $ab.Id -Force -ErrorAction SilentlyContinue; Write-Host "Audio Balance zamkniety, dzwiek wrocil do glosnikow (po instalacji wroci przez Audio Balance)" -ForegroundColor Yellow }
 
 Write-Host "2/4 Kompilacja Velivo Audio Balance for Windows..." -ForegroundColor Cyan
 Remove-Item -Recurse -Force build\audiobalance -ErrorAction SilentlyContinue

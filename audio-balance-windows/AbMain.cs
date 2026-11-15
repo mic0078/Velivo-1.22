@@ -159,7 +159,7 @@ namespace Velivo
             var cin = AbEngine.CableInputId(); var (did, dname) = AbEngine.DefaultOutput();
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
             bool on = cin != null && did == cin;
-            var txt = on ? L.T("✔ Windows gra przez Audio Balance – przywróć głośniki jako domyślne") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance (CABLE Input jako domyślne)");
+            var txt = on ? L.T("✔ Windows gra przez Audio Balance – przywróć głośniki jako domyślne") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance (VB-Cable jako urządzenie domyślne)");
             if ((string)defBtn.Content != txt) { defBtn.Content = txt; defBtn.Background = on ? BtnBg : Acc; }
             if (!on && eng.Running && cin != null && did != null && status.Foreground == Ok) status.Text = L.T("● Działa, ale Windows gra prosto na ") + dname + L.T(" – kliknij przycisk niżej");
         }

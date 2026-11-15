@@ -31,7 +31,8 @@ namespace Velivo
         {
             try { if (File.Exists(SetFile)) set = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SetFile)) ?? set; } catch (Exception ex) { App.LogError(ex); }
             Apply();
-            BuildWindow(); BuildTray();
+            BuildWindow(); widget = new AbWidget(this); BuildTray();
+            if (Get("widzet") == "1") widget.Show();   // widżet wraca na pulpit po ponownym uruchomieniu
             showEv = new EventWaitHandle(false, EventResetMode.AutoReset, "VelivoAudioBalance.Pokaz");
             new Thread(() => { while (showEv != null) { try { if (showEv.WaitOne(1000)) win.Dispatcher.BeginInvoke(new Action(Show)); } catch (Exception) { return; } } }) { IsBackground = true }.Start();
             eng.Stopped += () => win.Dispatcher.BeginInvoke(new Action(() => { Status(); retryAt = DateTime.UtcNow.AddSeconds(3); }));
@@ -153,6 +154,7 @@ namespace Velivo
             outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
             defBtn = Mk("", ToggleDefault); defBtn.Margin = new Thickness(0, 0, 8, 0);
             rightTop.Children.Add(outBox); rightTop.Children.Add(defBtn);
+            var wg = Mk(L.T("📌 Widżet"), () => widget.Toggle(), L.T("Mały widżet z animowanymi słupkami na pulpicie (wł./wył.).")); wg.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(wg);
             var tr = Mk(L.T("Do zasobnika"), () => win.Hide()); tr.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(tr);
             var ex = Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")); ex.Margin = new Thickness(0); rightTop.Children.Add(ex);
             DockPanel.SetDock(rightTop, Dock.Right); top.Children.Add(rightTop);
@@ -320,9 +322,13 @@ namespace Velivo
             tray.Icon = AbIcon.Frame(double.NegativeInfinity);   // słupki Audio Balance - rosną z głośnością (Tick)
             var m = new System.Windows.Forms.ContextMenuStrip();
             m.Items.Add(L.T("Pokaż"), null, (s, e) => Show());
+            m.Items.Add(L.T("📌 Widżet na pulpicie (wł./wył.)"), null, (s, e) => win.Dispatcher.Invoke(widget.Toggle));
             m.Items.Add(L.T("Zakończ"), null, (s, e) => win.Dispatcher.Invoke(Exit));
             tray.ContextMenuStrip = m; tray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) win.Dispatcher.Invoke(Show); };
         }
+        internal void ShowMain() => Show();
+        internal void ToggleBypass() { Put("obejscie", eng.Proc.Bypass ? "0" : "1"); Apply(); }
+        AbWidget widget;
         void Show() { FillOutputs(); Status(); win.Show(); if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal; win.Activate(); }
         static void Open(string url) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception) { } }
 

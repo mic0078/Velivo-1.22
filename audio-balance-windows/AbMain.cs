@@ -11,7 +11,7 @@ using System.Windows.Threading;
 
 namespace Velivo
 {
-    // okno i zasobnik programu Velivo Audio Balance
+    // okno i zasobnik programu Velivo Audio Balance for Windows
     sealed class AbMain : IDisposable
     {
         static readonly string SetFile = Path.Combine(App.DataDir, "ustawienia.json");
@@ -67,10 +67,10 @@ namespace Velivo
 
         void BuildWindow()
         {
-            win = new Window { Title = "Velivo Audio Balance", Width = 470, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            win = new Window { Title = "Velivo Audio Balance for Windows", Width = 470, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")); } catch (Exception) { }
             var root = new StackPanel { Margin = new Thickness(14) };
-            root.Children.Add(T("Velivo Audio Balance", 18, Fg, true));
+            root.Children.Add(T("Velivo Audio Balance for Windows", 18, Fg, true));
             root.Children.Add(T(L.T("Cały dźwięk Windows (przeglądarka, serwisy filmowe, gry) wyrównany jak w Velivo: kompresor, poziom LUFS i limiter."), 11, Dim));
             status = T("", 12, Ok, true); root.Children.Add(status);
             // kreator: brak VB-Audio Virtual Cable
@@ -146,7 +146,7 @@ namespace Velivo
             else if (eng.Running) { status.Text = L.T("● Działa: dźwięk Windows → CABLE → Audio Balance → ") + eng.OutputName; status.Foreground = Ok; }
             else { status.Text = L.T("● Zatrzymany") + (eng.Error == "output" ? L.T(" – nie znaleziono głośników") : eng.Error != null && eng.Error != "cable" ? " – " + eng.Error : ""); status.Foreground = Bad; }
             UpdateDefBtn();
-            if (tray != null) tray.Text = eng.Running ? "Velivo Audio Balance – " + L.T("działa") : "Velivo Audio Balance – " + L.T("zatrzymany");
+            if (tray != null) tray.Text = eng.Running ? "Velivo Audio Balance for Windows – " + L.T("działa") : "Velivo Audio Balance for Windows – " + L.T("zatrzymany");
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
@@ -175,7 +175,7 @@ namespace Velivo
 
         void BuildTray()
         {
-            tray = new System.Windows.Forms.NotifyIcon { Visible = true, Text = "Velivo Audio Balance" };
+            tray = new System.Windows.Forms.NotifyIcon { Visible = true, Text = "Velivo Audio Balance for Windows" };
             tray.Icon = AbIcon.Frame(double.NegativeInfinity);   // słupki Audio Balance - rosną z głośnością (Tick)
             var m = new System.Windows.Forms.ContextMenuStrip();
             m.Items.Add(L.T("Pokaż"), null, (s, e) => Show());

@@ -4,7 +4,7 @@ using System.Drawing.Drawing2D;
 
 namespace Velivo
 {
-    // 🎚 znak Velivo Audio Balance (inny niż „V” przeglądarki Velivo i Komunikator): słupki poziomu + biała linia celu;
+    // 🎚 znak Velivo Audio Balance for Windows (inny niż „V” przeglądarki Velivo i Komunikator): słupki poziomu + biała linia celu;
     // w zasobniku słupki rosną z głośnością wyniku (9 klatek liczonych raz - bez wycieku uchwytów)
     static class AbIcon
     {

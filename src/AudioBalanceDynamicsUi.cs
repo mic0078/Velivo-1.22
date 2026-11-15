@@ -67,12 +67,13 @@ namespace Velivo
             var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), Stroke = Brushes.White, StrokeThickness = 1 };
             plot.Children.Add(thrLine); plot.Children.Add(expLine); plot.Children.Add(curve); plot.Children.Add(dot);
             vis.Children.Add(plot);
-            void DrawCurve(DynParams p, double thr = double.NaN)
+            void DrawCurve(DynParams p, double thr = double.NaN, double et = double.NaN)
             {
+                if (double.IsNaN(et)) et = AbProc.Pre.EffExpanderDb;
                 if (double.IsNaN(thr)) thr = p.AutoThreshold ? AbProc.Pre.EffThresholdDb : p.ThresholdDb;
                 var pts = new PointCollection(); double mk = p.MakeupGainDb, mix = p.MixPercent / 100.0;
-                for (double x = Lo; x <= 0.001; x += 0.5) { double g = VelivoDynamicsProcessor.GainComputer(x, p, thr) + mk, y = x + 20 * Math.Log10(Math.Max(1e-6, 1 - mix + mix * Math.Pow(10, g / 20))); pts.Add(new Point(X(x), Y(y))); }
-                curve.Points = pts; thrLine.X1 = thrLine.X2 = X(thr); expLine.X1 = expLine.X2 = X(p.ExpanderThresholdDb);
+                for (double x = Lo; x <= 0.001; x += 0.5) { double g = VelivoDynamicsProcessor.GainComputer(x, p, thr, et) + mk, y = x + 20 * Math.Log10(Math.Max(1e-6, 1 - mix + mix * Math.Pow(10, g / 20))); pts.Add(new Point(X(x), Y(y))); }
+                curve.Points = pts; thrLine.X1 = thrLine.X2 = X(thr); expLine.X1 = expLine.X2 = X(et);
             }
             var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) }; Grid.SetColumn(right, 1); vis.Children.Add(right);
             var bars = new Grid { Height = 104 };
@@ -98,7 +99,7 @@ namespace Velivo
             var grText = new TextBlock { Foreground = fg, FontSize = 11, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap };
             right.Children.Add(grText);
             panel.Children.Add(vis);
-            var grHist = new double[120]; int grPos = 0; double lastThr = double.NaN;
+            var grHist = new double[120]; int grPos = 0; double lastThr = double.NaN, lastExp = double.NaN;
             var presets = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             panel.Children.Add(presets);
             var mode = new ComboBox { Margin = new Thickness(0, 0, 0, 6), ToolTip = L.T("RMS – średnia energia (naturalnie dla dialogów i muzyki); Peak – reaguje na każdy szczyt (strzały, trzaski).") };
@@ -226,7 +227,7 @@ namespace Velivo
             {
                 if (!string.Equals(shownSrc, _abPreSrc)) { Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); }   // nowy film / kanał - jego ustawienia
                 var pr = AbProc.Pre; bool act = pr.Params.IsEnabled && AbFlowing();
-                double xi = act ? pr.InputDb : -120, xo = act ? pr.OutputDb : -120, gr = act ? pr.CurrentGainReductionDb : 0;
+                double xi = act ? pr.InputDb : -120, xo = act ? pr.OutputDb : -120, gr = act && xi > -70 ? pr.CurrentGainReductionDb : 0;   // w ciszy (pauza) 0 - nie wielki słupek ekspandera
                 Canvas.SetLeft(dot, X(xi) - 5); Canvas.SetTop(dot, Y(xo) - 5); dot.Visibility = act && xi > Lo ? Visibility.Visible : Visibility.Hidden;
                 double bh = bars.ActualHeight - 30; if (bh < 10) bh = 74;
                 mIn.bar.Height = Math.Max(0, (Math.Max(Lo, xi) - Lo) / -Lo * bh); mIn.val.Text = act ? xi.ToString("0") : "–";
@@ -236,7 +237,7 @@ namespace Velivo
                 double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = 40; var pts = new PointCollection();
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
-                if (pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) { lastThr = pr.EffThresholdDb; DrawCurve(pr.Params, lastThr); }   // próg automatyczny - wykres na żywo
+                if ((pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) || Math.Abs(pr.EffExpanderDb - lastExp) > 0.1) { lastThr = pr.EffThresholdDb; lastExp = pr.EffExpanderDb; DrawCurve(pr.Params, pr.Params.AutoThreshold ? lastThr : pr.Params.ThresholdDb, lastExp); }   // próg i próg ciszy z filmu - linie na żywo   // próg automatyczny - wykres na żywo
                 grText.Text = (pr.Params.AutoThreshold && act ? L.T("Próg teraz: ") + pr.EffThresholdDb.ToString("0.0") + " dB · " : "") + (!pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB");
             };
             exp.IsVisibleChanged += (s, e) => { if (exp.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy zakładka Kompresor jest na ekranie - nie zabiera czasu Audio Monitorowi

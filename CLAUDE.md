@@ -19,6 +19,8 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Szanuj czas i pieniądze właściciela (2026-11-10, właściciel): każda poprawka gotowa od razu za pierwszym razem, tak aby użytkownik był zadowolony – bez błędów, które on musi wyłapywać. Przed wysłaniem sprawdź efekt oczami użytkownika (wygląd w jasnym i ciemnym motywie, czytelność, czy działa), nie tylko kompilację. Każda poprawka po uwadze właściciela to stracony czas i pieniądze.
 * Nie można ludzi oszukiwać: bez bzdur i zgadywanek, zawsze piszesz, co sprawdziłeś, a czego nie. CLAUDE.md ma być wiarygodny i trzymasz się go.
 
+* Oszczędność (2026-11-15, właściciel): poprawki najkrótszą drogą – bez zbędnego czytania, długich odpowiedzi i powtórek; nie zjadaj niepotrzebnie tokenów.
+
 ## Wnioski (pamięć 3–5 dni)
 
 Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był aktywny: po każdym błędzie dopisz tu jedną linijkę z datą, by je naprawiać, jeśli wystąpią ponownie; starsze wpisy usuń.

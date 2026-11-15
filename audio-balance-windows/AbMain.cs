@@ -160,6 +160,7 @@ namespace Velivo
             outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
             defBtn = Mk("", ToggleDefault); defBtn.Margin = new Thickness(0, 0, 8, 0);
             rightTop.Children.Add(outBox); rightTop.Children.Add(defBtn);
+            recBtn = Mk(L.T("⏺ Nagrywaj"), ToggleRec, L.T("Nagrywa dźwięk po poprawkach do pliku WAV najwyższej jakości (32-bit, 48 kHz, stereo) w folderze Muzyka\\Velivo Audio Balance.")); recBtn.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(recBtn);
             var wg = Mk(L.T("📌 Widżet"), () => widget.Toggle(), L.T("Mały widżet z animowanymi słupkami na pulpicie (wł./wył.).")); wg.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(wg);
             var tr = Mk(L.T("Do zasobnika"), () => win.Hide()); tr.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(tr);
             var ex = Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")); ex.Margin = new Thickness(0); rightTop.Children.Add(ex);
@@ -235,6 +236,7 @@ namespace Velivo
 
         void Tick()
         {
+            if (eng.Rec is { } rr && recBtn != null) SetText(recBtn, "⏹ " + TimeSpan.FromSeconds(rr.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss"));   // czas nagrania
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
             UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
@@ -334,7 +336,21 @@ namespace Velivo
         }
         internal void ShowMain() => Show();
         internal void ToggleBypass() { Put("obejscie", eng.Proc.Bypass ? "0" : "1"); Apply(); }
-        AbWidget widget;
+        AbWidget widget; Button recBtn;
+        static string RecDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Velivo Audio Balance");
+        void ToggleRec()
+        {
+            var r = eng.Rec;
+            if (r == null)
+            {
+                if (!eng.Running) { Toast(L.T("Najpierw musi działać dźwięk (Windows gra przez Audio Balance)")); return; }
+                try { eng.Rec = new AbRecorder(RecDir); recBtn.Background = Bad; } catch (Exception ex) { App.LogError(ex); Toast(L.T("Nie udało się zacząć nagrania: ") + ex.Message); }
+                return;
+            }
+            eng.Rec = null; r.Dispose(); recBtn.Background = BtnBg; SetText(recBtn, L.T("⏺ Nagrywaj"));
+            Toast(L.T("✔ Zapisano: ") + Path.GetFileName(r.Path) + " (" + TimeSpan.FromSeconds(r.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss") + ")");
+            try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + r.Path + "\""); } catch (Exception) { }
+        }
         void Show() { FillOutputs(); Status(); win.Show(); if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal; win.Activate(); }
         static void Open(string url) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception) { } }
 
@@ -353,6 +369,7 @@ namespace Velivo
         bool exiting;
         void Exit()
         {
+            if (eng.Rec is { } r0) { eng.Rec = null; r0.Dispose(); }   // nagranie zamknięte poprawnie (nagłówek WAV)
             exiting = true;
             // CABLE był domyślny - bez programu dźwięk nie dochodziłby do głośników; Windows wraca do Twoich głośników
             var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput();

@@ -259,7 +259,7 @@ namespace Velivo
         internal void Configure(AbProcessor p)
         {
             p.Profile = AbProfile.ByName(Get("profil") ?? "auto", Get("sila") ?? "normal");
-            p.Target = float.TryParse(Get("cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
+            p.Target = float.TryParse(Get("cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : -14f;   // domyślnie -14 LUFS (głośno jak serwisy muzyczne) - właściciel: przy -23 trzeba było głośniki na 50%
             p.Dialog = int.TryParse(Get("dialogi"), out var d) ? d : 0;
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
@@ -366,7 +366,7 @@ namespace Velivo
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
             foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = AbTargetLabel(v), Tag = v });   // te same opisy co w Velivo
-            var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
+            var cur = Get("cel") ?? "-14"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { Put("cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); } };
             { var g = new Grid { Margin = new Thickness(0, 0, 0, 8) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
               g.Children.Add(new TextBlock { Text = L.T("Cel (LUFS)"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(tgt, 1); g.Children.Add(tgt); sets.Children.Add(g); }

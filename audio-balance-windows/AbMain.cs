@@ -416,7 +416,7 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
+        volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; string appCand; int appCandN; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
@@ -424,7 +424,8 @@ namespace Velivo
             else if (!devBusy && (DateTime.UtcNow - devAt).TotalSeconds >= 2)
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                // program zmienia się dopiero, gdy gra najgłośniej ~8 s - dwa programy naraz nie przełączają ustawień co 2 s (falowanie)
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } else appCandN = 0; } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;

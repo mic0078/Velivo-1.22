@@ -1,10 +1,10 @@
 ﻿# Velivo Audio Balance for Windows - budowa OSOBNO od Velivo (własny program, własny instalator).
-# Użycie: PowerShell w folderze repozytorium ->  .\audio-balance-windows\zbuduj.ps1
+# Użycie: PowerShell w folderze repozytorium ->  .\zbuduj-audiobalance.ps1
 # Wymagane raz: winget install Git.Git Microsoft.DotNet.SDK.10 JRSoftware.InnoSetup
 # VB-Audio Virtual Cable pobiera instalator (podczas instalacji) albo program (przycisk „Zainstaluj VB-Cable automatycznie”).
 $ErrorActionPreference = 'Stop'
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = $PSScriptRoot
 Set-Location $repo
 
 Write-Host "1/4 Najnowsze zmiany (git pull)..." -ForegroundColor Cyan
@@ -20,7 +20,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Audio Balance for Windo
 Write-Host "3/4 VB-Audio Virtual Cable..." -ForegroundColor Cyan
 # skrypt NICZEGO nie pobiera (antywirus brał pobieranie + rozpakowanie za wirusa); VB-Cable pobiera instalator albo program.
 # Gdy rozpakowany pakiet jest w audio-balance-windows\vbcable - trafia do instalatora (instalacja bez internetu).
-$vb = Join-Path $PSScriptRoot 'vbcable'
+$vb = Join-Path $PSScriptRoot 'audio-balance-windows\vbcable'
 if (Test-Path (Join-Path $vb 'VBCABLE_Setup_x64.exe')) { Copy-Item -Recurse -Force $vb 'build\audiobalance\VBCABLE'; Write-Host "VB-Cable w instalatorze: tak" -ForegroundColor Green } else { Write-Host "VB-Cable pobierze instalator albo program (z serwera VB-Audio)" -ForegroundColor Cyan }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan

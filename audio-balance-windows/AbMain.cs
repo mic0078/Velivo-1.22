@@ -226,8 +226,7 @@ namespace Velivo
         {
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
-            if (!win.IsVisible) return;
-            UpdateDefBtn();
+            UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
         }
 
         void Status()
@@ -256,7 +255,7 @@ namespace Velivo
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
             bool on = cin != null && did == cin;
             // znak dla Velivo: gdy cały dźwięk Windows idzie przez ten program, Audio Balance w Velivo się wyłącza (nie poprawia drugi raz)
-            bool proc = on && eng.Running;
+            bool proc = on && eng.Running && !eng.Proc.Bypass;   // „Bez przetwarzania” - Velivo może wtedy poprawiać sam
             if (proc && busyMx == null) busyMx = new Mutex(true, "VelivoAudioBalance.Przetwarza");
             else if (!proc && busyMx != null) { try { busyMx.ReleaseMutex(); } catch (Exception) { } busyMx.Dispose(); busyMx = null; }
             var txt = on ? L.T("✔ Cały dźwięk przez Audio Balance") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance");

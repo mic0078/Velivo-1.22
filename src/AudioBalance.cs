@@ -311,7 +311,17 @@ namespace Velivo
 
         // nowy film zawsze startuje bez pauzy: VLC nie woła „wznów” dla nowego materiału, a pauza z poprzedniego (koniec filmu, pytanie o wznowienie) zostawała - cisza
         void AbDetach() { AbLearnEnd(); VstSave(); var o = _abOut; _abOut = null; o?.Dispose(); }
-        internal void AbNewSource(string name, bool tv = false) { if (_abOut != null) { _abOut.Resume(); _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbPreApplyFor(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
+        // 🧩 wymiana danych z Audio Balance for Windows: co teraz gra (kanał / film) - we wspólnym folderze %LOCALAPPDATA%\Velivo;
+        // tamten program trzyma ustawienia dla tego kanału / filmu zamiast dla całego odtwarzacza
+        internal static string TerazGraFile => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "teraz-gra.txt");
+        static string _terazGra;
+        internal static void AbNowPlaying(string name, bool tv)
+        {
+            var line = string.IsNullOrWhiteSpace(name) ? "" : (tv ? "K" : "F") + "\t" + name.Trim() + "\t" + Wariant.Pid;
+            if (line == _terazGra) return; _terazGra = line;
+            System.Threading.Tasks.Task.Run(() => { try { System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(TerazGraFile)); System.IO.File.WriteAllText(TerazGraFile, line); } catch (Exception ex) { App.LogError(ex); } });
+        }
+        internal void AbNewSource(string name, bool tv = false) { AbNowPlaying(name, tv); if (_abOut != null) { _abOut.Resume(); _abOut.Source = name ?? ""; AbLearnBegin(name, tv); AbPreApplyFor(name, tv); AbLektorReset(); AbProc.NewMedia(); } }
 
         // ---------- 🎚 Audio Monitor: osobne okienko + wlasna ikonka w zasobniku ----------
         Window _abWin; System.Windows.Forms.NotifyIcon _abTray; DispatcherTimer _abTimer;

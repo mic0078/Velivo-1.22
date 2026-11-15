@@ -429,6 +429,25 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
+        // 🧩 co gra: program (Chrome, gra…) albo - gdy gra odtwarzacz Velivo - konkretny kanał / film z pliku wymiany %LOCALAPPDATA%\Velivo\teraz-gra.txt
+        // (zapisuje go Velivo / Velivo Odtwarzacz); ustawienia kompresora i „Bardzo ciche” pamiętane dla tego kanału / filmu, zmiana tytułu od razu
+        string srcNow;
+        void SrcCheck()
+        {
+            var app = appNow; if (app == null) return;
+            string key = "A|" + app, name = app; bool tv = false, isApp = true;
+            if (app.StartsWith("Velivo", StringComparison.OrdinalIgnoreCase))
+                try
+                {
+                    var f = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "teraz-gra.txt");
+                    var p = File.Exists(f) ? File.ReadAllText(f).Split('\t') : new string[0];
+                    if (p.Length >= 3 && p[2].Trim().Equals(app, StringComparison.OrdinalIgnoreCase) && p[1].Length > 0) { tv = p[0] == "K"; name = p[1]; isApp = false; key = p[0] + "|" + name; }
+                }
+                catch (Exception) { }
+            if (key == srcNow) return;
+            srcNow = key;
+            win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(name, tv, isApp)));
+        }
         volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; string appCand; int appCandN; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
@@ -438,7 +457,7 @@ namespace Velivo
             {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
                 devAt = DateTime.UtcNow; devBusy = true;
                 // program zmienia się dopiero, gdy gra najgłośniej ~8 s - dwa programy naraz nie przełączają ustawień co 2 s (falowanie)
-                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) { appNow = app; win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(app, false))); } } else appCandN = 0; } } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; velivoOn = VelivoRunning(); if (c != null) { var app = AbEngine.PlayingApp(c); if (app != null && app != appNow) { if (app == appCand) appCandN++; else { appCand = app; appCandN = 1; } if (appCandN >= 4) appNow = app; } else appCandN = 0; } SrcCheck(); } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
             }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;

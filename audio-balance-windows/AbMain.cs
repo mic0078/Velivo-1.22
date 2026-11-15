@@ -409,7 +409,7 @@ namespace Velivo
             bool cable = AbEngine.CableInstalled();
             setupBox.Visibility = cable ? Visibility.Collapsed : Visibility.Visible;
             if (!cable) { status.Text = L.T("● Brak VB-Audio Virtual Cable – zainstaluj go (niżej)"); status.Foreground = Bad; }
-            else if (eng.Running) { status.Text = L.T("● Działa"); status.ToolTip = L.T("● Działa → ") + eng.OutputName; status.Foreground = Ok;   // krótko - głośniki widać w polu obok }
+            else if (eng.Running) { status.Text = L.T("● Działa"); status.ToolTip = L.T("● Działa → ") + eng.OutputName; status.Foreground = Ok; }   // krótko - głośniki widać w polu obok
             else { status.Text = L.T("● Zatrzymany") + (eng.Error == "output" ? L.T(" – nie znaleziono głośników") : eng.Error != null && eng.Error != "cable" ? " – " + eng.Error : Get("wlaczony") == "0" ? "" : L.T(" – ponawiam za chwilę")) + L.T(" (szczegóły: katalog „Poważne błędy” Velivo)"); status.Foreground = Bad; }
             UpdateDefBtn();
             if (tray != null) tray.Text = eng.Running ? "Velivo Audio Balance for Windows – " + L.T("działa") : "Velivo Audio Balance for Windows – " + L.T("zatrzymany");

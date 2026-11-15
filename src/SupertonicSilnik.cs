@@ -262,8 +262,10 @@ namespace Velivo.SupertonicTts
     // TextToSpeech class
     // ============================================================================
 
-    public class TextToSpeech
+    public class TextToSpeech : IDisposable
     {
+        // Velivo: zwolnienie modelu (pamięć karty / procesora) - Odtwarzacz przy zegarze bez okien
+        public void Dispose() { _dpOrt?.Dispose(); _textEncOrt?.Dispose(); _vectorEstOrt?.Dispose(); _vocoderOrt?.Dispose(); }
         private readonly Config _cfgs;
         private readonly UnicodeProcessor _textProcessor;
         private readonly InferenceSession _dpOrt;

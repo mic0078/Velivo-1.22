@@ -68,6 +68,31 @@ namespace Velivo
         readonly Dictionary<string, Style> _stStyles = new Dictionary<string, Style>();
         readonly SemaphoreSlim _stLock = new SemaphoreSlim(1, 1);
 
+        // 🧩 Velivo Odtwarzacz przy zegarze bez otwartych okien: zwalnia model lektora i oddaje Windows nieużywaną pamięć
+        // (zostaje lekki dla Pilota i nagrań TV; przy filmie lektor wczytuje się znowu w tle - SupertonicWarm)
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr proc, IntPtr min, IntPtr max);
+        System.Windows.Threading.DispatcherTimer _odtLekko; int _odtPusto;
+        void StartOdtwarzaczLekko()
+        {
+            if (!Wariant.Odtwarzacz || _odtLekko != null) return;
+            _odtLekko = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+            _odtLekko.Tick += (s, e) =>
+            {
+                bool otwarte = new[] { _kanapa, _vlcWin, _libWin, _tvWin }.Any(w => w != null && w.IsVisible);   // Kanapa, odtwarzacz (też okienko), biblioteka, TV
+                if (otwarte) { _odtPusto = 0; return; }
+                if (++_odtPusto != 2) return;   // 2 minuty bez okien - raz, do następnego otwarcia
+                _ = Task.Run(async () =>
+                {
+                    if (!await _stLock.WaitAsync(0)) return;   // lektor właśnie mówi - nie teraz
+                    try { var t = _stTts; _stTts = null; _stStyles.Clear(); t?.Dispose(); }
+                    finally { _stLock.Release(); }
+                    GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                    try { SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1)); } catch (Exception) { }
+                });
+            };
+            _odtLekko.Start();
+        }
+
         // 🗣 model wczytywany w tle już przy otwarciu filmu z lektorem - pierwsza kwestia bez czekania (dawniej kilkanaście sekund: wczytanie na kartę przy pierwszym zdaniu)
         void SupertonicWarm()
         {

@@ -227,6 +227,7 @@ namespace Velivo
                     if (SilentStart) StartSilently();
                     _sessionReady = true;
                     if (Wariant.Odtwarzacz) Dispatcher.BeginInvoke(new Action(ShowKanapa), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🧩 Odtwarzacz startuje Kanapą
+                    StartOdtwarzaczLekko();
                 }
                 catch (Exception ex)
                 {

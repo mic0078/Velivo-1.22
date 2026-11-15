@@ -29,13 +29,15 @@ namespace Velivo
             eng = e; this.fg = fg; this.dim = dim;
             for (int i = 0; i <= NB; i++) edges[i] = 40 * Math.Pow(16000.0 / 40, i / (double)NB);
             for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70;
-            Root.Children.Add(new TextBlock { Text = L.T("📊 Podgląd"), Foreground = fg, FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
+            var hd = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+            var hr = new TextBlock { Text = L.T("widmo: słupki – oryginał, kreski – po poprawie · linia: głośność z 30 s, żółta: cel"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(hr, Dock.Right);
+            hd.Children.Add(hr); hd.Children.Add(new TextBlock { Text = L.T("📊 Podgląd"), Foreground = fg, FontSize = 13, FontWeight = FontWeights.SemiBold });
+            Root.Children.Add(hd); Root.Children.Add(tiles);
             srcB = Bar(L.T("ŹRÓDŁO"), Red, L.T("Głośność dźwięku, który gra Windows (LUFS, przed poprawą)."));
             chgB = Bar(L.T("ZMIANA"), Teal, L.T("Ile Audio Balance teraz podgłaśnia (w prawo) albo ścisza (w lewo), dB."));
             outB = Bar(L.T("WYNIK"), Green, L.T("Głośność po poprawie – to słyszysz (LUFS)."));
             grB = Bar(L.T("KOMPRESOR"), Gold, L.T("Ile kompresor wstępny teraz ścisza głośne fragmenty (dB)."));
-            Root.Children.Add(Cap(L.T("Widmo – słupki: dźwięk oryginalny, kreski: po poprawie")));
-            spec = new Canvas { Height = 100, Background = Well, ClipToBounds = true, Margin = new Thickness(0, 0, 0, 8) };
+            spec = new Canvas { Height = 120, Background = Well, ClipToBounds = true, Margin = new Thickness(0, 10, 0, 0) };
             for (int b = 0; b < NB; b++)
             {
                 double t = b / (double)(NB - 1); var c = Color.FromRgb((byte)(0x2E + (0x7C - 0x2E) * t), (byte)(0xD3 + (0x5C - 0xD3) * t), (byte)(0xC6 + (0xFF - 0xC6) * t));
@@ -43,28 +45,28 @@ namespace Velivo
                 spec.Children.Add(bars[b]); spec.Children.Add(peaks[b]);
             }
             Root.Children.Add(spec);
-            Root.Children.Add(Cap(L.T("Głośność z 30 s – szara: oryginał, turkusowa: po poprawie, żółta: cel")));
-            hist = new Canvas { Height = 70, Background = Well, ClipToBounds = true };
-            plIn = new Polyline { Stroke = Grey, StrokeThickness = 1.2 }; plOut = new Polyline { Stroke = Teal, StrokeThickness = 1.8 };
-            tgt = new Line { Stroke = Gold, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 3 } };
-            hist.Children.Add(tgt); hist.Children.Add(plIn); hist.Children.Add(plOut);
-            Root.Children.Add(hist);
+            // wykres głośności z 30 s rysowany na widmie (makieta): biała – po poprawie, szara – oryginał, żółta – cel
+            hist = spec;
+            plIn = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x8A, 0x90, 0xA8)), StrokeThickness = 1.2 }; plOut = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1.6 };
+            tgt = new Line { Stroke = Gold, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 4, 3 } };
+            spec.Children.Add(tgt); spec.Children.Add(plIn); spec.Children.Add(plOut);
             tm.Tick += (s, a) => Tick();
             Root.IsVisibleChanged += (s, a) => { if (Root.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy Podgląd na ekranie
         }
 
         TextBlock Cap(string s) => new TextBlock { Text = s, Foreground = dim, FontSize = 10, Margin = new Thickness(0, 4, 0, 2) };
+        readonly System.Windows.Controls.Primitives.UniformGrid tiles = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4 };
+        // kafelek: nazwa, duża liczba, cienki pasek (makieta)
         (Border, TextBlock, Grid) Bar(string name, Brush color, string tip)
         {
-            var g = new Grid { Margin = new Thickness(0, 2, 0, 2), ToolTip = tip };
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
-            var lab = new TextBlock { Text = name, Foreground = dim, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
-            var track = new Grid { Height = 10, Background = Track, VerticalAlignment = VerticalAlignment.Center };
-            var fill = new Border { Background = color, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
-            track.Children.Add(fill);
-            var val = new TextBlock { Text = "–", Foreground = color, FontSize = 15, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(track, 1); Grid.SetColumn(val, 2); g.Children.Add(lab); g.Children.Add(track); g.Children.Add(val);
-            Root.Children.Add(g); return (fill, val, track);
+            var p = new StackPanel();
+            p.Children.Add(new TextBlock { Text = name, Foreground = dim, FontSize = 10 });
+            var val = new TextBlock { Text = "–", Foreground = color, FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) }; p.Children.Add(val);
+            var track = new Grid { Height = 5, Background = Track };
+            var fill = new Border { Background = color, CornerRadius = new CornerRadius(2.5), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
+            track.Children.Add(fill); p.Children.Add(track);
+            tiles.Children.Add(new Border { Background = new SolidColorBrush(Color.FromRgb(0x22, 0x26, 0x34)), CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 8, 10, 10), Margin = new Thickness(0, 0, tiles.Children.Count < 3 ? 8 : 0, 0), Child = p, ToolTip = tip });
+            return (fill, val, track);
         }
         static void Set((Border fill, TextBlock val, Grid track) b, double frac, string txt) { b.fill.Width = Math.Max(0, Math.Min(1, frac)) * Math.Max(0, b.track.ActualWidth); b.val.Text = txt; }
 

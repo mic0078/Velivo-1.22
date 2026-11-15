@@ -59,16 +59,16 @@ namespace Velivo
         FrameworkElement EqPanel()
         {
             var p = new StackPanel();
-            p.Children.Add(T(L.T("🎛 Korektor (EQ)"), 14, Fg, true));
-            var on = new CheckBox { Content = L.T("Korektor włączony"), Foreground = Fg, IsChecked = Get("eq") == "1", Margin = new Thickness(0, 2, 0, 4) };
-            on.Click += (s, e) => { Put("eq", on.IsChecked == true ? "1" : "0"); eng.Proc.EqOn = on.IsChecked == true; }; p.Children.Add(on);
+            var on = new CheckBox { Style = AbStyl.Sw, IsChecked = Get("eq") == "1", ToolTip = L.T("Korektor włączony") };
+            on.Click += (s, e) => { Put("eq", on.IsChecked == true ? "1" : "0"); eng.Proc.EqOn = on.IsChecked == true; }; p.Children.Add(Head(L.T("🎛 Korektor (EQ)"), on));
             var grid = new Grid(); var cur = EqDb(); var sl = new Slider[10];
             for (int i = 0; i < 10; i++)
             {
                 grid.ColumnDefinitions.Add(new ColumnDefinition());
                 double fq = AbProcessor.EqFreq[i]; var sp = new StackPanel();
-                sl[i] = new Slider { Orientation = Orientation.Vertical, Minimum = -12, Maximum = 12, Value = cur[i], Height = 90, HorizontalAlignment = HorizontalAlignment.Center, TickFrequency = 1, IsSnapToTickEnabled = true, ToolTip = fq + " Hz" };
-                sp.Children.Add(sl[i]); var lab = T(fq >= 1000 ? (fq / 1000) + "k" : fq.ToString(), 9, Dim); lab.HorizontalAlignment = HorizontalAlignment.Center; sp.Children.Add(lab);
+                sl[i] = new Slider { Orientation = Orientation.Vertical, Minimum = -12, Maximum = 12, Value = cur[i], Height = 110, HorizontalAlignment = HorizontalAlignment.Center, TickFrequency = 1, IsSnapToTickEnabled = true, ToolTip = fq + " Hz" };
+                var vt = T(cur[i].ToString("+0;-0;0"), 10, Fg); vt.HorizontalAlignment = HorizontalAlignment.Center; sp.Children.Add(vt); var sli = sl[i]; sli.ValueChanged += (s2, e2) => vt.Text = sli.Value.ToString("+0;-0;0");
+                sp.Children.Add(sl[i]); var lab = T(fq >= 1000 ? (fq / 1000) + "k" : fq.ToString(), 10, Dim); lab.HorizontalAlignment = HorizontalAlignment.Center; sp.Children.Add(lab);
                 Grid.SetColumn(sp, i); grid.Children.Add(sp);
                 sl[i].ValueChanged += (s, e) => { var g = sl.Select(x => x.Value).ToArray(); eng.Proc.SetEq(g); Put("eq-db", string.Join(",", g.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)))); };
             }
@@ -114,23 +114,51 @@ namespace Velivo
         Border Card(UIElement c) => new Border { Background = Card2, CornerRadius = new CornerRadius(10), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), Child = c };
         static readonly Brush Card2 = new SolidColorBrush(Color.FromRgb(0x1B, 0x1E, 0x2A));
         TextBlock T(string s, double size = 12, Brush c = null, bool bold = false) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? Fg, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) };
-        WrapPanel Choice(string label, (string key, string text, string tip)[] items, Func<string> cur, Action<string> pick)
+        // wybór jako jeden pasek z podświetloną opcją (makieta)
+        Grid Choice(string label, (string key, string text, string tip)[] items, Func<string> cur, Action<string> pick)
         {
-            var w = new WrapPanel { Margin = new Thickness(0, 2, 0, 4) }; w.Children.Add(new TextBlock { Text = label, Foreground = Fg, Width = 120, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) });
+            var g = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
+            g.Children.Add(new TextBlock { Text = label, Foreground = Dim, VerticalAlignment = VerticalAlignment.Center });
+            var seg = new StackPanel { Orientation = Orientation.Horizontal }; var box = new Border { Background = Seg, CornerRadius = new CornerRadius(8), Padding = new Thickness(3), HorizontalAlignment = HorizontalAlignment.Left, Child = seg };
+            Grid.SetColumn(box, 1); g.Children.Add(box);
             var bs = new List<(Button b, string k)>();
-            void Mark() { foreach (var (b, k) in bs) b.Background = k == cur() ? Acc : BtnBg; }
-            foreach (var (k, t, tip) in items) { var kk = k; var b = Mk(t, () => { pick(kk); Mark(); }, tip); bs.Add((b, kk)); w.Children.Add(b); }
-            Mark(); return w;
+            void Mark() { foreach (var (b, k) in bs) b.Background = k == cur() ? Acc : Brushes.Transparent; }
+            foreach (var (k, t, tip) in items) { var kk = k; var b = Mk(t, () => { pick(kk); Mark(); }, tip); b.Margin = new Thickness(0); b.Padding = new Thickness(11, 4, 11, 4); bs.Add((b, kk)); seg.Children.Add(b); }
+            Mark(); return g;
+        }
+        static readonly Brush Seg = new SolidColorBrush(Color.FromRgb(0x22, 0x26, 0x34));
+        Grid Head(string text, UIElement right = null)
+        {
+            var g = new Grid { Margin = new Thickness(0, 0, 0, 10) }; g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.Children.Add(new TextBlock { Text = text, Foreground = Fg, FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            if (right is FrameworkElement r) { r.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(r, 1); g.Children.Add(r); }
+            return g;
         }
 
         void BuildWindow()
         {
-            win = new Window { Title = "Velivo Audio Balance for Windows", Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40), SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanResize, MinWidth = 900, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            win = new Window { Title = "Velivo Audio Balance for Windows", Width = Math.Min(1280, SystemParameters.WorkArea.Width - 40), MinWidth = 1000, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanResize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen, FontFamily = new FontFamily("Segoe UI") };
+            win.Resources.MergedDictionaries.Add(AbStyl.Res);
             try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")); } catch (Exception) { }
-            var root = new StackPanel { Margin = new Thickness(14) };
-            root.Children.Add(T("Velivo Audio Balance for Windows", 18, Fg, true));
-            root.Children.Add(T(L.T("Cały dźwięk Windows (przeglądarka, serwisy filmowe, gry) wyrównany jak w Velivo: kompresor, poziom LUFS i limiter."), 11, Dim));
-            status = T("", 12, Ok, true); root.Children.Add(status);
+            var root = new StackPanel { Margin = new Thickness(14, 10, 14, 12) };
+            // górny pasek w jednej linii: nazwa, stan, głośniki, przełącznik „cały dźwięk przez Audio Balance”, zasobnik
+            var top = new DockPanel { Margin = new Thickness(0, 0, 0, 10), LastChildFill = true };
+            var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            try { title.Children.Add(new Image { Source = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")), Width = 24, Height = 24, Margin = new Thickness(0, 0, 10, 0) }); } catch (Exception) { }
+            title.Children.Add(new TextBlock { Text = "Velivo Audio Balance", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = Fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) });
+            DockPanel.SetDock(title, Dock.Left); top.Children.Add(title);
+            var rightTop = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            outBox = new ComboBox { Width = 230, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = L.T("Głośniki / słuchawki (tu trafia poprawiony dźwięk)") };
+            outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
+            defBtn = Mk("", ToggleDefault); defBtn.Margin = new Thickness(0, 0, 8, 0);
+            rightTop.Children.Add(outBox); rightTop.Children.Add(defBtn);
+            var tr = Mk(L.T("Do zasobnika"), () => win.Hide()); tr.Margin = new Thickness(0, 0, 6, 0); rightTop.Children.Add(tr);
+            var ex = Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")); ex.Margin = new Thickness(0); rightTop.Children.Add(ex);
+            DockPanel.SetDock(rightTop, Dock.Right); top.Children.Add(rightTop);
+            status = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) };
+            top.Children.Add(status);
+            root.Children.Add(top);
             // kreator: brak VB-Audio Virtual Cable
             var sp = new StackPanel();
             sp.Children.Add(T(L.T("Potrzebny jest darmowy VB-Audio Virtual Cable (wirtualna karta dźwiękowa). Windows gra na nią, a Audio Balance przetwarza dźwięk i wysyła go na Twoje głośniki."), 12));
@@ -142,54 +170,45 @@ namespace Velivo
             sp.Children.Add(sw);
             cableTxt = T("", 11, Ok); sp.Children.Add(cableTxt);
             sp.Children.Add(T(L.T("VB-CABLE to darmowy program firmy VB-Audio (donationware) – vb-audio.com."), 10, Dim));
-            setupBox = new Border { Background = BtnBg, CornerRadius = new CornerRadius(6), Padding = new Thickness(10), Margin = new Thickness(0, 4, 0, 8), Child = sp };
+            setupBox = new Border { Background = BtnBg, CornerRadius = new CornerRadius(8), Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 10), Child = sp };
             root.Children.Add(setupBox);
-            // urządzenia
-            root.Children.Add(T(L.T("Głośniki / słuchawki (tu trafia poprawiony dźwięk):"), 12));
-            outBox = new ComboBox { Margin = new Thickness(0, 0, 0, 6) }; root.Children.Add(outBox);
-            outBox.SelectionChanged += (s, e) => { if (outBox.SelectedItem is ComboBoxItem it && (string)it.Tag != Get("wyjscie")) { Put("wyjscie", (string)it.Tag); StartEngine(); } };
-            defBtn = Mk("", ToggleDefault); root.Children.Add(defBtn);
-            // układ poziomy (właściciel): lewa kolumna 📊 podgląd + ⚙ ustawienia, prawa 🎚 kompresor - wszystko widoczne naraz
-            var cols = new Grid { Margin = new Thickness(0, 8, 0, 0) };
-            foreach (var w0 in new[] { 1.0, 1.0 }) cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w0, GridUnitType.Star) });
+            // dwie kolumny (makieta): lewa – podgląd, pod nim ustawienia i korektor obok siebie; prawa – kompresor, pod nim wtyczki VST3
+            var cols = new Grid();
+            cols.ColumnDefinitions.Add(new ColumnDefinition()); cols.ColumnDefinitions.Add(new ColumnDefinition());
             live = new AbLive(eng, Fg, Dim);
-            var sets = new StackPanel(); var comp = new StackPanel();
-            var c1 = Card(live.Root); var c2 = Card(sets); var c3 = Card(comp);   // lewa kolumna: podgląd, pod nim ustawienia; prawa: kompresor
-            c1.Margin = new Thickness(0, 0, 0, 10); c3.Margin = new Thickness(10, 0, 0, 0);
-            var c4 = Card(EqPanel()); c2.Margin = new Thickness(0, 0, 0, 10);
-            var left = new StackPanel(); left.Children.Add(c1); left.Children.Add(c2); left.Children.Add(c4);
-            Grid.SetColumn(c3, 1); cols.Children.Add(left); cols.Children.Add(c3);
-            root.Children.Add(cols);
-            var settingsRoot = root; root = sets;
-            root.Children.Add(T(L.T("⚙ Ustawienia"), 14, Fg, true));
-            // ustawienia (jak w Velivo)
-            root.Children.Add(Choice(L.T("Wyrównywanie:"), new[] { ("off", L.T("Wył."), (string)null), ("auto", "Auto Level", L.T("Wyrównywanie odczuwalnej głośności.")), ("limit", "Limit Only", L.T("Tylko ograniczanie głośnych szczytów.")) },
+            var c1 = Card(live.Root); c1.Margin = new Thickness(0, 0, 0, 10);
+            var sets = new StackPanel(); sets.Children.Add(Head(L.T("⚙ Ustawienia")));
+            sets.Children.Add(Choice(L.T("Wyrównywanie"), new[] { ("off", L.T("Wył."), (string)null), ("auto", "Auto", L.T("Wyrównywanie odczuwalnej głośności.")), ("limit", L.T("Tylko szczyty"), L.T("Tylko ograniczanie głośnych szczytów.")) },
                 () => Get("profil") ?? "auto", v => { Put("profil", v); Apply(); }));
-            root.Children.Add(Choice(L.T("Intensywność:"), new[] { ("light", "Light", (string)null), ("normal", "Normal", (string)null), ("strong", "Strong", (string)null) }, () => Get("sila") ?? "normal", v => { Put("sila", v); Apply(); }));
-            root.Children.Add(Choice(L.T("Wyraźne dialogi:"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), (string)null), ("2", L.T("Mocno"), (string)null) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
-            // 🎚 pełny kompresor wstępny z Velivo (ten sam kod: presety, własne ustawienia, wszystkie suwaki, charakterystyka, mierniki)
-            MainWindow.Host = this; MainWindow.AbPreNoSrc = true;
-            var mw = new MainWindow(); comp.Children.Add(mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2)));
-            // 🎛 wtyczki VST3 (ten sam kod co w Velivo) - działają przed Audio Balance
-            comp.Children.Add(new Border { Height = 1, Background = Dim, Opacity = 0.3, Margin = new Thickness(0, 12, 0, 10) });
-            comp.Children.Add(T(L.T("🎛 Wtyczki VST3"), 14, Fg, true));
-            comp.Children.Add(mw.VstPanel(win, Fg, Dim, (t, a2) => Mk(t, a2)));
-            root.Children.Add(Choice(L.T("Opóźnienie dźwięku:"), new[] { ("0", L.T("Niskie ~0,1 s"), L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", L.T("Normalne ~0,2 s"), (string)null), ("2", L.T("Bezpieczne ~0,35 s"), L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
+            sets.Children.Add(Choice(L.T("Intensywność"), new[] { ("light", L.T("Lekko"), (string)null), ("normal", L.T("Normalnie"), (string)null), ("strong", L.T("Mocno"), (string)null) }, () => Get("sila") ?? "normal", v => { Put("sila", v); Apply(); }));
+            sets.Children.Add(Choice(L.T("Wyraźne dialogi"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), (string)null), ("2", L.T("Mocno"), (string)null) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
+            sets.Children.Add(Choice(L.T("Opóźnienie"), new[] { ("0", "0,1 s", L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", "0,2 s", (string)null), ("2", "0,35 s", L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
-            var tgt = new ComboBox { Margin = new Thickness(0, 2, 0, 6), ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
-            foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = v == 0 ? L.T("Auto – inteligentnie (odniesienie -23 LUFS, zalecane)") : v.ToString("0") + " LUFS", Tag = v });
+            var tgt = new ComboBox { ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
+            foreach (var v in new float[] { 0, -14, -16, -18, -20, -23, -24 }) tgt.Items.Add(new ComboBoxItem { Content = v == 0 ? L.T("Auto (zalecane)") : v.ToString("0") + " LUFS", Tag = v });
             var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { Put("cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); } };
-            root.Children.Add(tgt);
-            var byp = new CheckBox { Content = L.T("Bez przetwarzania (dźwięk bez zmian, do porównania)"), Foreground = Fg, IsChecked = Get("obejscie") == "1", Margin = new Thickness(0, 2, 0, 4) };
-            byp.Click += (s, e) => { Put("obejscie", byp.IsChecked == true ? "1" : "0"); Apply(); }; root.Children.Add(byp);
-            var auto = new CheckBox { Content = L.T("Uruchamiaj razem z Windows (w zasobniku)"), Foreground = Fg, IsChecked = Autostart, Margin = new Thickness(0, 2, 0, 8) };
-            auto.Click += (s, e) => Autostart = auto.IsChecked == true; root.Children.Add(auto);
-            root = settingsRoot;
-            var bw = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-            bw.Children.Add(Mk(L.T("Do zasobnika"), () => win.Hide())); bw.Children.Add(Mk(L.T("Zakończ"), Exit, L.T("Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.")));
-            root.Children.Add(bw);
-            win.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 };
+            { var g = new Grid { Margin = new Thickness(0, 0, 0, 8) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
+              g.Children.Add(new TextBlock { Text = L.T("Poziom docelowy"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(tgt, 1); g.Children.Add(tgt); sets.Children.Add(g); }
+            var byp = new CheckBox { Content = L.T("Bez przetwarzania"), Foreground = Fg, IsChecked = Get("obejscie") == "1", Margin = new Thickness(0, 0, 16, 0), ToolTip = L.T("Dźwięk bez zmian – do porównania.") };
+            byp.Click += (s, e) => { Put("obejscie", byp.IsChecked == true ? "1" : "0"); Apply(); };
+            var auto = new CheckBox { Content = L.T("Start z Windows"), Foreground = Fg, IsChecked = Autostart, ToolTip = L.T("Uruchamiaj razem z Windows (w zasobniku)") };
+            auto.Click += (s, e) => Autostart = auto.IsChecked == true;
+            var chk = new WrapPanel { Margin = new Thickness(112, 2, 0, 0) }; chk.Children.Add(byp); chk.Children.Add(auto); sets.Children.Add(chk);
+            var lower = new Grid(); lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); lower.ColumnDefinitions.Add(new ColumnDefinition());
+            var c2 = Card(sets); c2.Margin = new Thickness(0, 0, 10, 0); var c4 = Card(EqPanel()); c4.Margin = new Thickness(0); Grid.SetColumn(c4, 1);
+            lower.Children.Add(c2); lower.Children.Add(c4);
+            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower); cols.Children.Add(left);
+            // 🎚 kompresor wstępny i 🎛 VST3 z Velivo (ten sam kod)
+            MainWindow.Host = this; MainWindow.AbPreNoSrc = true; var mw = new MainWindow();
+            var comp = new StackPanel(); var cp = mw.AbPrePanel(Fg, Dim, (t, a2) => Mk(t, a2));
+            if (cp is Expander exq) { exq.Header = new TextBlock { Text = L.T("🎚 Kompresor wstępny"), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Fg }; }
+            comp.Children.Add(cp);
+            var vst = new StackPanel(); vst.Children.Add(Head(L.T("🎛 Wtyczki VST3"))); vst.Children.Add(mw.VstPanel(win, Fg, Dim, (t, a2) => Mk(t, a2)));
+            var right = new StackPanel(); var c3 = Card(comp); c3.Margin = new Thickness(0, 0, 0, 10); right.Children.Add(c3); var c5 = Card(vst); c5.Margin = new Thickness(0); right.Children.Add(c5);
+            Grid.SetColumn(right, 1); cols.Children.Add(right);
+            root.Children.Add(cols);
+            win.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 40 };
             win.Closing += (s, e) => { if (!exiting) { e.Cancel = true; win.Hide(); } };   // ✕ = do zasobnika (dźwięk dalej przetwarzany)
             tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };   // 10×/s - ikona w zasobniku płynnie (jak w Velivo)
             tm.Tick += (s, e) => Tick(); tm.Start();
@@ -216,7 +235,7 @@ namespace Velivo
             bool cable = AbEngine.CableInstalled();
             setupBox.Visibility = cable ? Visibility.Collapsed : Visibility.Visible;
             if (!cable) { status.Text = L.T("● Brak VB-Audio Virtual Cable – zainstaluj go (niżej)"); status.Foreground = Bad; }
-            else if (eng.Running) { status.Text = L.T("● Działa: dźwięk Windows → CABLE → Audio Balance → ") + eng.OutputName; status.Foreground = Ok; }
+            else if (eng.Running) { status.Text = L.T("● Działa → ") + eng.OutputName; status.Foreground = Ok; }
             else { status.Text = L.T("● Zatrzymany") + (eng.Error == "output" ? L.T(" – nie znaleziono głośników") : eng.Error != null && eng.Error != "cable" ? " – " + eng.Error : Get("wlaczony") == "0" ? "" : L.T(" – ponawiam za chwilę")) + L.T(" (szczegóły: bledy.log w folderze ustawień)"); status.Foreground = Bad; }
             UpdateDefBtn();
             if (tray != null) tray.Text = eng.Running ? "Velivo Audio Balance for Windows – " + L.T("działa") : "Velivo Audio Balance for Windows – " + L.T("zatrzymany");
@@ -240,7 +259,8 @@ namespace Velivo
             bool proc = on && eng.Running;
             if (proc && busyMx == null) busyMx = new Mutex(true, "VelivoAudioBalance.Przetwarza");
             else if (!proc && busyMx != null) { try { busyMx.ReleaseMutex(); } catch (Exception) { } busyMx.Dispose(); busyMx = null; }
-            var txt = on ? L.T("✔ Windows gra przez Audio Balance – przywróć głośniki jako domyślne") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance (VB-Cable jako urządzenie domyślne)");
+            var txt = on ? L.T("✔ Cały dźwięk przez Audio Balance") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance");
+            defBtn.ToolTip = on ? L.T("Kliknij, aby Windows znów grał prosto na głośniki.") : L.T("VB-Cable staje się urządzeniem domyślnym – cały dźwięk Windows przechodzi przez Audio Balance.");
             if (GetText(defBtn) != txt) { SetText(defBtn, txt); defBtn.Background = on ? BtnBg : Acc; }
             if (!on && eng.Running && cin != null && did != null && status.Foreground == Ok) status.Text = L.T("● Działa, ale Windows gra prosto na ") + dname + L.T(" – kliknij przycisk niżej");
         }

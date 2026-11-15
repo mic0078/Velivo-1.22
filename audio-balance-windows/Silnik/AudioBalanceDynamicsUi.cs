@@ -111,14 +111,23 @@ namespace Velivo
             panel.Children.Add(mode);
             var auto = new CheckBox { Content = L.T("Automatyczne podbicie (wyrównuje to, co kompresor ściszył)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 6) };
             var rows = new Dictionary<string, Slider>();
+            // program samodzielny: suwaki w dwóch kolumnach, opcje w jednym wierszu (okno bez przewijania)
+            var rowsGrid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2 }; var opts = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             void Row(string key, string name, string tip, double min, double max, double step, Func<double, string> fmt)
             {
-                var g = new Grid { Margin = new Thickness(0, 0, 0, 2), ToolTip = tip };
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) }); g.ColumnDefinitions.Add(new ColumnDefinition());
+                var g = new Grid { Margin = AbPreNoSrc ? new Thickness(0, 0, 14, 4) : new Thickness(0, 0, 0, 2), ToolTip = tip };
+                if (AbPreNoSrc) { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(66) }); }
+                else { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) }); g.ColumnDefinitions.Add(new ColumnDefinition()); }
                 var lab = new TextBlock { Text = name, Foreground = fg, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 var val = new TextBlock { Foreground = dim, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
                 var sl = new Slider { Minimum = min, Maximum = max, SmallChange = step, LargeChange = step * 5, TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
                 sl.ValueChanged += (s, e) => { val.Text = fmt(sl.Value); if (!loading) { Apply(); manual?.Invoke(); } };
+                if (AbPreNoSrc)
+                {   // wartość w ramce z prawej
+                    lab.Foreground = dim; val.Foreground = fg; val.HorizontalAlignment = HorizontalAlignment.Right;
+                    var pill = new Border { Background = new SolidColorBrush(Color.FromRgb(0x24, 0x27, 0x34)), CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 0, 0), Child = val };
+                    sl.Margin = new Thickness(4, 0, 0, 0); Grid.SetColumn(sl, 1); Grid.SetColumn(pill, 2); g.Children.Add(lab); g.Children.Add(sl); g.Children.Add(pill); rowsGrid.Children.Add(g); rows[key] = sl; return;
+                }
                 Grid.SetColumn(val, 1); Grid.SetColumn(sl, 2); g.Children.Add(lab); g.Children.Add(val); g.Children.Add(sl);
                 panel.Children.Add(g); rows[key] = sl;
             }
@@ -126,17 +135,18 @@ namespace Velivo
             Row("thr", L.T("Próg"), L.T("Od jakiej głośności kompresor zaczyna ściszać (dB)."), -60, 0, 0.5, Db);
             autoThr = new CheckBox { Content = L.T("Próg automatyczny (z poziomu filmu)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 2),
                 ToolTip = L.T("Kompresor sam mierzy typowy poziom filmu (ok. 10 s, bez ciszy) i ustawia próg ponad nim – ściska tylko to, co wystaje, przy każdym filmie tak samo.") };
-            panel.Children.Add(autoThr);
+            if (AbPreNoSrc) { autoThr.Margin = new Thickness(0, 0, 14, 0); opts.Children.Add(autoThr); } else panel.Children.Add(autoThr);
             Row("aoff", L.T("Nad średnią filmu"), L.T("O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny."), 0, 20, 0.5, Db);
             Row("ratio", L.T("Stopień"), L.T("Jak mocno ściszać to, co ponad progiem: 4:1 – 4 dB ponad progiem daje 1 dB."), 1, 20, 0.1, v => v.ToString("0.0") + ":1");
             Row("att", L.T("Atak"), L.T("Jak szybko kompresor zaczyna ściszać (ms)."), 0.5, 200, 0.5, v => v.ToString("0.#") + " ms");
             Row("rel", L.T("Powrót"), L.T("Jak szybko wraca po głośnym fragmencie (ms) – dłużej = spokojniej, bez pompowania."), 10, 2000, 10, v => v.ToString("0") + " ms");
             Row("knee", L.T("Miękkie kolano"), L.T("Szerokość płynnego przejścia wokół progu (dB) – im szersze, tym mniej słychać moment zadziałania."), 0, 12, 0.5, v => v.ToString("0.0") + " dB");
             Row("mk", L.T("Podbicie"), L.T("Stałe podbicie po kompresji (dB)."), -12, 24, 0.5, Db);
-            panel.Children.Add(auto);
+            if (AbPreNoSrc) { auto.Margin = new Thickness(0, 0, 14, 0); auto.Content = L.T("Automatyczne podbicie"); opts.Children.Add(auto); } else panel.Children.Add(auto);
             Row("mix", L.T("Mix (równoległa)"), L.T("Ile sygnału skompresowanego, a ile czystego – poniżej 100% film zachowuje naturalne uderzenia."), 0, 100, 1, v => v.ToString("0") + "%");
             Row("et", L.T("Próg ciszy (ekspander)"), L.T("Poniżej tej głośności szum tła jest łagodnie ściszany zamiast wzmacniany (dB)."), -80, -30, 0.5, Db);
             Row("er", L.T("Stopień ekspandera"), L.T("Jak mocno ściszać szum poniżej progu ciszy (1:1 – wcale)."), 1, 4, 0.1, v => v.ToString("0.0") + ":1");
+            if (AbPreNoSrc) { panel.Children.Remove(mode); mode.Width = 240; mode.Margin = new Thickness(0); panel.Children.Add(rowsGrid); opts.Children.Add(mode); panel.Children.Add(opts); }
             exp.Content = panel;
 
             void Show(DynParams p)

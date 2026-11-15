@@ -321,6 +321,7 @@ namespace Velivo
             var bg = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)); var fg = AbFg; var dim = AbDim;
             var acc = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)); var acc2 = AbTeal;
             var win = new Window { Title = "Velivo – Audio Monitor", Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = bg, Foreground = fg, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen, Icon = Icon };
+            win.Resources.MergedDictionaries.Add(AbStyl.Res);   // 🎨 nowoczesne suwaki i przełączniki jak w Audio Balance for Windows (właściciel)
             var root = new StackPanel { Margin = new Thickness(12) };
             TextBlock T(string s, double size = 12, Brush c = null, FontWeight? w = null) => new TextBlock { Text = s, FontSize = size, Foreground = c ?? fg, FontWeight = w ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap };
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };

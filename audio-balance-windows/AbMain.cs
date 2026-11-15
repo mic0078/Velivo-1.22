@@ -175,11 +175,16 @@ namespace Velivo
         }
 
         // Windows musi grać na „CABLE Input” - wtedy cały dźwięk przechodzi przez Audio Balance
-        string cinC, didC, dnameC; DateTime devAt = DateTime.MinValue;
+        volatile string cinC, didC, dnameC; volatile bool devBusy; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)
         {
             // urządzenia Windows sprawdzane najwyżej co 2 s (wcześniej 10×/s w wątku okna - program „chodził wolno”)
-            if (fresh || (DateTime.UtcNow - devAt).TotalSeconds >= 2) { devAt = DateTime.UtcNow; cinC = AbEngine.CableInputId(); (didC, dnameC) = AbEngine.DefaultOutput(); }
+            if (fresh) { devAt = DateTime.UtcNow; cinC = AbEngine.CableInputId(); (didC, dnameC) = AbEngine.DefaultOutput(); }
+            else if (!devBusy && (DateTime.UtcNow - devAt).TotalSeconds >= 2)
+            {   // pytanie Windows o urządzenia trwa długo - w tle, okno i słupki się nie zatrzymują (było co 2 s w wątku okna)
+                devAt = DateTime.UtcNow; devBusy = true;
+                System.Threading.Tasks.Task.Run(() => { try { var c = AbEngine.CableInputId(); var (d, n) = AbEngine.DefaultOutput(); cinC = c; didC = d; dnameC = n; } catch (Exception ex) { App.LogError(ex); } finally { devBusy = false; } });
+            }
             var cin = cinC; var did = didC; var dname = dnameC;
             defBtn.Visibility = cin == null ? Visibility.Collapsed : Visibility.Visible;
             bool on = cin != null && did == cin;
@@ -192,7 +197,7 @@ namespace Velivo
             var cin = AbEngine.CableInputId(); var (did, _) = AbEngine.DefaultOutput(); if (cin == null) return;
             if (did == cin) { var back = Get("wyjscie") ?? Get("poprzednie"); DefaultDevice.Set(back); }
             else { if (did != null) Put("poprzednie", did); if (Get("wyjscie") == null && did != null) Put("wyjscie", did); DefaultDevice.Set(cin); if (!eng.Running) StartEngine(); }
-            devAt = DateTime.MinValue; FillOutputs(); Status();   // przycisk od razu z nowym stanem
+            UpdateDefBtn(true); FillOutputs(); Status();   // przycisk od razu z nowym stanem
         }
 
         // ⬇ VB-CABLE: pobranie z serwera VB-Audio (nowy pakiet, zapasowo starszy), rozpakowanie i instalacja po cichu (-i -h) jako administrator; postęp słowami

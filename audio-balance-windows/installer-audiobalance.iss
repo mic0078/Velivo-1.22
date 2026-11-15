@@ -81,6 +81,11 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoAudioBalance.exe"; Fla
 Type: dirifempty; Name: "{app}"
 
 [Registry]
+; 🧩 spis programów Velivo - każdy program wie o innych (przed instalacją i po deinstalacji); deinstalator wykreśla tylko siebie
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoAudioBalance"; ValueType: string; ValueName: "Exe"; ValueData: "{app}\VelivoAudioBalance.exe"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoAudioBalance"; ValueType: string; ValueName: "Nazwa"; ValueData: "{#AppName}"
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoAudioBalance"; ValueType: string; ValueName: "Wersja"; ValueData: "{#AppVer}"
+Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; wpis startu z Windows tworzy sam program (pole w oknie) - przy odinstalowaniu usuwany
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoAudioBalance"; Flags: uninsdeletevalue
 

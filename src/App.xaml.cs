@@ -45,6 +45,7 @@ namespace Velivo
             base.OnStartup(e);
             Exit += (s, a) => Velivo.MainWindow.EnsureProcessEnds();   // nic nie zostaje w tle po zamknieciu
             VelivoData.Migrate();
+            VelivoData.ZapiszSie(Wariant.Pid, Wariant.Nazwa, Environment.ProcessPath, typeof(App).Assembly.GetName().Version?.ToString());   // 🧩 spis programów Velivo
             // laptopy z dwiema kartami (Ryzen do gier): film na słabszej karcie gubił ~5 klatek/s (każda spóźniona ~25 ms);
             // Velivo samo prosi Windows o mocną kartę (jak Ustawienia → Ekran → Grafika → Wysoka wydajność), działa od następnego uruchomienia;
             // wybór właściciela w Ustawieniach zostaje - wpisujemy tylko, gdy go nie ma; komputer z jedną kartą nic nie zmienia

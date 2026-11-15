@@ -8,7 +8,19 @@ namespace Velivo
     // Velivo Audio Balance for Windows (całkowicie samodzielny program, bez przeglądarki Velivo): start, jedna kopia, dziennik błędów, folder danych
     public partial class App : Application
     {
-        internal static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows");
+        // 🧩 wspólny folder wszystkich programów Velivo: %LOCALAPPDATA%\Velivo (obok Dane i „Poważne błędy”); dawniej AppData\Roaming - przenoszone raz
+        internal static readonly string DataDir = AbDane();
+        static string AbDane()
+        {
+            var nowy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Audio Balance for Windows");
+            var stary = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows");
+            try
+            {
+                if (!Directory.Exists(nowy) && Directory.Exists(stary)) { Directory.CreateDirectory(Path.GetDirectoryName(nowy)); Directory.Move(stary, nowy); }
+            }
+            catch (Exception) { if (Directory.Exists(stary)) return stary; }   // nie udało się (plik otwarty) - zostajemy, próba przy następnym starcie
+            return nowy;
+        }
 
         static void Line(string s)
         {
@@ -20,6 +32,12 @@ namespace Velivo
         [STAThread]
         static void Main(string[] args)
         {
+            try   // 🧩 spis programów Velivo (HKCU\Software\Velivo) - inne programy wiedzą, że tu jest
+            {
+                using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Velivo\Programy\VelivoAudioBalance"))
+                { k.SetValue("Nazwa", "Velivo Audio Balance for Windows"); k.SetValue("Exe", Environment.ProcessPath ?? ""); k.SetValue("Wersja", typeof(App).Assembly.GetName().Version?.ToString() ?? ""); k.SetValue("Dane", DataDir); }
+            }
+            catch (Exception) { }
             if (Array.Exists(args, a => a == "--aktualizacja")) { AbMain.RestoreSpeakers(true); return; }   // budowa/aktualizacja: głośniki na czas przerwy, nowa wersja kieruje z powrotem
             if (Array.Exists(args, a => a == "--przywroc")) { AbMain.RestoreSpeakers(); return; }   // odinstalowanie: Windows wraca do głośników
             using var one = new Mutex(true, "VelivoAudioBalance.Jeden", out bool first);

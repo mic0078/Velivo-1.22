@@ -252,7 +252,7 @@ namespace Velivo
                 try { if (System.Threading.Mutex.TryOpenExisting("VelivoAudioBalance.Przetwarza", out var m)) { m.Dispose(); now = true; } } catch (Exception) { now = true; }   // brak dostępu = istnieje
                 if (now != _abWinOn) { _abWinOn = now; AbProc.Bypass = GetPref("ab-wylacz") == "1" || now; }
                 _abWinMs = 0;
-                if (now) try { var f = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows", "opoznienie-ms.txt"); if (System.IO.File.Exists(f) && int.TryParse(System.IO.File.ReadAllText(f).Trim(), out var ms)) _abWinMs = Math.Max(0, Math.Min(1000, ms)); } catch (Exception) { }
+                if (now) try { var f = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Audio Balance for Windows", "opoznienie-ms.txt"); if (!System.IO.File.Exists(f)) f = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Velivo Audio Balance for Windows", "opoznienie-ms.txt");   /* 🧩 wspólny folder Velivo; starsze Audio Balance - stare miejsce */ if (System.IO.File.Exists(f) && int.TryParse(System.IO.File.ReadAllText(f).Trim(), out var ms)) _abWinMs = Math.Max(0, Math.Min(1000, ms)); } catch (Exception) { }
                 return _abWinOn;
             }
         }

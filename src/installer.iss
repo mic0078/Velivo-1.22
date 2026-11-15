@@ -181,6 +181,11 @@ Name: "{autodesktop}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Paramete
 #endif
 
 [Registry]
+; 🧩 spis programów Velivo - każdy program wie o innych (przed instalacją i po deinstalacji); deinstalator wykreśla tylko siebie
+Root: HKCU; Subkey: "Software\Velivo\Programy\{#Pid}"; ValueType: string; ValueName: "Exe"; ValueData: "{app}\{#Exe}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Velivo\Programy\{#Pid}"; ValueType: string; ValueName: "Nazwa"; ValueData: "{#AppName}"
+Root: HKCU; Subkey: "Software\Velivo\Programy\{#Pid}"; ValueType: string; ValueName: "Wersja"; ValueData: "{#AppVer}"
+Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; autostart wlaczany w Ustawieniach Velivo - przy odinstalowaniu wpis znika (ValueType none = instalator go nie tworzy)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#Pid}"; Flags: uninsdeletevalue
 ; rejestracja jako przegladarka (pojawia sie na liscie "Aplikacje domyslne"); wybor robi uzytkownik w Ustawieniach

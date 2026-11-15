@@ -72,6 +72,48 @@ namespace Velivo
             }
         }
 
+        // 🧩 spis programów Velivo (rejestr użytkownika HKCU\Software\Velivo): każdy program wpisuje się przy instalacji i przy każdym
+        // starcie (nazwa, plik, wersja), deinstalator wykreśla tylko siebie; „Dane” = wspólny folder danych - znany przed instalacją i po deinstalacji
+        const string SpisKey = @"Software\Velivo";
+        public static void ZapiszSie(string pid, string nazwa, string exe, string wersja)
+        {
+            try
+            {
+                using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(SpisKey)) k.SetValue("Dane", NewRoot);
+                using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(SpisKey + @"\Programy\" + pid))
+                { k.SetValue("Nazwa", nazwa ?? pid); k.SetValue("Exe", exe ?? ""); k.SetValue("Wersja", wersja ?? ""); k.SetValue("Start", DateTime.Now.ToString("yyyy-MM-dd HH:mm")); }
+            }
+            catch (Exception) { }
+        }
+        // plik programu z innego wpisu spisu (null: nie ma albo plik zniknął - np. folder skasowany ręcznie; wtedy wpis usuwany)
+        public static string ProgramZeSpisu(string pid)
+        {
+            try
+            {
+                string exe;
+                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SpisKey + @"\Programy\" + pid)) exe = k?.GetValue("Exe") as string;
+                if (string.IsNullOrEmpty(exe)) return null;
+                if (File.Exists(exe)) return exe;
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(SpisKey + @"\Programy\" + pid, false);
+            }
+            catch (Exception) { }
+            return null;
+        }
+        // zainstalowane programy Velivo: identyfikator → nazwa (tylko te, których plik istnieje)
+        public static System.Collections.Generic.Dictionary<string, string> Programy()
+        {
+            var d = new System.Collections.Generic.Dictionary<string, string>();
+            try
+            {
+                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(SpisKey + @"\Programy"))
+                    if (k != null)
+                        foreach (var pid in k.GetSubKeyNames())
+                            if (ProgramZeSpisu(pid) != null) using (var p = k.OpenSubKey(pid)) d[pid] = p?.GetValue("Nazwa") as string ?? pid;
+            }
+            catch (Exception) { }
+            return d;
+        }
+
         // Dopoki stary folder istnieje, dane sa w nim (przeniesienie sie nie udalo albo jeszcze nie bylo).
         public static string Root { get { return Directory.Exists(OldRoot) ? OldRoot : Directory.Exists(MidRoot) && !HasData(NewRoot) ? MidRoot : NewRoot; } }
         static bool HasData(string d) { try { return Directory.Exists(d) && Directory.GetFileSystemEntries(d).Length > 0; } catch (Exception) { return false; } }

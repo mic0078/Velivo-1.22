@@ -27,6 +27,7 @@ namespace Velivo
                 return;
             }
             VelivoData.Migrate();   // 🧩 dane wspólne poza folderami programów (jak w Velivo) - zanim cokolwiek je otworzy
+            VelivoData.ZapiszSie("VelivoKomunikator", "Velivo Komunikator", Environment.ProcessPath, typeof(App).Assembly.GetName().Version?.ToString());   // 🧩 spis programów Velivo
             L.Init("auto");
             var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             app.DispatcherUnhandledException += (s, e) => { LogError(e.Exception); e.Handled = true; };
@@ -76,8 +77,8 @@ namespace Velivo
             get
             {
                 // miejsce z wpisu instalatora Velivo (Windows → Aplikacje), zapasowo folder domyślny
-                string p = null;
-                try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}_is1")) { var d = k?.GetValue("InstallLocation") as string; if (!string.IsNullOrEmpty(d)) p = Path.Combine(d, "Velivo.exe"); } } catch (Exception) { }
+                string p = VelivoData.ProgramZeSpisu("Velivo");   // spis programów Velivo - najpierw
+                if (p == null) try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}_is1")) { var d = k?.GetValue("InstallLocation") as string; if (!string.IsNullOrEmpty(d)) p = Path.Combine(d, "Velivo.exe"); } } catch (Exception) { }
                 if (p == null || !File.Exists(p)) p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Velivo", "Velivo.exe");
                 return File.Exists(p) ? p : null;
             }

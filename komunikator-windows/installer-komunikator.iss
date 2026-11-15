@@ -60,6 +60,11 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\VelivoKomunikator.exe"; Icon
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\VelivoKomunikator.exe"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.KomunikatorApp"; Tasks: desktopicon
 
 [Registry]
+; 🧩 spis programów Velivo - każdy program wie o innych (przed instalacją i po deinstalacji); deinstalator wykreśla tylko siebie
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: string; ValueName: "Exe"; ValueData: "{app}\VelivoKomunikator.exe"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: string; ValueName: "Nazwa"; ValueData: "{#AppName}"
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: string; ValueName: "Wersja"; ValueData: "{#AppVer}"
+Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; ▶ start z Windows - serwer i rozmowy działają zawsze (po cichu, w zasobniku); przy odinstalowaniu wpis znika
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Velivo Komunikator"; ValueData: """{app}\VelivoKomunikator.exe"" --autostart"; Flags: uninsdeletevalue
 

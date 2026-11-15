@@ -68,7 +68,7 @@ namespace Velivo
                 timeBeginPeriod(1); var (lc, lt, lo) = Latency == 0 ? (40, 40, 40) : Latency == 2 ? (100, 150, 100) : (60, 80, 60); cap = new WasapiCapture(cable, false, lc);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
-                var myBuf = buf;
+                var myBuf = buf; Diag.Reset();
                 cap.DataAvailable += (s, e) =>
                 {
                     RtThread(); Diag.Cap(e.BytesRecorded / cf.BlockAlign, cf.SampleRate);
@@ -176,6 +176,7 @@ namespace Velivo
                     start = now; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0;
                 }
             }
+            public static void Reset() { capLast = outLast = 0; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0; }   // nowa sesja - przerwa na ponowny start nie liczy się jako zacięcie
             public static void Out() { long now = System.Diagnostics.Stopwatch.GetTimestamp(); if (outLast != 0) { double g = (now - outLast) * tick; if (g > outMax) outMax = g; if (g > 120) outLate++; } outLast = now; }
             public static void Proc(long t) { double ms = t * tick; if (ms > procMax) procMax = ms; }
         }

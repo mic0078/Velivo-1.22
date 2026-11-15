@@ -116,7 +116,8 @@ namespace Velivo
             TextBlock T(string s, double size, Brush c) => new TextBlock { Text = s, FontSize = size, Foreground = c, TextWrapping = TextWrapping.Wrap };
             var on = new CheckBox { Content = L.T("VST3 aktywne – Twoje wtyczki działają przed Audio Balance"), Foreground = fg, IsChecked = Vst3.Active, Margin = new Thickness(0, 0, 0, 4) };
             root.Children.Add(on);
-            var note = T(L.T("Kolejność: oryginał → Twoje wtyczki po kolei → kompresor, korektor, dialogi i wyrównywanie Audio Balance → limiter. Wtyczki do barwy i przestrzeni (EQ, Imager) są bezpieczne; wtyczki ściskające głośność (Maximizer, kompresor) mogą pompować razem z Audio Balance. Wtyczka, która się wysypie, może zamknąć program."), 11, dim);
+            var note = T(L.T("Kolejność: oryginał → Twoje wtyczki → Audio Balance → limiter (opis po najechaniu)"), 11, dim);
+            note.ToolTip = L.T("Kolejność: oryginał → Twoje wtyczki po kolei → kompresor, korektor, dialogi i wyrównywanie Audio Balance → limiter. Wtyczki do barwy i przestrzeni (EQ, Imager) są bezpieczne; wtyczki ściskające głośność (Maximizer, kompresor) mogą pompować razem z Audio Balance. Wtyczka, która się wysypie, może zamknąć program.");   // pełny opis w podpowiedzi - jedna linia, okno bez przewijania
             note.Margin = new Thickness(0, 0, 0, 8); root.Children.Add(note);
             var errs = T("", 11, AbRed); root.Children.Add(errs);
             var list = new StackPanel { Margin = new Thickness(0, 0, 0, 8) }; root.Children.Add(list);

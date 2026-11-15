@@ -138,6 +138,7 @@ namespace Velivo
             { "Własne ustawienia dla tego programu", "Own settings for this app" },
             { "📋 Zapisane: programy, filmy, kanały…", "📋 Saved: apps, films, channels…" },
             { "Kanał: ", "Channel: " },
+            { "Kolejność: oryginał → Twoje wtyczki → Audio Balance → limiter (opis po najechaniu)", "Order: original → your plug-ins → Audio Balance → limiter (hover for details)" },
             { "Film: ", "Film: " },
             { "Własne ustawienia dla tego kanału", "Own settings for this channel" },
             { "Własne ustawienia dla tego filmu", "Own settings for this film" },

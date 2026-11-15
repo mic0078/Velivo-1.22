@@ -116,7 +116,7 @@ namespace Velivo
             void Row(string key, string name, string tip, double min, double max, double step, Func<double, string> fmt)
             {
                 var g = new Grid { Margin = AbPreNoSrc ? new Thickness(0, 0, 14, 4) : new Thickness(0, 0, 0, 2), ToolTip = tip };
-                if (AbPreNoSrc) { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(66) }); }
+                if (AbPreNoSrc) { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(126) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(66) }); }
                 else { g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) }); g.ColumnDefinitions.Add(new ColumnDefinition()); }
                 var lab = new TextBlock { Text = name, Foreground = fg, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 var val = new TextBlock { Foreground = dim, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
@@ -142,7 +142,7 @@ namespace Velivo
             Row("rel", L.T("Powrót"), L.T("Jak szybko wraca po głośnym fragmencie (ms) – dłużej = spokojniej, bez pompowania."), 10, 2000, 10, v => v.ToString("0") + " ms");
             Row("knee", L.T("Miękkie kolano"), L.T("Szerokość płynnego przejścia wokół progu (dB) – im szersze, tym mniej słychać moment zadziałania."), 0, 12, 0.5, v => v.ToString("0.0") + " dB");
             Row("mk", L.T("Podbicie"), L.T("Stałe podbicie po kompresji (dB)."), -12, 24, 0.5, Db);
-            if (AbPreNoSrc) { auto.Margin = new Thickness(0, 0, 14, 0); auto.Content = L.T("Automatyczne podbicie"); opts.Children.Add(auto); } else panel.Children.Add(auto);
+            if (AbPreNoSrc) { auto.Margin = new Thickness(0, 0, 14, 0);  opts.Children.Add(auto); } else panel.Children.Add(auto);
             Row("mix", L.T("Mix (równoległa)"), L.T("Ile sygnału skompresowanego, a ile czystego – poniżej 100% film zachowuje naturalne uderzenia."), 0, 100, 1, v => v.ToString("0") + "%");
             Row("et", L.T("Próg ciszy (ekspander)"), L.T("Poniżej tej głośności szum tła jest łagodnie ściszany zamiast wzmacniany (dB)."), -80, -30, 0.5, Db);
             Row("er", L.T("Stopień ekspandera"), L.T("Jak mocno ściszać szum poniżej progu ciszy (1:1 – wcale)."), 1, 4, 0.1, v => v.ToString("0.0") + ":1");

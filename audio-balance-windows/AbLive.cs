@@ -22,7 +22,7 @@ namespace Velivo
         (Border fill, TextBlock val, Grid track) srcB, chgB, outB, grB;
         Canvas spec, hist; const int NB = 28; readonly Rectangle[] bars = new Rectangle[NB], peaks = new Rectangle[NB]; readonly double[] sm = new double[NB], smO = new double[NB];
         readonly double[] edges = new double[NB + 1]; readonly double[] re = new double[2048], im = new double[2048], re2 = new double[2048], im2 = new double[2048];
-        Polyline plIn, plOut; Line tgt; const int HN = 300; readonly double[] hIn = new double[HN], hOut = new double[HN]; DateTime hLast;
+        Polyline plIn, plOut; Line tgt; TextBlock tgtTxt; readonly TextBlock[] scale = new TextBlock[3]; const int HN = 300; readonly double[] hIn = new double[HN], hOut = new double[HN]; DateTime hLast;
 
         public AbLive(AbEngine e, Brush fg, Brush dim)
         {
@@ -30,7 +30,7 @@ namespace Velivo
             for (int i = 0; i <= NB; i++) edges[i] = 40 * Math.Pow(16000.0 / 40, i / (double)NB);
             for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70;
             var hd = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-            var hr = new TextBlock { Text = L.T("widmo: słupki – oryginał, kreski – po poprawie · linia: głośność z 30 s, żółta: cel"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(hr, Dock.Right);
+            var hr = new TextBlock { Text = L.T("widmo: słupki – oryginał, kreski – po poprawie · linie: głośność z 30 s (biała – po poprawie, szara – oryginał), zielona – cel"), Foreground = dim, FontSize = 10, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(hr, Dock.Right);
             hd.Children.Add(hr); hd.Children.Add(new TextBlock { Text = L.T("📊 Podgląd"), Foreground = fg, FontSize = 13, FontWeight = FontWeights.SemiBold });
             Root.Children.Add(hd); Root.Children.Add(tiles);
             srcB = Bar(L.T("ŹRÓDŁO"), Red, L.T("Głośność dźwięku, który gra Windows (LUFS, przed poprawą)."));
@@ -48,8 +48,10 @@ namespace Velivo
             // wykres głośności z 30 s rysowany na widmie (makieta): biała – po poprawie, szara – oryginał, żółta – cel
             hist = spec;
             plIn = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x8A, 0x90, 0xA8)), StrokeThickness = 1.2 }; plOut = new Polyline { Stroke = new SolidColorBrush(Color.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1.6 };
-            tgt = new Line { Stroke = Gold, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 4, 3 } };
-            spec.Children.Add(tgt); spec.Children.Add(plIn); spec.Children.Add(plOut);
+            tgt = new Line { Stroke = Green, StrokeThickness = 1.2, StrokeDashArray = new DoubleCollection { 4, 3 } };
+            tgtTxt = new TextBlock { Foreground = Green, FontSize = 11, FontWeight = FontWeights.SemiBold, Background = new SolidColorBrush(Color.FromArgb(0xC0, 0x10, 0x12, 0x1A)), Padding = new Thickness(4, 0, 4, 0) };
+            for (int k = 0; k < 3; k++) { scale[k] = new TextBlock { Foreground = dim, FontSize = 9, Text = (-20 * (k + 1)).ToString() + " dB" }; spec.Children.Add(scale[k]); }
+            spec.Children.Add(tgt); spec.Children.Add(plIn); spec.Children.Add(plOut); spec.Children.Add(tgtTxt);
             tm.Tick += (s, a) => Tick();
             Root.IsVisibleChanged += (s, a) => { if (Root.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy Podgląd na ekranie
         }
@@ -105,6 +107,9 @@ namespace Velivo
                 var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
                 for (int i = 0; i < HN; i++) { double x = i * hw / (HN - 1); a1.Add(new Point(x, Y(hIn[i]))); a2.Add(new Point(x, Y(hOut[i]))); }
                 plIn.Points = a1; plOut.Points = a2; tgt.X1 = 0; tgt.X2 = hw; tgt.Y1 = tgt.Y2 = Y(p.EffTarget);
+                // podpis celu (zielony) i skala dB - wiadomo, co pokazuje wykres
+                tgtTxt.Text = L.T("cel ") + p.EffTarget.ToString("0.0") + " LUFS"; Canvas.SetRight(tgtTxt, 4); Canvas.SetTop(tgtTxt, Math.Max(0, Y(p.EffTarget) - 16));
+                for (int k = 0; k < 3; k++) { Canvas.SetLeft(scale[k], 3); Canvas.SetTop(scale[k], Y(-20 * (k + 1)) - 12); }
             }
         }
 

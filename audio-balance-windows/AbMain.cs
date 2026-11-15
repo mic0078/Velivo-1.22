@@ -118,13 +118,13 @@ namespace Velivo
         Grid Choice(string label, (string key, string text, string tip)[] items, Func<string> cur, Action<string> pick)
         {
             var g = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
-            g.Children.Add(new TextBlock { Text = label, Foreground = Dim, VerticalAlignment = VerticalAlignment.Center });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(104) }); g.ColumnDefinitions.Add(new ColumnDefinition());
+            g.Children.Add(new TextBlock { Text = label, Foreground = Dim, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap });
             var seg = new StackPanel { Orientation = Orientation.Horizontal }; var box = new Border { Background = Seg, CornerRadius = new CornerRadius(8), Padding = new Thickness(3), HorizontalAlignment = HorizontalAlignment.Left, Child = seg };
             Grid.SetColumn(box, 1); g.Children.Add(box);
             var bs = new List<(Button b, string k)>();
             void Mark() { foreach (var (b, k) in bs) b.Background = k == cur() ? Acc : Brushes.Transparent; }
-            foreach (var (k, t, tip) in items) { var kk = k; var b = Mk(t, () => { pick(kk); Mark(); }, tip); b.Margin = new Thickness(0); b.Padding = new Thickness(11, 4, 11, 4); bs.Add((b, kk)); seg.Children.Add(b); }
+            foreach (var (k, t, tip) in items) { var kk = k; var b = Mk(t, () => { pick(kk); Mark(); }, tip); b.Margin = new Thickness(0); b.Padding = new Thickness(9, 4, 9, 4); bs.Add((b, kk)); seg.Children.Add(b); }
             Mark(); return g;
         }
         static readonly Brush Seg = new SolidColorBrush(Color.FromRgb(0x22, 0x26, 0x34));
@@ -180,8 +180,8 @@ namespace Velivo
             var sets = new StackPanel(); sets.Children.Add(Head(L.T("⚙ Ustawienia")));
             sets.Children.Add(Choice(L.T("Wyrównywanie"), new[] { ("off", L.T("Wył."), (string)null), ("auto", "Auto", L.T("Wyrównywanie odczuwalnej głośności.")), ("limit", L.T("Tylko szczyty"), L.T("Tylko ograniczanie głośnych szczytów.")) },
                 () => Get("profil") ?? "auto", v => { Put("profil", v); Apply(); }));
-            sets.Children.Add(Choice(L.T("Intensywność"), new[] { ("light", L.T("Lekko"), (string)null), ("normal", L.T("Normalnie"), (string)null), ("strong", L.T("Mocno"), (string)null) }, () => Get("sila") ?? "normal", v => { Put("sila", v); Apply(); }));
-            sets.Children.Add(Choice(L.T("Wyraźne dialogi"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), (string)null), ("2", L.T("Mocno"), (string)null) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
+            sets.Children.Add(Choice(L.T("Siła wyrównania"), new[] { ("light", L.T("Lekko"), L.T("Wyrównuje głośność delikatnie – zostaje więcej naturalnej dynamiki.")), ("normal", L.T("Normalnie"), L.T("Wyrównuje głośność w zwykłym stopniu (zalecane).")), ("strong", L.T("Mocno"), L.T("Wyrównuje głośność najmocniej – cichy szept i głośny wybuch prawie tak samo głośne.")) }, () => Get("sila") ?? "normal", v => { Put("sila", v); Apply(); }));
+            sets.Children.Add(Choice(L.T("Wyraźne dialogi"), new[] { ("0", L.T("Wył."), (string)null), ("1", L.T("Średnio"), L.T("Mowa średnio podbita, gdy przykrywa ją muzyka lub efekty.")), ("2", L.T("Mocno"), L.T("Mowa mocno podbita, gdy przykrywa ją muzyka lub efekty.")) }, () => Get("dialogi") ?? "0", v => { Put("dialogi", v); Apply(); }));
             sets.Children.Add(Choice(L.T("Opóźnienie"), new[] { ("0", "0,1 s", L.T("Do filmów i gier. Na słabszym komputerze może pykać.")), ("1", "0,2 s", (string)null), ("2", "0,35 s", L.T("Najwięcej zapasu – bez pyknięć, dźwięk trochę później.")) },
                 () => Get("opoznienie") ?? "1", v => { Put("opoznienie", v); eng.Latency = int.Parse(v); StartEngine(); }));
             var tgt = new ComboBox { ToolTip = L.T("Poziom docelowy – do jakiej głośności wyrównywać.") };
@@ -189,13 +189,13 @@ namespace Velivo
             var cur = Get("cel") ?? "0"; tgt.SelectedItem = tgt.Items.Cast<ComboBoxItem>().FirstOrDefault(i => ((float)i.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture) == cur) ?? tgt.Items[0];
             tgt.SelectionChanged += (s, e) => { if (tgt.SelectedItem is ComboBoxItem it) { Put("cel", ((float)it.Tag).ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); } };
             { var g = new Grid { Margin = new Thickness(0, 0, 0, 8) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) }); g.ColumnDefinitions.Add(new ColumnDefinition());
-              g.Children.Add(new TextBlock { Text = L.T("Poziom docelowy"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(tgt, 1); g.Children.Add(tgt); sets.Children.Add(g); }
+              g.Children.Add(new TextBlock { Text = L.T("Cel (LUFS)"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center }); Grid.SetColumn(tgt, 1); g.Children.Add(tgt); sets.Children.Add(g); }
             var byp = new CheckBox { Content = L.T("Bez przetwarzania"), Foreground = Fg, IsChecked = Get("obejscie") == "1", Margin = new Thickness(0, 0, 16, 0), ToolTip = L.T("Dźwięk bez zmian – do porównania.") };
             byp.Click += (s, e) => { Put("obejscie", byp.IsChecked == true ? "1" : "0"); Apply(); };
             var auto = new CheckBox { Content = L.T("Start z Windows"), Foreground = Fg, IsChecked = Autostart, ToolTip = L.T("Uruchamiaj razem z Windows (w zasobniku)") };
             auto.Click += (s, e) => Autostart = auto.IsChecked == true;
-            var chk = new WrapPanel { Margin = new Thickness(112, 2, 0, 0) }; chk.Children.Add(byp); chk.Children.Add(auto); sets.Children.Add(chk);
-            var lower = new Grid(); lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); lower.ColumnDefinitions.Add(new ColumnDefinition());
+            var chk = new WrapPanel { Margin = new Thickness(104, 2, 0, 0) }; chk.Children.Add(byp); chk.Children.Add(auto); sets.Children.Add(chk);
+            var lower = new Grid(); lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star) }); lower.ColumnDefinitions.Add(new ColumnDefinition());
             var c2 = Card(sets); c2.Margin = new Thickness(0, 0, 10, 0); var c4 = Card(EqPanel()); c4.Margin = new Thickness(0); Grid.SetColumn(c4, 1);
             lower.Children.Add(c2); lower.Children.Add(c4);
             var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; left.Children.Add(c1); left.Children.Add(lower); cols.Children.Add(left);

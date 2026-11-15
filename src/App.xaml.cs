@@ -145,7 +145,7 @@ namespace Velivo
             WatchUncleanExit();
             var main = new Velivo.MainWindow(urls);
             if (Velivo.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
-            else if ((autoDelay >= 0 || kbdOnly || chatOnly) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
+            else if ((autoDelay >= 0 || kbdOnly || chatOnly || !Wariant.MaKarty) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
             main.Show();
             if (kbdOnly) main.Dispatcher.BeginInvoke(new Action(Velivo.MainWindow.ShowScreenKeyboard), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (chatOnly) main.Dispatcher.BeginInvoke(new Action(() => main.ShowMessenger()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);

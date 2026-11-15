@@ -225,6 +225,7 @@ namespace Velivo
                     TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                     if (SilentStart) StartSilently();
+                    _sessionReady = true;
                     if (Wariant.Odtwarzacz) Dispatcher.BeginInvoke(new Action(ShowKanapa), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🧩 Odtwarzacz startuje Kanapą
                 }
                 catch (Exception ex)
@@ -234,6 +235,7 @@ namespace Velivo
                 }
             };
             PreviewKeyDown += OnKeys;
+            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); ShowKanapa(); } };   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
         }
 
         void EnsureOneTimeQuickAccessWebViewReset()
@@ -391,6 +393,7 @@ namespace Velivo
 
         // ---------- zakladki ----------
 
+        bool _sessionReady;   // 🧩 start skończony (Odtwarzacz: od teraz pokazanie okna = Kanapa)
         void AddTab(string url) { AddTab(url, false); }
 
         void AddTab(string url, bool isPrivate) { AddTab(url, isPrivate, null, null); }
@@ -399,6 +402,13 @@ namespace Velivo
         // nowy widok trzeba oddac przez e.NewWindow, inaczej dodatek nie dostanie uchwytu karty.
         void AddTab(string url, bool isPrivate, CoreWebView2NewWindowRequestedEventArgs pending, CoreWebView2Deferral deferral)
         {
+            if (!Wariant.MaKarty)   // 🧩 Velivo Odtwarzacz nie ma kart: strona otwiera się w przeglądarce (Velivo / Velivo Przeglądarka, gdy domyślna)
+            {
+                try { deferral?.Complete(); } catch (Exception) { }
+                if (!string.IsNullOrWhiteSpace(url) && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); }
+                return;
+            }
             var tab = new BrowserTab { Private = isPrivate || _creatingBank, Bank = _creatingBank, View = new WebView2(), Title = new TextBlock { Text = L.T("Nowa karta"), MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
             var close = new Button { Content = "×", Width = 20, Height = 20, FontSize = 13, Margin = new Thickness(6, 0, 0, 0) };
             var panel = new StackPanel { Orientation = Orientation.Horizontal };

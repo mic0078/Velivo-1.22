@@ -12,10 +12,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- 💎 edycja bezpłatna: dotnet publish -p:Podstawowa=true (bez Audio Balance, VST3, Supertonic i XTTS) -->
     <DefineConstants Condition="'$(Podstawowa)' == 'true'">$(DefineConstants);PODSTAWOWA</DefineConstants>
-    <!-- 🧩 osobne programy z tego samego kodu: dotnet publish -p:Wariant=Odtwarzacz | Przegladarka | Klawiatura (bez = pełne Velivo Premium) -->
+    <!-- 🧩 osobne programy z tego samego kodu: dotnet publish -p:Wariant=Odtwarzacz | Przegladarka (bez = pełne Velivo Premium) -->
     <DefineConstants Condition="'$(Wariant)' == 'Odtwarzacz'">$(DefineConstants);WARIANT_ODTWARZACZ</DefineConstants>
     <DefineConstants Condition="'$(Wariant)' == 'Przegladarka'">$(DefineConstants);WARIANT_PRZEGLADARKA</DefineConstants>
-    <DefineConstants Condition="'$(Wariant)' == 'Klawiatura'">$(DefineConstants);WARIANT_KLAWIATURA</DefineConstants>
     <AssemblyName>Velivo</AssemblyName>
     <AssemblyName Condition="'$(Wariant)' != ''">Velivo$(Wariant)</AssemblyName>
     <Product>Velivo</Product>
@@ -24,6 +23,8 @@
     <Company>andro</Company>
     <RootNamespace>Velivo</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(Wariant)' == 'Odtwarzacz'">odtwarzacz.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(Wariant)' == 'Przegladarka'">przegladarka.ico</ApplicationIcon>
     <Version>1.22</Version>
     <!-- Velivo jest po polsku i angielsku: bez tlumaczen .NET/WPF na inne jezyki (ok. 12 folderow cs, de, ja, zh-Hans...) -->
     <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>

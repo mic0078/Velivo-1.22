@@ -446,7 +446,7 @@ namespace Velivo
                 catch (Exception) { }
             if (key == srcNow) return;
             srcNow = key;
-            win.Dispatcher.BeginInvoke(new Action(() => MainWindow.AbPreApplyFor(name, tv, isApp)));
+            win.Dispatcher.BeginInvoke(new Action(() => { MainWindow.AbPreApplyFor(name, tv, isApp); if (!isApp) eng.Proc.NewMedia(); }));   // nowy kanał / film = pomiar od nowa (jak w Velivo) - próg kompresora i poziom nie zostają po poprzednim filmie
         }
         volatile string cinC, didC, dnameC; volatile bool devBusy, velivoOn; volatile string appNow; string appCand; int appCandN; Mutex busyMx; int delayShown = -1; DateTime devAt = DateTime.MinValue;
         void UpdateDefBtn(bool fresh = false)

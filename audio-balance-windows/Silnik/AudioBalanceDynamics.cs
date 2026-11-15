@@ -67,12 +67,12 @@ namespace Velivo
         public volatile float InputDb = -120, OutputDb = -120;   // poziom wykrywania na wejściu i wynik po kompresji (dB) - kropka na wykresie i mierniki
         public volatile float EffExpanderDb = -52;   // próg ciszy w tej chwili (dopasowany do filmu)
         public volatile float EffThresholdDb = -32;   // próg w tej chwili (przy progu automatycznym - liczony z filmu)
-        int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
+        int mtrN, progN, hiN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
         DynParams cp; double ca, cr, cRms, cAvg, cs;   // współczynniki liczone raz na zmianę ustawień (nie co próbkę)
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progN = 0; }
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; progDb = double.NaN; progN = 0; hiN = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);
@@ -116,8 +116,10 @@ namespace Velivo
             double xDb = lvl > 1e-9 ? 20 * Math.Log10(lvl) : -180;
             if ((mtrN & 63) == 0 && xDb > -70)   // mierzone zawsze (nie tylko z zaznaczonym progiem automatycznym) - po zaznaczeniu próg od razu na właściwym miejscu, bez zależności od chwili kliknięcia
             {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
+                if (!double.IsNaN(progDb) && xDb <= progDb + 6) hiN = 0;   // krótki huk / powrót do poziomu - licznik „nowego poziomu” od zera
                 if (double.IsNaN(progDb)) progDb = xDb;
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
+                else if (xDb > progDb + 6 && ++hiN > 5 * fs / 64) progDb += (xDb - progDb) / (2.0 * fs / 64);   // nowy, wyższy poziom dłużej niż 5 s (głośniejszy film / scena) - próg dochodzi w kilka sekund; inaczej rósł 3 dB/min i kompresor ściskał o 10+ dB
                 else if (xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);   // po 30 s średnia z ok. 60 s - próg stoi, nie jeździ za uderzeniami i frazami muzyki (falowanie zgłoszone przez właściciela)
             }
             double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;

@@ -63,7 +63,7 @@ namespace Velivo
             pgLu = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x55, 0x2E, 0xD3, 0xC6)), Stroke = Teal, StrokeThickness = 1.4 };
             pgCo = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = Gold, StrokeThickness = 1.4 };
             work.Children.Add(pgLu); work.Children.Add(pgCo);
-            for (int k = 0; k < 3; k++) { wScale[k] = new TextBlock { Foreground = dim, FontSize = 10, Width = GL - 6, TextAlignment = TextAlignment.Right, Text = k == 0 ? "+12" : k == 1 ? "0 dB" : "-12" }; work.Children.Add(wScale[k]); }
+            for (int k = 0; k < 3; k++) { wScale[k] = new TextBlock { Foreground = dim, FontSize = 10, Width = GL - 6, TextAlignment = TextAlignment.Right, Text = k == 0 ? "+24" : k == 1 ? "0 dB" : "-24" }; work.Children.Add(wScale[k]); }
             Root.Children.Add(work);
             // wykres głośności z 30 s rysowany na widmie (makieta): biała – po poprawie, szara – oryginał, żółta – cel
             hist = spec;
@@ -132,12 +132,12 @@ namespace Velivo
                 double hw = hist.ActualWidth, hh = hist.ActualHeight, ph = hh - GB - GT, pw = hw - GL; double Y(double d) => GT + (-Math.Max(-60, Math.Min(0, d))) / 60 * ph;
                 var a1 = new PointCollection(HN); var a2 = new PointCollection(HN);
                 for (int i = 0; i < HN; i++) { double x = GL + i * pw / (HN - 1); a1.Add(new Point(x, Y(hIn[i]))); a2.Add(new Point(x, Y(hOut[i]))); }
-                { double ww = work.ActualWidth, wh = work.ActualHeight, mid = wh / 2, wp = ww - GL; double W(double d) => mid - Math.Max(-12, Math.Min(12, d)) / 12 * (mid - 4);
+                { double ww = work.ActualWidth, wh = work.ActualHeight, mid = wh / 2, wp = ww - GL; double W(double d) => mid - Math.Max(-24, Math.Min(24, d)) / 24 * (mid - 4);   // ±24 dB - przy ±12 duże ściskanie (np. -14) leżało płasko na dnie i wyglądało nieprawdziwie
                   var q1 = new PointCollection(HN + 2) { new Point(GL, mid) }; var q2 = new PointCollection(HN + 2) { new Point(GL, mid) };
                   for (int i = 0; i < HN; i++) { double x = GL + i * wp / (HN - 1); q1.Add(new Point(x, W(hG[i]))); q2.Add(new Point(x, W(hGr[i]))); }
                   q1.Add(new Point(ww, mid)); q2.Add(new Point(ww, mid)); pgLu.Points = q1; pgCo.Points = q2;
                   zero.X1 = GL; zero.X2 = ww; zero.Y1 = zero.Y2 = mid;
-                  for (int k = 0; k < 3; k++) { Canvas.SetLeft(wScale[k], 0); Canvas.SetTop(wScale[k], W(12 - 12 * k) - 7); } }
+                  for (int k = 0; k < 3; k++) { Canvas.SetLeft(wScale[k], 0); Canvas.SetTop(wScale[k], W(24 - 24 * k) - 7); } }
                 plIn.Points = a1; plOut.Points = a2; tgt.X1 = GL; tgt.X2 = hw; tgt.Y1 = tgt.Y2 = Y(p.EffTarget);
                 // podpis celu (zielony) i skala dB - wiadomo, co pokazuje wykres
                 tgtTxt.Text = L.T("cel ") + p.EffTarget.ToString("0.0") + " LUFS"; Canvas.SetRight(tgtTxt, 4); Canvas.SetTop(tgtTxt, Math.Max(0, Y(p.EffTarget) - 16));

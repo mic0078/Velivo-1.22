@@ -68,12 +68,13 @@ namespace Velivo
                 timeBeginPeriod(1); var (lc, lt, lo) = Latency == 0 ? (40, 40, 40) : Latency == 2 ? (100, 150, 100) : (60, 80, 60); cap = new WasapiCapture(cable, false, lc);   // bufor kabla 100 ms: przy 30 ms jedno spóźnione odpytanie (zegar Windows ~16 ms) gubiło próbki = pyknięcie   // odpytywanie, nie zdarzenia - tryb zdarzeń kończył się po cichu po ~1,5 s (VB-Cable / Realtek, dziennik właściciela)
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
+                var myBuf = buf;
                 cap.DataAvailable += (s, e) =>
                 {
                     RtThread(); Diag.Cap(e.BytesRecorded / cf.BlockAlign, cf.SampleRate);
-                    buf.AddSamples(e.Buffer, 0, e.BytesRecorded);
+                    myBuf.AddSamples(e.Buffer, 0, e.BytesRecorded);   // własny bufor tej sesji - stary odbiór nie dokłada do nowego
                 };
-                cap.RecordingStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odbiór z CABLE Output" + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
+                cap.RecordingStopped += (s, e) => { if (Running && ReferenceEquals(s, cap)) { App.LogInfo("Zatrzymany: odbiór z CABLE Output" + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odbiór z CABLE Output przerwany") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 ISampleProvider sp = buf.ToSampleProvider();
                 if (sp.WaveFormat.Channels == 1) sp = new MonoToStereoSampleProvider(sp);
                 else if (sp.WaveFormat.Channels > 2) sp = new Downmix(sp);
@@ -81,7 +82,7 @@ namespace Velivo
                 sp = new Elastic(sp, buf, lt);   // elastyczny bufor: zapas stale ok. 100 ms, bez przerw i trzasków (zegary kabla i głośników się rozjeżdżają)
                 outp = new WasapiOut(dev, AudioClientShareMode.Shared, false, lo);   // jw. - odpytywanie, 100 ms zapasu
                 outp.Init(new Processing(sp, Proc));
-                outp.PlaybackStopped += (s, e) => { if (Running) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
+                outp.PlaybackStopped += (s, e) => { if (Running && ReferenceEquals(s, outp)) { App.LogInfo("Zatrzymany: odtwarzanie na " + OutputName + (e.Exception != null ? " – " + e.Exception.Message : " (bez błędu Windows)")); if (e.Exception != null) App.LogError(e.Exception); Error = L.T("odtwarzanie na głośnikach przerwane") + (e.Exception != null ? ": " + e.Exception.Message : ""); Running = false; Stopped?.Invoke(); } };
                 Proc.NewMedia(); Running = true;
                 cap.StartRecording(); outp.Play();
                 App.LogInfo("Audio Balance (program z " + System.IO.File.GetLastWriteTime(Environment.ProcessPath).ToString("yyyy-MM-dd HH:mm") + ", pomiar co 30 s): CABLE Output (" + cf + ") → " + OutputName);

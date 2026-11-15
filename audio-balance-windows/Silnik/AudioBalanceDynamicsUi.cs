@@ -33,6 +33,17 @@ namespace Velivo
             _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv;
             string own = null; _abPreSrcOwn = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own);
             AbProc.Pre.Params = DynParams.Load(_abPreSrcOwn ? own : GetPref("ab-kompresor"));
+            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc);   // 🔈 bardzo ciche nagrania: wszędzie (włącznik) albo tylko dla zapamiętanych filmów / kanałów / programów
+        }
+        // 🔈 lista materiałów, które potrzebują „Bardzo ciche nagrania” (domyślnie wyłączone - włączane dla konkretnego filmu / kanału / programu)
+        internal static bool AbQuietGlobal => GetPref("ab-cichy") == "1";
+        internal static string AbQuietSrc => _abPreSrc;
+        internal static bool AbQuietFor(string src) => src != null && ("\n" + (GetPref("ab-cichy-zrodla") ?? "") + "\n").Contains("\n" + src + "\n", StringComparison.OrdinalIgnoreCase);
+        internal static void AbQuietSet(string src, bool on)
+        {
+            if (src == null) return; var l = new List<string>((GetPref("ab-cichy-zrodla") ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries));
+            l.RemoveAll(x => x.Equals(src, StringComparison.OrdinalIgnoreCase)); if (on) l.Add(src);
+            SetPref("ab-cichy-zrodla", string.Join("\n", l)); if (src.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase)) AbProc.QuietOn = AbQuietGlobal || on;
         }
 
         // 🎚 Kompresor wstępny w oknie Audio Balance (zakładka Korektor): włącznik, presety, wszystkie ustawienia, miernik redukcji

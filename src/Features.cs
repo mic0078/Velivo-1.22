@@ -433,7 +433,7 @@ namespace Velivo
             return d;
         }
 
-        string Prompt(string label, string value)
+        string Prompt(string label, string value, Window owner = null)   // owner - okno, nad którym ma się pokazać (np. Audio Monitor na wierzchu)
         {
             var box = new TextBox { Text = value, Margin = new Thickness(10, 4, 10, 4), Padding = new Thickness(4) };
             var ok = new Button { Content = "OK", Width = 80, Height = 28, IsDefault = true, Margin = new Thickness(10), HorizontalAlignment = HorizontalAlignment.Right };
@@ -441,7 +441,7 @@ namespace Velivo
             panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(10, 10, 10, 0) });
             panel.Children.Add(box);
             panel.Children.Add(ok);
-            var w = new Window { Title = "Velivo", Width = 400, SizeToContent = SizeToContent.Height, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Content = panel };
+            var w = new Window { Title = "Velivo", Width = 400, SizeToContent = SizeToContent.Height, Owner = owner ?? this, Topmost = owner?.Topmost == true, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Content = panel };
             ok.Click += (s, e) => w.DialogResult = true;
             w.Loaded += (s, e) => { box.Focus(); box.SelectAll(); };
             return w.ShowDialog() == true ? box.Text : null;

@@ -68,7 +68,7 @@ namespace Velivo
         void BuildWindow()
         {
             win = new Window { Title = "Velivo Audio Balance", Width = 470, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, Background = Bg, Foreground = Fg, WindowStartupLocation = WindowStartupLocation.CenterScreen };
-            try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/app.ico")); } catch (Exception) { }
+            try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/audiobalance.ico")); } catch (Exception) { }
             var root = new StackPanel { Margin = new Thickness(14) };
             root.Children.Add(T("Velivo Audio Balance", 18, Fg, true));
             root.Children.Add(T(L.T("Cały dźwięk Windows (przeglądarka, serwisy filmowe, gry) wyrównany jak w Velivo: kompresor, poziom LUFS i limiter."), 11, Dim));
@@ -115,7 +115,7 @@ namespace Velivo
             root.Children.Add(bw);
             win.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 };
             win.Closing += (s, e) => { if (!exiting) { e.Cancel = true; win.Hide(); } };   // ✕ = do zasobnika (dźwięk dalej przetwarzany)
-            tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };   // 10×/s - ikona w zasobniku płynnie (jak w Velivo)
             tm.Tick += (s, e) => Tick(); tm.Start();
             FillOutputs(); Status();
         }
@@ -130,6 +130,7 @@ namespace Velivo
         void Tick()
         {
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
+            { var ic = AbIcon.Frame(eng.Running && !eng.Proc.Bypass ? eng.Proc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
             if (!win.IsVisible) return;
             var p = eng.Proc; string F(double x) => double.IsNegativeInfinity(x) || x < -69 || !eng.Running ? "–" : x.ToString("0.0");
             srcV.Text = F(p.Raw.ShortTerm); outV.Text = F(p.Out.ShortTerm);
@@ -175,7 +176,7 @@ namespace Velivo
         void BuildTray()
         {
             tray = new System.Windows.Forms.NotifyIcon { Visible = true, Text = "Velivo Audio Balance" };
-            try { tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath); } catch (Exception) { tray.Icon = System.Drawing.SystemIcons.Application; }
+            tray.Icon = AbIcon.Frame(double.NegativeInfinity);   // słupki Audio Balance - rosną z głośnością (Tick)
             var m = new System.Windows.Forms.ContextMenuStrip();
             m.Items.Add(L.T("Pokaż"), null, (s, e) => Show());
             m.Items.Add(L.T("Zakończ"), null, (s, e) => win.Dispatcher.Invoke(Exit));

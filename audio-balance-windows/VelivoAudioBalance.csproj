@@ -16,7 +16,7 @@
     <AssemblyTitle>Velivo Audio Balance</AssemblyTitle>
     <Company>andro</Company>
     <RootNamespace>Velivo</RootNamespace>
-    <ApplicationIcon>..\src\app.ico</ApplicationIcon>
+    <ApplicationIcon>..\src\audiobalance.ico</ApplicationIcon>
     <Version>1.22</Version>
     <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -32,7 +32,7 @@
     <Compile Include="..\src\Lang.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="..\src\app.ico" Link="app.ico" />
-    <Content Include="..\src\app.ico" Link="app.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="..\src\audiobalance.ico" Link="audiobalance.ico" />
+    <Content Include="..\src\audiobalance.ico" Link="audiobalance.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

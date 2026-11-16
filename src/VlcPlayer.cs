@@ -1574,6 +1574,22 @@ namespace Velivo
             bigLogo.Children.Add(new TextBlock { Text = "Velivo", FontSize = 52, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0),
                 Foreground = new LinearGradientBrush(Color.FromRgb(0x8B, 0x5C, 0xF6), Color.FromRgb(0x63, 0x66, 0xF1), 0) });
             overlay.Children.Add(bigLogo);
+            // 🎵 plik dźwiękowy: logo zostaje, pod nim pionowe słupki jak w widżecie Audio Balance (poziom z procesora dźwięku Velivo; bez niego - sam ruch)
+            var aBars = new System.Windows.Shapes.Rectangle[9]; var aCan = new Canvas { Width = 9 * 14, Height = 70, Margin = new Thickness(0, 24, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, Visibility = Visibility.Collapsed };
+            for (int i = 0; i < 9; i++) { double t = i / 8.0; aBars[i] = new System.Windows.Shapes.Rectangle { Width = 9, RadiusX = 3, RadiusY = 3, Fill = new SolidColorBrush(Color.FromRgb((byte)(0x2E + 78 * t), (byte)(0xD3 - 119 * t), (byte)(0xC6 + 57 * t))) }; Canvas.SetLeft(aBars[i], i * 14); aCan.Children.Add(aBars[i]); }
+            bigLogo.Children.Add(aCan);
+            double aLvl = 0; int aK = 0;
+            var aTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            aTimer.Tick += (s, e) =>
+            {
+                bool playing = false; try { playing = mp.IsPlaying; } catch (Exception) { }
+                double m = _abOut != null && AbProc.Active && AbFlowing() ? AbProc.Out.Momentary : double.NaN;
+                double target = !playing ? 0 : double.IsNaN(m) ? 0.6 : double.IsInfinity(m) ? 0 : Math.Max(0, Math.Min(1, (m + 50) / 45));
+                aLvl += (target - aLvl) * (target > aLvl ? 0.6 : 0.25); aK++;
+                for (int i = 0; i < 9; i++) { double h = 4 + 66 * aLvl * (0.5 + 0.5 * Math.Abs(Math.Sin(aK * 0.23 + i * 1.1))); aBars[i].Height = h; Canvas.SetTop(aBars[i], 70 - h); }
+            };
+            win.Closed += (s, e) => aTimer.Stop();
+            Func<bool> isAudio = () => _playlist != null && _playIndex >= 0 && _playIndex < _playlist.Count && IsAudioFile(_playlist[_playIndex]);
             var osd = new TextBlock { Foreground = Brushes.White, FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
                 Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 4 }, Visibility = Visibility.Collapsed };
             overlay.Children.Add(osd);
@@ -3142,7 +3158,7 @@ namespace Velivo
                 timeNow.Text = FormatTime(e.Time);
                 if (!seeking && mp.Length > 0 && !seekHold(e.Time)) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; bigLogo.Visibility = Visibility.Collapsed; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); if (isAudio()) { overlay.Background = Brushes.Black; bigLogo.Visibility = Visibility.Visible; aCan.Visibility = Visibility.Visible; aTimer.Start(); } else { overlay.Background = see; bigLogo.Visibility = Visibility.Collapsed; aCan.Visibility = Visibility.Collapsed; aTimer.Stop(); } if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
             // po Stop / koncu pod obrazem jest jasne okienko VLC - zaslaniamy je na czarno
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; bigLogo.Visibility = Visibility.Visible; }));

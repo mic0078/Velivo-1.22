@@ -190,14 +190,6 @@ namespace Velivo
                 buf = new BufferedWaveProvider(cap.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromMilliseconds(1000), ReadFully = false };
                 var cf = cap.WaveFormat;
                 var myBuf = buf; Diag.Reset();
-                var dp = Proc; Diag.Extra = () =>
-                {
-                    if (!dp.QuietOn) return null;
-                    var c = System.Globalization.CultureInfo.InvariantCulture; long all = Math.Max(1, dp.DgAll);
-                    var t = string.Format(c, "Bardzo ciche: źródło {0:0.0}, po korektorze/VST/kompresorze {1:0.0}, nagranie (30 s) {2:0.0}, próg {3:0.0}, cel {4:0.0}, podstawa {5:0.0}, dodatkowe {6:0.0} dB, cel wzmocnienia {7:0.0} dB, teraz +{8:0.0} dB; regulacja {9:0}% czasu, lektor {10:0}%",
-                        dp.Raw.ShortTerm, dp.In.ShortTerm, dp.QuietLevel, dp.DgQb, dp.EffTarget, dp.DgBasis, dp.DgXb, dp.DgWant, dp.QuietNow, 100.0 * dp.DgReg / all, 100.0 * dp.DgLek / all);
-                    dp.DgReg = dp.DgAll = dp.DgLek = 0; return t;
-                };
                 cap.DataAvailable += (s, e) =>
                 {
                     RtThread(); Diag.Cap(e.BytesRecorded / cf.BlockAlign, cf.SampleRate);
@@ -302,11 +294,10 @@ namespace Velivo
                 if ((now - start) * tick >= 30000)
                 {
                     double sec = (now - start) * tick / 1000, pct = samples / (sec * sr) * 100;
-                    var line = $"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms"; var ex = Extra?.Invoke(); if (ex != null) line += "\n  " + ex; System.Threading.Tasks.Task.Run(() => App.LogInfo(line));   // zapis na dysk poza wątkiem dźwięku
+                    var line = $"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms"; System.Threading.Tasks.Task.Run(() => App.LogInfo(line));   // zapis na dysk poza wątkiem dźwięku
                     start = now; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0;
                 }
             }
-            public static Func<string> Extra;   // 🔬 dopisek do pomiaru (Bardzo ciche nagrania)
             public static void Reset() { capLast = outLast = 0; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0; }   // nowa sesja - przerwa na ponowny start nie liczy się jako zacięcie
             public static void Out() { long now = System.Diagnostics.Stopwatch.GetTimestamp(); if (outLast != 0) { double g = (now - outLast) * tick; if (g > outMax) outMax = g; if (g > 120) outLate++; } outLast = now; }
             public static void Proc(long t) { double ms = t * tick; if (ms > procMax) procMax = ms; }

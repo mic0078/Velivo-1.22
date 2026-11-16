@@ -267,7 +267,15 @@ namespace Velivo
                 var autoIt = new System.Windows.Forms.ToolStripMenuItem(L.T("Otwieraj samą po kliknięciu w pole tekstowe")) { Checked = _kbdAuto, ToolTipText = L.T("Jak klawiatura dotykowa Windows: klik w pole do pisania w dowolnym programie pokazuje klawiaturę Velivo") };
                 autoIt.Click += (s, e) => { _kbdAuto = !_kbdAuto; autoIt.Checked = _kbdAuto; Application.Current?.Dispatcher.BeginInvoke(new Action(() => SetPref("klawiatura-sama", _kbdAuto ? "1" : "0"))); };
                 menu.Items.Add(autoIt);
-                menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(CloseKeyboardFully)));
+                if (Wariant.Klawiatura)
+                {   // ⌨ Velivo Klawiatura: start z Windows i zakończenie programu (to jedyna ikona tego programu)
+                    var auto = new System.Windows.Forms.ToolStripMenuItem(L.T("Uruchamiaj z Windows")) { CheckOnClick = true };
+                    menu.Opening += (s, e) => auto.Checked = ReadAutostart() >= 0;
+                    auto.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => WriteAutostart(auto.Checked, 10)));
+                    menu.Items.Add(auto);
+                    menu.Items.Add(L.T("✕ Zakończ Velivo Klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { CloseKeyboardFully(); (Application.Current?.MainWindow as MainWindow)?.ExitFromTray(); })));
+                }
+                else menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(CloseKeyboardFully)));
                 _kbdTray.ContextMenuStrip = menu;
                 Application.Current.Exit += (s, e) => { try { _kbdTray.Visible = false; _kbdTray.Dispose(); } catch (Exception) { } };
             }
@@ -288,7 +296,7 @@ namespace Velivo
         internal static volatile bool _kbdUserHid;   // schowana przyciskiem: dziala w tle (poprawki przy pisaniu), klik w pole jej nie wyciaga   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
         internal static void StartGlobalKeyboardHook()
         {
-            if (!Wariant.Pelne) return;   // 🧩 klawiatura należy do pełnego Velivo (dwa programy = podwójne poprawki)
+            if (!(Wariant.Pelne || Wariant.Klawiatura) || !VelivoData.Jeden("klawiatura")) return;   // 🧩 klawiatura: pełne Velivo albo Velivo Klawiatura - działa w jednym (pierwszym), dwa = podwójne poprawki
             _kbdAuto = GetPref("klawiatura-sama") == "1";
             EnsureKbdTray();
             if (_hookStarted) return;

@@ -332,6 +332,7 @@ namespace Velivo
             { "O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny.", "How many dB above the film's typical level the automatic threshold starts." },
             { "Próg teraz: ", "Threshold now: " },
             { "do celu: ", "to target: " },
+            { "✕ Zakończ Velivo Klawiaturę", "✕ Quit Velivo Keyboard" },
             { "Ikona otwiera", "Icon opens" },
             { "🎬 Okno odtwarzacza (biblioteka filmów)", "🎬 Player window (film library)" },
             { "Ikona Velivo Odtwarzacza otwiera", "Velivo Player icon opens" },

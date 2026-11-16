@@ -158,6 +158,7 @@ namespace Velivo
         void OdtwOtworz() { if (OdtwKanapa) ShowKanapa(); else ShowVideoLibrary(); }
         void ShowFromTray()
         {
+            if (Wariant.Klawiatura) { ShowScreenKeyboard(); return; }   // ⌨ drugie uruchomienie / ikona - klawiatura
             if (!Wariant.MaKarty) { OdtwOtworz(); return; }   // 🧩 Velivo Odtwarzacz: zamiast (pustej) przeglądarki - okno odtwarzacza albo Kanapa (wybór)
             _inTray = false;
             Show();
@@ -167,7 +168,7 @@ namespace Velivo
             Topmost = true; Topmost = false;
         }
 
-        void ExitFromTray()
+        internal void ExitFromTray()
         {
             _reallyExit = true;
             try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; } } catch (Exception) { }

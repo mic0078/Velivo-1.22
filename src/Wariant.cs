@@ -11,11 +11,15 @@ namespace Velivo
 #elif WARIANT_PRZEGLADARKA
         internal const string Nazwa = "Velivo Przeglądarka", Pid = "VelivoPrzegladarka";
         internal const bool Odtwarzacz = false, Przegladarka = true, Pelne = false;
+#elif WARIANT_KLAWIATURA
+        internal const string Nazwa = "Velivo Klawiatura", Pid = "VelivoKlawiatura";   // ⌨ sama klawiatura ekranowa i poprawianie pisania - w każdym programie Windows
+        internal const bool Odtwarzacz = false, Przegladarka = false, Pelne = false;
 #else
         internal const string Nazwa = "Velivo", Pid = "Velivo";   // Pid: przedrostek wpisów Windows (VelivoHTML, VelivoVideo…) - każdy program własne
         internal const bool Odtwarzacz = false, Przegladarka = false, Pelne = true;
 #endif
         // co ma ten program: przeglądarka (karty), odtwarzacz (filmy, TV, Kanapa, Pilot), komunikator
+        internal const bool Klawiatura = !Pelne && !Odtwarzacz && !Przegladarka;
         internal const bool MaKarty = Pelne || Przegladarka;
         internal const bool MaFilmy = Pelne || Odtwarzacz;
         internal const bool MaKomunikator = Pelne;

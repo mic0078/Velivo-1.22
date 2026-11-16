@@ -131,7 +131,7 @@ namespace Velivo
             InitializeComponent();
             Title = AppTitleLabel;
             _settings = AppSettings.Load(DataDir);
-            KeyboardOn = _settings.ScreenKeyboard; if (KeyboardOn) StartGlobalKeyboardHook();   // klawiatura tylko na zyczenie
+            KeyboardOn = _settings.ScreenKeyboard || Wariant.Klawiatura; if (KeyboardOn) StartGlobalKeyboardHook();   // klawiatura tylko na zyczenie
             _winTheme = _settings.WindowTheme ?? "light";   // jasne / ciemne okna
             L.Init(_settings.Language);
             try
@@ -189,8 +189,9 @@ namespace Velivo
                     MigrateQuickAccessProfilePath();
                     // smieci sprzatamy tylko, gdy nie dziala inne okno przegladarki (jego silnik trzyma te pliki)
                     if (System.Diagnostics.Process.GetProcessesByName("Velivo").Length <= 1) CleanJunkAtStartup();
-                    _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, WebViewProfil),
-                        new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
+                    if (!Wariant.Klawiatura)   // ⌨ sama klawiatura nie wyświetla stron - bez silnika stron (mniej pamięci, działa i bez WebView2)
+                        _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, WebViewProfil),
+                            new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
                     if (Wariant.MaFilmy) StartJellyfinAutoSync();   // 🧩 Przeglądarka nie pobiera biblioteki filmów
                     _ = VoiceUpdateCheckAsync(null);
@@ -230,7 +231,8 @@ namespace Velivo
                     StartSleepTabs();
                     TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
-                    if (SilentStart) StartSilently();
+                    if (SilentStart && !Wariant.Klawiatura) StartSilently();   // ⌨ Velivo Klawiatura: tylko ikona klawiatury (bez ikony przeglądarki)
+                    if (Wariant.Klawiatura) { Hide(); EnsureKbdTray(); if (!AutoStarted) ShowScreenKeyboard(); }
                     _sessionReady = true;
                     if (Wariant.Odtwarzacz && !_odtwStartFilm && !AutoStarted) Dispatcher.BeginInvoke(new Action(OdtwOtworz), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // start z Windows: tylko ikona w zasobniku   // 🧩 Odtwarzacz startuje Kanapą
                     StartOdtwarzaczLekko();
@@ -242,7 +244,7 @@ namespace Velivo
                 }
             };
             PreviewKeyDown += OnKeys;
-            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); OdtwOtworz(); } };   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
+            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); if (Wariant.Klawiatura) ShowScreenKeyboard(); else OdtwOtworz(); } };   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
         }
 
         void EnsureOneTimeQuickAccessWebViewReset()

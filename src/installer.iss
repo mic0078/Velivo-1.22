@@ -10,6 +10,15 @@
   #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}"
   #define SrcDir "..\build\odtwarzacz"
   #define OutName "Velivo-Odtwarzacz-Setup-" + AppVer
+#elif defined(Klawiatura)
+  #define Wariant
+  #define AppName "Velivo Klawiatura"
+  #define Exe "VelivoKlawiatura.exe"
+  #define Pid "VelivoKlawiatura"
+  #define Ikona "klawiatura.ico"
+  #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-KLAWIATURA1}"
+  #define SrcDir "..\build\klawiatura"
+  #define OutName "Velivo-Klawiatura-Setup-" + AppVer
 #elif defined(Przegladarka)
   #define Wariant
   #define AppName "Velivo Przeglądarka"
@@ -25,6 +34,13 @@
   #define Pid "Velivo"
   #define Ikona "app.ico"
   #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}"
+#endif
+; 🧩 co program ma: NieStrony - bez rejestracji przeglądarki i PDF (Odtwarzacz, Klawiatura); NieFilmy - bez filmów (Przeglądarka, Klawiatura)
+#if defined(Odtwarzacz) || defined(Klawiatura)
+  #define NieStrony
+#endif
+#if defined(Przegladarka) || defined(Klawiatura)
+  #define NieFilmy
 #endif
 #ifdef Wariant
   #define VlcFlag Pid + "-odtwarzacz-usun.flag"
@@ -123,6 +139,8 @@ en.GetWebView=Downloading and installing Microsoft Edge WebView2 Runtime…
 pl.NeedDotnet=Brakuje .NET 10 Desktop Runtime (x64), potrzebnego do działania przeglądarki.%nOtworzyć stronę pobierania? Po instalacji runtime uruchom instalator ponownie.
 en.NeedDotnet=.NET 10 Desktop Runtime (x64), required by the browser, is missing.%nOpen the download page? After installing the runtime, run this installer again.
 pl.NeedWebView=Nie wykryto Microsoft Edge WebView2 Runtime (zwykle jest w Windows 11).%nBez niego przeglądarka nie wyświetli stron. Otworzyć stronę pobierania?
+pl.KlawAuto=Uruchamiaj klawiaturę razem z Windows (ikona w zasobniku)
+en.KlawAuto=Start the keyboard with Windows (tray icon)
 en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included in Windows 11).%nWithout it the browser cannot display pages. Open the download page?
 
 [Tasks]
@@ -131,10 +149,13 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Sho
 Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{cm:Shortcuts}"
 #endif
 Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
+#ifdef Klawiatura
+Name: "autostart"; Description: "{cm:KlawAuto}"; GroupDescription: "{cm:Shortcuts}"
+#endif
 #ifdef Odtwarzacz
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
 Name: "videoplayer\iptv"; Description: "{cm:Iptv}"
-#elif !defined(Przegladarka)
+#elif !defined(NieFilmy)
 ; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
 ; telewizja IPTV - osobny modul na odtwarzaczu filmow (bez wlasnego pobierania)
@@ -188,8 +209,11 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\{#Pid}"; ValueType: string; ValueN
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; autostart wlaczany w Ustawieniach Velivo - przy odinstalowaniu wpis znika (ValueType none = instalator go nie tworzy)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#Pid}"; Flags: uninsdeletevalue
+#ifdef Klawiatura
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#Pid}"; ValueData: """{app}\{#Exe}"" --autostart 10"; Tasks: autostart; Flags: uninsdeletevalue
+#endif
 ; rejestracja jako przegladarka (pojawia sie na liscie "Aplikacje domyslne"); wybor robi uzytkownik w Ustawieniach
-#ifndef Odtwarzacz
+#ifndef NieStrony
 Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML"; ValueType: string; ValueName: ""; ValueData: "Velivo HTML Document"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
 Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
@@ -209,7 +233,7 @@ Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\StartMenu"; ValueType: string; ValueName: "StartMenuInternet"; ValueData: "{#AppName}"
 #endif
 ; PDF: Velivo na liscie "Otworz za pomoca" i w Aplikacjach domyslnych (wbudowany czytnik PDF silnika)
-#ifndef Odtwarzacz
+#ifndef NieStrony
 Root: HKCU; Subkey: "Software\Classes\{#Pid}PDF"; ValueType: string; ValueName: ""; ValueData: "Velivo PDF Document"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\{#Pid}PDF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
 Root: HKCU; Subkey: "Software\Classes\{#Pid}PDF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
@@ -217,7 +241,7 @@ Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; 
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\FileAssociations"; ValueType: string; ValueName: ".pdf"; ValueData: "{#Pid}PDF"
 #endif
 ; filmy z dysku: odtwarzacz Velivo w "Otworz za pomoca" i w Aplikacjach domyslnych
-#ifndef Przegladarka
+#ifndef NieFilmy
 Root: HKCU; Subkey: "Software\Classes\{#Pid}Video"; ValueType: string; ValueName: ""; ValueData: "Velivo Video"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\{#Pid}Video\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
 Root: HKCU; Subkey: "Software\Classes\{#Pid}Video\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
@@ -238,10 +262,10 @@ Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\{#AppName}\Capabilities\
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""
-#ifndef Odtwarzacz
+#ifndef NieStrony
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""
 #endif
-#ifndef Przegladarka
+#ifndef NieFilmy
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".mp4"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".m4v"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".webm"; ValueData: ""
@@ -250,7 +274,7 @@ Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; Value
 Root: HKCU; Subkey: "Software\Classes\Applications\{#Exe}\SupportedTypes"; ValueType: string; ValueName: ".ogv"; ValueData: ""
 #endif
 ; torrenty: plik .torrent i linki magnet: (pobiera tylko, gdy torrenty sa wlaczone w Ustawieniach)
-#ifndef Odtwarzacz
+#ifndef NieStrony
 Root: HKCU; Subkey: "Software\Classes\{#Pid}Torrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\{#Pid}Torrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#Exe},0"
 Root: HKCU; Subkey: "Software\Classes\{#Pid}Torrent\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#Exe}"" ""%1"""

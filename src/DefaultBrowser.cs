@@ -267,6 +267,7 @@ namespace Velivo
 
         static void EnsureFileTypes()
         {
+            if (Wariant.Klawiatura) return;   // ⌨ sama klawiatura nie otwiera plików (filmy, PDF, torrenty)
             Task.Run(() =>
             {
                 try { if (RegisterFileTypes(Process.GetCurrentProcess().MainModule.FileName)) SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); }   // SHCNE_ASSOCCHANGED

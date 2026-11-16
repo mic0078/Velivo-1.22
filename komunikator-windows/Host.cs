@@ -131,17 +131,33 @@ namespace Velivo
         }
         Window PairDialogOwner() => _komWindow;
 
-        // link z rozmowy: w Velivo, gdy jest, inaczej w domyślnej przeglądarce
+        // 🧩 inne programy Velivo (spis HKCU\Software\Velivo\Programy): strony - Velivo Przeglądarka albo pełne Velivo; filmy - Velivo Odtwarzacz albo pełne Velivo.
+        // Najpierw ten, który już działa (bez otwierania drugiego programu), potem zainstalowany.
+        static string KomProgram(params string[] pids)
+        {
+            string any = null;
+            foreach (var pid in pids)
+            {
+                var exe = pid == "Velivo" ? KomVelivoExe : VelivoData.ProgramZeSpisu(pid);
+                if (exe == null || !File.Exists(exe)) continue;
+                var ps = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exe)); bool on = ps.Length > 0; foreach (var p in ps) p.Dispose();
+                if (on) return exe; any ??= exe;
+            }
+            return any;
+        }
+        static string KomPrzegladarka => KomProgram("VelivoPrzegladarka", "Velivo");
+        static string KomOdtwarzacz => KomProgram("VelivoOdtwarzacz", "Velivo");
+        // link z rozmowy: w Velivo Przeglądarce / Velivo, gdy jest, inaczej w domyślnej przeglądarce
         void AddTab(string url)
         {
-            try { if (KomVelivoExe is string v) Process.Start(v, url); else Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+            try { if (KomPrzegladarka is string v) Process.Start(v, url); else Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
             catch (Exception ex) { App.LogError(ex); }
         }
         // 🎬 film z rozmowy: odtwarzacz Velivo (wszystkie kodeki), gdy jest; inaczej program przypisany w Windows
         void PlayVideos(string[] files, int index, bool library = true)
         {
             var f = files[Math.Max(0, Math.Min(index, files.Length - 1))];
-            try { if (KomVelivoExe is string v) Process.Start(v, "\"" + f + "\""); else Process.Start(new ProcessStartInfo(f) { UseShellExecute = true }); }
+            try { if (KomOdtwarzacz is string v) Process.Start(v, "\"" + f + "\""); else Process.Start(new ProcessStartInfo(f) { UseShellExecute = true }); }
             catch (Exception ex) { App.LogError(ex); }
         }
 
@@ -150,7 +166,7 @@ namespace Velivo
         JellyfinConf LoadJellyfinConf() => null;
         List<Dictionary<string, string>> MediaTvLists() => new List<Dictionary<string, string>>();
 
-        void ShowFromTray() { try { if (KomVelivoExe is string v) Process.Start(v); } catch (Exception ex) { App.LogError(ex); } }
+        void ShowFromTray() { try { if (KomPrzegladarka is string v) Process.Start(v); } catch (Exception ex) { App.LogError(ex); } }
         void ExitFromTray()
         {
             _komExit = true;

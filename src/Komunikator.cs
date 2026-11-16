@@ -3386,7 +3386,7 @@ namespace Velivo
             menu.Items.Add(L.T("💬 Otwórz komunikator"), null, (s, e) => Dispatcher.Invoke(() => ShowMessenger()));
             menu.Items.Add(L.T("➕ Dodaj kontakt"), null, (s, e) => Dispatcher.Invoke(async () => { ShowMessenger(); if (_komWindow != null) await KomAddDialog(_komWindow); }));
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            if (!KomSamodzielny || KomVelivoExe != null) menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));   // osobny Komunikator: tylko gdy Velivo jest zainstalowane
+            if (!KomSamodzielny || KomPrzegladarka != null) menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));   // osobny Komunikator: tylko gdy Velivo Przeglądarka / Velivo jest zainstalowane
             menu.Items.Add(KomSamodzielny ? L.T("Zamknij komunikator") : L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
             _komTray.ContextMenuStrip = menu;
             _komTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(() => ShowMessenger()); };

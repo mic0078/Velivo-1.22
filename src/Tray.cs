@@ -182,6 +182,7 @@ namespace Velivo
 
         const bool KomSamodzielny = false;   // pełne Velivo (osobny Komunikator ma true)
         static string KomVelivoExe => Environment.ProcessPath;
+        static string KomPrzegladarka => Environment.ProcessPath;   // 🧩 wspólny kod komunikatora: w Velivo przeglądarką jest samo Velivo
         // 💬 pełne Velivo samo prowadzi rozmowy i serwer - także gdy na komputerze jest osobny Komunikator (on wtedy tylko otwiera okno rozmów Velivo);
         // wcześniej Velivo oddawało wtedy wszystko Komunikatorowi i serwery przestały pośredniczyć
         // 🧩 programy równe: rozmowy prowadzi ten, kto wystartował pierwszy - gdy działa już osobny Velivo Komunikator, pełne Velivo go nie zamyka, tylko mu oddaje rozmowy

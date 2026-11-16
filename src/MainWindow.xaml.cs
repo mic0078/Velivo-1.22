@@ -216,7 +216,13 @@ namespace Velivo
                         _sessionLoaded = true;
                         SaveSessionSoon();
                     }
-                    else SilentStart = true;   // okno przeglądarki zawsze schowane, widać Kanapę / odtwarzacz
+                    else
+                    {
+                        SilentStart = true;   // okno przeglądarki zawsze schowane, widać Kanapę / odtwarzacz
+                        var vids = _startUrls.Select(VideoArg).Where(v => v != null).ToArray();   // 🧩 Odtwarzacz uruchomiony z filmem (dwuklik, film z komunikatora) - gra od razu
+                        if (vids.Length > 0 && VlcInstalled) { _odtwStartFilm = true; Dispatcher.BeginInvoke(new Action(() => PlayVideos(vids, 0)), System.Windows.Threading.DispatcherPriority.ApplicationIdle); }
+                        else foreach (var u in _startUrls) if (VideoArg(u) == null) OpenArg(u);   // strona - przeglądarka domyślna (AddTab przekierowuje)
+                    }
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
                     if (!SilentStart && Wariant.MaKarty) AskDefaultBrowserOnce();
@@ -226,7 +232,7 @@ namespace Velivo
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                     if (SilentStart) StartSilently();
                     _sessionReady = true;
-                    if (Wariant.Odtwarzacz) Dispatcher.BeginInvoke(new Action(ShowKanapa), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🧩 Odtwarzacz startuje Kanapą
+                    if (Wariant.Odtwarzacz && !_odtwStartFilm) Dispatcher.BeginInvoke(new Action(ShowKanapa), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🧩 Odtwarzacz startuje Kanapą
                     StartOdtwarzaczLekko();
                 }
                 catch (Exception ex)
@@ -396,7 +402,7 @@ namespace Velivo
 
         // 🧩 profil silnika stron: każdy program Velivo własny (dwa programy naraz na jednym profilu = „Żądane zasoby są w użyciu” 0x800700AA); pełne Velivo bez zmian
         static string WebViewProfil => Wariant.Pelne ? "Profil" : "Profil-" + Wariant.Pid;
-        bool _sessionReady;   // 🧩 start skończony (Odtwarzacz: od teraz pokazanie okna = Kanapa)
+        bool _sessionReady, _odtwStartFilm;   // 🧩 start skończony (Odtwarzacz: od teraz pokazanie okna = Kanapa)
         void AddTab(string url) { AddTab(url, false); }
 
         void AddTab(string url, bool isPrivate) { AddTab(url, isPrivate, null, null); }

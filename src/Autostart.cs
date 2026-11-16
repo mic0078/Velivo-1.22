@@ -19,10 +19,12 @@ namespace Velivo
         }
 
         // "--autostart N" z argumentow: zwraca opoznienie (s) i usuwa oba argumenty; -1 = zwykle uruchomienie
+        internal static bool AutoStarted;   // 🧩 uruchomione razem z Windows (Odtwarzacz: tylko ikona w zasobniku)
         internal static int TakeAutostartArg(List<string> args)
         {
             int i = args.IndexOf("--autostart");
             if (i < 0) return -1;
+            AutoStarted = true;
             int d = 0;
             if (i + 1 < args.Count && int.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out d)) args.RemoveAt(i + 1);
             args.RemoveAt(i);

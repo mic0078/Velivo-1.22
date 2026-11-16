@@ -232,7 +232,7 @@ namespace Velivo
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                     if (SilentStart) StartSilently();
                     _sessionReady = true;
-                    if (Wariant.Odtwarzacz && !_odtwStartFilm) Dispatcher.BeginInvoke(new Action(ShowKanapa), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🧩 Odtwarzacz startuje Kanapą
+                    if (Wariant.Odtwarzacz && !_odtwStartFilm && !AutoStarted) Dispatcher.BeginInvoke(new Action(OdtwOtworz), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // start z Windows: tylko ikona w zasobniku   // 🧩 Odtwarzacz startuje Kanapą
                     StartOdtwarzaczLekko();
                 }
                 catch (Exception ex)
@@ -242,7 +242,7 @@ namespace Velivo
                 }
             };
             PreviewKeyDown += OnKeys;
-            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); ShowKanapa(); } };   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
+            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); OdtwOtworz(); } };   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
         }
 
         void EnsureOneTimeQuickAccessWebViewReset()

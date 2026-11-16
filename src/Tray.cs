@@ -80,6 +80,13 @@ namespace Velivo
                     menu.Opening += (s, e) => auto.Checked = ReadAutostart() >= 0;
                     auto.Click += (s, e) => Dispatcher.Invoke(() => WriteAutostart(auto.Checked, 30));
                     menu.Items.Add(auto);
+                    // 🧩 co otwiera ikona Odtwarzacza (pulpit, zasobnik): główne okno (biblioteka filmów) albo Kanapa
+                    var otw = new System.Windows.Forms.ToolStripMenuItem(L.T("Ikona otwiera"));
+                    var oOkno = new System.Windows.Forms.ToolStripMenuItem(L.T("🎬 Okno odtwarzacza (biblioteka filmów)")); var oKan = new System.Windows.Forms.ToolStripMenuItem(L.T("🛋 Kanapa (telewizor)"));
+                    oOkno.Click += (s, e) => Dispatcher.Invoke(() => SetPref("odtw-otwiera", "okno")); oKan.Click += (s, e) => Dispatcher.Invoke(() => SetPref("odtw-otwiera", "kanapa"));
+                    otw.DropDownItems.Add(oOkno); otw.DropDownItems.Add(oKan);
+                    menu.Opening += (s, e) => { bool k = OdtwKanapa; oKan.Checked = k; oOkno.Checked = !k; };
+                    menu.Items.Add(otw);
                 }
                 if (Edycja.Premium && Wariant.MaFilmy) menu.Items.Add(L.T("🎚 Audio Monitor"), null, (s, e) => Dispatcher.Invoke(ShowAudioMonitor));   // 💎 Premium
                 menu.Items.Add(L.T("🧹 Porządki i kopia bezpieczeństwa"), null, (s, e) => Dispatcher.Invoke(ShowTidy));
@@ -146,9 +153,12 @@ namespace Velivo
             _trayPulse.Start();
         }
 
+        // 🧩 Velivo Odtwarzacz: ikona (pulpit, zasobnik, drugie uruchomienie) otwiera wybrane okno; start z Windows - tylko ikona w zasobniku
+        static bool OdtwKanapa => GetPref("odtw-otwiera") == "kanapa";
+        void OdtwOtworz() { if (OdtwKanapa) ShowKanapa(); else ShowVideoLibrary(); }
         void ShowFromTray()
         {
-            if (!Wariant.MaKarty) { ShowKanapa(); return; }   // 🧩 Velivo Odtwarzacz: zamiast (pustej) przeglądarki - Kanapa
+            if (!Wariant.MaKarty) { OdtwOtworz(); return; }   // 🧩 Velivo Odtwarzacz: zamiast (pustej) przeglądarki - okno odtwarzacza albo Kanapa (wybór)
             _inTray = false;
             Show();
             if (WindowState == WindowState.Minimized) WindowState = SilentStart ? WindowState.Maximized : WindowState.Normal;

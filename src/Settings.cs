@@ -768,6 +768,15 @@ namespace Velivo
             var playerResumeBox = Check(L.T("Wznawiaj od miejsca, w którym skończyłeś"), L.T("Miejsce w każdym filmie zapamiętywane tylko na tym komputerze."), s.PlayerResume);
             var playerLoopBox = Check(L.T("Powtarzaj film w kółko"), null, s.PlayerLoop);
             foreach (var pb in new[] { playerBox, playerAutoBox, playerResumeBox, playerLoopBox }) root.Children.Add(pb);
+            if (Wariant.Odtwarzacz)
+            {   // 🧩 Velivo Odtwarzacz: co otwiera ikona (pulpit, zasobnik); po starcie Windows zawsze tylko ikona w zasobniku
+                root.Children.Add(new TextBlock { Text = L.T("Ikona Velivo Odtwarzacza otwiera"), Margin = new Thickness(0, 6, 0, 2), ToolTip = L.T("Po starcie z Windows Odtwarzacz czeka tylko jako ikona w zasobniku – nic się nie otwiera.") });
+                var oBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4) };
+                oBox.Items.Add(L.T("🎬 Okno odtwarzacza (biblioteka filmów)")); oBox.Items.Add(L.T("🛋 Kanapa (telewizor)"));
+                oBox.SelectedIndex = GetPref("odtw-otwiera") == "kanapa" ? 1 : 0;
+                oBox.SelectionChanged += (a, b) => SetPref("odtw-otwiera", oBox.SelectedIndex == 1 ? "kanapa" : "okno");
+                root.Children.Add(oBox);
+            }
             // odtwarzacz filmow (VLC): wznawianie filmu - pytanie albo stale ustawienie
             root.Children.Add(new TextBlock { Text = L.T("Odtwarzacz filmów (biblioteka): film oglądany wcześniej"), Margin = new Thickness(0, 6, 0, 2) });
             var resumeMode = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4) };

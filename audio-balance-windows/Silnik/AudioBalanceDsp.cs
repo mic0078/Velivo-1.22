@@ -250,7 +250,8 @@ namespace Velivo
         double aP, sS, sA;
         // 🗣 inteligentny lektor: podczas czytania film ściszany na bieżąco tylko o tyle, ile trzeba, by lektor był nad filmem w paśmie mowy
         //    (cicha scena - bez ściszania, głośna / dialog - więcej); płynnie, z przytrzymaniem między kwestiami - bez skoków głośności
-        public volatile bool LekOn, LekPath, LekHold;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
+        public volatile bool LekOn, LekPath, LekHold;
+        public double DgBasis = double.NaN, DgXb, DgWant, DgQb; public long DgReg, DgAll, DgLek;   // 🔬 dziennik „Bardzo ciche nagrania”: podstawa, dodatkowe podbicie, cel wzmocnienia, próg; ile próbek regulowało / wszystkich / lektor               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
         public volatile float LekRef = float.NaN;          // lektor w paśmie mowy (dBFS, z jego głośnością); NaN - jeszcze niezmierzony
         public volatile float LekFloorDb = -9;             // najgłębsze ściszenie (suwak „Film podczas czytania”)
         public volatile float KDb = float.NaN;             // film w paśmie mowy (dBFS, 300 ms) - do tego lektor dopasowuje swoją głośność
@@ -461,6 +462,7 @@ namespace Velivo
                         if (n % 4800 == 0 && !loud && !LekHold) { double mo = In.Momentary; tvRing[tvI] = mo; tvI = (tvI + 1) % tvRing.Length; if (tvN < tvRing.Length) tvN++; double tg = TvGated(); if (tg > -70) tvP = tg; }   // 📏 poziom tego, co gra: ostatnie 30 s jak EBU R128 - bramka −70 i −10 LU od średniej (cisza i pauzy nie ściągają w dół, pojedynczy wybuch nie podnosi); dawniej własne „gonienie” utykało na −64 albo −28 przy źródle −41
                         if (tvP < 0) basis = loud ? m15 : lb;
                     }
+                    DgAll++; if (LekHold) DgLek++; DgBasis = basis; DgQb = qB;
                     if (basis > double.NegativeInfinity && In.Momentary > bgGate && !LekHold)
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
@@ -469,6 +471,7 @@ namespace Velivo
                         QuietNoise = false;   // 🔈 bez „bezpiecznika szumu”: liczył szum z najcichszych chwil nagrania i po kilkudziesięciu sekundach zjeżdżał z podbiciem do 0 (działało chwilę i przestawało); tło i tak nie jest podbijane (bramka 10 dB pod poziomem nagrania), szum wycisza ekspander kompresora
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
+                        DgReg++; DgXb = xb; DgWant = want;
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
                         double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));

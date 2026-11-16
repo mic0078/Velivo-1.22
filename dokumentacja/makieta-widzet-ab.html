@@ -1,0 +1,30 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Widżet Audio Balance</title>
+<style>
+:root{--bg:#e9ecf1;--fg:#1b1f27;--dim:#5b6472}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15181e;--fg:#e8ebf0;--dim:#9aa3b2}}
+body{background:var(--bg);color:var(--fg);font:15px Segoe UI,system-ui,sans-serif;margin:0;padding:20px 16px}
+h1{font-size:20px;margin:0 0 4px}p{color:var(--dim);margin:0 0 18px}
+.opt{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;margin-bottom:26px}
+.card{display:flex;flex-direction:column;gap:8px}.lbl{font-weight:600}.sub{color:var(--dim);font-size:13px;max-width:300px}
+.desk{background:linear-gradient(135deg,#2c4a6b,#1a2a3a);padding:18px;border-radius:8px;display:flex;gap:18px;align-items:center}
+.w{background:#0f1217ee;border:1px solid #2a3240;border-radius:8px;color:#e8ebf0;display:flex;align-items:center;font-family:Segoe UI,sans-serif;box-sizing:border-box}
+.bars{display:flex;align-items:flex-end}.bars i{display:block;border-radius:2px}
+.g{color:#4ade80;font-weight:600}.d{color:#8b95a5}
+.x2{transform:scale(2);transform-origin:left center;margin-right:var(--m)}
+</style></head><body>
+<h1>Widżet Audio Balance – propozycje</h1>
+<p>Na ciemnym tle w prawdziwym rozmiarze ekranu (100%). Pozycja zapamiętana po przeciągnięciu, także po restarcie i przy innym monitorze.</p>
+<div class="desk" id="d"></div>
+<div style="height:22px"></div>
+<div class="opt" id="o"></div>
+<script>
+const bars=(n,w,h,gap)=>'<div class="bars" style="gap:'+gap+'px;height:'+h+'px">'+Array.from({length:n},(_,i)=>{const t=i/(n-1),hh=Math.round(h*(0.45+0.55*Math.abs(Math.sin(i*1.3+1))));return '<i style="width:'+w+'px;height:'+hh+'px;background:rgb('+Math.round(46+78*t)+','+Math.round(211-119*t)+','+Math.round(198+57*t)+')"></i>'}).join('')+'</div>';
+const W={
+ now:'<div class="w" style="width:176px;height:92px;padding:10px;gap:10px">'+bars(7,5,62,2.5)+'<div><div class="d" style="font-size:9px">WYNIK (LUFS)</div><div class="g" style="font-size:22px">-23,6</div><div class="d" style="font-size:10px">źródło −26,1 ▲ +4,0</div></div></div>',
+ A:'<div class="w" style="width:88px;height:46px;padding:5px 6px;gap:5px">'+bars(5,3,32,2)+'<div><div class="g" style="font-size:15px;line-height:1">-23,6</div><div class="d" style="font-size:9px">▲ +4,0 dB</div></div></div>',
+ B:'<div class="w" style="width:120px;height:28px;padding:0 8px;gap:6px;border-radius:14px">'+bars(5,3,16,2)+'<span class="g" style="font-size:14px">-23,6</span><span class="d" style="font-size:9px">▲+4</span></div>',
+ C:'<div class="w" style="width:64px;height:24px;padding:0 6px;gap:5px;border-radius:12px"><span style="width:8px;height:8px;border-radius:4px;background:#4ade80"></span><span class="g" style="font-size:13px">-23,6</span></div>'};
+document.getElementById('d').innerHTML=['now','A','B','C'].map(k=>W[k]).join('');
+const info=[['now','Teraz','176 × 92'],['A','A – połowa (Twój pomysł)','88 × 46: wynik, zmiana dB, mniejsze słupki; bez napisu „WYNIK”, źródło w podpowiedzi po najechaniu'],['B','B – pasek','120 × 28: słupki + wynik + zmiana w jednej linii'],['C','C – kropka','64 × 24: tylko wynik; kropka zielona = wyrównuje, szara = bez przetwarzania']];
+document.getElementById('o').innerHTML=info.map(([k,n,s])=>'<div class="card"><div class="lbl">'+n+'</div><div style="--m:0">'+W[k]+'</div><div class="sub">'+s+'</div></div>').join('');
+</script></body></html>

@@ -341,7 +341,6 @@ namespace Velivo
         void KomStartOwn(bool old = true)
         {
             if (KomOddany) { KomAppRun(true); return; }   // osobny Komunikator na komputerze z Velivo - rozmowy i serwer prowadzi Velivo
-            if (!Wariant.MaKomunikator) return;   // 🧩 Odtwarzacz / Przeglądarka nie mają komunikatora - nie zajmują jego portów (błąd 10048 co 15 s u drugiego programu)
             KomLoad();
             KomStartResend();
             if (_komContacts.Count > 0) KomEnsureTray();
@@ -1272,6 +1271,13 @@ namespace Velivo
             return _komFound.Select(kv => (kv.Key, kv.Value.Name, kv.Value.Addr)).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
 
+        // 254 wysyłek naraz = 254 zapytania ARP naraz: w Wi-Fi przycinało odbiór dźwięku (Audio Balance: dziura 70–160 ms co minutę, także gdy grał INNY program Velivo)
+        // - teraz po jednym adresie co 40 ms w tle (~10 s), bez skoku obciążenia sieci
+        internal static void LanSlowly(UdpClient s, byte[] d, IEnumerable<IPAddress> addrs, params int[] ports)
+        {
+            var l = addrs?.ToList(); if (s == null || l == null || l.Count == 0) return;
+            _ = Task.Run(async () => { foreach (var a in l) { foreach (var pt in ports) try { s.Send(d, d.Length, new IPEndPoint(a, pt)); } catch (Exception) { } await Task.Delay(40); } });
+        }
         // 🔎 pytanie do każdego adresu domowej sieci (/24) osobno - telefony gubiące rozgłoszenia (Oppo / ColorOS) też się znajdą
         void KomSweep(JsonObject p)
         {

@@ -431,12 +431,15 @@ namespace Velivo
             RefreshLanDiagnosticsUi();
         }
 
+        // 🧩 Odtwarzacz / Przeglądarka nie mają komunikatora - nie zajmują jego portów (błąd 10048 co 15 s u drugiego programu)
+        void KomStartWar(bool old = true) { if (Wariant.MaKomunikator) KomStartOwn(old); }
+
         void StartLanSync()
         {
             StopLanSync(); KomVelivoProwadzi(); if (_komWKomunikatorze) KomPrzejmijPotem();
-            if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
-            if (!LanLeadTake()) { KomStartOwn(false); return; }   // 🧩 sieć domową na tym komputerze prowadzi już inny program Velivo (Odtwarzacz / Przeglądarka / pełne) - przejmiemy po jego zamknięciu
-            KomStopOld(); KomStartOwn(false);   // 💬 komunikator na własnym porcie; 41919 zajmie synchronizacja (pakiety komunikatora przekazuje dalej)
+            if (_settings == null || !_settings.LanSync) { KomStartWar(); return; }   // 💬 komunikator dziala i bez synchronizacji
+            if (!LanLeadTake()) { KomStartWar(false); return; }   // 🧩 sieć domową na tym komputerze prowadzi już inny program Velivo (Odtwarzacz / Przeglądarka / pełne) - przejmiemy po jego zamknięciu
+            KomStopOld(); KomStartWar(false);   // 💬 komunikator na własnym porcie; 41919 zajmie synchronizacja (pakiety komunikatora przekazuje dalej)
             bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);
             _lanLegacyNoKeyMode = !hasKey;
             _lanCts = new CancellationTokenSource();
@@ -489,7 +492,7 @@ namespace Velivo
                     LanBroadcastAnnounce();
                 }
             }
-            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); KomStartOwn(); }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); KomStartWar(); }
         }
 
         // --- wysylanie po zmianie: obserwator plikow danych i Szybkiego Dostepu ---
@@ -1320,13 +1323,6 @@ namespace Velivo
         // rozgłoszenie + bezpośrednio: znane komputery (ostatnie 10 min) i - przy parowaniu oraz co 10 min przy „hello” (nie w trakcie odtwarzania) - każdy adres sieci /24.
         // Router bywa nie przepuszcza rozgłoszeń między Wi-Fi a kablem (HP na Wi-Fi 5G nie słyszał Ryzena na kablu) - pakiet wprost do adresu dochodzi.
         DateTime _lanSweepAt;
-        // 254 wysyłek naraz = 254 zapytania ARP naraz: w Wi-Fi przycinało odbiór dźwięku (Audio Balance: dziura 70–160 ms co minutę, także gdy grał INNY program Velivo,
-        // którego PlayerBusy tu nie widać) - teraz po jednym adresie co 40 ms w tle (~10 s), bez żadnego skoku obciążenia sieci
-        internal static void LanSlowly(UdpClient s, byte[] d, IEnumerable<IPAddress> addrs, params int[] ports)
-        {
-            var l = addrs?.ToList(); if (s == null || l == null || l.Count == 0) return;
-            _ = Task.Run(async () => { foreach (var a in l) { foreach (var pt in ports) try { s.Send(d, d.Length, new IPEndPoint(a, pt)); } catch (Exception) { } await Task.Delay(40); } });
-        }
         List<IPAddress> LanTargets(string t)
         {
             var list = LanBroadcastTargets();

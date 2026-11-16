@@ -238,7 +238,7 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
-        public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow; double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
+        public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow, QuietBelow = double.NaN, QuietLevel = double.NegativeInfinity;   /* QuietBelow: od jakiego poziomu (LUFS) nagranie jest bardzo ciche - NaN = cel −12; QuietLevel - zmierzony poziom */ double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
         public double DialogDb;               // bieżące podbicie mowy (widżet)
@@ -304,7 +304,16 @@ namespace Velivo
         //    pomiar na stanowisku: filmy -38..-20 LUFS → różnica 1,8 dB, dialog w filmie ±0,05 dB (było: 7 dB i ±2,4 dB). TV - jak dotąd (zmiana programu, reklamy)
         public readonly VelivoDynamicsProcessor Pre = new VelivoDynamicsProcessor(Fs);   // 🎚 kompresor wstępny - przed regulatorem LUFS (domyślnie wył.)
         float[] vstRaw = new float[4096];
-        public volatile bool FilmLong; double intC = -99, tvP; int tvQ;   // tvP - poziom kanału TV (LUFS, średnia w dB z ok. 30 s; 0 = jeszcze brak)
+        public volatile bool FilmLong; double intC = -99, tvP; int tvQ = 0; readonly double[] tvRing = new double[300]; int tvI, tvN;
+        double TvGated()
+        {
+            double sum = 0; int c = 0;
+            for (int k = 0; k < tvN; k++) if (tvRing[k] > -70) { sum += Math.Pow(10, (tvRing[k] + 0.691) / 10); c++; }
+            if (c == 0) return double.NegativeInfinity;
+            double rel = AbMeter.Lufs(sum / c) - 10; sum = 0; c = 0;
+            for (int k = 0; k < tvN; k++) if (tvRing[k] > -70 && tvRing[k] > rel) { sum += Math.Pow(10, (tvRing[k] + 0.691) / 10); c++; }
+            return c == 0 ? double.NegativeInfinity : AbMeter.Lufs(sum / c);
+        }   // tvP - poziom kanału TV (LUFS, średnia w dB z ok. 30 s; 0 = jeszcze brak)
         public AbProcessor() { Reset(); }
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
         public void Reset()
@@ -350,14 +359,14 @@ namespace Velivo
         public void Process(float[] buf, int frames) { ProcessCore(buf, frames); MixLek(buf, frames); }
         void ProcessCore(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; noiseFl = -60; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; tvN = 0; tvI = 0; noiseFl = -60; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
             if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
             Tg += TargetAdj; EffTarget = Tg; var pr = Profile; Pre.AutoTargetDb = (float)Tg;
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
-            double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); if (pr != null && QuietOn && film > -70 && film < Tg - 12) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
+            double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); double qB = double.IsNaN(QuietBelow) ? Tg - 12 : QuietBelow; QuietLevel = film; if (pr != null && QuietOn && film > -70 && film < qB) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double kV = 1.0 / (0.08 * Fs);
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
@@ -456,15 +465,15 @@ namespace Velivo
                     {   // 📺 TV: poziom kanału z ostatniej minuty (bramka -10 LU, jak BS.1770) - nadąża za zmianą programu; cicha scena NIE podgłaśnia (falowanie),
                         //    głośniejsza scena (reklama) dalej szybko w dół
                         double lb = tvP < 0 ? tvP : double.NegativeInfinity; if (m15 > lb + 5) loudN++; else loudN = 0; bool loud = (scene || loudN > 5 * Fs) && m15 > lb; if (loud) scene = true;   // głośniejszy program niż średnia kanału (ponad 5 dB przez 5 s) - porównanie z poziomem kanału, nie z oknem 10 s   // głośna scena / reklama - nie wlicza się do średniej kanału
-                        if (n % 4800 == 0 && !loud) { double mo = In.Momentary; if (mo > -70 && (tvP >= 0 || mo > lb - 10)) { tvP = tvP >= 0 ? mo : tvP + (Math.Min(mo, lb + 3) - tvP) / (sinceStart < Fs * 60 ? 150 : 300); tvQ = 0; } else if (tvP < 0 && mo > -70 && ++tvQ > 150) tvP -= 0.05; }   // średnia w dB z ok. 30 s: cisza i tło (-10 LU) pominięte, głośne fragmenty liczą się najwyżej +3 dB; 15 s bez treści ponad progiem (cichszy program) - poziom schodzi 0,5 dB/s
+                        if (n % 4800 == 0 && !loud) { double mo = In.Momentary; tvRing[tvI] = mo; tvI = (tvI + 1) % tvRing.Length; if (tvN < tvRing.Length) tvN++; double tg = TvGated(); if (tg > -70) tvP = tg; }   // 📏 poziom tego, co gra: ostatnie 30 s jak EBU R128 (bramka −70 i −10 LU) - dawne „gonienie” utykało (−64 / −28 przy źródle −41), podbicie działało chwilę i znikało
                         if (tvP < 0) basis = loud ? m15 : lb;
                     }
                     if (basis > double.NegativeInfinity && In.Momentary > bgGate)
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double xb = QuietOn && film > -70 && film < Tg - 12 ? Math.Min(QuietMaxDb, Tg - 12 - film) : 0;
-                        if (xb > 0) { double room = -50 - noiseFl - pr.MaxBoost; QuietNoise = room < xb; xb = Math.Max(0, Math.Min(xb, room)); }   // najlepszy kompromis: podbicie tylko tak duże, żeby szum tła po podbiciu został poniżej -50 LUFS (niesłyszalny)   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
+                        double xb = QuietOn && film > -70 && film < qB ? Math.Min(QuietMaxDb, Math.Max(0, Tg - film - pr.MaxBoost)) : 0;   // tyle ponad limit trybu, ile brakuje do celu
+                        QuietNoise = false;   // 🔈 bez „bezpiecznika szumu” (szum liczony z najcichszych chwil zjeżdżał z podbiciem do 0); tło nie jest podbijane (bramka 10 dB pod poziomem), szum wycisza ekspander
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
                         wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));

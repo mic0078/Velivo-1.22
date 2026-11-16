@@ -239,7 +239,7 @@ namespace Velivo
         static AbProcessor AbV => _abExtLive ? AbExtProc : AbProc;
         static bool AbBypassV => _abExtLive ? _abExtByp : AbBypass;
         long AbHead() => _abExtLive ? Interlocked.Read(ref AbExtProc.Frames) : AbPlayHead();
-        TextBlock _abQuietNow; CheckBox _abQuietSrc; string _abQuietShown = "\0";
+        TextBlock _abQuietNow, _abQuietLvl; CheckBox _abQuietSrc; string _abQuietShown = "\0";
         static bool _abWinOn; static DateTime _abWinAt; static int _abWinMs;
         // o ile Audio Balance for Windows spóźnia dźwięk (ms) - odtwarzacz Velivo gra dźwięk o tyle wcześniej (obraz równo z głosem); 0, gdy program nie działa
         internal static int AbWinDelayMs => AbWinActive ? _abWinMs : 0;
@@ -286,7 +286,7 @@ namespace Velivo
             { SetPref("ab-profil", op == "limiter" ? "limit" : "auto"); SetPref("ab-sila", op == "light" ? "light" : op == "night" ? "strong" : "normal"); }
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
-            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
+            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); AbProc.QuietBelow = double.TryParse(GetPref("ab-cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qpr) ? qpr : -35; AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
             AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor"));   // 🎚 kompresor wstępny (domyślnie wył.)
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
@@ -532,6 +532,16 @@ namespace Velivo
             qSl.ValueChanged += (s, e) => { AbProc.QuietMaxDb = qSl.Value; SetPref("ab-cichy-db", qSl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); qVal.Text = L.T("do +") + qSl.Value.ToString("0") + " dB"; };
             DockPanel.SetDock(qOn, Dock.Left); DockPanel.SetDock(_abQuietNow, Dock.Right); DockPanel.SetDock(qVal, Dock.Right);
             qRow.Children.Add(qOn); qRow.Children.Add(_abQuietNow); qRow.Children.Add(qVal); qRow.Children.Add(qSl); root.Children.Add(qRow);
+            // próg w LUFS: od jakiego poziomu całe nagranie jest „bardzo ciche” (jak w Audio Balance for Windows)
+            var bRow = new DockPanel { Margin = new Thickness(0, 4, 0, 0), ToolTip = L.T("Nagranie (poziom z ostatnich ok. 30 s) cichsze niż ten próg dostaje dodatkowe podbicie. Wyżej = częściej, niżej = tylko skrajnie ciche.") };
+            var bLbl = new TextBlock { Text = L.T("Bardzo ciche, gdy"), Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var bVal = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 110, Margin = new Thickness(6, 0, 0, 0) };
+            _abQuietLvl = new TextBlock { Foreground = fg, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center, Width = 120, ToolTip = L.T("Zmierzony poziom tego, co teraz gra (ostatnie ok. 30 s)") };
+            var bSl = new Slider { Minimum = -60, Maximum = -25, Value = double.IsNaN(AbProc.QuietBelow) ? -35 : AbProc.QuietBelow, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
+            bVal.Text = L.T("poniżej ") + bSl.Value.ToString("0") + " LUFS";
+            bSl.ValueChanged += (s, e) => { AbProc.QuietBelow = bSl.Value; SetPref("ab-cichy-prog", bSl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); bVal.Text = L.T("poniżej ") + bSl.Value.ToString("0") + " LUFS"; };
+            DockPanel.SetDock(bLbl, Dock.Left); DockPanel.SetDock(_abQuietLvl, Dock.Right); DockPanel.SetDock(bVal, Dock.Right);
+            bRow.Children.Add(bLbl); bRow.Children.Add(_abQuietLvl); bRow.Children.Add(bVal); bRow.Children.Add(bSl); root.Children.Add(bRow);
             // 📌 tylko dla tego materiału (domyślnie wyłączone - zapamiętane dla filmu / kanału, który tego potrzebuje)
             _abQuietSrc = new CheckBox { Foreground = fg, Margin = new Thickness(0, 2, 0, 0), ToolTip = L.T("Zapamiętane tylko dla tego filmu / kanału – włączy się samo przy następnym odtworzeniu.") };
             _abQuietSrc.Click += (s, e) => AbQuietSet(AbQuietSrc, _abQuietSrc.IsChecked == true); root.Children.Add(_abQuietSrc);
@@ -630,7 +640,7 @@ namespace Velivo
                 bool live = _abExtLive || (_abOut != null && AbProc.Active && AbFlowing());
                 bigVuUpd(live); SumBars(live);
                 if (_abQuietSrc != null && _abQuietShown != AbQuietSrc) { _abQuietShown = AbQuietSrc; _abQuietSrc.IsEnabled = AbQuietSrc != null; _abQuietSrc.Content = AbQuietSrc == null ? L.T("📌 Zapamiętaj dla filmu / kanału (nic nie gra)") : L.T("📌 Zawsze dla: ") + AbQuietSrc; _abQuietSrc.IsChecked = AbQuietFor(AbQuietSrc); }
-                if (_abQuietNow != null) { var qt = live && AbV.QuietOn ? L.T("teraz: +") + AbV.QuietNow.ToString("0") + " dB" + (AbV.QuietNoise ? L.T(" (mniej – szum)") : "") : ""; if (_abQuietNow.Text != qt) _abQuietNow.Text = qt; }
+                if (_abQuietNow != null) { var qt = live && AbV.QuietOn ? L.T("teraz: +") + AbV.QuietNow.ToString("0") + " dB" + (AbV.QuietNoise ? L.T(" (mniej – szum)") : "") : ""; if (_abQuietNow.Text != qt) _abQuietNow.Text = qt; } if (_abQuietLvl != null) { var lv = AbProc.QuietLevel; var lt = live && lv > -70 ? L.T("nagranie: ") + lv.ToString("0") + " LUFS" : ""; if (_abQuietLvl.Text != lt) _abQuietLvl.Text = lt; }
                 string sig = AbBypass + AbProfileName + AbSilaName + AbDialog + AbEqOn;
                 if (sig != uiSig) { uiSig = sig; MarkBypass(); MarkProfile(); MarkSila(); MarkDialog(); }
                 state.Text = AbWinActive ? L.T("● Audio Balance for Windows przetwarza cały dźwięk Windows – wskaźniki pokazują jego pracę (Velivo nie poprawia drugi raz)") : AbBypassV ? L.T("● bez przetwarzania") : !AbWanted ? L.T("● wyłączony") : live ? "● " + AbProfileLabel(AbProfileName) + (AbProfileName != "off" ? " " + AbSilaLabel(AbSilaName) : "") + (AbV.EqOn ? " + EQ" : "") + (AbV.Dialog > 0 ? L.T(" + dialogi") : "") : L.T("● czeka na odtwarzanie");

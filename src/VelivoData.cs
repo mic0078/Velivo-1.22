@@ -28,7 +28,11 @@ namespace Velivo
         {
             var tmp = path + ".tmp";
             using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None)) { fs.Write(data, 0, data.Length); fs.Flush(true); }
-            File.Move(tmp, path, true);
+            for (int i = 0; ; i++)
+            {   // podmiana nie wychodzi, gdy drugi program Velivo właśnie czyta ten plik (Odmowa dostępu) - chwila czekania i znowu
+                try { File.Move(tmp, path, true); return; }
+                catch (Exception ex) when ((ex is UnauthorizedAccessException || ex is IOException) && i < 20) { System.Threading.Thread.Sleep(100); }
+            }
         }
         public static void SafeWrite(string path, string text) => SafeWrite(path, System.Text.Encoding.UTF8.GetBytes(text));
 

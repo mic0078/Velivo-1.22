@@ -280,7 +280,7 @@ namespace Velivo
                 lc.Ready = found; lc.RenderKey = key;
                 if (loadOnly) { if (found.Count > 0) lc.Osd?.Invoke(L.T("🗣 Lektor: używam gotowych nagrań tego filmu – ") + found.Count + " / " + lc.Cues.Count); return; }
                 lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + found.Count + " / " + lc.Cues.Count);
-                int fails = 0; var lastOsd = DateTime.UtcNow;   // postep co 10% albo co minute (wolny glos - XTTS)
+                int fails = 0, moveFails = 0; var lastOsd = DateTime.UtcNow;   // postep co 10% albo co minute (wolny glos - XTTS)
                 while (gen == lc.RenderGen)
                 {
                     int from = Math.Max(0, lc.LastSpoken + 1), idx = -1;
@@ -302,8 +302,8 @@ namespace Velivo
                     try { System.IO.File.Move(tmp, dst, true); lc.Ready[idx] = dst; int n = lc.Ready.Count, all = lc.Cues.Count; if (all > 0 && (n * 10 / all != (n - 1) * 10 / all || (DateTime.UtcNow - lastOsd).TotalSeconds > 60)) lastOsd = DateTime.UtcNow; else continue; lc.Osd?.Invoke(L.T("🗣 Lektor: przygotowuję cały film w tle – gotowe ") + n + " / " + all); }   // postęp na ekranie co 10%
                     catch (Exception ex)
                     {
-                        if (File.Exists(dst) && new FileInfo(dst).Length > 44) { lc.Ready[idx] = dst; try { File.Delete(tmp); } catch (Exception) { } }   // nagranie juz jest (wlasnie grane) - zostaje
-                        else { App.LogError(ex); await Task.Delay(2000); }
+                        if (File.Exists(dst)) { lc.Ready[idx] = dst; try { File.Delete(tmp); } catch (Exception) { } }   // nagranie juz jest (wlasnie grane albo zrobione przez drugi program Velivo z tym samym filmem - Move to podmiana w calosci) - zostaje
+                        else { try { File.Delete(tmp); } catch (Exception) { } if (++moveFails == 1) App.LogError(ex); await Task.Delay(2000); }   // wpis raz na film, nie setki
                     }
                 }
             }

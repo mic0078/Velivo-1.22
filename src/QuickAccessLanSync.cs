@@ -52,6 +52,11 @@ namespace Velivo
                 _quickAccessLanListener = listener;
                 _ = Task.Run(() => QuickAccessLanListenLoop(listener, token));
             }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse && !token.IsCancellationRequested)
+            {   // port trzyma jeszcze program Velivo, który właśnie oddaje sieć domową - ponów za 10 s zamiast błędu
+                _quickAccessLanListener = null;
+                _ = Task.Delay(10000, token).ContinueWith(t => { if (!t.IsCanceled) Dispatcher.BeginInvoke(new Action(() => { if (!token.IsCancellationRequested && _quickAccessLanListener == null) StartQuickAccessLanListener(token); })); });
+            }
             catch (Exception ex)
             {
                 _quickAccessLanListener = null;

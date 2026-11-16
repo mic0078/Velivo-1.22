@@ -430,6 +430,7 @@ namespace Velivo
                 try { _lanTx.Send(data, data.Length, new IPEndPoint(target, LanPort)); }
                 catch (Exception) { }
             }
+            LanSlowly(_lanTx, data, LanSweep(pkt.t), LanPort);
             _lanPacketsTx++;
             _lanLastTxUtc = DateTime.UtcNow;
             RefreshLanDiagnosticsUi();

@@ -425,7 +425,9 @@ namespace Velivo
                     while (stack.Count > 0)
                     {
                         var d = stack.Pop();
-                        foreach (var e in Directory.EnumerateFileSystemEntries(d))
+                        string[] entries;
+                        try { entries = Directory.GetFileSystemEntries(d); } catch (Exception) { continue; }   // folder-skrót do nieistniejącego miejsca (ZL EqualizerData) - pomijany, reszta szukana dalej
+                        foreach (var e in entries)
                             if (e.EndsWith(".vst3", StringComparison.OrdinalIgnoreCase)) { if (!IsInstrument(e)) res.Add(e); }   // syntezatory (Analog Lab, ARP…) nie przetwarzają dźwięku filmu - pomijane
                             else if (Directory.Exists(e)) stack.Push(e);
                     }

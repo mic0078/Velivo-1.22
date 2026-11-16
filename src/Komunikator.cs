@@ -341,6 +341,7 @@ namespace Velivo
         void KomStartOwn(bool old = true)
         {
             if (KomOddany) { KomAppRun(true); return; }   // osobny Komunikator na komputerze z Velivo - rozmowy i serwer prowadzi Velivo
+            if (!Wariant.MaKomunikator) return;   // 🧩 Odtwarzacz / Przeglądarka nie mają komunikatora - nie zajmują jego portów (błąd 10048 co 15 s u drugiego programu)
             KomLoad();
             KomStartResend();
             if (_komContacts.Count > 0) KomEnsureTray();
@@ -350,9 +351,13 @@ namespace Velivo
                 if (_komUdp == null) { (_komUdp, _komTcp) = KomListen(KomPort, _komCts.Token); if (_komContacts.Count > 0) KomAnnounce(); }
                 if (old && _lanRx == null && _komUdpOld == null) (_komUdpOld, _komTcpOld) = KomListen(LanPort, _komCts.Token);
             }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            {   // port zajęty przez inny działający program Velivo (on prowadzi) - wpis raz na godzinę, nie co 15 s
+                if (DateTime.UtcNow - _komPortBusyLog > TimeSpan.FromHours(1)) { _komPortBusyLog = DateTime.UtcNow; App.LogInfo("Komunikator: port zajęty przez inny program Velivo – prowadzi on."); }
+            }
             catch (Exception ex) { App.LogError(ex); }
         }
-        UdpClient _komUdpOld; TcpListener _komTcpOld;
+        UdpClient _komUdpOld; TcpListener _komTcpOld; DateTime _komPortBusyLog;
         void KomStopOld() { try { _komUdpOld?.Dispose(); } catch (Exception) { } try { _komTcpOld?.Stop(); } catch (Exception) { } _komUdpOld = null; _komTcpOld = null; }   // port 41919 dla synchronizacji LAN
         (UdpClient, TcpListener) KomListen(int port, CancellationToken token)
         {
@@ -1272,6 +1277,7 @@ namespace Velivo
         {
             var s = _komUdp ?? _lanTx; if (s == null) return;
             var d = Encoding.UTF8.GetBytes(p.ToJsonString());
+            var addrs = new List<IPAddress>();
             try
             {
                 foreach (var ni in NetworkInterface.GetAllNetworkInterfaces().Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback))
@@ -1279,11 +1285,11 @@ namespace Velivo
                     {
                         var b = ua.Address.GetAddressBytes();
                         if (!(b[0] == 10 || b[0] == 192 && b[1] == 168 || b[0] == 172 && b[1] >= 16 && b[1] <= 31)) continue;   // tylko sieć domowa
-                        for (int i = 1; i <= 254; i++)
-                            if (i != b[3]) foreach (var pt in new[] { KomPort, LanPort }) try { s.Send(d, d.Length, new IPEndPoint(new IPAddress(new[] { b[0], b[1], b[2], (byte)i }), pt)); } catch (Exception) { }
+                        for (int i = 1; i <= 254; i++) if (i != b[3]) addrs.Add(new IPAddress(new[] { b[0], b[1], b[2], (byte)i }));
                     }
             }
             catch (Exception) { }
+            LanSlowly(s, d, addrs, KomPort, LanPort);   // pomału - bez skoku zapytań ARP, który przycinał dźwięk
         }
 
         // ---------- TCP: kontakt i pliki ----------

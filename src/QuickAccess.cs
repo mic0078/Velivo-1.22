@@ -42,13 +42,23 @@ namespace Velivo
                         if (!IsSafeQuickAccessArchivePath(relative)) throw new InvalidDataException("Nieprawidłowa ścieżka pliku Szybkiego Dostępu.");
                         var entry = archive.CreateEntry(relative, CompressionLevel.Optimal);
                         entry.LastWriteTime = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
-                        using (var source = File.OpenRead(file))
+                        using (var source = OpenShared(file))
                         using (var destination = entry.Open()) source.CopyTo(destination);
                         if (output.Length > QuickAccessArchiveLimitBytes) throw new InvalidDataException("Dane Szybkiego Dostępu przekraczają limit synchronizacji 24 MB.");
                     }
                 }
                 if (output.Length > QuickAccessArchiveLimitBytes) throw new InvalidDataException("Dane Szybkiego Dostępu przekraczają limit synchronizacji 24 MB.");
                 return output.ToArray();
+            }
+        }
+
+        // plik (miniatura) zapisywany właśnie przez drugi program Velivo: czytanie wspólne, chwila czekania zamiast błędu
+        static FileStream OpenShared(string file)
+        {
+            for (int i = 0; ; i++)
+            {
+                try { return new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); }
+                catch (IOException) when (i < 10 && File.Exists(file)) { System.Threading.Thread.Sleep(200); }
             }
         }
 

@@ -222,7 +222,8 @@ namespace Velivo
                         SilentStart = true;   // okno przeglądarki zawsze schowane, widać Kanapę / odtwarzacz
                         var vids = _startUrls.Select(VideoArg).Where(v => v != null).ToArray();   // 🧩 Odtwarzacz uruchomiony z filmem (dwuklik, film z komunikatora) - gra od razu
                         if (vids.Length > 0 && VlcInstalled) { _odtwStartFilm = true; Dispatcher.BeginInvoke(new Action(() => PlayVideos(vids, 0)), System.Windows.Threading.DispatcherPriority.ApplicationIdle); }
-                        else foreach (var u in _startUrls) if (VideoArg(u) == null) OpenArg(u);   // strona - przeglądarka domyślna (AddTab przekierowuje)
+                        else foreach (var u in _startUrls) if (VideoArg(u) == null) OpenArg(u);
+                        if (_startUrls.Length > 0 && !_odtwStartFilm) App.LogInfo("Odtwarzacz: nie odtworzono przy starcie – " + (VlcInstalled ? "nieznany typ pliku" : "brak silnika odtwarzacza (vlc)") + ": " + string.Join(" | ", _startUrls));   // strona - przeglądarka domyślna (AddTab przekierowuje)
                     }
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
@@ -244,7 +245,7 @@ namespace Velivo
                 }
             };
             PreviewKeyDown += OnKeys;
-            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); if (Wariant.Klawiatura) ShowScreenKeyboard(); else OdtwOtworz(); } };   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
+            if (!Wariant.MaKarty) IsVisibleChanged += (o, e) => { if (IsVisible && _sessionReady) { Hide(); if (Wariant.Klawiatura) ShowScreenKeyboard(); else if (_vlcWin != null) { if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal; _vlcWin.Activate(); } else OdtwOtworz(); } };   // gra film - jego okno na wierzch, nie biblioteka/Kanapa   // 🧩 Odtwarzacz: schowane okno przeglądarki pokazane z dowolnego miejsca (koniec filmu, zasobnik) = Kanapa
         }
 
         void EnsureOneTimeQuickAccessWebViewReset()

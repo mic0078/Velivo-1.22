@@ -94,11 +94,27 @@ namespace Velivo
 
         // 🧩 okna.txt dzielą wszystkie programy Velivo - zapis łączy zmiany (nie kasuje położenia okien i wyborów innego programu)
         static Dictionary<string, string> _winBase;
+        // zapis w osobnym wątku: zamykane okno znika od razu (wspólna blokada innych programów Velivo trzymała ✕ do kilku sekund);
+        // wątek nie-tłowy - zamknięcie Velivo czeka, aż zapis się skończy
+        static readonly object _winSaveLock = new object();
         static void SaveWinBounds()
         {
-            var saved = VelivoData.MergeWrite(WindowsFile, '\t', WinBounds().ToList(), _winBase);
-            _winBase = new Dictionary<string, string>(saved);
-            _winBounds.Clear(); foreach (var kv in saved) _winBounds[kv.Key] = kv.Value;
+            var mine = WinBounds().ToList(); var bas = _winBase == null ? null : new Dictionary<string, string>(_winBase);
+            var disp = System.Windows.Application.Current?.Dispatcher;
+            new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    Dictionary<string, string> saved;
+                    lock (_winSaveLock) saved = VelivoData.MergeWrite(WindowsFile, '\t', mine, bas);
+                    disp?.BeginInvoke(new Action(() =>
+                    {
+                        _winBase = new Dictionary<string, string>(saved);
+                        foreach (var kv in saved) if (!_winBounds.ContainsKey(kv.Key) || mine.Any(m => m.Key == kv.Key && m.Value == _winBounds[kv.Key])) _winBounds[kv.Key] = kv.Value;   // nowsze zmiany tego okna z międzyczasu zostają
+                    }));
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            }) { IsBackground = false, Name = "Velivo okna" }.Start();
         }
         static Dictionary<string, string> WinBounds()
         {

@@ -334,7 +334,7 @@ namespace Velivo
             { "do celu: ", "to target: " },
             { "✕ Zakończ Velivo Klawiaturę", "✕ Quit Velivo Keyboard" },
             { "Ikona otwiera", "Icon opens" },
-            { "🎬 Okno odtwarzacza (biblioteka filmów)", "🎬 Player window (film library)" },
+            { "🎬 Okno odtwarzacza", "🎬 Player window" },
             { "Ikona Velivo Odtwarzacza otwiera", "Velivo Player icon opens" },
             { "Po starcie z Windows Odtwarzacz czeka tylko jako ikona w zasobniku – nic się nie otwiera.", "After starting with Windows the Player waits only as a tray icon – nothing opens." },
             { "Przetwarza Velivo Audio Balance for Windows", "Processed by Velivo Audio Balance for Windows" },

@@ -44,10 +44,13 @@ namespace Velivo
         // dodatek zainstalowany (i nie czeka na usuniecie)
         internal static bool VlcInstalled { get { return File.Exists(Path.Combine(VlcDir, "libvlc.dll")) && !File.Exists(VlcRemoveFlag); } }
 
+        // 🎵 pliki dźwiękowe („Otwórz za pomocą → Velivo Odtwarzacz” na .wav) - grają jak w VLC, ale nie trafiają do biblioteki filmów
+        internal static readonly string[] AudioExts = { ".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".aac", ".wma", ".aif", ".aiff" };
+        internal static bool IsAudioFile(string path) => AudioExts.Contains(Path.GetExtension(path ?? "").ToLowerInvariant());
         internal static bool IsVlcVideoFile(string path)
         {
             var ext = Path.GetExtension(path ?? "").ToLowerInvariant();
-            return VideoExts.Contains(ext) || VlcExtraExts.Contains(ext);
+            return VideoExts.Contains(ext) || VlcExtraExts.Contains(ext) || AudioExts.Contains(ext);
         }
 
         LibVLC _libVlc;
@@ -288,7 +291,7 @@ namespace Velivo
                 catch (Exception) { continue; }
                 foreach (var f in files)
                 {
-                    if (!IsVlcVideoFile(f)) continue;
+                    if (!IsVlcVideoFile(f) || IsAudioFile(f)) continue;
                     var full = System.IO.Path.GetFullPath(f);
                     if (!known.Add(((shared ?? NetworkPath(full) != null) ? "S|" : "P|") + full)) continue;
                     lib.Add(new LibraryVideo { Path = full, Title = System.IO.Path.GetFileNameWithoutExtension(full), Added = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Shared = shared });
@@ -1289,7 +1292,7 @@ namespace Velivo
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));
             // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC); film z rozmowy komunikatora - nie
             var lib = LoadLibrary();
-            if (library && AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
+            if (library && AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f) && !IsAudioFile(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
             if (_vlcWin == null) BuildVlcWindow();
             _vlcLoad(_playIndex);
             if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal;
@@ -4453,7 +4456,7 @@ namespace Velivo
                 _vlcWin = null; _vlcLoad = null; _vlcQuiet = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 if (!_mainClosing) SaveTvResume(-1);
-                if (_hiddenForPlayer && !_mainClosing) { _hiddenForPlayer = false; ShowFromTray(); }
+                if (_hiddenForPlayer && !_mainClosing && Wariant.MaKarty) { _hiddenForPlayer = false; ShowFromTray(); }
                 LibBack();   // 🎬 biblioteka, z której włączono film, wraca   // przegladarka wraca z zasobnika   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
                 view.MediaPlayer = null;
                 if (_playerMp == mp) _playerMp = null;   // zwolniony za 10 s - zegar synchronizacji nie może już pytać „czy gra” (awaria Velivo)

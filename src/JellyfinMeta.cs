@@ -101,7 +101,7 @@ namespace Velivo
             foreach (var p in jellyfinPaths.Where(p => !string.IsNullOrWhiteSpace(p)))
             {
                 var k = MetaKey(p);
-                if (have.Contains(k) || !IsVlcVideoFile(p) || !exists(p)) continue;
+                if (have.Contains(k) || !IsVlcVideoFile(p) || IsAudioFile(p) || !exists(p)) continue;
                 have.Add(k); res.Add(p);
             }
             return res;

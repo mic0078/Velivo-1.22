@@ -82,7 +82,7 @@ namespace Velivo
                     menu.Items.Add(auto);
                     // 🧩 co otwiera ikona Odtwarzacza (pulpit, zasobnik): główne okno (biblioteka filmów) albo Kanapa
                     var otw = new System.Windows.Forms.ToolStripMenuItem(L.T("Ikona otwiera"));
-                    var oOkno = new System.Windows.Forms.ToolStripMenuItem(L.T("🎬 Okno odtwarzacza (biblioteka filmów)")); var oKan = new System.Windows.Forms.ToolStripMenuItem(L.T("🛋 Kanapa (telewizor)"));
+                    var oOkno = new System.Windows.Forms.ToolStripMenuItem(L.T("🎬 Okno odtwarzacza")); var oKan = new System.Windows.Forms.ToolStripMenuItem(L.T("🛋 Kanapa (telewizor)"));
                     oOkno.Click += (s, e) => Dispatcher.Invoke(() => SetPref("odtw-otwiera", "okno")); oKan.Click += (s, e) => Dispatcher.Invoke(() => SetPref("odtw-otwiera", "kanapa"));
                     otw.DropDownItems.Add(oOkno); otw.DropDownItems.Add(oKan);
                     menu.Opening += (s, e) => { bool k = OdtwKanapa; oKan.Checked = k; oOkno.Checked = !k; };
@@ -155,7 +155,7 @@ namespace Velivo
 
         // 🧩 Velivo Odtwarzacz: ikona (pulpit, zasobnik, drugie uruchomienie) otwiera wybrane okno; start z Windows - tylko ikona w zasobniku
         static bool OdtwKanapa => GetPref("odtw-otwiera") == "kanapa";
-        void OdtwOtworz() { if (OdtwKanapa) ShowKanapa(); else ShowVideoLibrary(); }
+        void OdtwOtworz() { if (OdtwKanapa) ShowKanapa(); else OpenEmptyPlayer(); }   // „okno” = główne okno odtwarzacza (czarne, logo Velivo), biblioteka z jego przycisku
         void ShowFromTray()
         {
             if (Wariant.Klawiatura) { ShowScreenKeyboard(); return; }   // ⌨ drugie uruchomienie / ikona - klawiatura

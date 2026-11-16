@@ -31,6 +31,10 @@ namespace Velivo
         {
             t = SubTags.Replace(t ?? "", "").Replace("\\N", " ").Replace("\\n", " ").Replace("\\h", " ");
             t = Regex.Replace(t, @"^\s*-\s*", "", RegexOptions.Multiline);   // myslnik dialogu na poczatku wiersza
+            // 🗣 napisy dla niesłyszących (Blu-ray, SDH): opisy dźwięków [MUZYKA], [drzwi skrzypią], (wzdycha) i nazwy mówiących „JOHN:” są do czytania oczami, nie do lektora
+            t = Regex.Replace(t, @"\[[^\]]*\]", " ");
+            t = Regex.Replace(t, @"^\s*\([^)]*\)\s*$", "", RegexOptions.Multiline);
+            t = Regex.Replace(t, @"^\s*[\p{Lu}\d][\p{Lu}\d .'’-]{2,30}:\s+", "", RegexOptions.Multiline);
             t = Regex.Replace(t, @"[\p{So}\p{Sk}\p{Co}\p{Cs}\p{Cf}]", " ");   // 🗣 znaki do pokazania, nie do czytania: ♪ ♫ ™ ® © emoji - lektor ich nie wymawia
             t = Regex.Replace(t, @"\s+", " ").Trim();
             return Regex.IsMatch(t, @"[\p{L}\p{N}]") ? t : "";   // sama interpunkcja (np. „♪ ♪”, „...”) - nic do czytania

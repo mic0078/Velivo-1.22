@@ -378,7 +378,7 @@ namespace Velivo
                 if (!File.Exists(path) || !File.Exists(FfmpegPath)) return null;
                 foreach (var map in ord >= 0 ? new[] { "0:s:" + ord } : new[] { "0:s:m:language:pol", "0:s:0" })
                 {
-                    var psi = new System.Diagnostics.ProcessStartInfo(FfmpegPath) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                    var psi = new System.Diagnostics.ProcessStartInfo(FfmpegPath) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = new System.Text.UTF8Encoding(false) };   // FFmpeg pisze UTF-8 - bez tego Windows czytał go stroną 1250 (♪ → „â™Ş”, lektor: „znak towarowy”, polskie litery zepsute)
                     foreach (var a in new[] { "-v", "error", "-i", path, "-map", map + "?", "-f", "srt", "-" }) psi.ArgumentList.Add(a);
                     using var p = System.Diagnostics.Process.Start(psi); var outT = p.StandardOutput.ReadToEndAsync(); _ = p.StandardError.ReadToEndAsync();
                     if (!p.WaitForExit(60000)) { try { p.Kill(); } catch (Exception) { } return null; }

@@ -343,6 +343,51 @@ namespace Velivo
         // 🎞 film z serwera Jellyfin (oryginalny plik, bez przekodowania - VLC odtwarza każdy format); null - brak serwera albo filmu w Jellyfin
         // film do obejrzenia tutaj: plik na dysku albo film z serwera Jellyfin (listy: Kontynuuj, ostatnio oglądane, boczna lista)
         internal bool FilmPlayable(string path) => File.Exists(path) || JellyfinStreamUrl(path) != null;
+        // 🗣 napisy wbudowane w plik (MKV/MP4) dla lektora: lektor czyta tekst, a ścieżka napisów w pliku nie jest tekstem na dysku.
+        // Film z Jellyfin (strumień /Videos/{id}/stream): Jellyfin oddaje ścieżkę jako SRT (/Subtitles/{n}/0/Stream.srt) - najpierw polska.
+        // Plik na dysku: ffmpeg (narzędzia Velivo, gdy jest) wyciąga pierwszą tekstową ścieżkę (polska najpierw). null = brak napisów tekstowych.
+        internal static async Task<string> EmbeddedSubsAsync(string path, int ord = -1)   // ord - która ścieżka napisów (0, 1…; jak w menu Napisy), -1 = sama (polska najpierw)
+        {
+            try
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(path ?? "", @"^(https?://.+?)/Videos/([^/]+)/stream\?.*?api_key=([^&]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (m.Success)
+                {
+                    string b = m.Groups[1].Value, id = Uri.UnescapeDataString(m.Groups[2].Value), key = Uri.UnescapeDataString(m.Groups[3].Value);
+                    using var http = JellyfinClient(new JellyfinConf { Url = b, Key = key }); http.Timeout = TimeSpan.FromSeconds(20);
+                    using var doc = JsonDocument.Parse(await http.GetStringAsync("Items/" + Uri.EscapeDataString(id) + "/PlaybackInfo"));
+                    foreach (var ms in doc.RootElement.GetProperty("MediaSources").EnumerateArray())
+                    {
+                        string msId = ms.TryGetProperty("Id", out var mi) ? mi.GetString() : id; int best = -1, bestScore = -1, nr = -1;
+                        foreach (var st in ms.GetProperty("MediaStreams").EnumerateArray().Where(x => x.GetProperty("Type").GetString() == "Subtitle" && !(x.TryGetProperty("IsExternal", out var ex) && ex.ValueKind == JsonValueKind.True)).OrderBy(x => x.GetProperty("Index").GetInt32()))
+                        {
+                            nr++;
+                            bool text = st.TryGetProperty("IsTextSubtitleStream", out var tx) && tx.ValueKind == JsonValueKind.True;
+                            if (ord >= 0) { if (nr == ord && text) best = st.GetProperty("Index").GetInt32(); continue; }   // wybrana w menu Napisy (obraz, np. PGS - lektor jej nie przeczyta)
+                            if (!text) continue;
+                            string lang = st.TryGetProperty("Language", out var lg) && lg.ValueKind == JsonValueKind.String ? lg.GetString() : "";
+                            int score = lang.StartsWith("pol", StringComparison.OrdinalIgnoreCase) || lang == "pl" ? 2 : 1;
+                            if (score > bestScore) { bestScore = score; best = st.GetProperty("Index").GetInt32(); }
+                        }
+                        if (best < 0) continue;
+                        var bytes = await http.GetByteArrayAsync("Videos/" + Uri.EscapeDataString(id) + "/" + Uri.EscapeDataString(msId) + "/Subtitles/" + best + "/0/Stream.srt");
+                        return SubtitleText(bytes);
+                    }
+                    return null;
+                }
+                if (!File.Exists(path) || !File.Exists(FfmpegPath)) return null;
+                foreach (var map in ord >= 0 ? new[] { "0:s:" + ord } : new[] { "0:s:m:language:pol", "0:s:0" })
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo(FfmpegPath) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                    foreach (var a in new[] { "-v", "error", "-i", path, "-map", map + "?", "-f", "srt", "-" }) psi.ArgumentList.Add(a);
+                    using var p = System.Diagnostics.Process.Start(psi); var outT = p.StandardOutput.ReadToEndAsync(); _ = p.StandardError.ReadToEndAsync();
+                    if (!p.WaitForExit(60000)) { try { p.Kill(); } catch (Exception) { } return null; }
+                    var txt = await outT; if (!string.IsNullOrWhiteSpace(txt) && txt.Contains("-->")) return txt;
+                }
+            }
+            catch (Exception ex) { App.LogError(new Exception("Lektor: napisy wbudowane w film – " + ex.Message, ex)); }
+            return null;
+        }
         JellyfinConf _jfConfCache; DateTime _jfConfAt;   // ustawienia Jellyfin czytane najwyżej co 30 s (listy pytają o setki filmów)
         internal string JellyfinStreamUrl(string path)
         {

@@ -186,7 +186,8 @@ namespace Velivo
             public bool Busy;
             public System.Windows.Media.MediaPlayer Voice;
             public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
-            public bool NoCuesSaid, SynthSaid;   // 🗣 powód ciszy lektora pokazany raz (brak napisów / głos nie przeczytał)
+            public bool NoCuesSaid, SynthSaid;
+            public string EmbPath, EmbName; public int EmbSpu = int.MinValue;   // 🗣 film bez pliku napisów: napisy wbudowane (ścieżka wybrana w odtwarzaczu)   // 🗣 powód ciszy lektora pokazany raz (brak napisów / głos nie przeczytał)
             public int Ducked = -1;   // glosnosc filmu przed sciszeniem
             public Dictionary<int, string> Ready = new Dictionary<int, string>();   // gotowe nagrania kwestii (caly film liczony w tle, zapis przy filmie)
             public int RenderGen; public bool Rendering; public string RenderKey; public Action<string> Osd; public bool BuildNow;   // RenderGen++ = zatrzymaj liczenie (nowe napisy, inny glos, zamkniecie)

@@ -2178,6 +2178,7 @@ namespace Velivo
                 string text = null;
                 try { if (path != null) text = ReadSubtitleFile(path); } catch (Exception ex) { App.LogError(ex); }
                 loadSubsText(text, path);
+                if (path != null) lc.EmbPath = null;   // plik napisów wybrany - lektor czyta go, nie ścieżkę wbudowaną
             };
             Action showLector = () => lector.Background = _settings.VlcLector ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent;
             // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
@@ -2368,6 +2369,25 @@ namespace Velivo
             lectorTimer.Tick += (s, e) =>
             {
                 if (muted && mp.Volume != 0) mp.Volume = 0;   // nowy film, sciszanie pod lektora itp. ustawiaja glosnosc - przy wyciszeniu pilnujemy zera
+                if (_settings.VlcLector && lc.EmbPath != null)
+                {   // 🗣 napisy wbudowane (MKV, Jellyfin): ta sama ścieżka, którą wybrałeś w menu Napisy - zmiana ścieżki = lektor czyta nową
+                    int sp = -1; try { sp = mp.Spu; } catch (Exception) { }
+                    if (sp != lc.EmbSpu && mp.IsPlaying)
+                    {
+                        lc.EmbSpu = sp; int ord = -1; if (sp >= 0) { int k = 0; foreach (var d in mp.SpuDescription) { if (d.Id < 0) continue; if (d.Id == sp) { ord = k; break; } k++; } }
+                        var p0 = lc.EmbPath; var n0 = lc.EmbName; int s0 = sp; lc.NoCuesSaid = true;   // w trakcie wyciągania bez „nie ma czego czytać”
+                        _ = EmbeddedSubsAsync(p0, ord).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            if (lc.EmbPath != p0 || lc.EmbSpu != s0) return;   // inny film / inna ścieżka w międzyczasie
+                            var txt = t.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? t.Result : null;
+                            loadSubsText(txt, txt != null ? n0 : null); lc.EmbPath = p0; lc.EmbName = n0; lc.EmbSpu = s0;
+                            if (lc.Cues.Count > 0) showOsd(L.T("🗣 Lektor: czytam napisy wbudowane w film (") + lc.Cues.Count + ")");
+                            else if (!p0.Contains("://") && !System.IO.File.Exists(FfmpegPath)) showOsd(L.T("🗣 Lektor: do napisów wbudowanych w plik MKV potrzebny jest dodatek FFmpeg (Pobierz film → najlepsza jakość)"));
+                            else showOsd(L.T("🗣 Lektor: wybrana ścieżka napisów to obraz, nie tekst – wybierz inną w menu Napisy"));
+                            lc.NoCuesSaid = true;
+                        })));
+                    }
+                }
                 if (_settings.VlcLector && !muted) LectorTick(lc, mp, () => (int)vol.Value);
             };
             lectorTimer.Start();
@@ -2974,7 +2994,11 @@ namespace Velivo
                     _ = System.Threading.Tasks.Task.Run(async () => { try { using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) }) return await http.GetByteArrayAsync(subUrl); } catch (Exception) { return null; } })
                         .ContinueWith(t => Dispatcher.BeginInvoke(new Action(() => { if (t.Result != null && _playlist.Count > _playIndex && _playlist[_playIndex] == path) loadSubsText(SubtitleText(t.Result), name); })));
                 }
-                else loadSubs(stream ? null : FindSubtitleFor(path));
+                else
+                {
+                    loadSubs(stream ? null : FindSubtitleFor(path));
+                    lc.EmbPath = lc.Cues.Count == 0 && tv == null ? path : null; lc.EmbName = name; lc.EmbSpu = int.MinValue;   // 🗣 brak pliku napisów - lektor czyta napisy wbudowane w film (ścieżka wybrana w menu Napisy; zegar lektora)
+                }
                 applyFilmPrefs();
                 miniTitle.Text = name;
                 // nagrywany kanal (opcja): obraz z pliku nagrania - jedno polaczenie z dostawca, pauza i cofanie

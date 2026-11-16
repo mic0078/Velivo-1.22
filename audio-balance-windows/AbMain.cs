@@ -204,7 +204,7 @@ namespace Velivo
             p.Children.Add(row);
             return p;
         }
-        static readonly string[] SoundKeys = { "profil", "sila", "dialogi", "cel", "eq", "eq-db", "cichy", "cichy-db", "cichy-zrodla", "kompresor", "kompresor-nazwa", "kompresor-wlasne" };
+        static readonly string[] SoundKeys = { "profil", "sila", "dialogi", "cel", "eq", "eq-db", "cichy", "cichy-db", "cichy-prog", "cichy-zrodla", "kompresor", "kompresor-nazwa", "kompresor-wlasne" };
         void SaveSettingsFile()
         {
             var d = new Microsoft.Win32.SaveFileDialog { Filter = L.T("Ustawienia Audio Balance") + "|*.vab.json", FileName = L.T("Moje poprawki") + ".vab.json" };
@@ -228,7 +228,7 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); Toast(ex.Message); }
         }
         // 🔈 bardzo ciche nagrania (makieta zatwierdzona): włącznik, suwak dodatkowego podbicia ponad limit wyrównania LUFS, ile teraz
-        TextBlock quietNow; CheckBox quietSrc; string quietShown = "\0";
+        TextBlock quietNow, quietLvl; CheckBox quietSrc; string quietShown = "\0";
         FrameworkElement QuietPanel()
         {
             var p = new StackPanel();
@@ -246,6 +246,17 @@ namespace Velivo
             quietNow = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, MinWidth = 92, ToolTip = L.T("Ile program teraz dodaje ponad zwykłe wyrównanie. „mniej – szum”: nagranie ma szum tła – podbija tylko tyle, żeby szum został niesłyszalny.") }; Grid.SetColumn(quietNow, 3);
             sl.ValueChanged += (s, e) => { val.Text = L.T("do +") + sl.Value.ToString("0") + " dB"; Put("cichy-db", sl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); };
             g.Children.Add(sl); g.Children.Add(pill); g.Children.Add(quietNow); p.Children.Add(g);
+            // próg: od jakiego poziomu całe nagranie jest „bardzo ciche” (właściciel: np. −46 / −50 dB)
+            var g2 = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            g2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) }); g2.ColumnDefinitions.Add(new ColumnDefinition()); g2.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); g2.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g2.Children.Add(new TextBlock { Text = L.T("Bardzo ciche, gdy"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center, ToolTip = L.T("Nagranie (poziom z ostatnich ok. 30 s) cichsze niż ten próg dostaje dodatkowe podbicie. Wyżej = częściej, niżej = tylko skrajnie ciche.") });
+            double b0 = double.TryParse(Get("cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qb) ? qb : -35;
+            var sl2 = new Slider { Minimum = -60, Maximum = -25, Value = b0, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(sl2, 1);
+            var val2 = new TextBlock { Text = L.T("poniżej ") + b0.ToString("0") + " LUFS", Foreground = Fg, VerticalAlignment = VerticalAlignment.Center };
+            var pill2 = new Border { Background = BtnBg, CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 12, 0), Child = val2 }; Grid.SetColumn(pill2, 2);
+            quietLvl = new TextBlock { Foreground = Dim, VerticalAlignment = VerticalAlignment.Center, MinWidth = 92, ToolTip = L.T("Zmierzony poziom tego, co teraz gra (ostatnie ok. 30 s)") }; Grid.SetColumn(quietLvl, 3);
+            sl2.ValueChanged += (s, e) => { val2.Text = L.T("poniżej ") + sl2.Value.ToString("0") + " LUFS"; Put("cichy-prog", sl2.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); Apply(); };
+            g2.Children.Add(sl2); g2.Children.Add(pill2); g2.Children.Add(quietLvl); p.Children.Add(g2);
             quietSrc = new CheckBox { Foreground = Fg, Margin = new Thickness(0, 6, 0, 0), ToolTip = L.T("Zapamiętane tylko dla tego programu – włączy się samo, gdy znów zagra.") };
             quietSrc.Click += (s, e) => MainWindow.AbQuietSet(MainWindow.AbQuietSrc, quietSrc.IsChecked == true); p.Children.Add(quietSrc);
             return p;
@@ -265,6 +276,7 @@ namespace Velivo
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
             p.QuietOn = Get("cichy") == "1" || MainWindow.AbQuietFor(MainWindow.AbQuietSrc); p.QuietMaxDb = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
+            p.QuietBelow = double.TryParse(Get("cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qp) ? qp : -35;
             var pre = Get("kompresor"); p.Pre.Params = pre == null ? DynParams.Film() : DynParams.Load(pre);
         }
 
@@ -414,7 +426,7 @@ namespace Velivo
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Shown.Bypass ? eng.Proc.Out.Momentary : eng.Running && ReferenceEquals(eng.Shown, eng.MonProc) ? eng.MonProc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku
             if (quietSrc != null && quietShown != MainWindow.AbQuietSrc) { quietShown = MainWindow.AbQuietSrc; var q0 = quietShown; quietSrc.IsEnabled = q0 != null; quietSrc.Content = q0 == null ? L.T("📌 Zapamiętaj dla programu (nic nie gra)") : L.T("📌 Zawsze dla: ") + q0; quietSrc.IsChecked = MainWindow.AbQuietFor(q0); }
-            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = !eng.Proc.QuietOn ? L.T("wyłączone") : L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietOn && eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; }
+            if (quietNow != null && win.IsVisible) { var qn = eng.Running && eng.Proc.QuietOn && eng.Proc.Raw.ShortTerm > -69 ? eng.Proc.QuietNow : 0; var qt = !eng.Proc.QuietOn ? L.T("wyłączone") : L.T("teraz: +") + qn.ToString("0") + " dB" + (eng.Proc.QuietOn && eng.Proc.QuietNoise ? L.T(" (mniej – szum)") : ""); if (quietNow.Text != qt) quietNow.Text = qt; } if (quietLvl != null && win.IsVisible) { var lv = eng.Proc.QuietLevel; var lt = eng.Running && lv > -70 ? L.T("nagranie: ") + lv.ToString("0") + " LUFS" : ""; if (quietLvl.Text != lt) quietLvl.Text = lt; }
             UpdateDefBtn();   // także w zasobniku - znak „przetwarzam” dla Velivo (urządzenia sprawdzane w tle, co 2 s)
         }
 

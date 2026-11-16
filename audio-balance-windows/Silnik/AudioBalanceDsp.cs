@@ -237,7 +237,7 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
-        public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow; double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
+        public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow, QuietBelow = double.NaN, QuietLevel = double.NegativeInfinity;   /* QuietBelow: od jakiego poziomu nagrania (LUFS) uznać je za bardzo ciche - NaN = cel −12 (dawniej na stałe); QuietLevel - zmierzony poziom nagrania */ double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
         public bool NoVst;   // poprawianie pliku (osobny obiekt) - bez wtyczek VST3, które gra właśnie dźwięk Windows
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
@@ -350,7 +350,7 @@ namespace Velivo
             if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
             Tg += TargetAdj; EffTarget = Tg; var pr = Profile; Pre.AutoTargetDb = (float)Tg;
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
-            double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); if (pr != null && QuietOn && film > -70 && film < Tg - 12) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
+            double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); double qB = double.IsNaN(QuietBelow) ? Tg - 12 : QuietBelow; QuietLevel = film; if (pr != null && QuietOn && film > -70 && film < qB) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
             double kV = 1.0 / (0.08 * Fs);
             double upS = pr == null ? 0 : pr.UpDbS / Fs, dnS = pr == null ? 0 : pr.DownDbS / Fs;
@@ -456,7 +456,7 @@ namespace Velivo
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double xb = QuietOn && film > -70 && film < Tg - 12 ? Math.Min(QuietMaxDb, Tg - 12 - film) : 0;
+                        double xb = QuietOn && film > -70 && film < qB ? Math.Min(QuietMaxDb, Math.Max(0, Tg - film - pr.MaxBoost)) : 0;   // tyle ponad limit trybu, ile brakuje do celu (dawniej Tg−12−film: przy progu z ustawień mogło wyjść 0)
                         if (xb > 0) { double room = -50 - noiseFl - pr.MaxBoost; QuietNoise = room < xb; xb = Math.Max(0, Math.Min(xb, room)); }   // najlepszy kompromis: podbicie tylko tak duże, żeby szum tła po podbiciu został poniżej -50 LUFS (niesłyszalny)   // 🔈 całe nagranie skrajnie ciche (np. -46 LUFS): zapas podbicia rośnie do +15 dB ponad limit trybu - podciąga do normalnej głośności (limiter pilnuje szczytów)
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);

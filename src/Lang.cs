@@ -332,6 +332,8 @@ namespace Velivo
             { "O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny.", "How many dB above the film's typical level the automatic threshold starts." },
             { "Próg teraz: ", "Threshold now: " },
             { "do celu: ", "to target: " },
+            { "Przetwarza Velivo Audio Balance for Windows", "Processed by Velivo Audio Balance for Windows" },
+            { "🎚 Otwórz Audio Balance for Windows…", "🎚 Open Audio Balance for Windows…" },
             { "🗣 Lektor: do napisów wbudowanych w plik MKV potrzebny jest dodatek FFmpeg (Pobierz film → najlepsza jakość)", "🗣 Voice-over: subtitles embedded in an MKV file need the FFmpeg add-on (Download video → best quality)" },
             { "🗣 Lektor: wybrana ścieżka napisów to obraz, nie tekst – wybierz inną w menu Napisy", "🗣 Voice-over: the selected subtitle track is an image, not text – choose another in the Subtitles menu" },
             { "🗣 Lektor: czytam napisy wbudowane w film (", "🗣 Voice-over: reading subtitles embedded in the film (" },

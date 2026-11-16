@@ -354,8 +354,18 @@ namespace Velivo
         static string AbProfileLabel(string p) => p == "auto" ? "Auto Level" : p == "limit" ? "Limit Only" : L.T("Wył.");
         static string AbProfileShort(string p) => p == "auto" ? "A" + AbSilaLabel(AbSilaName)[0] : p == "limit" ? "Lim" + AbSilaLabel(AbSilaName)[0] : "⏻";
 
+        // 🧩 dźwięk przetwarza Velivo Audio Balance for Windows (program samodzielny) - jego okno zamiast Audio Monitora Velivo (to on teraz przetwarza dźwięk); programy równe
+        static bool AbWinOkno()
+        {
+            if (!AbWinActive) return false;   // program samodzielny nie przetwarza (nie działa albo Windows gra prosto na głośniki) - aktywny jest Audio Balance Velivo
+            try { using var ev = System.Threading.EventWaitHandle.OpenExisting("VelivoAudioBalance.Pokaz"); ev.Set(); return true; }
+            catch (Exception) { }
+            try { var exe = VelivoData.ProgramZeSpisu("VelivoAudioBalance"); if (exe != null && System.IO.File.Exists(exe)) { System.Diagnostics.Process.Start(exe); return true; } } catch (Exception ex) { App.LogError(ex); }   // starsza wersja: drugie uruchomienie pokazuje okno
+            return false;
+        }
         internal void ShowAudioMonitor()
         {
+            if (AbWinOkno()) return;
             if (!Edycja.Premium) { ShowToast(L.T("💎 Audio Balance i Audio Monitor są w Velivo Premium"), null); return; }
             if (_abWin != null) { _abWin.Show(); if (_abWin.WindowState == WindowState.Minimized) _abWin.WindowState = WindowState.Normal; _abWin.Activate(); _abTimer?.Start(); return; }
             AbLoadSettings();

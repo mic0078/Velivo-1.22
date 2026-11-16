@@ -4023,6 +4023,15 @@ namespace Velivo
                     // stan od razu widac (ptaszek) i jednym kliknieciem wl./wyl. - ten sam przelacznik co ⏻ w widzecie
                     // 🎚 INTELIGENTNA NORMALIZACJA: włącz/wyłącz, tryb, intensywność i stan na żywo (wszystko działa od razu na dźwięk)
                     cm.Items.Add(new MenuItem { Header = L.T("INTELIGENTNA NORMALIZACJA"), IsEnabled = false, FontWeight = FontWeights.Bold });
+                    if (AbWinActive)
+                    {   // 🧩 dźwięk przetwarza Velivo Audio Balance for Windows - ustawienia są w jego oknie (tu nic by nie zmieniły)
+                        cm.Items.Add(new MenuItem { Header = L.T("Przetwarza Velivo Audio Balance for Windows"), IsEnabled = false });
+                        var abw = new MenuItem { Header = L.T("🎚 Otwórz Audio Balance for Windows…") };
+                        abw.Click += (a, b) => ShowAudioMonitor();
+                        cm.Items.Add(abw);
+                    }
+                    else
+                    {
                     {
                         bool live = AbProc.Active && !AbBypass && AbWanted;
                         string F(double v) => double.IsNaN(v) || double.IsInfinity(v) || v < -70 ? "–" : v.ToString("0.0");
@@ -4046,6 +4055,7 @@ namespace Velivo
                     var abm = new MenuItem { Header = L.T("🎚 Audio Monitor i korektor…") };
                     abm.Click += (a, b) => ShowAudioMonitor();
                     cm.Items.Add(abm);
+                    }
                     // 🎛 wtyczki VST3 (efekty) - rozwijana lista: całość wł./wył., włączone (każda osobno + okno producenta), dostępne do dodania
                     VstLoad();
                     var vm = new MenuItem { Header = L.T("🎛 Wtyczki VST3") };

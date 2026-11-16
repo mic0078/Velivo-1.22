@@ -596,23 +596,35 @@ begin
   Result := VelivoWasRunning;
 end;
 
+// czy program działa - przez WMI, bez cmd.exe (Bitdefender brał instalator uruchamiający ukryty cmd za szkodliwy)
+function ProcRunning(Name: String): Boolean;
+var L, S, R: Variant;
+begin
+  Result := False;
+  try
+    L := CreateOleObject('WbemScripting.SWbemLocator');
+    S := L.ConnectServer('.', 'root\CIMV2');
+    R := S.ExecQuery('SELECT ProcessId FROM Win32_Process WHERE Name = ''' + Name + '''');
+    Result := R.Count > 0;
+  except
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code, I: Integer;
 begin
   Result := InstallPrereqs;
   if Result <> '' then exit;
-  Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq {#Exe}" | find /I "{#Exe}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
-  VelivoWasRunning := Code = 0;
+  VelivoWasRunning := ProcRunning('{#Exe}');
   // ukryte procesy Velivo (np. sprzatanie przy zamykaniu) razem z ich procesami WebView2
   // czekamy, aż Velivo naprawdę zniknie (pliki zwolnione) - do 10 s; nie da się zamknąć (Velivo jako administrator) - jasny komunikat zamiast „Odmowa dostępu”
   for I := 1 to 20 do
   begin
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM {#Exe}', '', SW_HIDE, ewWaitUntilTerminated, Code);
     Sleep(500);
-    Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq {#Exe}" | find /I "{#Exe}"', '', SW_HIDE, ewWaitUntilTerminated, Code);
-    if Code <> 0 then break;
+    if not ProcRunning('{#Exe}') then break;
   end;
-  if Code = 0 then begin Result := CustomMessage('VelivoRunning'); exit; end;
+  if ProcRunning('{#Exe}') then begin Result := CustomMessage('VelivoRunning'); exit; end;
   Sleep(500);
   MoveAsideUninstallFiles;
 end;

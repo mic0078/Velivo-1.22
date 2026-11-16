@@ -297,7 +297,16 @@ namespace Velivo
         //    pomiar na stanowisku: filmy -38..-20 LUFS → różnica 1,8 dB, dialog w filmie ±0,05 dB (było: 7 dB i ±2,4 dB). TV - jak dotąd (zmiana programu, reklamy)
         public readonly VelivoDynamicsProcessor Pre = new VelivoDynamicsProcessor(Fs);   // 🎚 kompresor wstępny - przed regulatorem LUFS (domyślnie wył.)
         float[] vstRaw = new float[4096];
-        public volatile bool FilmLong; double intC = -99, tvP; int tvQ;   // tvP - poziom kanału TV (LUFS, średnia w dB z ok. 30 s; 0 = jeszcze brak)
+        public volatile bool FilmLong; double intC = -99, tvP; int tvQ = 0; readonly double[] tvRing = new double[300]; int tvI, tvN;
+        double TvGated()
+        {
+            double sum = 0; int c = 0;
+            for (int k = 0; k < tvN; k++) if (tvRing[k] > -70) { sum += Math.Pow(10, (tvRing[k] + 0.691) / 10); c++; }
+            if (c == 0) return double.NegativeInfinity;
+            double rel = AbMeter.Lufs(sum / c) - 10; sum = 0; c = 0;
+            for (int k = 0; k < tvN; k++) if (tvRing[k] > -70 && tvRing[k] > rel) { sum += Math.Pow(10, (tvRing[k] + 0.691) / 10); c++; }
+            return c == 0 ? double.NegativeInfinity : AbMeter.Lufs(sum / c);
+        }   // tvP - poziom kanału TV (LUFS, średnia w dB z ok. 30 s; 0 = jeszcze brak)
         public AbProcessor() { Reset(); }
         public void SetEq(double[] db) { lock (eqDb) Array.Copy(db, eqDb, 10); eqDirty = true; }
         public void Reset()
@@ -343,7 +352,7 @@ namespace Velivo
         public void Process(float[] buf, int frames) { ProcessCore(buf, frames); MixLek(buf, frames); }
         void ProcessCore(float[] buf, int frames)
         {
-            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; noiseFl = -60; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
+            if (newReq) { newReq = false; Reset(); Pre.Reset(); tvP = 0; tvQ = 0; tvN = 0; tvI = 0; noiseFl = -60; intC = -99; In.ResetIntegrated(); Out.ResetIntegrated(); Raw.ResetIntegrated(); levDb = float.IsNaN(SeedLevDb) ? 0 : Math.Max(-Profile.MaxCut, Math.Min(Profile.MaxBoost, SeedLevDb)); wantS = levDb; sinceStart = 0; }
             if (double.IsNaN(levDb) || double.IsNaN(grDb) || double.IsNaN(limG) || double.IsNaN(detP)) { Reset(); levDb = 0; }   // samonaprawa
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
@@ -449,7 +458,7 @@ namespace Velivo
                     {   // 📺 TV: poziom kanału z ostatniej minuty (bramka -10 LU, jak BS.1770) - nadąża za zmianą programu; cicha scena NIE podgłaśnia (falowanie),
                         //    głośniejsza scena (reklama) dalej szybko w dół
                         double lb = tvP < 0 ? tvP : double.NegativeInfinity; if (m15 > lb + 5) loudN++; else loudN = 0; bool loud = (scene || loudN > 5 * Fs) && m15 > lb; if (loud) scene = true;   // głośniejszy program niż średnia kanału (ponad 5 dB przez 5 s) - porównanie z poziomem kanału, nie z oknem 10 s   // głośna scena / reklama - nie wlicza się do średniej kanału
-                        if (n % 4800 == 0 && !loud) { double mo = In.Momentary; if (mo > -70 && (tvP >= 0 || mo > lb - 10)) { tvP = tvP >= 0 ? mo : mo > lb + 10 ? tvP + (mo - tvP) / 50 : tvP + (Math.Min(mo, lb + 3) - tvP) / (sinceStart < Fs * 60 ? 150 : 300);   /* poziom zjechał w ciszy daleko w dół (−64 przy grającym −34): wraca w kilka sekund, nie w minuty */ tvQ = 0; } else if (tvP < 0 && mo > -70 && ++tvQ > 150) tvP -= 0.05; }   // średnia w dB z ok. 30 s: cisza i tło (-10 LU) pominięte, głośne fragmenty liczą się najwyżej +3 dB; 15 s bez treści ponad progiem (cichszy program) - poziom schodzi 0,5 dB/s
+                        if (n % 4800 == 0 && !loud) { double mo = In.Momentary; tvRing[tvI] = mo; tvI = (tvI + 1) % tvRing.Length; if (tvN < tvRing.Length) tvN++; double tg = TvGated(); if (tg > -70) tvP = tg; }   // 📏 poziom tego, co gra: ostatnie 30 s jak EBU R128 - bramka −70 i −10 LU od średniej (cisza i pauzy nie ściągają w dół, pojedynczy wybuch nie podnosi); dawniej własne „gonienie” utykało na −64 albo −28 przy źródle −41
                         if (tvP < 0) basis = loud ? m15 : lb;
                     }
                     if (basis > double.NegativeInfinity && In.Momentary > bgGate)

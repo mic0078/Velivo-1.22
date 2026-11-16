@@ -75,7 +75,45 @@ namespace Velivo
                     if (text.Length > 0) cues.Add(new SubCue { Start = start, End = end, Text = text });
                 }
             }
+            if (cues.Count == 0) cues = ParseFrameSubs(lines);   // 🗣 popularne w Polsce formaty .txt / .sub: MicroDVD, MPL2, TMPlayer
             return cues.OrderBy(c => c.Start).ToList();
+        }
+
+        // MicroDVD {klatka}{klatka}tekst (klatki → czas: pierwszy wiersz {1}{1}23.976 albo 23,976 kl./s), MPL2 [ds][ds]tekst (dziesiąte sekundy),
+        // TMPlayer gg:mm:ss:tekst (koniec = następna kwestia, najwyżej 5 s); „|” = nowy wiersz
+        static List<SubCue> ParseFrameSubs(string[] lines)
+        {
+            var cues = new List<SubCue>(); double fps = 23.976; var ci = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var l in lines)
+            {
+                var m = Regex.Match(l, @"^\{(\d+)\}\{(\d*)\}(.*)$");
+                if (m.Success)
+                {
+                    long a = long.Parse(m.Groups[1].Value); long b = m.Groups[2].Value.Length > 0 ? long.Parse(m.Groups[2].Value) : a + (long)(fps * 3);
+                    if (a <= 1 && b <= 1 && double.TryParse(m.Groups[3].Value.Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, ci, out var f) && f > 5 && f < 121) { fps = f; continue; }
+                    var t = CleanSub(m.Groups[3].Value.Replace("|", "\n").Replace("{y:i}", "").Replace("{Y:i}", ""));
+                    if (t.Length > 0) cues.Add(new SubCue { Start = (long)(a * 1000 / fps), End = (long)(b * 1000 / fps), Text = t });
+                    continue;
+                }
+                m = Regex.Match(l, @"^\[(\d+)\]\[(\d*)\](.*)$");
+                if (m.Success)
+                {
+                    long a = long.Parse(m.Groups[1].Value) * 100; long b = m.Groups[2].Value.Length > 0 ? long.Parse(m.Groups[2].Value) * 100 : a + 3000;
+                    var t = CleanSub(m.Groups[3].Value.Replace("|", "\n").TrimStart('/'));
+                    if (t.Length > 0) cues.Add(new SubCue { Start = a, End = b, Text = t });
+                    continue;
+                }
+                m = Regex.Match(l, @"^(\d{1,2}):(\d{2}):(\d{2})[:=](.*)$");
+                if (m.Success)
+                {
+                    long a = (long.Parse(m.Groups[1].Value) * 3600 + long.Parse(m.Groups[2].Value) * 60 + long.Parse(m.Groups[3].Value)) * 1000;
+                    if (cues.Count > 0 && cues[cues.Count - 1].End == long.MaxValue) cues[cues.Count - 1].End = Math.Min(a, cues[cues.Count - 1].Start + 5000);
+                    var t = CleanSub(m.Groups[4].Value.Replace("|", "\n"));
+                    if (t.Length > 0) cues.Add(new SubCue { Start = a, End = long.MaxValue, Text = t });
+                }
+            }
+            foreach (var c in cues) if (c.End == long.MaxValue) c.End = c.Start + 5000;
+            return cues;
         }
 
         // polskie napisy czesto sa w Windows-1250 (stare SRT) - UTF-8 tylko, gdy plik jest poprawnym UTF-8

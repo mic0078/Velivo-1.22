@@ -35,7 +35,7 @@ namespace Velivo
         }
         // formaty, ktore dochodza z dodatkiem (MP4/WebM/MKV/MOV/OGV obsluguje tez zwykly odtwarzacz w karcie)
         internal static readonly string[] VlcExtraExts = { ".avi", ".wmv", ".flv", ".mpg", ".mpeg", ".ts", ".m2ts", ".mts", ".3gp", ".vob", ".divx", ".asf", ".rm", ".rmvb", ".f4v", ".m2v" };
-        static readonly string[] SubtitleExts = { ".srt", ".ass", ".ssa", ".sub", ".vtt", ".smi" };
+        static readonly string[] SubtitleExts = { ".srt", ".ass", ".ssa", ".sub", ".vtt", ".smi", ".txt", ".mpl" };   // .txt / .mpl - polskie MicroDVD, MPL2, TMPlayer
 
         static string VlcDir { get { return Path.Combine(AppContext.BaseDirectory, "vlc"); } }
         static string VlcRemoveFlag { get { return Path.Combine(DataDir, (Wariant.Pelne ? "" : Wariant.Pid + "-") + "odtwarzacz-usun.flag"); } }   // 🧩 każdy program własny (wspólny folder danych)

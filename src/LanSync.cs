@@ -433,7 +433,7 @@ namespace Velivo
 
         void StartLanSync()
         {
-            StopLanSync(); KomVelivoProwadzi();
+            StopLanSync(); KomVelivoProwadzi(); if (_komWKomunikatorze) KomPrzejmijPotem();
             if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
             if (!LanLeadTake()) { KomStartOwn(); return; }   // 🧩 sieć domową na tym komputerze prowadzi już inny program Velivo (Odtwarzacz / Przeglądarka / pełne) - przejmiemy po jego zamknięciu
             KomStopOld(); KomStartOwn(false);   // 💬 komunikator na własnym porcie; 41919 zajmie synchronizacja (pakiety komunikatora przekazuje dalej)

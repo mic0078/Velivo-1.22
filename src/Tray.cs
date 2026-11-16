@@ -184,8 +184,24 @@ namespace Velivo
         static string KomVelivoExe => Environment.ProcessPath;
         // 💬 pełne Velivo samo prowadzi rozmowy i serwer - także gdy na komputerze jest osobny Komunikator (on wtedy tylko otwiera okno rozmów Velivo);
         // wcześniej Velivo oddawało wtedy wszystko Komunikatorowi i serwery przestały pośredniczyć
-        static bool KomOddany => !Wariant.MaKomunikator;   // 🧩 programy bez komunikatora (Odtwarzacz, Przeglądarka) nie prowadzą rozmów ani serwera
-        static void KomAppRun(bool silent) { }
+        // 🧩 programy równe: rozmowy prowadzi ten, kto wystartował pierwszy - gdy działa już osobny Velivo Komunikator, pełne Velivo go nie zamyka, tylko mu oddaje rozmowy
+        // (przycisk 💬 otwiera okno Komunikatora); po zamknięciu Komunikatora Velivo przejmuje rozmowy samo (KomPrzejmij)
+        static bool _komWKomunikatorze;
+        static bool KomOddany => !Wariant.MaKomunikator || _komWKomunikatorze;   // 🧩 programy bez komunikatora (Odtwarzacz, Przeglądarka) nie prowadzą rozmów ani serwera
+        static void KomAppRun(bool silent)
+        {
+            if (silent || !Wariant.MaKomunikator) return;
+            try { var exe = VelivoData.ProgramZeSpisu("VelivoKomunikator"); if (exe != null && File.Exists(exe)) System.Diagnostics.Process.Start(exe); } catch (Exception ex) { App.LogError(ex); }   // pokazuje okno działającego Komunikatora
+        }
+        static bool KomunikatorDziala() { var ps = System.Diagnostics.Process.GetProcessesByName("VelivoKomunikator"); foreach (var p in ps) p.Dispose(); return ps.Length > 0; }
+        System.Windows.Threading.DispatcherTimer _komPrzejmij;
+        void KomPrzejmijPotem()
+        {
+            if (_komPrzejmij != null) return;
+            _komPrzejmij = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+            _komPrzejmij.Tick += (s, e) => { if (KomunikatorDziala()) return; _komPrzejmij.Stop(); _komPrzejmij = null; _komWKomunikatorze = false; App.LogInfo("Velivo Komunikator zamknięty – rozmowy prowadzi Velivo"); StartLanSync(); };
+            _komPrzejmij.Start();
+        }
         void KomShowBrowser() => ShowFromTray();   // link z rozmowy: Velivo schowane w zasobniku też się pokazuje (samo Activate nic nie dawało - karta otwierała się niewidocznie)
         // znak dla osobnego Komunikatora: to Velivo prowadzi rozmowy (starsze Velivo oddawało je Komunikatorowi - wtedy Komunikator prowadzi sam,
         // inaczej oba oddawały sobie nawzajem i nikt nie prowadził); Komunikator, który już działa (starsza wersja), zamykany - jeden program na porty i dane
@@ -194,7 +210,7 @@ namespace Velivo
         {
             if (_komVelivoMark || !Wariant.MaKomunikator) return; _komVelivoMark = true;   // 🧩 program bez komunikatora nie zamyka osobnego Komunikatora
             try { File.WriteAllText(KomVelivoMarkFile, "1"); } catch (Exception ex) { App.LogError(ex); }
-            foreach (var p in System.Diagnostics.Process.GetProcessesByName("VelivoKomunikator")) try { using (p) { p.Kill(); p.WaitForExit(3000); } } catch (Exception) { }
+            if (KomunikatorDziala()) { _komWKomunikatorze = true; App.LogInfo("Działa Velivo Komunikator – rozmowy prowadzi on, Velivo przejmie je po jego zamknięciu"); }   // 🧩 nie zamykamy go (programy równe)
         }
         void KomSyncIn(byte[] state) => _ = HandleLanPacketAsync(state, null, true);   // 🌍 stan synchronizacji z internetu - sprawdzany jak z sieci domowej (klucz powiązania)
 

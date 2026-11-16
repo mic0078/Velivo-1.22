@@ -52,13 +52,15 @@ namespace Velivo
     {
         const bool KomSamodzielny = true;
         // Velivo na tym komputerze: rozmowy i serwer prowadzi Velivo (jak przed Komunikatorem) - Komunikator tylko je uruchamia / otwiera okno rozmów i kończy się
-        static bool KomOddany => KomVelivoExe != null && File.Exists(KomVelivoMarkFile);   // tylko nowe Velivo (starsze oddawało rozmowy Komunikatorowi - wtedy prowadzi on)
+        // 🧩 programy równe (właściciel): Komunikator działa sam i NIGDY nie uruchamia Velivo; oddaje rozmowy tylko pełnemu Velivo, które JUŻ działa (nowe - znak KomVelivoMarkFile)
+        static bool KomOddany => KomVelivoExe != null && File.Exists(KomVelivoMarkFile) && VelivoDziala();
+        static bool VelivoDziala() { var ps = Process.GetProcessesByName("Velivo"); foreach (var p in ps) p.Dispose(); return ps.Length > 0; }
         static void KomAppRun(bool silent)
         {
             try
             {
-                if (silent && Process.GetProcessesByName("Velivo").Length > 0) return;   // już działa
-                Process.Start(KomVelivoExe, silent ? "--autostart" : "--komunikator");
+                if (silent || !VelivoDziala()) return;   // start z Windows / Velivo nie działa - nic nie uruchamiamy
+                Process.Start(KomVelivoExe, "--komunikator");   // działające Velivo pokazuje swoje okno rozmów (nowego Velivo nie otwiera)
             }
             catch (Exception ex) { App.LogError(ex); }
         }

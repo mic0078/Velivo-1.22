@@ -57,7 +57,7 @@ namespace Velivo
         // PRZED programem - kompresor i wyrównanie dostawały wtedy np. -50 dB (próg nigdy nieosiągany = „kompresor nie działa”, wyrównanie na limicie = „cicho”).
         // Teraz: przed przetwarzaniem poziom wraca do pełnego (o tyle, o ile ściszył Windows), a po przetwarzaniu jest ściszany o tyle samo.
         // Razem zawsze 1:1 - głośność z klawiszy działa jak dotąd, a przetwarzanie nie zależy od suwaka.
-        volatile float preT = 1, postT = 1; System.Threading.Timer volTm; volatile bool volDirty; int volN;
+        volatile float preT = 1, postT = 1; internal float PostT => postT; System.Threading.Timer volTm; volatile bool volDirty; int volN;
         MMDevice volIn, volCap; string volInId, volCapId, volOutId; bool volLogged; double volInLog, volCapLog; long volLogAt;
         void VolStart(string cableOutId, string outId)
         {

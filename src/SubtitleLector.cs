@@ -191,6 +191,7 @@ namespace Velivo
             public int Gen;   // zmienia sie przy przewinieciu / pauzie - spozniona synteza jest wyrzucana
             public bool Busy;
             public System.Windows.Media.MediaPlayer Voice;
+            public System.Threading.CancellationTokenSource Wprost;   // kwestia grana prosto na słuchawki (LektorWprost) - anulowanie = stop
             public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
             public bool NoCuesSaid, SynthSaid;
             public string EmbPath, EmbName; public int EmbSpu = int.MinValue;   // 🗣 film bez pliku napisów: napisy wbudowane (ścieżka wybrana w odtwarzaczu)   // 🗣 powód ciszy lektora pokazany raz (brak napisów / głos nie przeczytał)
@@ -389,6 +390,7 @@ namespace Velivo
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
+            if (lc.Wprost != null) { try { lc.Wprost.Cancel(); } catch (Exception) { } lc.Wprost = null; }
             lc.VoiceDone?.TrySetResult(false);
             if (lc.AbVoice) { AbProc.LekStop(); lc.AbVoice = false; }
             if (lc.Ducked >= 0) { try { mp.Volume = lc.Ducked; } catch (Exception) { } lc.Ducked = -1; }
@@ -420,7 +422,7 @@ namespace Velivo
             if (!mp.IsPlaying && (st == LibVLCSharp.Shared.VLCState.Buffering || st == LibVLCSharp.Shared.VLCState.Opening)) return;   // chwilowe buforowanie filmu to nie pauza - lektor czyta dalej
             if (!mp.IsPlaying && !(queue && ended))
             {
-                if (lc.Voice != null || lc.AbVoice || lc.Busy)
+                if (lc.Voice != null || lc.AbVoice || lc.Wprost != null || lc.Busy)
                 {
                     LectorStopVoice(lc, mp); lc.Gen++; LectorDropPre(lc);
                     if (queue && lc.CurIdx >= 0) lc.LastSpoken = Math.Min(lc.LastSpoken, lc.CurIdx - 1);   // przerwana kwestia wraca do kolejki
@@ -490,6 +492,24 @@ namespace Velivo
                         var sw = System.Diagnostics.Stopwatch.StartNew(); long maxMs = pcm.s.Length / 48 + 20000;
                         while (lc.AbVoice && AbProc.LekPlaying && gen == lc.Gen && sw.ElapsedMilliseconds < maxMs) await Task.Delay(40);
                         if (lc.AbVoice && gen == lc.Gen) { lc.AbVoice = false; AbProc.LekStop(); }
+                        if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { }
+                        return;
+                    }
+                }
+                // 🗣 Audio Balance for Windows przetwarza cały dźwięk: lektor prosto na słuchawki / głośniki (z pominięciem kabla) - tamten program mierzy i wyrównuje sam film;
+                // poziom jak dotąd: 5 dB nad celem LUFS + suwak „Głośność lektora”, razy głośność Windows ustawiona na kablu
+                if (AbWinGain(out var wG, out var wT) && LektorWprost.Cel(out var wDev, out var wVol))
+                {
+                    double sr1 = 1; if (queue) { long late = tn - cue.Start; if (late > 500) sr1 = Math.Min(1.5, 1 + (late - 500) / 6000.0); }
+                    var pcm = await Task.Run(() => LectorWavPcm48(wav, sr1));
+                    if (pcm.s != null && gen == lc.Gen)
+                    {
+                        double gDb = wT + 5 + 20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99) - (pcm.full + 2.3);
+                        double gain = Math.Pow(10, gDb / 20) * wVol; if (pcm.peak > 0) gain = Math.Min(gain, 0.98 / pcm.peak);   // bez przesterowania szczytów
+                        var cts = new System.Threading.CancellationTokenSource(); lc.Wprost = cts;
+                        bool ok = await LektorWprost.Graj(pcm.s, gain, wDev, cts.Token);
+                        if (lc.Wprost == cts) lc.Wprost = null;
+                        if (!ok && !cts.IsCancellationRequested) App.LogInfo("Lektor: nie otworzyło się urządzenie dźwięku dla lektora (prosto na słuchawki)");
                         if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { }
                         return;
                     }

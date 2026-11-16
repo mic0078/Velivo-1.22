@@ -228,7 +228,7 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); Toast(ex.Message); }
         }
         // 🔈 bardzo ciche nagrania (makieta zatwierdzona): włącznik, suwak dodatkowego podbicia ponad limit wyrównania LUFS, ile teraz
-        TextBlock quietNow, quietLvl; CheckBox quietSrc; string quietShown = "\0";
+        TextBlock quietNow, quietLvl; string lekOutShown; CheckBox quietSrc; string quietShown = "\0";
         FrameworkElement QuietPanel()
         {
             var p = new StackPanel();
@@ -478,6 +478,8 @@ namespace Velivo
             bool proc = on && eng.Running && !eng.Proc.Bypass;   // „Bez przetwarzania” - Velivo może wtedy poprawiać sam
             if (proc && busyMx == null) busyMx = new Mutex(true, "VelivoAudioBalance.Przetwarza");
             if (proc && eng.DelayMs != delayShown) { delayShown = eng.DelayMs; try { File.WriteAllText(Path.Combine(App.DataDir, "opoznienie-ms.txt"), delayShown.ToString()); } catch (Exception ex) { App.LogError(ex); } }   // dla Velivo: obraz równo z dźwiękiem
+            // 🗣 dla lektora Velivo: na jakie urządzenie gra ten program i jaka głośność Windows (kabel) - Velivo gra lektora prosto tam, z pominięciem kabla (ten program widzi sam film)
+            if (proc) { var lw = (eng.OutputName ?? "") + "\t" + eng.PostT.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture); if (lw != lekOutShown) { lekOutShown = lw; try { File.WriteAllText(Path.Combine(App.DataDir, "lektor-wyjscie.txt"), lw); } catch (Exception ex) { App.LogError(ex); } } }
             else if (!proc && busyMx != null) { try { busyMx.ReleaseMutex(); } catch (Exception) { } busyMx.Dispose(); busyMx = null; }
             var txt = on ? L.T("✔ Cały dźwięk przez Audio Balance") : L.T("▶ Kieruj dźwięk Windows przez Audio Balance");
             defBtn.ToolTip = on ? L.T("Kliknij, aby Windows znów grał prosto na głośniki.") : L.T("VB-Cable staje się urządzeniem domyślnym – cały dźwięk Windows przechodzi przez Audio Balance.");

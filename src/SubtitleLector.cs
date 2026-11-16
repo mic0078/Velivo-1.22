@@ -148,6 +148,7 @@ namespace Velivo
             public bool Busy;
             public System.Windows.Media.MediaPlayer Voice;
             public TaskCompletionSource<bool> VoiceDone;   // zatrzymanie glosu konczy czekanie (inaczej Busy do 30 s po przewinieciu)
+            public bool NoCuesSaid, SynthSaid;   // 🗣 powód ciszy lektora pokazany raz (brak napisów / głos nie przeczytał)
             public int Ducked = -1;   // glosnosc filmu przed sciszeniem
             public Dictionary<int, string> Ready = new Dictionary<int, string>();   // gotowe nagrania kwestii (caly film liczony w tle, zapis przy filmie)
             public int RenderGen; public bool Rendering; public string RenderKey; public Action<string> Osd; public bool BuildNow;   // RenderGen++ = zatrzymaj liczenie (nowe napisy, inny glos, zamkniecie)
@@ -353,7 +354,12 @@ namespace Velivo
         // co ~120 ms: nowa kwestia na ekranie -> czytamy ja (wolny lektor = pomijamy zalegle, czytamy biezaca)
         async void LectorTick(Lector lc, LibVLCSharp.Shared.MediaPlayer mp, Func<int> volume)
         {
-            if (lc.Cues.Count == 0) return;
+            if (lc.Cues.Count == 0)
+            {   // 🗣 lektor włączony, a nie ma czego czytać - powód na ekranie raz na film (zamiast ciszy)
+                long tn0 = 0; try { tn0 = mp.Time; } catch (Exception) { }
+                if (!lc.NoCuesSaid && tn0 > 5000 && mp.IsPlaying) { lc.NoCuesSaid = true; lc.Osd?.Invoke(L.T("🗣 Lektor nie ma czego czytać: ten film nie ma wczytanych napisów tekstowych (wybierz napisy w menu Napisy albo dodaj plik .srt obok filmu)")); App.LogInfo("Lektor: brak napisów tekstowych (" + (lc.File ?? "żaden plik") + ")"); }
+                return;
+            }
             if (lc.AbVoice) AbProc.LekUserDb = (float)(20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99));
             if (lc.Voice != null && !double.IsNaN(lc.DynBd)) { double cv = lc.Voice.Volume, tv = LectorDynVol(lc); lc.Voice.Volume = cv + (tv - cv) * (tv > cv ? 0.5 : 0.25); }   // dynamika w trakcie kwestii (płynnie, co ~120 ms)
             // budowa lektora takze w pauzie: zmiana glosu / „Zbuduj lektora teraz” przy zatrzymanym filmie startuje od razu
@@ -412,6 +418,7 @@ namespace Velivo
                 if (i + 1 < lc.Cues.Count && !lc.Ready.ContainsKey(i + 1)) { lc.PreIdx = i + 1; lc.PreWav = LectorSynthLive(lc, lc.Cues[i + 1]); }   // nastepna kwestia w tle, gdy ta gra - bez czekania na synteze
                 if (await Task.WhenAny(wavTask, Task.Delay(120000)) != wavTask) { App.LogError(new Exception("Lektor: głos nie oddał nagrania kwestii " + i + " w 2 min (" + (_settings.VlcLectorVoice ?? "auto") + ") - pomijam ją")); if (lc.PreIdx == i) LectorDropPre(lc); return; }   // zawieszona synteza nie zatrzymuje lektora na stałe
                 var wav = wavTask.Result;
+                if (wav == null && gen == lc.Gen && !lc.SynthSaid) { lc.SynthSaid = true; lc.Osd?.Invoke(L.T("🗣 Lektor: głos nie przeczytał kwestii (") + (_settings.VlcLectorVoice ?? "auto") + L.T(") – szczegóły w Poważne błędy")); App.LogInfo("Lektor: synteza zwróciła pusty wynik, głos " + (_settings.VlcLectorVoice ?? "auto") + ", kwestia " + i); }
                 if (wav == null || gen != lc.Gen || !mp.IsPlaying && !(queue && ended)) { if (wav != null && !cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // przewinieto / pauza w trakcie syntezy
                 long tn = mp.Time - mp.SpuDelay / 1000;
                 if (!queue && (tn < cue.Start - 300 || tn > cue.End + 1500)) { if (!cached) try { System.IO.File.Delete(wav); } catch (Exception) { } return; }   // kwestia juz nie na ekranie

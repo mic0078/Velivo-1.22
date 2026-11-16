@@ -177,10 +177,32 @@ namespace Velivo
             {
                 if (!OperatingSystem.IsWindows() || Directory.Exists(link) || !Directory.Exists(target)) return;
                 Directory.CreateDirectory(Path.GetDirectoryName(link));
-                var psi = new ProcessStartInfo("cmd.exe", "/c mklink /J \"" + link + "\" \"" + target + "\"") { CreateNoWindow = true, UseShellExecute = false };
-                using (var p = Process.Start(psi)) p?.WaitForExit(5000);
+                MakeJunction(link, Path.GetFullPath(target));   // wprost przez Windows - ukryty cmd.exe przy starcie (zwłaszcza w klawiaturze) Bitdefender brał za szkodliwe oprogramowanie
             }
             catch (Exception) { }
+        }
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr sec, uint disp, uint flags, IntPtr tmpl);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool DeviceIoControl(Microsoft.Win32.SafeHandles.SafeFileHandle h, uint code, byte[] inBuf, int inSize, IntPtr outBuf, int outSize, out int ret, IntPtr ov);
+        // łącze katalogu (junction) = to samo co „mklink /J”: punkt ponownej analizy IO_REPARSE_TAG_MOUNT_POINT na pustym folderze
+        static void MakeJunction(string link, string target)
+        {
+            Directory.CreateDirectory(link);
+            var sub = System.Text.Encoding.Unicode.GetBytes(@"\??\" + target); var print = System.Text.Encoding.Unicode.GetBytes(target);
+            var buf = new byte[8 + 8 + sub.Length + 2 + print.Length + 2];
+            BitConverter.GetBytes(0xA0000003u).CopyTo(buf, 0);
+            BitConverter.GetBytes((ushort)(buf.Length - 8)).CopyTo(buf, 4);
+            BitConverter.GetBytes((ushort)0).CopyTo(buf, 8);
+            BitConverter.GetBytes((ushort)sub.Length).CopyTo(buf, 10);
+            BitConverter.GetBytes((ushort)(sub.Length + 2)).CopyTo(buf, 12);
+            BitConverter.GetBytes((ushort)print.Length).CopyTo(buf, 14);
+            sub.CopyTo(buf, 16); print.CopyTo(buf, 16 + sub.Length + 2);
+            using (var h = CreateFileW(link, 0x40000000, 0, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero))
+            {
+                if (h.IsInvalid || !DeviceIoControl(h, 0x000900A4, buf, buf.Length, IntPtr.Zero, 0, out _, IntPtr.Zero))
+                { try { Directory.Delete(link); } catch (Exception) { } }   // nie wyszło - pusty folder nie może udawać danych
+            }
         }
 
         static void Log(string why)

@@ -772,7 +772,7 @@ namespace Velivo
             {   // 🧩 Velivo Odtwarzacz: co otwiera ikona (pulpit, zasobnik); po starcie Windows zawsze tylko ikona w zasobniku
                 root.Children.Add(new TextBlock { Text = L.T("Ikona Velivo Odtwarzacza otwiera"), Margin = new Thickness(0, 6, 0, 2), ToolTip = L.T("Po starcie z Windows Odtwarzacz czeka tylko jako ikona w zasobniku – nic się nie otwiera.") });
                 var oBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4) };
-                oBox.Items.Add(L.T("🎬 Okno odtwarzacza (biblioteka filmów)")); oBox.Items.Add(L.T("🛋 Kanapa (telewizor)"));
+                oBox.Items.Add(L.T("🎬 Okno odtwarzacza")); oBox.Items.Add(L.T("🛋 Kanapa (telewizor)"));
                 oBox.SelectedIndex = GetPref("odtw-otwiera") == "kanapa" ? 1 : 0;
                 oBox.SelectionChanged += (a, b) => SetPref("odtw-otwiera", oBox.SelectedIndex == 1 ? "kanapa" : "okno");
                 root.Children.Add(oBox);

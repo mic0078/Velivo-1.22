@@ -250,7 +250,7 @@ namespace Velivo
         double aP, sS, sA;
         // 🗣 inteligentny lektor: podczas czytania film ściszany na bieżąco tylko o tyle, ile trzeba, by lektor był nad filmem w paśmie mowy
         //    (cicha scena - bez ściszania, głośna / dialog - więcej); płynnie, z przytrzymaniem między kwestiami - bez skoków głośności
-        public volatile bool LekOn, LekPath;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
+        public volatile bool LekOn, LekPath, LekHold;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
         public volatile float LekRef = float.NaN;          // lektor w paśmie mowy (dBFS, z jego głośnością); NaN - jeszcze niezmierzony
         public volatile float LekFloorDb = -9;             // najgłębsze ściszenie (suwak „Film podczas czytania”)
         public volatile float KDb = float.NaN;             // film w paśmie mowy (dBFS, 300 ms) - do tego lektor dopasowuje swoją głośność
@@ -458,10 +458,10 @@ namespace Velivo
                     {   // 📺 TV: poziom kanału z ostatniej minuty (bramka -10 LU, jak BS.1770) - nadąża za zmianą programu; cicha scena NIE podgłaśnia (falowanie),
                         //    głośniejsza scena (reklama) dalej szybko w dół
                         double lb = tvP < 0 ? tvP : double.NegativeInfinity; if (m15 > lb + 5) loudN++; else loudN = 0; bool loud = (scene || loudN > 5 * Fs) && m15 > lb; if (loud) scene = true;   // głośniejszy program niż średnia kanału (ponad 5 dB przez 5 s) - porównanie z poziomem kanału, nie z oknem 10 s   // głośna scena / reklama - nie wlicza się do średniej kanału
-                        if (n % 4800 == 0 && !loud) { double mo = In.Momentary; tvRing[tvI] = mo; tvI = (tvI + 1) % tvRing.Length; if (tvN < tvRing.Length) tvN++; double tg = TvGated(); if (tg > -70) tvP = tg; }   // 📏 poziom tego, co gra: ostatnie 30 s jak EBU R128 - bramka −70 i −10 LU od średniej (cisza i pauzy nie ściągają w dół, pojedynczy wybuch nie podnosi); dawniej własne „gonienie” utykało na −64 albo −28 przy źródle −41
+                        if (n % 4800 == 0 && !loud && !LekHold) { double mo = In.Momentary; tvRing[tvI] = mo; tvI = (tvI + 1) % tvRing.Length; if (tvN < tvRing.Length) tvN++; double tg = TvGated(); if (tg > -70) tvP = tg; }   // 📏 poziom tego, co gra: ostatnie 30 s jak EBU R128 - bramka −70 i −10 LU od średniej (cisza i pauzy nie ściągają w dół, pojedynczy wybuch nie podnosi); dawniej własne „gonienie” utykało na −64 albo −28 przy źródle −41
                         if (tvP < 0) basis = loud ? m15 : lb;
                     }
-                    if (basis > double.NegativeInfinity && In.Momentary > bgGate)
+                    if (basis > double.NegativeInfinity && In.Momentary > bgGate && !LekHold)
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian

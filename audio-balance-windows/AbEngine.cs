@@ -80,7 +80,7 @@ namespace Velivo
                 lekEv ??= new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, @"Local\Velivo.Lektor.Czyta");
                 // znak ustawiony bez przerwy ponad 40 s = Velivo zamknięte w trakcie kwestii (żadna kwestia tyle nie trwa) - kasujemy go, pomiar wraca
                 if (lekEv.WaitOne(0)) { if (lekSince == 0) lekSince = Environment.TickCount64; if (Environment.TickCount64 - lekSince > 40000) { lekEv.Reset(); lekSince = 0; } else lekAt = Environment.TickCount64; } else lekSince = 0;
-                Proc.Pre.Hold = Environment.TickCount64 - lekAt < 800;
+                Proc.Pre.Hold = Proc.LekHold = Environment.TickCount64 - lekAt < 800;   // lektor czyta (+0,8 s): kompresor, pomiar poziomu i wyrównanie stoją - głos lektora nie jest liczony jako dźwięk filmu
                 if (laczeV == null) { lacze = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.AudioBalance.Lacze", 16); laczeV = lacze.CreateViewAccessor(); }
                 laczeV.Write(0, Proc.Bypass ? 0f : Proc.Pre.MakeupNowDb * (Proc.Pre.Params.IsEnabled ? 1 : 0) + (float)Proc.GainDb); laczeV.Write(4, (float)Proc.EffTarget); laczeV.Write(8, Environment.TickCount64);
             }

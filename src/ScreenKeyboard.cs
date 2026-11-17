@@ -277,8 +277,8 @@ namespace Velivo
                 }
                 else menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(CloseKeyboardFully)));
                 _kbdTray.ContextMenuStrip = menu;
-                // 🧩 Velivo Centrum działa - jego ikona V zbiera programy Velivo; ta ikona chowa się, a wraca, gdy Centrum się zamknie
-                var centrumTm = new System.Windows.Forms.Timer { Interval = 3000 }; centrumTm.Tick += (s0, e0) => { bool c = System.Threading.Mutex.TryOpenExisting(@"Local\Velivo.Centrum", out var cmx); cmx?.Dispose(); if (_kbdTray != null && _kbdTray.Visible == c) _kbdTray.Visible = !c; }; centrumTm.Start();
+                // 🧩 Velivo Centrum: ikona chowa się przy działającym Centrum (chyba że wybrano „też przy zegarze”), prawy przycisk w Centrum = to menu
+                CentrumZasobnik.Podlacz(_kbdTray);
                 Application.Current.Exit += (s, e) => { try { _kbdTray.Visible = false; _kbdTray.Dispose(); } catch (Exception) { } };
             }
             catch (Exception ex) { App.LogError(ex); }

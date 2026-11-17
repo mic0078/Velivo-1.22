@@ -101,8 +101,8 @@ namespace Velivo
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
                 menu.Items.Add(Wariant.Pelne ? L.T("Zamknij Velivo całkowicie") : L.T("✕ Zakończ ") + Wariant.Nazwa, null, (s, e) => Dispatcher.Invoke(ExitFromTray));
                 _tray.ContextMenuStrip = menu;
-                // 🧩 Velivo Centrum działa - jego ikona V zbiera programy Velivo; ta ikona chowa się, a wraca, gdy Centrum się zamknie
-                var centrumTm = new System.Windows.Forms.Timer { Interval = 3000 }; centrumTm.Tick += (s0, e0) => { bool c = System.Threading.Mutex.TryOpenExisting(@"Local\Velivo.Centrum", out var cmx); cmx?.Dispose(); if (_tray != null && _tray.Visible == c) _tray.Visible = !c; }; centrumTm.Start();
+                // 🧩 Velivo Centrum: ikona chowa się przy działającym Centrum (chyba że wybrano „też przy zegarze”), prawy przycisk w Centrum = to menu
+                CentrumZasobnik.Podlacz(_tray);
                 _tray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(ShowFromTray); };
             }
             catch (Exception ex) { App.LogError(ex); }

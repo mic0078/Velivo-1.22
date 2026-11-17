@@ -542,8 +542,8 @@ namespace Velivo
             m.Items.Add(L.T("📌 Widżet na pulpicie (wł./wył.)"), null, (s, e) => win.Dispatcher.Invoke(widget.Toggle));
             m.Items.Add(L.T("Zakończ"), null, (s, e) => win.Dispatcher.Invoke(Exit));
             tray.ContextMenuStrip = m; tray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) win.Dispatcher.Invoke(Show); };
-            // 🧩 Velivo Centrum działa - jego ikona V zbiera programy Velivo; ta ikona chowa się, a wraca, gdy Centrum się zamknie
-            var centrumTm = new System.Windows.Forms.Timer { Interval = 3000 }; centrumTm.Tick += (s0, e0) => { bool c = System.Threading.Mutex.TryOpenExisting(@"Local\Velivo.Centrum", out var cmx); cmx?.Dispose(); if (tray != null && tray.Visible == c) tray.Visible = !c; }; centrumTm.Start();
+            // 🧩 Velivo Centrum: ikona chowa się przy działającym Centrum (chyba że wybrano „też przy zegarze”), prawy przycisk w Centrum = to menu
+            CentrumZasobnik.Podlacz(tray);
         }
         internal void ShowMain() => Show();
         internal void ToggleBypass() { Put("obejscie", eng.Proc.Bypass ? "0" : "1"); Apply(); }

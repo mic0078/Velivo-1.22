@@ -29,6 +29,8 @@ $vb = Join-Path $PSScriptRoot 'audio-balance-windows\vbcable'
 if (Test-Path (Join-Path $vb 'VBCABLE_Setup_x64.exe')) { Copy-Item -Recurse -Force $vb 'build\audiobalance\VBCABLE'; Write-Host "VB-Cable w instalatorze: tak" -ForegroundColor Green } else { Write-Host "VB-Cable pobierze instalator albo program (z serwera VB-Audio)" -ForegroundColor Cyan }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
+# otwarty instalator z poprzedniej próby trzyma plik - budowa nie może go nadpisać (to nie antywirus)
+while (Get-Process -Name "Velivo-AudioBalance-for-Windows-Setup-1.22", "Velivo-AudioBalance-for-Windows-Setup-1.22.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-AudioBalance-for-Windows-Setup-1.22 z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 $outDir = Join-Path $repo 'build\instalator'

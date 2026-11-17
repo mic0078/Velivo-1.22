@@ -12,6 +12,8 @@ Remove-Item -Recurse -Force build\centrum -ErrorAction SilentlyContinue
 dotnet build velivo-centrum\VelivoCentrum.csproj -c Release -o build\centrum   # .NET Framework 4.8 (jest w Windows) - bez dołączania .NET, program ma kilkadziesiąt KB
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Centrum nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 Write-Host "3/3 Instalator..." -ForegroundColor Cyan
+# otwarty instalator z poprzedniej próby trzyma plik - budowa nie może go nadpisać (to nie antywirus)
+while (Get-Process -Name "Velivo-Centrum-Setup-1.22", "Velivo-Centrum-Setup-1.22.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-Centrum-Setup-1.22 z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 $outDir = Join-Path $repo 'build\instalator'

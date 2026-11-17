@@ -138,7 +138,7 @@ namespace VelivoMonitor
 
         // ---------- widżet na pulpicie ----------
         Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polygon pUp, pDown; Polyline pGhz; TextBlock mDown, mUp;
-        const double GW = 164, GH = 36, BH = 16;   // dwa paski: pobieranie (góra) i wysyłanie (dół), każdy ze swoją skalą   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
+        const double GW = 164, GH = 36, BH = 18;   // lustro: od środka pobieranie w górę, wysyłanie w dół - każde ze swoją skalą   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
         void BuildWidget()
         {
             var dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2));
@@ -149,10 +149,10 @@ namespace VelivoMonitor
             Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
             Polygon A(Color c) { var p = new Polygon { Stroke = new SolidColorBrush(c), StrokeThickness = 1, Fill = new SolidColorBrush(Color.FromArgb(0x5A, c.R, c.G, c.B)) }; cv.Children.Add(p); return p; }
             TextBlock M(Color c, double top) { var t = new TextBlock { FontSize = 7, Foreground = new SolidColorBrush(c) }; Canvas.SetRight(t, 2); Canvas.SetTop(t, top); cv.Children.Add(t); return t; }
-            cv.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = BH + 2, Y2 = BH + 2, Stroke = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)) });
+            cv.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = BH, Y2 = BH, Stroke = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)) });
             pDown = A(Color.FromRgb(0x4A, 0xDE, 0x80)); pUp = A(Color.FromRgb(0xF5, 0xA5, 0x24));
             pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pGhz.Opacity = 0.6;
-            mDown = M(Color.FromRgb(0x86, 0xEF, 0xAC), 0); mUp = M(Color.FromRgb(0xFC, 0xD3, 0x4D), BH + 3);
+            mDown = M(Color.FromRgb(0x86, 0xEF, 0xAC), 0); mUp = M(Color.FromRgb(0xFC, 0xD3, 0x4D), GH - 10);
             // układ B: ↑ | ↓, pod spodem procesor | plakietka stanu internetu, na dole wykres
             wNet = new TextBlock { FontSize = 9, Padding = new Thickness(4, 0, 4, 1) };
             wNetB = new Border { CornerRadius = new CornerRadius(4), Child = wNet, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -174,13 +174,13 @@ namespace VelivoMonitor
         void DrawGraph()
         {   // każdy pasek ze swoją skalą - wysyłanie 1 MB/s widać obok pobierania 70 MB/s
             double md = Math.Max(1024, hDown.Max()), mu = Math.Max(1024, hUp.Max()), gmx = Math.Max(0.1, hGhz.Max() * 1.15);
-            PointCollection Area(double[] h, double top, double y0)
+            PointCollection Area(double[] h, double top, int dir)   // dir -1 = w górę od środka (pobieranie), +1 = w dół (wysyłanie)
             {
-                var pts = new PointCollection(N + 2) { new Point(0, y0 + BH) };
-                for (int i = 0; i < N; i++) { double v = h[(hPos + i) % N]; pts.Add(new Point(i * GW / (N - 1), y0 + BH - (BH - 1) * Math.Min(1, v / top))); }
-                pts.Add(new Point(GW, y0 + BH)); return pts;
+                var pts = new PointCollection(N + 2) { new Point(0, BH) };
+                for (int i = 0; i < N; i++) { double v = h[(hPos + i) % N]; pts.Add(new Point(i * GW / (N - 1), BH + dir * (BH - 1) * Math.Min(1, v / top))); }
+                pts.Add(new Point(GW, BH)); return pts;
             }
-            pDown.Points = Area(hDown, md, 0); pUp.Points = Area(hUp, mu, BH + 4);
+            pDown.Points = Area(hDown, md, -1); pUp.Points = Area(hUp, mu, 1);
             var g = new PointCollection(N);
             for (int i = 0; i < N; i++) { double v = hGhz[(hPos + i) % N]; g.Add(new Point(i * GW / (N - 1), GH - 1 - (GH - 2) * Math.Min(1, v / gmx))); }
             pGhz.Points = g;

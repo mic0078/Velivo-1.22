@@ -48,7 +48,12 @@ namespace Velivo
             try
             {
                 var pcm = new short[s.Length * 2];
-                for (int i = 0; i < s.Length; i++) { double v = s[i] * gain; v = v > 1 ? 1 : v < -1 ? -1 : v; pcm[2 * i] = pcm[2 * i + 1] = (short)(v * 32767); }
+                for (int i = 0; i < s.Length; i++)
+                {   // miękki ogranicznik: głośny lektor bez trzasku przesterowania
+                    double v = s[i] * gain, av = Math.Abs(v);
+                    if (av > 0.7) v = Math.Sign(v) * (0.7 + 0.3 * Math.Tanh((av - 0.7) / 0.3));
+                    pcm[2 * i] = pcm[2 * i + 1] = (short)(v * 32767);
+                }
                 Marshal.Copy(pcm, 0, mem, pcm.Length);
                 for (int i = 0; i < HdrSize; i++) Marshal.WriteByte(hdr, i, 0);
                 Marshal.WriteIntPtr(hdr, 0, mem); Marshal.WriteInt32(hdr, IntPtr.Size, bytes);

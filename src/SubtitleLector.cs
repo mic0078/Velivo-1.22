@@ -504,8 +504,11 @@ namespace Velivo
                     var pcm = await Task.Run(() => LectorWavPcm48(wav, sr1));
                     if (pcm.s != null && gen == lc.Gen)
                     {
-                        double gDb = wT + 5 + 20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99) - (pcm.full + 2.3);
-                        double gain = Math.Pow(10, gDb / 20) * wVol * AbPlayerVolNow;   // suwak głośności odtwarzacza ścisza też lektora if (pcm.peak > 0) gain = Math.Min(gain, 0.98 / pcm.peak);   // bez przesterowania szczytów
+                        double fl = AbWinFilmLufs(), refL = double.IsNaN(fl) ? wT : Math.Max(wT, fl);   // film po wyrównaniu bywa głośniejszy niż cel (podbite ciche nagranie, kompresor) - lektor ponad TO, co naprawdę gra
+                        double gDb = refL + 5 + 20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99) - (pcm.full + 2.3);
+                        // suwak głośności odtwarzacza ścisza też lektora; najwyżej 4× ponad szczyt - resztę łagodnie obcina LektorWprost (twarde ucinanie do szczytu robiło lektora za cichym)
+                        double gain = Math.Pow(10, gDb / 20) * wVol * AbPlayerVolNow;
+                        if (pcm.peak > 0) gain = Math.Min(gain, 4 / pcm.peak);
                         var cts = new System.Threading.CancellationTokenSource(); lc.Wprost = cts;
                         bool ok = await LektorWprost.Graj(pcm.s, gain, wDev, cts.Token);
                         if (lc.Wprost == cts) lc.Wprost = null;

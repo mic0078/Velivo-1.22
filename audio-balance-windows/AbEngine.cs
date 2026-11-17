@@ -72,7 +72,7 @@ namespace Velivo
         // 🗣 łącze z lektorem Velivo: (1) znak „lektor czyta” (zdarzenie Windows ustawiane przez Velivo) → zamrożenie pomiaru programu, przytrzymane 0,8 s po kwestii;
         // (2) dla Velivo: ile ten program teraz podgłaśnia i jaki ma cel - lektor gra o tyle ciszej / głośniej, żeby po przetwarzaniu każdy głos (jest ich wiele)
         // wychodził tak samo głośno względem celu, niezależnie od filmu
-        System.Threading.EventWaitHandle lekEv; long lekAt, lekSince; System.IO.MemoryMappedFiles.MemoryMappedFile lacze; System.IO.MemoryMappedFiles.MemoryMappedViewAccessor laczeV, glosV;
+        System.Threading.EventWaitHandle lekEv; long lekAt, lekSince; System.IO.MemoryMappedFiles.MemoryMappedFile lacze; System.IO.MemoryMappedFiles.MemoryMappedViewAccessor laczeV, glosV, wynikV;
         void LekPoll()
         {
             try
@@ -84,6 +84,8 @@ namespace Velivo
                 try { glosV ??= System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.Odtwarzacz.Glosnosc", 16).CreateViewAccessor(); float gv = glosV.ReadSingle(0); long ga = glosV.ReadInt64(8); plVol = ga != 0 && Environment.TickCount64 - ga < 3000 && gv >= 0 && gv <= 1.25f ? gv : 1; } catch (Exception) { plVol = 1; }   // 🔊 suwak odtwarzacza Velivo - po wyrównaniu (świeży do 3 s, potem 1)
                 if (laczeV == null) { lacze = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.AudioBalance.Lacze", 16); laczeV = lacze.CreateViewAccessor(); }
                 laczeV.Write(0, Proc.Bypass ? 0f : Proc.Pre.MakeupNowDb * (Proc.Pre.Params.IsEnabled ? 1 : 0) + (float)Proc.GainDb); laczeV.Write(4, (float)Proc.EffTarget); laczeV.Write(8, Environment.TickCount64);
+                wynikV ??= System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.AudioBalance.Wynik", 16).CreateViewAccessor();   // 🗣 dla lektora Velivo: jak głośno gra teraz film po wyrównaniu (3 s, pełny poziom)
+                wynikV.Write(0, (float)Proc.Out.ShortTerm); wynikV.Write(8, Environment.TickCount64);
             }
             catch (Exception) { }
         }

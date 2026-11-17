@@ -258,6 +258,18 @@ namespace Velivo
         }
         // 🗣 łącze lektora z Audio Balance for Windows (gdy ten przetwarza cały dźwięk): ile teraz podgłaśnia i jaki ma cel (LUFS) - świeże (do 1,5 s); znak „lektor czyta”
         static System.IO.MemoryMappedFiles.MemoryMappedViewAccessor _abLacze; static System.Threading.EventWaitHandle _lekEv;
+        // 🗣 jak głośno gra teraz film po wyrównaniu w Audio Balance for Windows (LUFS z 3 s, pełny poziom); NaN = nie wiadomo
+        static System.IO.MemoryMappedFiles.MemoryMappedViewAccessor _abWynik;
+        internal static double AbWinFilmLufs()
+        {
+            try
+            {
+                _abWynik ??= System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\Velivo.AudioBalance.Wynik").CreateViewAccessor();
+                if (Environment.TickCount64 - _abWynik.ReadInt64(8) > 1500) return double.NaN;
+                double v = _abWynik.ReadSingle(0); return v > -70 && v < 0 ? v : double.NaN;
+            }
+            catch (Exception) { return double.NaN; }
+        }
         internal static bool AbWinGain(out double gainDb, out double targetDb)
         {
             gainDb = 0; targetDb = -23;

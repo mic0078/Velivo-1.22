@@ -163,7 +163,7 @@ namespace Velivo
             // 🛡 bezpiecznik: wynik z ostatnich 0,1 s nigdy więcej niż 8 dB ponad cel - przełączenie na głośniejszy program / reklama ściszane od razu, bez czekania na pomiar
             if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + (Hold ? 16 : 8) - (10 * Math.Log10(fP) + 2.3));
             liftS += Math.Max(-400 / fs, Math.Min(20 / fs, liftWant - liftS));
-            double mkWant = toTarget ? liftS : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS, mixWant = p.MixPercent / 100.0;
+            double mkWant = toTarget ? liftS : p.AutoThreshold ? -avgGr : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS,   /* próg automatyczny bez celu (kompresor po wyrównaniu LUFS): oddaje tyle, ile średnio ściszył - głośność dialogu zostaje, ściszone są tylko głośne fragmenty */ mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
             mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * (mkWant < mkS - 3 ? cs * 10 : cs);   /* duże ściszenie (bezpiecznik) w ok. 5 ms, reszta płynnie 50 ms */ mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;
             double gw = Math.Pow(10, (grDb + mkS) / 20);

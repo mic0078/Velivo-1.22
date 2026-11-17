@@ -355,7 +355,7 @@ namespace Velivo
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
             if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
-            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; Pre.AutoTargetDb = (float)Tg;
+            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; Pre.AutoTargetDb = float.NaN;   /* kompresor stoi PO wyrównaniu LUFS - nie goni już celu (dublował pracę: dialog 7 dB ponad cel, wybuch równy dialogowi) */
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
             double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); double qB = double.IsNaN(QuietBelow) ? Tg - 12 : QuietBelow; QuietLevel = film; if (pr != null && QuietOn && film > -70 && film < qB) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;

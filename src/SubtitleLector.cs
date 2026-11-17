@@ -387,6 +387,7 @@ namespace Velivo
             return WpfVol(Math.Max(0.05, Math.Pow(10, (want - lc.DynBd) / 20)));
         }
 
+        static bool _lekDrogaAb, _lekDrogaCel = true;
         void LectorStopVoice(Lector lc, LibVLCSharp.Shared.MediaPlayer mp)
         {
             if (lc.Voice != null) { try { lc.Voice.Stop(); lc.Voice.Close(); } catch (Exception) { } lc.Voice = null; }
@@ -498,7 +499,9 @@ namespace Velivo
                 }
                 // 🗣 Audio Balance for Windows przetwarza cały dźwięk: lektor prosto na słuchawki / głośniki (z pominięciem kabla) - tamten program mierzy i wyrównuje sam film;
                 // poziom jak dotąd: 5 dB nad celem LUFS + suwak „Głośność lektora”, razy głośność Windows ustawiona na kablu
-                if (AbWinGain(out var wG, out var wT) && LektorWprost.Cel(out var wDev, out var wVol))
+                bool wAb = AbWinGain(out var wG, out var wT), wCel = wAb && LektorWprost.Cel(out _, out _);
+                if (AbWinActive && wAb != _lekDrogaAb | wCel != _lekDrogaCel) { _lekDrogaAb = wAb; _lekDrogaCel = wCel; App.LogInfo("Lektor przy Audio Balance for Windows: " + (wCel ? "prosto na słuchawki (bez kabla)" : !wAb ? "PRZEZ KABEL – brak świeżych danych z Audio Balance (łącze)" : "PRZEZ KABEL – nie znaleziono urządzenia z lektor-wyjscie.txt wśród wyjść Windows: " + string.Join(" | ", AbOutput.Devices()))); }   // 🔬 którą drogą idzie lektor - przez kabel Audio Balance go kompresuje
+                if (wCel && LektorWprost.Cel(out var wDev, out var wVol))
                 {
                     double sr1 = 1; if (queue) { long late = tn - cue.Start; if (late > 500) sr1 = Math.Min(1.5, 1 + (late - 500) / 6000.0); }
                     var pcm = await Task.Run(() => LectorWavPcm48(wav, sr1));

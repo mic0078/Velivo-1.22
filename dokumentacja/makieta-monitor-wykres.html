@@ -1,0 +1,33 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wykres Monitora</title>
+<style>
+:root{--bg:#e9ecf1;--fg:#1b1f27;--dim:#5b6472}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15181e;--fg:#e8ebf0;--dim:#9aa3b2}}
+body{background:var(--bg);color:var(--fg);font:15px "Segoe UI",system-ui,sans-serif;margin:0;padding:20px 16px}
+h1{font-size:20px;margin:0 0 4px}p{color:var(--dim);margin:0 0 14px;max-width:660px}
+.desk{background:linear-gradient(135deg,#2c4a6b,#1a2a3a);padding:22px;border-radius:8px;display:flex;flex-wrap:wrap;gap:26px;max-width:720px}
+.card{display:flex;flex-direction:column;gap:6px;width:200px}.lbl{color:#fff;font-weight:600;font-size:13px}.sub{color:#c5cfdd;font-size:12px}
+.w{background:#0f1217ec;border:1px solid #2a3240;border-radius:9px;color:#e8ebf0;width:180px;box-sizing:border-box;padding:6px 8px;font:11px "Segoe UI";font-variant-numeric:tabular-nums}
+.row{display:flex;justify-content:space-between}.u{color:#f5a524}.d{color:#4ade80}.c{color:#7c9cff}
+.tag{background:#14321f;color:#86efac;border-radius:4px;padding:0 4px;font-size:9px}
+svg{display:block;margin-top:4px}
+</style></head><body>
+<h1>Wykres sieci – propozycje</h1>
+<p>Przykład: pobieranie ok. 70 MB/s, wysyłanie 0,5–10 MB/s. Dziś obie linie mają wspólną skalę, więc wysyłanie leży płasko przy dnie.</p>
+<div class="desk" id="d"></div>
+<script>
+const N=60, dn=[], up=[];
+for(let i=0;i<N;i++){const on=i>12&&i<50; dn.push(on?62+10*Math.sin(i*0.7)+Math.random()*6:0.3+Math.random()*0.4); up.push(on?(i%9<5?8+Math.random()*2:0.6+Math.random()*0.5):0.05+Math.random()*0.05);}
+const W=164,H=30, X=i=>i*W/(N-1);
+const pl=(arr,f,col,dash)=>`<polyline fill="none" stroke="${col}" stroke-width="1.3" ${dash?'stroke-dasharray="3 2"':''} points="${arr.map((v,i)=>X(i).toFixed(1)+','+f(v).toFixed(1)).join(' ')}"/>`;
+const area=(arr,f,col,base)=>`<polygon fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="1" points="0,${base} ${arr.map((v,i)=>X(i).toFixed(1)+','+f(v).toFixed(1)).join(' ')} ${W},${base}"/>`;
+const bg=h=>`<rect width="${W}" height="${h}" rx="3" fill="#161b24"/>`;
+const mx=Math.max(...dn), mu=Math.max(...up);
+const head=`<div class="row"><span class="u">↑ 9,4 MB/s</span><span class="d">↓ 68,2 MB/s</span></div><div class="row"><span class="c">CPU 3,9 GHz · 14 %</span><span class="tag">internet</span></div>`;
+const opts=[
+ ['Teraz – wspólna skala','Wysyłanie ginie przy dnie.',`<svg width="${W}" height="${H}">${bg(H)}${pl(dn,v=>H-1-(H-2)*v/mx,'#4ade80')}${pl(up,v=>H-1-(H-2)*v/mx,'#f5a524')}</svg>`],
+ ['A – lustro (polecam)','Pobieranie w górę, wysyłanie w dół od środka – każde ze swoją skalą. Oba zawsze widoczne, nie nakładają się.',`<svg width="${W}" height="${H+12}">${bg(H+12)}<line x1="0" x2="${W}" y1="${(H+12)/2}" y2="${(H+12)/2}" stroke="#2a3240"/>${area(dn,v=>(H+12)/2-((H+12)/2-1)*v/mx,'#4ade80',(H+12)/2)}${area(up,v=>(H+12)/2+((H+12)/2-1)*v/mu,'#f5a524',(H+12)/2)}</svg>`],
+ ['B – dwa paski','Dwa małe wykresy jeden pod drugim, każdy ze swoją skalą i opisem maksimum.',`<svg width="${W}" height="${H+4}">${bg(H+4)}${area(dn,v=>15-14*v/mx,'#4ade80',15)}<line x1="0" x2="${W}" y1="17" y2="17" stroke="#2a3240"/>${area(up,v=>33-14*v/mu,'#f5a524',33)}<text x="${W-3}" y="8" fill="#86efac" font-size="7" text-anchor="end">max 72 MB/s</text><text x="${W-3}" y="25" fill="#fcd34d" font-size="7" text-anchor="end">max 10 MB/s</text></svg>`],
+ ['C – skala logarytmiczna','Jedna wspólna skala, ale 1 MB/s i 70 MB/s mieszczą się obok siebie (jak w Menedżerze sieci routerów).',`<svg width="${W}" height="${H}">${bg(H)}${pl(dn,v=>H-1-(H-2)*Math.log10(1+v*10)/Math.log10(1+mx*10),'#4ade80')}${pl(up,v=>H-1-(H-2)*Math.log10(1+v*10)/Math.log10(1+mx*10),'#f5a524')}</svg>`]
+];
+document.getElementById('d').innerHTML=opts.map(([n,s,g])=>`<div class="card"><div class="lbl">${n}</div><div class="w">${head}${g}</div><div class="sub">${s}</div></div>`).join('');
+</script></body></html>

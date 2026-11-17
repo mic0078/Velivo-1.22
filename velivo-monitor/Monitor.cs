@@ -138,7 +138,7 @@ namespace VelivoMonitor
 
         // ---------- widżet na pulpicie ----------
         Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polyline pUp, pDown, pGhz;
-        const double GW = 196, GH = 32;   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
+        const double GW = 164, GH = 30;   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
         void BuildWidget()
         {
             var dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2));
@@ -149,7 +149,7 @@ namespace VelivoMonitor
             Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
             pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pDown = P(Color.FromRgb(0x4A, 0xDE, 0x80), false); pUp = P(Color.FromRgb(0xF5, 0xA5, 0x24), false);
             // układ B: ↑ | ↓, pod spodem procesor | plakietka stanu internetu, na dole wykres
-            wNet = new TextBlock { FontSize = 10, Padding = new Thickness(5, 0, 5, 1) };
+            wNet = new TextBlock { FontSize = 9, Padding = new Thickness(4, 0, 4, 1) };
             wNetB = new Border { CornerRadius = new CornerRadius(4), Child = wNet, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
             var row2 = new DockPanel { Margin = new Thickness(0, 1, 0, 0) }; DockPanel.SetDock(wNetB, Dock.Right); row2.Children.Add(wNetB); row2.Children.Add(wCpu);
             var st = new StackPanel(); st.Children.Add(row1); st.Children.Add(row2); st.Children.Add(cv);

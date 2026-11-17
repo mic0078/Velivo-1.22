@@ -173,6 +173,33 @@ namespace VelivoMonitor
             Line(pUp, hUp, mx); Line(pDown, hDown, mx); Line(pGhz, hGhz, gmx);
         }
 
+        // ---------- 🎞 ikona przy zegarze: słupki = obciążenie procesora z ostatnich 5 s (wygląd Velivo: fiolet → turkus) ----------
+        [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr h);
+        readonly double[] cpuH = new double[5]; IntPtr iconH;
+        void TrayIcon()
+        {
+            Array.Copy(cpuH, 1, cpuH, 0, cpuH.Length - 1); cpuH[cpuH.Length - 1] = Cpu;
+            const int S = 32;
+            using (var bmp = new System.Drawing.Bitmap(S, S))
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                using (var br = new System.Drawing.Drawing2D.LinearGradientBrush(new System.Drawing.Point(0, 0), new System.Drawing.Point(S, S), System.Drawing.Color.FromArgb(0x6D, 0x28, 0xD9), System.Drawing.Color.FromArgb(0x22, 0xB8, 0xD8)))
+                {
+                    int r = 7; path.AddArc(0, 0, r * 2, r * 2, 180, 90); path.AddArc(S - 1 - r * 2, 0, r * 2, r * 2, 270, 90); path.AddArc(S - 1 - r * 2, S - 1 - r * 2, r * 2, r * 2, 0, 90); path.AddArc(0, S - 1 - r * 2, r * 2, r * 2, 90, 90); path.CloseFigure();
+                    g.FillPath(br, path);
+                }
+                using (var wb = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(240, 255, 255, 255)))
+                    for (int i = 0; i < cpuH.Length; i++) { float h = 3 + 21 * (float)Math.Min(1, cpuH[i] / 100); g.FillRectangle(wb, 5 + i * 4.6f, 27 - h, 3.2f, h); }
+                var nh = bmp.GetHicon(); var ico = System.Drawing.Icon.FromHandle(nh);
+                tray.Icon = ico;
+                if (iconH != IntPtr.Zero) DestroyIcon(iconH);   // stara ikona - bez wycieku uchwytów (co sekundę nowa)
+                iconH = nh;
+            }
+            tray.Text = "Velivo Monitor – procesor " + Cpu.ToString("0") + " %, " + GhzText;
+        }
+
         // ---------- menu (zasobnik, pasek, widżet) ----------
         System.Windows.Forms.NotifyIcon tray;
         ContextMenu Menu()
@@ -217,6 +244,7 @@ namespace VelivoMonitor
             t.Tick += (s, e) =>
             {
                 Sample();
+                TrayIcon();
                 if (bar != null) { barTxt.Text = "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
                 if (wid != null) { wUp.Text = "↑ " + Rate(Up); wDown.Text = "↓ " + Rate(Down); wCpu.Text = "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
             };

@@ -137,8 +137,8 @@ namespace VelivoMonitor
         }
 
         // ---------- widżet na pulpicie ----------
-        Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polyline pUp, pDown, pGhz;
-        const double GW = 164, GH = 30;   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
+        Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polygon pUp, pDown; Polyline pGhz; TextBlock mDown, mUp;
+        const double GW = 164, GH = 36, BH = 16;   // dwa paski: pobieranie (góra) i wysyłanie (dół), każdy ze swoją skalą   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
         void BuildWidget()
         {
             var dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2));
@@ -147,7 +147,12 @@ namespace VelivoMonitor
             var row1 = new DockPanel(); DockPanel.SetDock(wUp, Dock.Left); row1.Children.Add(wUp); wDown.HorizontalAlignment = HorizontalAlignment.Right; row1.Children.Add(wDown);
             var cv = new Canvas { Width = GW, Height = GH, Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x24)), Margin = new Thickness(0, 3, 0, 0), ClipToBounds = true };
             Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
-            pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pDown = P(Color.FromRgb(0x4A, 0xDE, 0x80), false); pUp = P(Color.FromRgb(0xF5, 0xA5, 0x24), false);
+            Polygon A(Color c) { var p = new Polygon { Stroke = new SolidColorBrush(c), StrokeThickness = 1, Fill = new SolidColorBrush(Color.FromArgb(0x5A, c.R, c.G, c.B)) }; cv.Children.Add(p); return p; }
+            TextBlock M(Color c, double top) { var t = new TextBlock { FontSize = 7, Foreground = new SolidColorBrush(c) }; Canvas.SetRight(t, 2); Canvas.SetTop(t, top); cv.Children.Add(t); return t; }
+            cv.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = BH + 2, Y2 = BH + 2, Stroke = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)) });
+            pDown = A(Color.FromRgb(0x4A, 0xDE, 0x80)); pUp = A(Color.FromRgb(0xF5, 0xA5, 0x24));
+            pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pGhz.Opacity = 0.6;
+            mDown = M(Color.FromRgb(0x86, 0xEF, 0xAC), 0); mUp = M(Color.FromRgb(0xFC, 0xD3, 0x4D), BH + 3);
             // układ B: ↑ | ↓, pod spodem procesor | plakietka stanu internetu, na dole wykres
             wNet = new TextBlock { FontSize = 9, Padding = new Thickness(4, 0, 4, 1) };
             wNetB = new Border { CornerRadius = new CornerRadius(4), Child = wNet, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -167,15 +172,19 @@ namespace VelivoMonitor
             wid.Show();
         }
         void DrawGraph()
-        {
-            double mx = Math.Max(1024, Math.Max(hUp.Max(), hDown.Max())), gmx = Math.Max(0.1, hGhz.Max() * 1.15);
-            void Line(Polyline p, double[] h, double top)
+        {   // każdy pasek ze swoją skalą - wysyłanie 1 MB/s widać obok pobierania 70 MB/s
+            double md = Math.Max(1024, hDown.Max()), mu = Math.Max(1024, hUp.Max()), gmx = Math.Max(0.1, hGhz.Max() * 1.15);
+            PointCollection Area(double[] h, double top, double y0)
             {
-                var pts = new PointCollection(N);
-                for (int i = 0; i < N; i++) { double v = h[(hPos + i) % N]; pts.Add(new Point(i * GW / (N - 1), GH - 1 - (GH - 2) * Math.Min(1, v / top))); }
-                p.Points = pts;
+                var pts = new PointCollection(N + 2) { new Point(0, y0 + BH) };
+                for (int i = 0; i < N; i++) { double v = h[(hPos + i) % N]; pts.Add(new Point(i * GW / (N - 1), y0 + BH - (BH - 1) * Math.Min(1, v / top))); }
+                pts.Add(new Point(GW, y0 + BH)); return pts;
             }
-            Line(pUp, hUp, mx); Line(pDown, hDown, mx); Line(pGhz, hGhz, gmx);
+            pDown.Points = Area(hDown, md, 0); pUp.Points = Area(hUp, mu, BH + 4);
+            var g = new PointCollection(N);
+            for (int i = 0; i < N; i++) { double v = hGhz[(hPos + i) % N]; g.Add(new Point(i * GW / (N - 1), GH - 1 - (GH - 2) * Math.Min(1, v / gmx))); }
+            pGhz.Points = g;
+            mDown.Text = "max " + Rate(md).Trim(); mUp.Text = "max " + Rate(mu).Trim();
         }
 
         // ---------- 🎞 ikona przy zegarze: słupki = obciążenie procesora z ostatnich 5 s (wygląd Velivo: fiolet → turkus) ----------

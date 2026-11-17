@@ -32,6 +32,7 @@ namespace VelivoMonitor
 
     sealed class Monitor
     {
+        static readonly string ExePath = System.Reflection.Assembly.GetEntryAssembly().Location;
         // ---------- ustawienia (plik tekstowy klucz=wartość) ----------
         static readonly string Dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor");
         static readonly string SetFile = System.IO.Path.Combine(Dir, "ustawienia.txt");
@@ -41,7 +42,7 @@ namespace VelivoMonitor
         void Put(string k, object v)
         {
             set[k] = Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture);
-            try { Directory.CreateDirectory(Dir); File.WriteAllLines(SetFile + ".tmp", set.Select(x => x.Key + "=" + x.Value)); File.Move(SetFile + ".tmp", SetFile, true); } catch (Exception) { }
+            try { Directory.CreateDirectory(Dir); File.WriteAllLines(SetFile + ".tmp", set.Select(x => x.Key + "=" + x.Value)); if (File.Exists(SetFile)) File.Replace(SetFile + ".tmp", SetFile, null); else File.Move(SetFile + ".tmp", SetFile); } catch (Exception) { }
         }
 
         // ---------- pomiar ----------
@@ -191,7 +192,7 @@ namespace VelivoMonitor
         void ToggleBar() { if (bar != null) { bar.Close(); bar = null; Put("pasek", "0"); } else { BuildBar(); Put("pasek", "1"); } }
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         bool AutoOn() { try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("VelivoMonitor") != null; } catch (Exception) { return false; } }
-        void ToggleAuto() { try { using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey); if (AutoOn()) k.DeleteValue("VelivoMonitor", false); else k.SetValue("VelivoMonitor", "\"" + Environment.ProcessPath + "\""); } catch (Exception) { } }
+        void ToggleAuto() { try { using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey); if (AutoOn()) k.DeleteValue("VelivoMonitor", false); else k.SetValue("VelivoMonitor", "\"" + ExePath + "\""); } catch (Exception) { } }
         void Quit() { tray.Visible = false; tray.Dispose(); Application.Current.Shutdown(); }
 
         public void Start()
@@ -199,7 +200,7 @@ namespace VelivoMonitor
             try { if (File.Exists(SetFile)) foreach (var l in File.ReadAllLines(SetFile)) { int k = l.IndexOf('='); if (k > 0) set[l.Substring(0, k)] = l.Substring(k + 1); } } catch (Exception) { }
             InitCpu(); Sample();
             tray = new System.Windows.Forms.NotifyIcon { Text = "Velivo Monitor", Visible = true };
-            try { tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath); } catch (Exception) { }
+            try { tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(ExePath); } catch (Exception) { }
             var tm = new System.Windows.Forms.ContextMenuStrip();
             void Add(string h, Action a, Func<bool> chk = null) { var it = new System.Windows.Forms.ToolStripMenuItem(h); it.Click += (s, e) => a(); if (chk != null) tm.Opening += (s, e) => it.Checked = chk(); tm.Items.Add(it); }
             Add("Widżet na pulpicie", ToggleWidget, () => wid != null);

@@ -9,7 +9,7 @@ $galaz = (git rev-parse --abbrev-ref HEAD).Trim()
 git pull origin $galaz
 Write-Host "2/3 Kompilacja Velivo Monitor..." -ForegroundColor Cyan
 Remove-Item -Recurse -Force build\monitor -ErrorAction SilentlyContinue
-dotnet publish velivo-monitor\VelivoMonitor.csproj -c Release -r win-x64 --self-contained true -o build\monitor
+dotnet build velivo-monitor\VelivoMonitor.csproj -c Release -o build\monitor   # .NET Framework 4.8 (jest w Windows) - bez dołączania .NET, program ma kilkadziesiąt KB
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Monitor nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 Write-Host "3/3 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1

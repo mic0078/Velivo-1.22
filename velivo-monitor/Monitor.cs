@@ -137,18 +137,22 @@ namespace VelivoMonitor
         }
 
         // ---------- widżet na pulpicie ----------
-        Window wid; TextBlock wUp, wDown, wCpu; Polyline pUp, pDown, pGhz;
+        Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polyline pUp, pDown, pGhz;
         const double GW = 196, GH = 32;   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
         void BuildWidget()
         {
             var dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2));
-            TextBlock T(Brush c) => new TextBlock { Foreground = c, FontSize = 11, FontFamily = new FontFamily("Segoe UI") };
+            TextBlock T(Brush c) { var tb = new TextBlock { Foreground = c, FontSize = 11, FontFamily = new FontFamily("Segoe UI") }; System.Windows.Documents.Typography.SetNumeralAlignment(tb, FontNumeralAlignment.Tabular); return tb; }   // cyfry równej szerokości - liczby nie skaczą
             wUp = T(new SolidColorBrush(Color.FromRgb(0xF5, 0xA5, 0x24))); wDown = T(new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80))); wCpu = T(new SolidColorBrush(Color.FromRgb(0x7C, 0x9C, 0xFF)));
             var row1 = new DockPanel(); DockPanel.SetDock(wUp, Dock.Left); row1.Children.Add(wUp); wDown.HorizontalAlignment = HorizontalAlignment.Right; row1.Children.Add(wDown);
             var cv = new Canvas { Width = GW, Height = GH, Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x24)), Margin = new Thickness(0, 3, 0, 0), ClipToBounds = true };
             Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
             pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pDown = P(Color.FromRgb(0x4A, 0xDE, 0x80), false); pUp = P(Color.FromRgb(0xF5, 0xA5, 0x24), false);
-            var st = new StackPanel(); st.Children.Add(row1); st.Children.Add(wCpu); st.Children.Add(cv);
+            // układ B: ↑ | ↓, pod spodem procesor | plakietka stanu internetu, na dole wykres
+            wNet = new TextBlock { FontSize = 10, Padding = new Thickness(5, 0, 5, 1) };
+            wNetB = new Border { CornerRadius = new CornerRadius(4), Child = wNet, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            var row2 = new DockPanel { Margin = new Thickness(0, 1, 0, 0) }; DockPanel.SetDock(wNetB, Dock.Right); row2.Children.Add(wNetB); row2.Children.Add(wCpu);
+            var st = new StackPanel(); st.Children.Add(row1); st.Children.Add(row2); st.Children.Add(cv);
             wid = new Window { Title = "Velivo Monitor – widżet", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, SizeToContent = SizeToContent.Height, Width = GW + 16,
                 Topmost = Get("widzet-wierzch", "1") == "1", WindowStartupLocation = WindowStartupLocation.Manual, Opacity = Math.Max(0.3, Math.Min(1, GetD("widzet-alfa", 0.9))),
                 Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x0F, 0x12, 0x17)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 5, 7, 6), Child = st },
@@ -269,7 +273,7 @@ namespace VelivoMonitor
                 Sample();
                 TrayIcon();
                 if (bar != null) { barTxt.Text = (Internet.Wylaczony() ? "🌐✕ " : "") + "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
-                if (wid != null) { wUp.Text = "↑ " + Rate(Up).Trim(); wDown.Text = "↓ " + Rate(Down).Trim(); wCpu.Text = (Internet.Wylaczony() ? "🌐 bez internetu · " : "") + "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
+                if (wid != null) { wUp.Text = "↑ " + Rate(Up).Trim(); wDown.Text = "↓ " + Rate(Down).Trim(); wCpu.Text = "CPU " + GhzText + " · " + Cpu.ToString("0") + " %"; bool off = Internet.Wylaczony(); wNet.Text = off ? "bez internetu" : "internet"; wNet.Foreground = off ? new SolidColorBrush(Color.FromRgb(0xFC, 0xA5, 0xA5)) : new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC)); wNetB.Background = off ? new SolidColorBrush(Color.FromRgb(0x3A, 0x1D, 0x1D)) : new SolidColorBrush(Color.FromRgb(0x14, 0x32, 0x1F)); DrawGraph(); }
             };
             t.Start();
         }

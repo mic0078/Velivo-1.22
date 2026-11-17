@@ -190,8 +190,12 @@ namespace VelivoMonitor
                     int r = 7; path.AddArc(0, 0, r * 2, r * 2, 180, 90); path.AddArc(S - 1 - r * 2, 0, r * 2, r * 2, 270, 90); path.AddArc(S - 1 - r * 2, S - 1 - r * 2, r * 2, r * 2, 0, 90); path.AddArc(0, S - 1 - r * 2, r * 2, r * 2, 90, 90); path.CloseFigure();
                     g.FillPath(br, path);
                 }
-                using (var wb = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(240, 255, 255, 255)))
-                    for (int i = 0; i < cpuH.Length; i++) { float h = 3 + 21 * (float)Math.Min(1, cpuH[i] / 100); g.FillRectangle(wb, 5 + i * 4.6f, 27 - h, 3.2f, h); }
+                for (int i = 0; i < cpuH.Length; i++)
+                {   // kolor wg obciążenia: do 50% biały, do 80% żółty, wyżej czerwony
+                    double c = cpuH[i]; var col = c < 50 ? System.Drawing.Color.FromArgb(240, 255, 255, 255) : c < 80 ? System.Drawing.Color.FromArgb(255, 0xFA, 0xCC, 0x15) : System.Drawing.Color.FromArgb(255, 0xF8, 0x5A, 0x5A);
+                    float h = 3 + 21 * (float)Math.Min(1, c / 100);
+                    using (var wb = new System.Drawing.SolidBrush(col)) g.FillRectangle(wb, 5 + i * 4.6f, 27 - h, 3.2f, h);
+                }
                 var nh = bmp.GetHicon(); var ico = System.Drawing.Icon.FromHandle(nh);
                 tray.Icon = ico;
                 if (iconH != IntPtr.Zero) DestroyIcon(iconH);   // stara ikona - bez wycieku uchwytów (co sekundę nowa)

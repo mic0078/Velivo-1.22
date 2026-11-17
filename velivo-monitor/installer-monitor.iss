@@ -32,12 +32,15 @@ Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
+pl.Desk=Skrót na pulpicie
+en.Desk=Desktop shortcut
 pl.Auto=Uruchamiaj z Windows
 en.Auto=Start with Windows
 pl.RunApp=Uruchom Velivo Monitor
 en.RunApp=Launch Velivo Monitor
 
 [Tasks]
+Name: "desktopicon"; Description: "{cm:Desk}"
 Name: "autostart"; Description: "{cm:Auto}"
 
 [Files]
@@ -45,6 +48,7 @@ Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cre
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\VelivoMonitor.exe"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\VelivoMonitor.exe"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VelivoMonitor"; ValueData: """{app}\VelivoMonitor.exe"""; Tasks: autostart; Flags: uninsdeletevalue

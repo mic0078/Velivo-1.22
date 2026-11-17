@@ -506,8 +506,9 @@ namespace Velivo
                     {
                         double fl = AbWinFilmLufs(), refL = double.IsNaN(fl) ? wT : Math.Max(wT, fl);   // film po wyrównaniu bywa głośniejszy niż cel (podbite ciche nagranie, kompresor) - lektor ponad TO, co naprawdę gra
                         double gDb = refL + 5 + 20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99) - (pcm.full + 2.3);
-                        // suwak głośności odtwarzacza ścisza też lektora; najwyżej 4× ponad szczyt - resztę łagodnie obcina LektorWprost (twarde ucinanie do szczytu robiło lektora za cichym)
-                        double gain = Math.Pow(10, gDb / 20) * wVol * AbPlayerVolNow;
+                        // suwak głośności odtwarzacza ścisza TYLKO film (właściciel) - lektor zostaje na swoim poziomie (suwak „Głośność lektora”), więc przy ściszonym filmie jest lepiej słyszalny;
+                        // najwyżej 4× ponad szczyt - resztę łagodnie obcina LektorWprost (twarde ucinanie do szczytu robiło lektora za cichym)
+                        double gain = Math.Pow(10, gDb / 20) * wVol;
                         if (pcm.peak > 0) gain = Math.Min(gain, 4 / pcm.peak);
                         var cts = new System.Threading.CancellationTokenSource(); lc.Wprost = cts;
                         bool ok = await LektorWprost.Graj(pcm.s, gain, wDev, cts.Token);

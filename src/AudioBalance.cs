@@ -283,13 +283,12 @@ namespace Velivo
             }
             catch (Exception) { _abLacze = null; return false; }   // starsze Audio Balance for Windows - bez łącza, lektor jak dotąd
         }
-        // 🔊 głośność odtwarzacza dla Audio Balance for Windows (pamięć współdzielona: współczynnik + czas) - stosowana tam po wyrównaniu; lektor prosto na słuchawki też
+        // 🔊 głośność odtwarzacza dla Audio Balance for Windows (pamięć współdzielona: współczynnik + czas) - stosowana tam po wyrównaniu, tylko do filmu (lektor gra osobno)
         static System.IO.MemoryMappedFiles.MemoryMappedViewAccessor _abVolV;
-        internal static double AbPlayerVolNow = 1;
         internal static void AbPlayerVol(double f)
         {
-            AbPlayerVolNow = Math.Max(0, Math.Min(1.25, f));
-            try { _abVolV ??= System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.Odtwarzacz.Glosnosc", 16).CreateViewAccessor(); _abVolV.Write(0, (float)AbPlayerVolNow); _abVolV.Write(8, Environment.TickCount64); } catch (Exception) { }
+            f = Math.Max(0, Math.Min(1.25, f));
+            try { _abVolV ??= System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.Odtwarzacz.Glosnosc", 16).CreateViewAccessor(); _abVolV.Write(0, (float)f); _abVolV.Write(8, Environment.TickCount64); } catch (Exception) { }
         }
         internal static void LektorZnak(bool czyta)
         {

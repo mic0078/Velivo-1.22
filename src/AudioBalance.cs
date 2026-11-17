@@ -840,6 +840,7 @@ namespace Velivo
         // onlyV = drugi, najmniejszy widzet: samo „V” (bez napisow) - te same mozliwosci (menu, na wierzchu, przezroczystosc, przeciaganie)
         internal void ShowAbDesk(bool onlyV = false)
         {
+            if (Wariant.Odtwarzacz) return;   // 🧩 Odtwarzacz: widżety na pulpicie ma samodzielny Audio Balance (stare ustawienie nie otwiera ich przy starcie)
             if (!Edycja.Premium) return;   // 💎 widżety Audio Balance - Premium
             var cur0 = onlyV ? _abDeskV : _abDesk;
             if (cur0 != null) { cur0.Show(); cur0.Activate(); return; }

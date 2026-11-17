@@ -137,7 +137,7 @@ namespace VelivoMonitor
         }
 
         // ---------- widżet na pulpicie ----------
-        Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polygon pUp, pDown; Polyline pGhz; TextBlock mDown, mUp;
+        Window wid; TextBlock wUp, wDown, wCpu, wNet; Border wNetB; Polygon pUp, pDown; Polyline pGhz; double maxDown, maxUp;
         const double GW = 164, GH = 36, BH = 18;   // lustro: od środka pobieranie w górę, wysyłanie w dół - każde ze swoją skalą   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
         void BuildWidget()
         {
@@ -148,11 +148,9 @@ namespace VelivoMonitor
             var cv = new Canvas { Width = GW, Height = GH, Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x24)), Margin = new Thickness(0, 3, 0, 0), ClipToBounds = true };
             Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
             Polygon A(Color c) { var p = new Polygon { Stroke = new SolidColorBrush(c), StrokeThickness = 1, Fill = new SolidColorBrush(Color.FromArgb(0x5A, c.R, c.G, c.B)) }; cv.Children.Add(p); return p; }
-            TextBlock M(Color c, double top) { var t = new TextBlock { FontSize = 7, Foreground = new SolidColorBrush(c) }; Canvas.SetRight(t, 2); Canvas.SetTop(t, top); cv.Children.Add(t); return t; }
             cv.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = BH, Y2 = BH, Stroke = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)) });
             pDown = A(Color.FromRgb(0x4A, 0xDE, 0x80)); pUp = A(Color.FromRgb(0xF5, 0xA5, 0x24));
             pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pGhz.Opacity = 0.6;
-            mDown = M(Color.FromRgb(0x86, 0xEF, 0xAC), 0); mUp = M(Color.FromRgb(0xFC, 0xD3, 0x4D), GH - 10);
             // układ B: ↑ | ↓, pod spodem procesor | plakietka stanu internetu, na dole wykres
             wNet = new TextBlock { FontSize = 9, Padding = new Thickness(4, 0, 4, 1) };
             wNetB = new Border { CornerRadius = new CornerRadius(4), Child = wNet, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -171,6 +169,15 @@ namespace VelivoMonitor
             wid.ContextMenu = Menu();
             wid.Show();
         }
+        // bieżąca wartość + szare maksimum z ostatniej minuty („↑ 0.84 KB / 10.8M”) - widżet bez zmiany rozmiaru
+        static readonly Brush Grey = new SolidColorBrush(Color.FromRgb(0x8B, 0x95, 0xA5));
+        static string Short(double b) => b < 1000 * 1024 ? (b / 1024).ToString(b < 100 * 1024 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "K" : (b / 1048576).ToString(b < 100 * 1048576 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "M";
+        static void Val(TextBlock t, string arrow, double v, double mx)
+        {
+            t.Inlines.Clear();
+            t.Inlines.Add(new System.Windows.Documents.Run(arrow + Rate(v).Trim().Replace("/s", "")));
+            t.Inlines.Add(new System.Windows.Documents.Run(" / " + Short(mx)) { Foreground = Grey, FontSize = 9 });
+        }
         void DrawGraph()
         {   // każdy pasek ze swoją skalą - wysyłanie 1 MB/s widać obok pobierania 70 MB/s
             double md = Math.Max(1024, hDown.Max()), mu = Math.Max(1024, hUp.Max()), gmx = Math.Max(0.1, hGhz.Max() * 1.15);
@@ -184,7 +191,7 @@ namespace VelivoMonitor
             var g = new PointCollection(N);
             for (int i = 0; i < N; i++) { double v = hGhz[(hPos + i) % N]; g.Add(new Point(i * GW / (N - 1), GH - 1 - (GH - 2) * Math.Min(1, v / gmx))); }
             pGhz.Points = g;
-            mDown.Text = "max " + Rate(md).Trim(); mUp.Text = "max " + Rate(mu).Trim();
+            maxDown = hDown.Max(); maxUp = hUp.Max();
         }
 
         // ---------- 🎞 ikona przy zegarze: słupki = obciążenie procesora z ostatnich 5 s (wygląd Velivo: fiolet → turkus) ----------
@@ -280,7 +287,7 @@ namespace VelivoMonitor
                 Sample();
                 TrayIcon();
                 if (bar != null) { barTxt.Text = (Internet.Wylaczony() ? "🌐✕ " : "") + "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
-                if (wid != null) { wUp.Text = "↑ " + Rate(Up).Trim(); wDown.Text = "↓ " + Rate(Down).Trim(); wCpu.Text = "CPU " + GhzText + " · " + Cpu.ToString("0") + " %"; bool off = Internet.Wylaczony(); wNet.Text = off ? "bez internetu" : "internet"; wNet.Foreground = off ? new SolidColorBrush(Color.FromRgb(0xFC, 0xA5, 0xA5)) : new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC)); wNetB.Background = off ? new SolidColorBrush(Color.FromRgb(0x3A, 0x1D, 0x1D)) : new SolidColorBrush(Color.FromRgb(0x14, 0x32, 0x1F)); DrawGraph(); }
+                if (wid != null) { DrawGraph(); Val(wUp, "↑ ", Up, maxUp); Val(wDown, "↓ ", Down, maxDown); wCpu.Text = "CPU " + GhzText + " · " + Cpu.ToString("0") + " %"; bool off = Internet.Wylaczony(); wNet.Text = off ? "bez internetu" : "internet"; wNet.Foreground = off ? new SolidColorBrush(Color.FromRgb(0xFC, 0xA5, 0xA5)) : new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC)); wNetB.Background = off ? new SolidColorBrush(Color.FromRgb(0x3A, 0x1D, 0x1D)) : new SolidColorBrush(Color.FromRgb(0x14, 0x32, 0x1F)); }
             };
             t.Start();
         }

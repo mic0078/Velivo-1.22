@@ -280,7 +280,7 @@ namespace VelivoMonitor
     static class Internet
     {
         const string Nazwa = "Velivo Monitor – bez internetu";
-        const string Publiczne = "1.0.0.0-9.255.255.255,11.0.0.0-100.63.255.255,100.128.0.0-126.255.255.255,128.0.0.0-169.253.255.255,169.255.0.0-172.15.255.255,172.32.0.0-192.167.255.255,192.169.0.0-223.255.255.255,2000::-3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff";
+        const string Publiczne = "1.0.0.0-9.255.255.255,11.0.0.0-100.63.255.255,100.128.0.0-126.255.255.255,128.0.0.0-169.253.255.255,169.255.0.0-172.15.255.255,172.32.0.0-192.167.255.255,192.169.0.0-223.255.255.255,2000::/3";
         static object Policy() => Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
         static object Rules(object pol) => pol.GetType().InvokeMember("Rules", System.Reflection.BindingFlags.GetProperty, null, pol, null);
         static DateTime _at; static bool _st;

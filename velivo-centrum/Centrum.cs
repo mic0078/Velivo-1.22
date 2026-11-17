@@ -1,0 +1,207 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+
+namespace VelivoCentrum
+{
+    // 🧩 Velivo Centrum: jedna ikona V przy zegarze - po kliknięciu lista zainstalowanych programów Velivo (stan „działa / wyłączony”, krótka informacja na żywo).
+    // Dopóki Centrum działa, inne programy Velivo chowają swoje ikony przy zegarze (znak: muteks Local\Velivo.Centrum); po jego zamknięciu pokazują je z powrotem.
+    static class Program
+    {
+        [STAThread]
+        static void Main()
+        {
+            using (var one = new System.Threading.Mutex(true, @"Local\Velivo.Centrum", out bool first))
+            {
+                if (!first) { try { using (var ev = System.Threading.EventWaitHandle.OpenExisting(@"Local\Velivo.Centrum.Pokaz")) ev.Set(); } catch (Exception) { } return; }   // drugie uruchomienie (skrót) - pokaż listę w działającym
+                var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                var c = new Centrum();
+                app.Startup += (s, e) => c.Start();
+                app.Run();
+            }
+        }
+    }
+
+    sealed class Prog
+    {
+        public string Pid, Name, Desc, Proc, DefDir, Exe;
+        public Prog(string pid, string name, string desc, string proc, string dir) { Pid = pid; Name = name; Desc = desc; Proc = proc; DefDir = dir; }
+    }
+
+    sealed class Centrum
+    {
+        static readonly Prog[] All =
+        {
+            new Prog("VelivoOdtwarzacz", "Velivo Odtwarzacz", "filmy, TV, Kanapa", "VelivoOdtwarzacz", "Velivo Odtwarzacz"),
+            new Prog("Velivo", "Velivo", "przeglądarka, filmy, komunikator", "Velivo", "Velivo"),
+            new Prog("VelivoPrzegladarka", "Velivo Przeglądarka", "strony internetowe", "VelivoPrzegladarka", "Velivo Przeglądarka"),
+            new Prog("VelivoKomunikator", "Velivo Komunikator", "wiadomości i rozmowy", "VelivoKomunikator", "Velivo Komunikator"),
+            new Prog("VelivoAudioBalance", "Audio Balance", "wyrównywanie dźwięku Windows", "VelivoAudioBalance", "Velivo Audio Balance for Windows"),
+            new Prog("VelivoMonitor", "Velivo Monitor", "sieć i procesor", "VelivoMonitor", "Velivo Monitor"),
+            new Prog("VelivoKlawiatura", "Velivo Klawiatura", "klawiatura ekranowa i poprawianie pisania", "VelivoKlawiatura", "Velivo Klawiatura"),
+        };
+        static readonly string ExePath = System.Reflection.Assembly.GetEntryAssembly().Location;
+
+        // gdzie jest program: spis programów Velivo (instalator), zapasowo folder domyślny
+        static string FindExe(Prog p)
+        {
+            try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Velivo\Programy\" + p.Pid)) if (k?.GetValue("Exe") is string e && File.Exists(e)) return e; } catch (Exception) { }
+            var d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", p.DefDir, p.Proc + ".exe");
+            return File.Exists(d) ? d : null;
+        }
+        static bool Running(Prog p) { var ps = Process.GetProcessesByName(p.Proc); foreach (var x in ps) x.Dispose(); return ps.Length > 0; }
+
+        // na żywo: poziom z Audio Balance (pamięć współdzielona), procesor dla Monitora
+        static string Live(Prog p, bool on)
+        {
+            if (!on) return File.Exists(p.Exe ?? "") ? "kliknij, aby uruchomić" : p.Desc;
+            if (p.Pid == "VelivoAudioBalance")
+                try { using (var m = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\Velivo.AudioBalance.Wynik")) using (var v = m.CreateViewAccessor()) { if ((long)GetTickCount64() - v.ReadInt64(8) < 3000) { float l = v.ReadSingle(0); if (l > -70 && l < 0) return l.ToString("0.0") + " LUFS · przetwarza"; } } } catch (Exception) { }
+            if (p.Pid == "VelivoMonitor" && cpu >= 0) return "procesor " + cpu.ToString("0") + " %";
+            return p.Desc;
+        }
+        [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
+        [DllImport("kernel32.dll")] static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
+        static double cpu = -1; static long li, lk, lu;
+        static void CpuTick() { if (GetSystemTimes(out var i, out var k, out var u)) { long dt = (k - lk) + (u - lu); if (lk != 0 && dt > 0) cpu = 100.0 * (dt - (i - li)) / dt; li = i; lk = k; lu = u; } }
+
+        // ---------- okienko listy (nad zegarem) ----------
+        Window win; StackPanel list; TextBlock count;
+        static readonly Brush Bg = new SolidColorBrush(Color.FromArgb(0xF2, 0x14, 0x18, 0x21)), Line = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), Fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEB, 0xF0)),
+            Dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2)), Hover = new SolidColorBrush(Color.FromRgb(0x23, 0x2A, 0x37)), OnBg = new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)), OnFg = new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC));
+
+        void BuildWin()
+        {
+            var head = new DockPanel { Margin = new Thickness(4, 2, 4, 8) };
+            var logo = new Image { Width = 24, Height = 24, Source = IconOf(ExePath), Margin = new Thickness(0, 0, 8, 0) };
+            count = new TextBlock { Foreground = Dim, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(logo, Dock.Left); DockPanel.SetDock(count, Dock.Right);
+            head.Children.Add(logo); head.Children.Add(count); head.Children.Add(new TextBlock { Text = "Velivo", Foreground = Fg, FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            list = new StackPanel();
+            Button B(string t, Action a) { var b = new Button { Content = t, Margin = new Thickness(3, 0, 3, 0), Padding = new Thickness(6), Foreground = Fg, Background = Hover, BorderThickness = new Thickness(0), Cursor = Cursors.Hand }; b.Click += (s, e) => a(); return b; }
+            var foot = new UniformGridLite(B("Uruchom wszystkie", StartAll), B("Zamknij wszystkie", CloseAll));
+            var root = new StackPanel(); root.Children.Add(head); root.Children.Add(new Border { Height = 1, Background = Line, Margin = new Thickness(0, 0, 0, 6) }); root.Children.Add(list);
+            root.Children.Add(new Border { Height = 1, Background = Line, Margin = new Thickness(0, 6, 0, 8) }); root.Children.Add(foot);
+            win = new Window { Title = "Velivo Centrum", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = true, Width = 320, SizeToContent = SizeToContent.Height,
+                Content = new Border { Background = Bg, BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(10), Child = root } };
+            win.Deactivated += (s, e) => win.Hide();   // klik obok - lista się chowa
+            win.KeyDown += (s, e) => { if (e.Key == Key.Escape) win.Hide(); };
+        }
+
+        static readonly Dictionary<string, ImageSource> icons = new Dictionary<string, ImageSource>(StringComparer.OrdinalIgnoreCase);
+        static ImageSource IconOf(string exe)
+        {
+            if (icons.TryGetValue(exe, out var c)) return c;
+            return icons[exe] = IconLoad(exe);
+        }
+        static ImageSource IconLoad(string exe)
+        {
+            try { using (var ic = System.Drawing.Icon.ExtractAssociatedIcon(exe)) return System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(ic.Handle, Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions()); } catch (Exception) { return null; }
+        }
+
+        void Fill()
+        {
+            list.Children.Clear(); int on = 0, n = 0;
+            foreach (var p in All)
+            {
+                p.Exe = FindExe(p); if (p.Exe == null) continue;   // tylko zainstalowane
+                n++; bool run = Running(p); if (run) on++;
+                var row = new DockPanel { Margin = new Thickness(0, 1, 0, 1), Background = Brushes.Transparent, Cursor = Cursors.Hand };
+                var bd = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(6), Child = row, Background = Brushes.Transparent,
+                    ToolTip = run ? "Kliknij – otwórz · prawy przycisk – menu" : "Kliknij – uruchom" };
+                bd.MouseEnter += (s, e) => bd.Background = Hover; bd.MouseLeave += (s, e) => bd.Background = Brushes.Transparent;
+                var img = new Image { Width = 30, Height = 30, Source = IconOf(p.Exe), Margin = new Thickness(0, 0, 10, 0) };
+                var st = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(7, 2, 7, 2), VerticalAlignment = VerticalAlignment.Center, Background = run ? OnBg : Line,
+                    Child = new TextBlock { Text = run ? "działa" : "wyłączony", FontSize = 11, Foreground = run ? OnFg : Dim } };
+                var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                txt.Children.Add(new TextBlock { Text = p.Name, Foreground = Fg, FontSize = 13 });
+                txt.Children.Add(new TextBlock { Text = Live(p, run), Foreground = Dim, FontSize = 11 });
+                DockPanel.SetDock(img, Dock.Left); DockPanel.SetDock(st, Dock.Right);
+                row.Children.Add(img); row.Children.Add(st); row.Children.Add(txt);
+                var pp = p;
+                bd.MouseLeftButtonUp += (s, e) => { Open(pp); win.Hide(); };
+                var cm = new ContextMenu();
+                void Mi(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); }
+                Mi(run ? "▶ Otwórz " + p.Name : "▶ Uruchom " + p.Name, () => { Open(pp); win.Hide(); });
+                if (run) Mi("✕ Zamknij " + p.Name, () => Close(pp));
+                bd.ContextMenu = cm;
+                list.Children.Add(bd);
+            }
+            if (n == 0) list.Children.Add(new TextBlock { Text = "Nie znaleziono zainstalowanych programów Velivo.", Foreground = Dim, Margin = new Thickness(6), TextWrapping = TextWrapping.Wrap });
+            count.Text = on + " z " + n + " działa";
+        }
+
+        // uruchomienie działającego programu = jego okno (każdy program Velivo oddaje drugie uruchomienie pierwszemu)
+        static void Open(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
+        static void Close(Prog p)
+        {
+            if (MessageBox.Show("Zamknąć " + p.Name + "?", "Velivo Centrum", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            Shut(p);
+        }
+        static void Shut(Prog p)
+        {
+            try
+            {
+                if (p.Pid == "VelivoAudioBalance") using (var r = Process.Start(new ProcessStartInfo(p.Exe, "--przywroc") { UseShellExecute = false, CreateNoWindow = true })) r?.WaitForExit(5000);   // dźwięk Windows wraca na głośniki
+                foreach (var x in Process.GetProcessesByName(p.Proc)) using (x) { try { if (!x.CloseMainWindow() || !x.WaitForExit(5000)) x.Kill(); } catch (Exception) { } }
+            }
+            catch (Exception) { }
+        }
+        void StartAll() { foreach (var p in All) if (p.Exe != null && !Running(p)) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } } win.Hide(); }
+        void CloseAll()
+        {
+            if (MessageBox.Show("Zamknąć wszystkie programy Velivo?", "Velivo Centrum", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            foreach (var p in All) if (p.Exe != null && Running(p)) Shut(p);
+            Fill();
+        }
+
+        void ShowList()
+        {
+            Fill();
+            var wa = SystemParameters.WorkArea; win.Show(); win.UpdateLayout();
+            win.Left = wa.Right - win.ActualWidth - 10; win.Top = wa.Bottom - win.ActualHeight - 10;   // nad zegarem
+            win.Activate();
+        }
+
+        System.Windows.Forms.NotifyIcon tray;
+        public void Start()
+        {
+            BuildWin();
+            tray = new System.Windows.Forms.NotifyIcon { Text = "Velivo – wszystkie programy", Visible = true };
+            try { tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(ExePath); } catch (Exception) { }
+            var tm = new System.Windows.Forms.ContextMenuStrip();
+            tm.Items.Add("Pokaż programy Velivo", null, (s, e) => ShowList());
+            var auto = new System.Windows.Forms.ToolStripMenuItem("Uruchamiaj z Windows") { CheckOnClick = true };
+            tm.Opening += (s, e) => auto.Checked = AutoOn(); auto.Click += (s, e) => SetAuto(auto.Checked); tm.Items.Add(auto);
+            tm.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            tm.Items.Add("Zakończ Velivo Centrum (ikony programów wrócą)", null, (s, e) => { tray.Visible = false; tray.Dispose(); Application.Current.Shutdown(); });
+            tray.ContextMenuStrip = tm;
+            tray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) { if (win.IsVisible) win.Hide(); else ShowList(); } };
+            var ev = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset, @"Local\Velivo.Centrum.Pokaz");
+            new System.Threading.Thread(() => { while (ev.WaitOne()) Application.Current.Dispatcher.BeginInvoke(new Action(ShowList)); }) { IsBackground = true }.Start();
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            t.Tick += (s, e) => { CpuTick(); if (win.IsVisible && !list.IsMouseOver && !list.Children.OfType<Border>().Any(b => b.ContextMenu != null && b.ContextMenu.IsOpen)) Fill(); };   // stan na żywo, gdy lista otwarta
+            t.Start();
+        }
+        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        static bool AutoOn() { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey)) return k?.GetValue("VelivoCentrum") != null; } catch (Exception) { return false; } }
+        static void SetAuto(bool on) { try { using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey)) { if (on) k.SetValue("VelivoCentrum", "\"" + ExePath + "\""); else k.DeleteValue("VelivoCentrum", false); } } catch (Exception) { } }
+    }
+
+    // dwa przyciski po równo (bez UniformGrid z zależnościami)
+    sealed class UniformGridLite : Grid
+    {
+        public UniformGridLite(params UIElement[] els)
+        {
+            for (int i = 0; i < els.Length; i++) { ColumnDefinitions.Add(new ColumnDefinition()); SetColumn(els[i], i); Children.Add(els[i]); }
+        }
+    }
+}

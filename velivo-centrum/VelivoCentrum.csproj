@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Velivo Centrum: jedna ikona przy zegarze i lista wszystkich zainstalowanych programów Velivo (uruchom, otwórz, zamknij). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <DebugType>none</DebugType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>VelivoCentrum</AssemblyName>
+    <Product>Velivo Centrum</Product>
+    <AssemblyTitle>Velivo Centrum</AssemblyTitle>
+    <RootNamespace>VelivoCentrum</RootNamespace>
+    <ApplicationIcon>centrum.ico</ApplicationIcon>
+    <Version>1.22</Version>
+    <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- .NET Framework 4.8 jest w każdym Windows 10/11: program ma kilkadziesiąt KB zamiast 50 MB z dołączonym .NET -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="centrum.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

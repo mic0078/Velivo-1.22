@@ -226,9 +226,14 @@ namespace VelivoMonitor
         // 🌐 internet wył./wł.: reguły zapory Windows (zmiana wymaga jednego „Tak” administratora - ten program uruchomiony z prawami tylko na tę chwilę)
         void ToggleNet()
         {
-            bool off = !Internet.Wylaczony();
+            bool off = !Internet.Wylaczony(true);
+            try { File.Delete(Internet.Wynik); } catch (Exception) { }
             try { using (var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ExePath, off ? "--internet-wyl" : "--internet-wl") { UseShellExecute = true, Verb = "runas" })) p?.WaitForExit(15000); }
-            catch (Exception) { }   // odmowa w okienku Windows - bez zmian
+            catch (Exception ex) { MessageBox.Show("Zmiana nie została wykonana – brak zgody administratora (okienko Windows „Tak / Nie”).\n" + ex.Message, "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            string res = null; try { res = File.ReadAllText(Internet.Wynik); } catch (Exception) { }
+            bool now = Internet.Wylaczony(true);
+            if (res == null || res.StartsWith("BŁĄD") || now != off)
+                MessageBox.Show((off ? "Nie udało się wyłączyć internetu." : "Nie udało się włączyć internetu.") + "\nWynik zmiany zapory: " + (res ?? "brak (program z prawami administratora się nie uruchomił albo zablokował go antywirus)") + "\nReguła w zaporze: " + (now ? "jest" : "nie ma") + "\nZapora Windows: " + (Internet.ZaporaWindows() ? "włączona" : "WYŁĄCZONA"), "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
             if (off && Internet.Wylaczony(true) && !Internet.ZaporaWindows())
                 MessageBox.Show("Reguła jest zapisana, ale zapora Windows jest wyłączona (np. zastąpiona zaporą antywirusa, jak Bitdefender) – internet nadal działa.\nWłącz zaporę Windows albo zablokuj internet w zaporze antywirusa.", "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -298,14 +303,15 @@ namespace VelivoMonitor
             }
             catch (Exception) { return true; }
         }
+        internal static readonly string Wynik = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor", "internet-wynik.txt");
         internal static void Ustaw(bool off)
         {
+            string res = "OK";
             try
             {
                 var r = Rules(Policy()); var t = r.GetType();
                 for (int i = 0; i < 4; i++) try { t.InvokeMember("Remove", System.Reflection.BindingFlags.InvokeMethod, null, r, new object[] { Nazwa }); } catch (Exception) { }   // stare reguły precz
-                if (!off) return;
-                foreach (int dir in new[] { 1, 2 })   // 1 = przychodzące, 2 = wychodzące
+                if (off) foreach (int dir in new[] { 1, 2 })   // 1 = przychodzące, 2 = wychodzące
                 {
                     var rule = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FWRule")); var rt = rule.GetType();
                     void P(string n, object v) => rt.InvokeMember(n, System.Reflection.BindingFlags.SetProperty, null, rule, new[] { v });
@@ -314,7 +320,8 @@ namespace VelivoMonitor
                     t.InvokeMember("Add", System.Reflection.BindingFlags.InvokeMethod, null, r, new[] { rule });
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex) { res = "BŁĄD: " + (ex.InnerException ?? ex).Message; }
+            try { System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Wynik)); System.IO.File.WriteAllText(Wynik, res); } catch (Exception) { }
         }
     }
 }

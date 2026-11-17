@@ -1554,6 +1554,13 @@ namespace Velivo
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
             _playerMp = mp;
             AbAttach(mp);   // 🎚 Audio Balance / korektor: dzwiek przez procesor Velivo (przed pierwszym Play)
+            // 🔊 suwak głośności przy Audio Balance for Windows: film idzie do kabla w pełnej głośności, a ściszenie Audio Balance stosuje PO wyrównaniu
+            //    (inaczej ściszony film był dla niego „cichym materiałem” i podciągał go z powrotem do celu LUFS)
+            int volWant = 100; bool volAb = false;
+            Action<int> mpVol = v => { volWant = v; volAb = AbWinActive; mp.Volume = volAb && v > 0 ? Math.Max(100, v) : v; AbPlayerVol(volAb ? Math.Min(1, v / 100.0) : 1); };
+            var volAbTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            volAbTimer.Tick += (s0, e0) => { if (AbWinActive != volAb) mpVol(volWant); else AbPlayerVol(volAb ? Math.Min(1, volWant / 100.0) : 1); };   // Audio Balance włączony / wyłączony w trakcie filmu; znak życia co sekundę
+            volAbTimer.Start();
             var view = new VideoView { MediaPlayer = mp, Background = Brushes.Black };
             var win = new Window { Title = L.T("Odtwarzacz filmów"), Width = 960, Height = 600, Background = Brushes.Black, Icon = Icon, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             // warstwa na obrazie (nad okienkiem VLC): dwuklik = pelny ekran, klik = pauza, ruch myszy = pokaz pasek
@@ -1589,6 +1596,7 @@ namespace Velivo
                 for (int i = 0; i < 9; i++) { double h = 4 + 66 * aLvl * (0.5 + 0.5 * Math.Abs(Math.Sin(aK * 0.23 + i * 1.1))); aBars[i].Height = h; Canvas.SetTop(aBars[i], 70 - h); }
             };
             win.Closed += (s, e) => aTimer.Stop();
+            win.Closed += (s, e) => { volAbTimer.Stop(); AbPlayerVol(1); };
             Func<bool> isAudio = () => _playlist != null && _playIndex >= 0 && _playIndex < _playlist.Count && IsAudioFile(_playlist[_playIndex]);
             var osd = new TextBlock { Foreground = Brushes.White, FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
                 Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 4 }, Visibility = Visibility.Collapsed };
@@ -2321,7 +2329,7 @@ namespace Velivo
                 stSl.Value = current?.LSteps ?? defSteps;
                 settingVoice = true; _settings.VlcLectorVoice = current?.LVoice ?? defVoice; selectVoice(_settings.VlcLectorVoice); settingVoice = false;
                 vol.Value = current?.Vol ?? defVol;
-                mp.Volume = muted ? 0 : (int)vol.Value;   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)
+                mpVol(muted ? 0 : (int)vol.Value);   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)
                 filmPrefsTimer.Stop();
             };
             applyFilmPrefs();
@@ -2387,7 +2395,7 @@ namespace Velivo
             var lectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             lectorTimer.Tick += (s, e) =>
             {
-                if (muted && mp.Volume != 0) mp.Volume = 0;   // nowy film, sciszanie pod lektora itp. ustawiaja glosnosc - przy wyciszeniu pilnujemy zera
+                if (muted && mp.Volume != 0) mpVol(0);   // nowy film, sciszanie pod lektora itp. ustawiaja glosnosc - przy wyciszeniu pilnujemy zera
                 if (_settings.VlcLector && lc.EmbPath != null)
                 {   // 🗣 napisy wbudowane (MKV, Jellyfin): ta sama ścieżka, którą wybrałeś w menu Napisy - zmiana ścieżki = lektor czyta nową
                     int sp = -1; try { sp = mp.Spu; } catch (Exception) { }
@@ -3096,7 +3104,7 @@ namespace Velivo
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
                 tracksTimer.Tick += (s, e) =>
                 {
-                    tracksTimer.Stop(); applyTracks(); mp.Volume = muted ? 0 : (int)vol.Value;
+                    tracksTimer.Stop(); applyTracks(); mpVol(muted ? 0 : (int)vol.Value);
                     // wyjscie dzwieku Windows (WASAPI) nie przyjelo formatu filmu - DirectSound i ten sam film od tego miejsca
                     if (_aoutFailed && !aoutDs && _abOut == null)   // przy Audio Balance dzwiek idzie przez Velivo - zmiana wyjscia VLC odlaczylaby procesor
                     {
@@ -3253,10 +3261,10 @@ namespace Velivo
             };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
             // wyciszenie pamietane tutaj: stan Mute w VLC zglasza sie z opoznieniem i kasuje przy zmianie filmu / glosnosci
-            vol.ValueChanged += (s, e) => { AbLearnUserVolume(vol.Value); _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); if (muted && vol.Value > 0) muted = false; mp.Volume = muted ? 0 : (int)vol.Value; volText.Text = (int)vol.Value + "%"; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
+            vol.ValueChanged += (s, e) => { AbLearnUserVolume(vol.Value); _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); if (muted && vol.Value > 0) muted = false; mpVol(muted ? 0 : (int)vol.Value); volText.Text = (int)vol.Value + "%"; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
             Action toggleMute = () =>
             {
-                muted = !muted; mp.Mute = false; mp.Volume = muted ? 0 : (int)vol.Value;   // wyciszenie = glosnosc 0 (przelacznik Mute w VLC bywa zawodny)
+                muted = !muted; mp.Mute = false; mpVol(muted ? 0 : (int)vol.Value);   // wyciszenie = glosnosc 0 (przelacznik Mute w VLC bywa zawodny)
                 if (muted) LectorStopVoice(lc, mp);   // lektor tez cicho
                 mute.Content = PlayerIcon(muted ? "mute" : "volume"); showOsd(muted ? L.T("Wyciszono") : (int)vol.Value + "%");
             };
@@ -3351,13 +3359,13 @@ namespace Velivo
             {
                 if (!sleepAt.HasValue) { sleepTimer.Stop(); return; }
                 var left = sleepAt.Value - DateTime.Now;
-                if (left.TotalSeconds <= 30 && left.TotalSeconds > 0) mp.Volume = (int)(vol.Value * left.TotalSeconds / 30);   // wyciszanie
+                if (left.TotalSeconds <= 30 && left.TotalSeconds > 0) mpVol((int)(vol.Value * left.TotalSeconds / 30));   // wyciszanie
                 if (left.TotalSeconds <= 0)
                 {
                     var pz = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                     sleepAt = null; savePos();
                     if (pz != null && _iptvPlaying.ContainsKey(pz)) vlcRun(() => mp.Stop()); else mp.SetPause(true);   // TV na zywo - pauza nie ma sensu, zatrzymaj
-                    mp.Volume = muted ? 0 : (int)vol.Value;
+                    mpVol(muted ? 0 : (int)vol.Value);
                     showOsd(L.T("⏾ Wyłącznik czasowy – zatrzymano")); pcOff();
                 }
                 updSleep();
@@ -3400,7 +3408,7 @@ namespace Velivo
                 if (sleepAt.HasValue || sleepEnd)
                 {
                     var off = new MenuItem { Header = L.T("✖ Wyłącz wyłącznik czasowy") };
-                    off.Click += (a, b) => { sleepAt = null; sleepEnd = false; sleepPc = false; mp.Volume = muted ? 0 : (int)vol.Value; updSleep(); showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); };
+                    off.Click += (a, b) => { sleepAt = null; sleepEnd = false; sleepPc = false; mpVol(muted ? 0 : (int)vol.Value); updSleep(); showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); };
                     cm.Items.Add(off);
                 }
             };
@@ -4448,7 +4456,7 @@ namespace Velivo
                     case "kanapa": ShowKanapa(); break;
                     case "screenoff": scrSet(n); break;
                     case "screenon": scrAt = null; scrTimer.Stop(); ScreenPower(true); showOsd(L.T("🌙 Ekran włączony")); break;
-                    case "sleep": if (n > 0) { sleepEnd = false; sleepAt = DateTime.Now.AddMinutes(n); showOsd(L.T("⏾ Zatrzymanie za ") + (int)n + " min"); } else if (n < 0) { sleepAt = null; sleepEnd = true; showOsd(L.T("⏾ Zatrzymanie po końcu filmu")); } else { sleepAt = null; sleepEnd = false; mp.Volume = muted ? 0 : (int)vol.Value; showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); } updSleep(); break;
+                    case "sleep": if (n > 0) { sleepEnd = false; sleepAt = DateTime.Now.AddMinutes(n); showOsd(L.T("⏾ Zatrzymanie za ") + (int)n + " min"); } else if (n < 0) { sleepAt = null; sleepEnd = true; showOsd(L.T("⏾ Zatrzymanie po końcu filmu")); } else { sleepAt = null; sleepEnd = false; mpVol(muted ? 0 : (int)vol.Value); showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); } updSleep(); break;
                 }
             };
             _vlcPilotState = () => new Dictionary<string, object>

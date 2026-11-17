@@ -505,7 +505,7 @@ namespace Velivo
                     if (pcm.s != null && gen == lc.Gen)
                     {
                         double gDb = wT + 5 + 20 * Math.Log10(Math.Max(0.1, _settings.VlcLectorVolume) / 0.99) - (pcm.full + 2.3);
-                        double gain = Math.Pow(10, gDb / 20) * wVol; if (pcm.peak > 0) gain = Math.Min(gain, 0.98 / pcm.peak);   // bez przesterowania szczytów
+                        double gain = Math.Pow(10, gDb / 20) * wVol * AbPlayerVolNow;   // suwak głośności odtwarzacza ścisza też lektora if (pcm.peak > 0) gain = Math.Min(gain, 0.98 / pcm.peak);   // bez przesterowania szczytów
                         var cts = new System.Threading.CancellationTokenSource(); lc.Wprost = cts;
                         bool ok = await LektorWprost.Graj(pcm.s, gain, wDev, cts.Token);
                         if (lc.Wprost == cts) lc.Wprost = null;

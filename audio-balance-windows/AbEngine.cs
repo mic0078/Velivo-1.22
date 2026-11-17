@@ -57,7 +57,7 @@ namespace Velivo
         // PRZED programem - kompresor i wyrównanie dostawały wtedy np. -50 dB (próg nigdy nieosiągany = „kompresor nie działa”, wyrównanie na limicie = „cicho”).
         // Teraz: przed przetwarzaniem poziom wraca do pełnego (o tyle, o ile ściszył Windows), a po przetwarzaniu jest ściszany o tyle samo.
         // Razem zawsze 1:1 - głośność z klawiszy działa jak dotąd, a przetwarzanie nie zależy od suwaka.
-        volatile float preT = 1, postT = 1; internal float PostT => postT; System.Threading.Timer volTm; volatile bool volDirty; int volN;
+        volatile float preT = 1, postT = 1, plVol = 1; internal float PostT => postT * plVol; System.Threading.Timer volTm; volatile bool volDirty; int volN;   // plVol - suwak głośności odtwarzacza Velivo (film przychodzi w pełnej głośności)
         MMDevice volIn, volCap; string volInId, volCapId, volOutId; bool volLogged; double volInLog, volCapLog; long volLogAt;
         void VolStart(string cableOutId, string outId)
         {
@@ -72,7 +72,7 @@ namespace Velivo
         // 🗣 łącze z lektorem Velivo: (1) znak „lektor czyta” (zdarzenie Windows ustawiane przez Velivo) → zamrożenie pomiaru programu, przytrzymane 0,8 s po kwestii;
         // (2) dla Velivo: ile ten program teraz podgłaśnia i jaki ma cel - lektor gra o tyle ciszej / głośniej, żeby po przetwarzaniu każdy głos (jest ich wiele)
         // wychodził tak samo głośno względem celu, niezależnie od filmu
-        System.Threading.EventWaitHandle lekEv; long lekAt, lekSince; System.IO.MemoryMappedFiles.MemoryMappedFile lacze; System.IO.MemoryMappedFiles.MemoryMappedViewAccessor laczeV;
+        System.Threading.EventWaitHandle lekEv; long lekAt, lekSince; System.IO.MemoryMappedFiles.MemoryMappedFile lacze; System.IO.MemoryMappedFiles.MemoryMappedViewAccessor laczeV, glosV;
         void LekPoll()
         {
             try
@@ -81,6 +81,7 @@ namespace Velivo
                 // znak ustawiony bez przerwy ponad 40 s = Velivo zamknięte w trakcie kwestii (żadna kwestia tyle nie trwa) - kasujemy go, pomiar wraca
                 if (lekEv.WaitOne(0)) { if (lekSince == 0) lekSince = Environment.TickCount64; if (Environment.TickCount64 - lekSince > 40000) { lekEv.Reset(); lekSince = 0; } else lekAt = Environment.TickCount64; } else lekSince = 0;
                 Proc.Pre.Hold = Proc.LekHold = Environment.TickCount64 - lekAt < 800;   // lektor czyta (+0,8 s): kompresor, pomiar poziomu i wyrównanie stoją - głos lektora nie jest liczony jako dźwięk filmu
+                try { glosV ??= System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.Odtwarzacz.Glosnosc", 16).CreateViewAccessor(); float gv = glosV.ReadSingle(0); long ga = glosV.ReadInt64(8); plVol = ga != 0 && Environment.TickCount64 - ga < 3000 && gv >= 0 && gv <= 1.25f ? gv : 1; } catch (Exception) { plVol = 1; }   // 🔊 suwak odtwarzacza Velivo - po wyrównaniu (świeży do 3 s, potem 1)
                 if (laczeV == null) { lacze = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.AudioBalance.Lacze", 16); laczeV = lacze.CreateViewAccessor(); }
                 laczeV.Write(0, Proc.Bypass ? 0f : Proc.Pre.MakeupNowDb * (Proc.Pre.Params.IsEnabled ? 1 : 0) + (float)Proc.GainDb); laczeV.Write(4, (float)Proc.EffTarget); laczeV.Write(8, Environment.TickCount64);
             }
@@ -316,7 +317,7 @@ namespace Velivo
                 if (tmp.Length < n) tmp = new float[n];
                 // kopiowanie próbka po próbce - NAudio podaje tu tablicę bajtów „udającą” float[] (WaveBuffer); Array.Copy jej odmawia („Source array type cannot be assigned…”)
                 // 🎚 pełny poziom przed przetwarzaniem (płynnie, 20 ms - bez trzasku przy zmianie głośności)
-                float pT = Owner?.preT ?? 1, qT = Owner?.postT ?? 1;
+                float pT = Owner?.preT ?? 1, qT = (Owner?.postT ?? 1) * (Owner?.plVol ?? 1);
                 for (int i = 0; i < n; i += 2) { pre += (pT - pre) * 0.001f; tmp[i] = buffer[offset + i] * pre; tmp[i + 1] = buffer[offset + i + 1] * pre; }
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); Diag.Out();
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza

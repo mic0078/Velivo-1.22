@@ -1,0 +1,47 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Velivo Centrum</title>
+<style>
+:root{--bg:#e9ecf1;--fg:#1b1f27;--dim:#5b6472}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15181e;--fg:#e8ebf0;--dim:#9aa3b2}}
+body{background:var(--bg);color:var(--fg);font:15px "Segoe UI",system-ui,sans-serif;margin:0;padding:20px 16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:16px;margin:24px 0 8px}p{color:var(--dim);margin:0 0 10px;max-width:660px}
+.scene{background:linear-gradient(135deg,#2c4a6b,#1a2a3a);border-radius:8px;max-width:660px;height:430px;position:relative;overflow:hidden}
+.task{position:absolute;left:0;right:0;bottom:0;height:44px;background:#1c1c1c;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 12px}
+.ti{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#6d28d9,#22b8d8);color:#fff;font:700 13px "Segoe UI";display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff6}
+.sys{width:16px;height:16px;border-radius:3px;background:#555}
+.clock{color:#fff;font-size:11px;text-align:right;line-height:14px}
+.panel{position:absolute;right:14px;bottom:54px;width:300px;background:#141821f2;border:1px solid #2a3240;border-radius:12px;color:#e8ebf0;padding:10px;box-shadow:0 8px 30px #0008}
+.hd{display:flex;align-items:center;gap:8px;padding:2px 4px 8px;border-bottom:1px solid #2a3240;margin-bottom:6px}
+.hd b{font-size:14px}.hd span{color:#9aa3b2;font-size:12px;margin-left:auto}
+.it{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px}
+.it:hover,.it.sel{background:#232a37}
+.ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex:none}
+.nm{font-size:13px}.st{font-size:11px;color:#9aa3b2}
+.dot{margin-left:auto;font-size:11px;padding:2px 7px;border-radius:9px}
+.on{background:#14532d;color:#86efac}.off{background:#2a3240;color:#9aa3b2}
+.ft{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #2a3240}
+.ft div{flex:1;text-align:center;font-size:12px;background:#232a37;border-radius:7px;padding:6px}
+.ctx{position:absolute;right:322px;bottom:250px;background:#1f2430;border:1px solid #333c4c;border-radius:8px;color:#e8ebf0;font-size:12px;padding:4px;width:170px}
+.ctx div{padding:6px 10px;border-radius:5px}.ctx div:first-child{background:#2c3546}
+@media (max-width:520px){.ctx{display:none}.panel{width:auto;left:14px}}
+</style></head><body>
+<h1>Velivo Centrum – makieta</h1>
+<p>Przy zegarze jedna ikona Velivo. Kliknięcie otwiera listę wszystkich zainstalowanych programów Velivo. Pozostałe programy chowają swoje ikony, dopóki działa ikona główna.</p>
+<div class="scene">
+  <div class="ctx"><div>▶ Otwórz Odtwarzacz</div><div>⚙ Ustawienia</div><div>✕ Zakończ</div></div>
+  <div class="panel">
+    <div class="hd"><div class="ic" style="width:24px;height:24px;background:linear-gradient(135deg,#6d28d9,#22b8d8);font-size:12px;font-weight:700">V</div><b>Velivo</b><span>4 z 6 działa</span></div>
+    <div class="it sel"><div class="ic" style="background:#7c3aed">▶</div><div><div class="nm">Velivo Odtwarzacz</div><div class="st">filmy, TV, Kanapa</div></div><div class="dot on">działa</div></div>
+    <div class="it"><div class="ic" style="background:#2563eb">🌐</div><div><div class="nm">Velivo Przeglądarka</div><div class="st">strony internetowe</div></div><div class="dot off">wyłączony</div></div>
+    <div class="it"><div class="ic" style="background:#0891b2">💬</div><div><div class="nm">Velivo Komunikator</div><div class="st">2 nowe wiadomości</div></div><div class="dot on">działa</div></div>
+    <div class="it"><div class="ic" style="background:#9333ea">🎚</div><div><div class="nm">Audio Balance</div><div class="st">−23 LUFS · przetwarza</div></div><div class="dot on">działa</div></div>
+    <div class="it"><div class="ic" style="background:#0d9488">📈</div><div><div class="nm">Velivo Monitor</div><div class="st">CPU 12 % · ↓ 0,6 KB/s</div></div><div class="dot on">działa</div></div>
+    <div class="it"><div class="ic" style="background:#475569">⌨</div><div><div class="nm">Velivo Klawiatura</div><div class="st">kliknij, aby uruchomić</div></div><div class="dot off">wyłączony</div></div>
+    <div class="ft"><div>Uruchom wszystkie</div><div>Zamknij wszystkie</div></div>
+  </div>
+  <div class="task"><div class="sys"></div><div class="sys"></div><div class="ti">V</div><div class="clock">21:10<br>17.11.2026</div></div>
+</div>
+<h2>Jak działa</h2>
+<p>• Kliknięcie programu: otwiera go (wyłączony uruchamia). Prawy przycisk: jego własne menu, jak dziś przy jego ikonie.<br>
+• Pod nazwą krótki stan na żywo (np. Audio Balance: poziom, Komunikator: nowe wiadomości).<br>
+• Ikonę główną prowadzi pierwszy uruchomiony program Velivo; gdy się zamknie, przejmuje następny. Gdy żaden jej nie prowadzi – każdy pokazuje swoją ikonę jak dziś.</p>
+</body></html>

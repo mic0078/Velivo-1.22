@@ -1,0 +1,30 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Velivo Monitor</title>
+<style>
+:root{--bg:#e9ecf1;--fg:#1b1f27;--dim:#5b6472}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15181e;--fg:#e8ebf0;--dim:#9aa3b2}}
+body{background:var(--bg);color:var(--fg);font:15px Segoe UI,system-ui,sans-serif;margin:0;padding:20px 16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:16px;margin:22px 0 8px}p{color:var(--dim);margin:0 0 10px;max-width:640px}
+.bar{background:#1c1c1c;height:48px;display:flex;align-items:center;justify-content:flex-end;gap:14px;padding:0 12px;border-radius:6px;max-width:640px}
+.tb{font:12px Consolas,monospace;color:#fff;line-height:16px}.tb .u{color:#f5a524}.tb .d{color:#4ade80}
+.clock{color:#fff;font-size:12px;text-align:right}
+.desk{background:linear-gradient(135deg,#2c4a6b,#1a2a3a);padding:24px;border-radius:8px;display:flex;gap:24px;flex-wrap:wrap;max-width:640px}
+.w{background:#0f1217e6;border:1px solid #2a3240;border-radius:10px;color:#e8ebf0;width:220px;padding:8px 10px;font-size:12px}
+.row{display:flex;justify-content:space-between}.u{color:#f5a524}.d{color:#4ade80}.c{color:#7c9cff}
+svg{display:block;margin-top:6px}
+</style></head><body>
+<h1>Velivo Monitor – makieta</h1>
+<p>Osobny program z instalatorem. Odświeżanie co 1 s. Działa bez Velivo.</p>
+<h2>1. Pasek zadań (obok zegara)</h2>
+<p>Małe okienko przyklejone do paska zadań, jak na Twoim zrzucie. Prawy przycisk – menu (widżet, przezroczystość, wyjście).</p>
+<div class="bar"><div class="tb"><span class="u">↑</span> 0.51 KB/s CPU: 1.62 GHz<br><span class="d">↓</span> 0.65 KB/s CPU: 12 %</div><div class="clock">21:10<br>17.11.2026</div></div>
+<h2>2. Widżet na pulpicie</h2>
+<p>Przeciągasz myszą – pozycja zapamiętana. Kółko myszy – przezroczystość. Wykres z ostatniej minuty: wysyłanie (pomarańczowy), pobieranie (zielony), taktowanie procesora (niebieski).</p>
+<div class="desk"><div class="w">
+<div class="row"><span><span class="u">↑</span> 0.51 KB/s</span><span><span class="d">↓</span> 0.65 KB/s</span></div>
+<div class="row"><span class="c">CPU 1.62 GHz</span><span class="c">12 %</span></div>
+<svg width="200" height="60" viewBox="0 0 200 60"><rect width="200" height="60" fill="#161b24" rx="4"/>
+<polyline fill="none" stroke="#4ade80" stroke-width="1.5" points="0,50 20,48 40,30 60,35 80,20 100,42 120,44 140,25 160,38 180,40 200,33"/>
+<polyline fill="none" stroke="#f5a524" stroke-width="1.5" points="0,56 20,55 40,52 60,54 80,47 100,55 120,56 140,50 160,54 180,55 200,53"/>
+<polyline fill="none" stroke="#7c9cff" stroke-width="1.5" stroke-dasharray="3 2" points="0,22 20,20 40,12 60,14 80,10 100,24 120,26 140,12 160,18 180,20 200,16"/></svg>
+</div></div>
+</body></html>

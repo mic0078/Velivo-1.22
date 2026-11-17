@@ -7,6 +7,7 @@
 #endif
 
 [Setup]
+UsePreviousTasks=no
 AppId={{7A3C1E52-9D4B-4F86-B1E2-VELIVOMONIT1}
 AppName={#AppName}
 AppVersion={#AppVer}
@@ -32,15 +33,12 @@ Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-pl.Desk=Skrót na pulpicie
-en.Desk=Desktop shortcut
 pl.Auto=Uruchamiaj z Windows
 en.Auto=Start with Windows
 pl.RunApp=Uruchom Velivo Monitor
 en.RunApp=Launch Velivo Monitor
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:Desk}"
 Name: "autostart"; Description: "{cm:Auto}"
 
 [Files]
@@ -48,7 +46,7 @@ Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cre
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\VelivoMonitor.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\VelivoMonitor.exe"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\VelivoMonitor.exe"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VelivoMonitor"; ValueData: """{app}\VelivoMonitor.exe"""; Tasks: autostart; Flags: uninsdeletevalue

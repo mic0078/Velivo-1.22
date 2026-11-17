@@ -98,7 +98,7 @@ namespace VelivoMonitor
             hUp[hPos] = Up; hDown[hPos] = Down; hGhz[hPos] = Ghz; hPos = (hPos + 1) % N;
         }
 
-        static string Rate(double b) => b < 1000 * 1024 ? (b / 1024).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " KB/s" : (b / 1048576).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " MB/s";
+        static string Rate(double b) => (b < 1000 * 1024 ? (b / 1024).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " KB/s" : (b / 1048576).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " MB/s").PadLeft(11);   // stała liczba znaków (czcionka o stałej szerokości na pasku)
         string GhzText => Ghz > 0 ? Ghz.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " GHz" : "– GHz";
 
         // ---------- pasek zadań ----------
@@ -115,7 +115,7 @@ namespace VelivoMonitor
             bool light = false;
             try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"); light = (k?.GetValue("SystemUsesLightTheme") as int?) == 1; } catch (Exception) { }
             barTxt = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = light ? Brushes.Black : Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
-            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, SizeToContent = SizeToContent.Width, Height = 40, Content = barTxt,
+            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = 226, Height = 40, Content = barTxt,   /* stała szerokość - napis nie skacze */
                 ToolTip = "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu" };
             bar.ContextMenu = Menu();
             int dragX = 0; double dragOff = 0; bool drag = false;   // przesuwanie wzdłuż paska: zapamiętany odstęp od zegara
@@ -138,7 +138,7 @@ namespace VelivoMonitor
 
         // ---------- widżet na pulpicie ----------
         Window wid; TextBlock wUp, wDown, wCpu; Polyline pUp, pDown, pGhz;
-        const double GW = 150, GH = 32;
+        const double GW = 196, GH = 32;   // stała szerokość widżetu - liczby nie zmieniają jego rozmiaru
         void BuildWidget()
         {
             var dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2));
@@ -149,7 +149,7 @@ namespace VelivoMonitor
             Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
             pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pDown = P(Color.FromRgb(0x4A, 0xDE, 0x80), false); pUp = P(Color.FromRgb(0xF5, 0xA5, 0x24), false);
             var st = new StackPanel(); st.Children.Add(row1); st.Children.Add(wCpu); st.Children.Add(cv);
-            wid = new Window { Title = "Velivo Monitor – widżet", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, SizeToContent = SizeToContent.WidthAndHeight,
+            wid = new Window { Title = "Velivo Monitor – widżet", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, SizeToContent = SizeToContent.Height, Width = GW + 16,
                 Topmost = Get("widzet-wierzch", "1") == "1", WindowStartupLocation = WindowStartupLocation.Manual, Opacity = Math.Max(0.3, Math.Min(1, GetD("widzet-alfa", 0.9))),
                 Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x0F, 0x12, 0x17)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 5, 7, 6), Child = st },
                 ToolTip = "Wykres z ostatniej minuty: wysyłanie (pomarańczowy), pobieranie (zielony), taktowanie procesora (niebieski, przerywany).\nPrzeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu" };
@@ -269,7 +269,7 @@ namespace VelivoMonitor
                 Sample();
                 TrayIcon();
                 if (bar != null) { barTxt.Text = (Internet.Wylaczony() ? "🌐✕ " : "") + "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
-                if (wid != null) { wUp.Text = "↑ " + Rate(Up); wDown.Text = "↓ " + Rate(Down); wCpu.Text = (Internet.Wylaczony() ? "🌐 bez internetu · " : "") + "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
+                if (wid != null) { wUp.Text = "↑ " + Rate(Up).Trim(); wDown.Text = "↓ " + Rate(Down).Trim(); wCpu.Text = (Internet.Wylaczony() ? "🌐 bez internetu · " : "") + "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
             };
             t.Start();
         }

@@ -237,9 +237,7 @@ namespace VelivoMonitor
             string res = null; try { res = File.ReadAllText(Internet.Wynik); } catch (Exception) { }
             bool now = Internet.Wylaczony(true);
             if (res == null || res.StartsWith("BŁĄD") || now != off)
-                MessageBox.Show((off ? "Nie udało się wyłączyć internetu." : "Nie udało się włączyć internetu.") + "\nWynik zmiany zapory: " + (res ?? "brak (program z prawami administratora się nie uruchomił albo zablokował go antywirus)") + "\nReguła w zaporze: " + (now ? "jest" : "nie ma") + "\nZapora Windows: " + (Internet.ZaporaWindows() ? "włączona" : "WYŁĄCZONA"), "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
-            if (off && Internet.Wylaczony(true) && !Internet.ZaporaWindows())
-                MessageBox.Show("Reguła jest zapisana, ale zapora Windows jest wyłączona (np. zastąpiona zaporą antywirusa, jak Bitdefender) – internet nadal działa.\nWłącz zaporę Windows albo zablokuj internet w zaporze antywirusa.", "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show((off ? "Nie udało się wyłączyć internetu." : "Nie udało się włączyć internetu.") + "\nWynik zmiany zapory: " + (res ?? "brak (program z prawami administratora się nie uruchomił albo zablokował go antywirus)"), "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         bool AutoOn() { try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("VelivoMonitor") != null; } catch (Exception) { return false; } }
@@ -279,53 +277,71 @@ namespace VelivoMonitor
         }
     }
 
-    // 🌐 internet wyłączony, sieć domowa działa: dwie reguły zapory Windows blokują ruch do/z adresów publicznych;
-    // adresy domowe (192.168.x, 10.x, 172.16–31.x), lokalne IPv6, rozgłoszenia i multicast - bez zmian
+    // 🌐 internet wyłączony, sieć domowa działa - BEZ zapory (Bitdefender, COMODO itp. zastępują zaporę Windows i jej reguły nic nie dają):
+    // na każdej karcie z bramą dodajemy trasy 0.0.0.0/1, 128.0.0.0/1 (IPv4) i 2000::/3 (IPv6 internet) „bez bramy” - są dokładniejsze niż trasa domyślna,
+    // więc ruch do internetu nie trafia do routera i ginie; sieć domowa (np. 192.168.8.0/24) ma jeszcze dokładniejszą trasę i działa dalej.
+    // Trasy tylko do ponownego uruchomienia komputera (store=active) - restart zawsze przywraca internet.
     static class Internet
     {
-        const string Nazwa = "Velivo Monitor – bez internetu";
-        const string Publiczne = "1.0.0.0-9.255.255.255,11.0.0.0-100.63.255.255,100.128.0.0-126.255.255.255,128.0.0.0-169.253.255.255,169.255.0.0-172.15.255.255,172.32.0.0-192.167.255.255,192.169.0.0-223.255.255.255,2000::/3";
-        static object Policy() => Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
-        static object Rules(object pol) => pol.GetType().InvokeMember("Rules", System.Reflection.BindingFlags.GetProperty, null, pol, null);
+        internal static readonly string Wynik = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor", "internet-wynik.txt");
+        static readonly string Znak = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor", "internet-wylaczony.txt");
+        [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
+        static DateTime Boot => DateTime.UtcNow.AddMilliseconds(-(double)GetTickCount64());
         static DateTime _at; static bool _st;
         internal static bool Wylaczony() => Wylaczony(false);
         internal static bool Wylaczony(bool teraz)
         {
-            if (!teraz && (DateTime.UtcNow - _at).TotalSeconds < 2) return _st;   // odczyt zapory najwyżej co 2 s
-            _at = DateTime.UtcNow;
-            try { var r = Rules(Policy()); r.GetType().InvokeMember("Item", System.Reflection.BindingFlags.InvokeMethod, null, r, new object[] { Nazwa }); _st = true; } catch (Exception) { _st = false; }
+            if (!teraz && (DateTime.UtcNow - _at).TotalSeconds < 2) return _st;
+            _at = DateTime.UtcNow; _st = false;
+            try
+            {   // znak zapisany w tym uruchomieniu Windows (po restarcie trasy znikają - internet jest)
+                if (File.Exists(Znak) && long.TryParse(File.ReadAllLines(Znak).FirstOrDefault(), out var b)) _st = Math.Abs((Boot - new DateTime(b, DateTimeKind.Utc)).TotalMinutes) < 2;
+            }
+            catch (Exception) { }
             return _st;
         }
-        // czy zapora Windows działa w obecnej sieci (bez niej reguła nic nie blokuje)
-        internal static bool ZaporaWindows()
+        static string Netsh(string a)
         {
-            try
-            {
-                var pol = Policy(); var t = pol.GetType(); int prof = (int)t.InvokeMember("CurrentProfileTypes", System.Reflection.BindingFlags.GetProperty, null, pol, null);
-                foreach (int pf in new[] { 1, 2, 4 }) if ((prof & pf) != 0 && !(bool)t.InvokeMember("FirewallEnabled", System.Reflection.BindingFlags.GetProperty, null, pol, new object[] { pf })) return false;
-                return true;
-            }
-            catch (Exception) { return true; }
+            var psi = new System.Diagnostics.ProcessStartInfo(System.IO.Path.Combine(Environment.SystemDirectory, "netsh.exe"), a) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (var p = System.Diagnostics.Process.Start(psi)) { var o = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd(); p.WaitForExit(10000); return p.ExitCode == 0 ? null : a + ": " + o.Trim(); }
         }
-        internal static readonly string Wynik = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor", "internet-wynik.txt");
         internal static void Ustaw(bool off)
         {
-            string res = "OK";
+            var errs = new List<string>();
             try
             {
-                var r = Rules(Policy()); var t = r.GetType();
-                for (int i = 0; i < 4; i++) try { t.InvokeMember("Remove", System.Reflection.BindingFlags.InvokeMethod, null, r, new object[] { Nazwa }); } catch (Exception) { }   // stare reguły precz
-                if (off) foreach (int dir in new[] { 1, 2 })   // 1 = przychodzące, 2 = wychodzące
+                var ifs = new List<int>();
+                if (File.Exists(Znak)) foreach (var l in File.ReadAllLines(Znak).Skip(1)) if (int.TryParse(l, out var i)) ifs.Add(i);   // karty, na których były trasy
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
                 {
-                    var rule = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FWRule")); var rt = rule.GetType();
-                    void P(string n, object v) => rt.InvokeMember(n, System.Reflection.BindingFlags.SetProperty, null, rule, new[] { v });
-                    P("Name", Nazwa); P("Description", "Velivo Monitor: internet wyłączony, sieć domowa działa. Usuń regułę albo włącz internet w Velivo Monitor."); P("Protocol", 256); P("RemoteAddresses", Publiczne);
-                    P("Direction", dir); P("Action", 0); P("Profiles", 0x7FFFFFFF); P("Enabled", true);
-                    t.InvokeMember("Add", System.Reflection.BindingFlags.InvokeMethod, null, r, new[] { rule });
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                    var ip = ni.GetIPProperties(); if (ip.GatewayAddresses.Count == 0) continue;
+                    try { int idx = ip.GetIPv4Properties().Index; if (!ifs.Contains(idx)) ifs.Add(idx); } catch (Exception) { }
                 }
+                foreach (var idx in ifs)
+                {   // najpierw zawsze precz (bez błędu, gdy ich nie ma)
+                    Netsh("interface ipv4 delete route 0.0.0.0/1 interface=" + idx + " store=active");
+                    Netsh("interface ipv4 delete route 128.0.0.0/1 interface=" + idx + " store=active");
+                    Netsh("interface ipv6 delete route 2000::/3 interface=" + idx + " store=active");
+                }
+                if (off)
+                {
+                    foreach (var idx in ifs)
+                    {
+                        foreach (var a in new[] { "interface ipv4 add route 0.0.0.0/1 interface=" + idx + " nexthop=0.0.0.0 metric=1 store=active", "interface ipv4 add route 128.0.0.0/1 interface=" + idx + " nexthop=0.0.0.0 metric=1 store=active" })
+                        { var e = Netsh(a); if (e != null) errs.Add(e); }
+                        Netsh("interface ipv6 add route 2000::/3 interface=" + idx + " metric=1 store=active");   // karta bez IPv6 - bez znaczenia
+                    }
+                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Znak));
+                    File.WriteAllLines(Znak, new[] { Boot.Ticks.ToString() }.Concat(ifs.Select(i => i.ToString())));
+                    if (ifs.Count == 0) errs.Add("nie znaleziono karty sieciowej z bramą (routerem)");
+                }
+                else try { File.Delete(Znak); } catch (Exception) { }
+                // dawna próba przez zaporę Windows - sprzątanie reguł, jeśli zostały
+                try { var pol = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2")); var r = pol.GetType().InvokeMember("Rules", System.Reflection.BindingFlags.GetProperty, null, pol, null); for (int i = 0; i < 4; i++) try { r.GetType().InvokeMember("Remove", System.Reflection.BindingFlags.InvokeMethod, null, r, new object[] { "Velivo Monitor – bez internetu" }); } catch (Exception) { } } catch (Exception) { }
             }
-            catch (Exception ex) { res = "BŁĄD: " + (ex.InnerException ?? ex).Message; }
-            try { System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Wynik)); System.IO.File.WriteAllText(Wynik, res); } catch (Exception) { }
+            catch (Exception ex) { errs.Add((ex.InnerException ?? ex).Message); }
+            try { Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Wynik)); File.WriteAllText(Wynik, errs.Count == 0 ? "OK" : "BŁĄD: " + string.Join("\n", errs)); } catch (Exception) { }
         }
     }
 }

@@ -19,11 +19,11 @@ const W=164,H=36,M=18,X=i=>i*W/(N-1),md=Math.max(...dn),mu=Math.max(...up);
 const ar=(a,m,dir,c)=>`<polygon fill="${c}" fill-opacity=".35" stroke="${c}" stroke-width="1" points="0,${M} ${a.map((v,i)=>X(i).toFixed(1)+','+(M+dir*(M-1)*v/m).toFixed(1)).join(' ')} ${W},${M}"/>`;
 const g=(extra='')=>`<svg width="${W}" height="${H}"><rect width="${W}" height="${H}" rx="3" fill="#161b24"/><line x1="0" x2="${W}" y1="${M}" y2="${M}" stroke="#2a3240"/>${ar(dn,md,-1,'#4ade80')}${ar(up,mu,1,'#f5a524')}<polyline fill="none" stroke="#7c9cff" stroke-opacity=".6" stroke-dasharray="3 2" points="0,8 164,8"/>${extra}</svg>`;
 const lab=(x,y,t,c,anchor='end')=>`<rect x="${anchor=='end'?x-58:x-1}" y="${y-8}" width="59" height="10" rx="2" fill="#0f1217" fill-opacity=".85"/><text x="${x}" y="${y}" fill="${c}" font-size="8" text-anchor="${anchor}">${t}</text>`;
-const top=`<div class="row"><span class="u">↑ 0.84 KB/s</span><span class="d">↓ 0.89 KB/s</span></div><div class="row"><span class="c">CPU 4.44 GHz · 18 %</span><span class="tag">internet</span></div>`;
+const hdr=`<div class="row"><span class="u">↑ 0.84 KB/s</span><span class="d">↓ 0.89 KB/s</span></div><div class="row"><span class="c">CPU 4.44 GHz · 18 %</span><span class="tag">internet</span></div>`;
 const o=[
- ['A – opis z tłem (polecam)','Te same miejsca w rogach, ale większa czcionka (8) na ciemnym tle – czytelna nad wykresem.', top+g(lab(162,9,'↓ max 4.05 KB/s','#86efac')+lab(162,34,'↑ max 10.80 KB/s','#fcd34d'))],
+ ['A – opis z tłem (polecam)','Te same miejsca w rogach, ale większa czcionka (8) na ciemnym tle – czytelna nad wykresem.', hdr+g(lab(162,9,'↓ max 4.05 KB/s','#86efac')+lab(162,34,'↑ max 10.80 KB/s','#fcd34d'))],
  ['B – max w wierszu liczb','Maksimum szarym drobnym tekstem obok bieżącej wartości; wykres bez napisów.', `<div class="row"><span class="u">↑ 0.84 <span class="m">/ 10.8</span></span><span class="d">↓ 0.89 <span class="m">/ 4.05 KB/s</span></span></div><div class="row"><span class="c">CPU 4.44 GHz · 18 %</span><span class="tag">internet</span></div>`+g()],
- ['C – po najechaniu','Wykres czysty; po najechaniu myszą dymek: max i min z ostatniej minuty dla obu.', top+g()+`<div style="margin-top:4px;background:#1f2430;border:1px solid #333c4c;border-radius:5px;padding:3px 5px;font-size:10px;color:#cfd6e2">↓ max 4.05 · min 0.01 KB/s<br>↑ max 10.80 · min 0.02 KB/s</div>`]
+ ['C – po najechaniu','Wykres czysty; po najechaniu myszą dymek: max i min z ostatniej minuty dla obu.', hdr+g()+`<div style="margin-top:4px;background:#1f2430;border:1px solid #333c4c;border-radius:5px;padding:3px 5px;font-size:10px;color:#cfd6e2">↓ max 4.05 · min 0.01 KB/s<br>↑ max 10.80 · min 0.02 KB/s</div>`]
 ];
 document.getElementById('d').innerHTML=o.map(([n,s,h])=>`<div class="card"><div class="lbl">${n}</div><div class="w">${h}</div><div class="sub">${s}</div></div>`).join('');
 </script></body></html>

@@ -1,0 +1,225 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
+
+namespace VelivoMonitor
+{
+    // 📈 Velivo Monitor: sieć ↑↓, taktowanie i obciążenie procesora - napis na pasku zadań (obok zegara) i mały widżet na pulpicie z wykresem z ostatniej minuty.
+    // Odczyt co 1 s, bez dodatkowych bibliotek: sieć z kart sieciowych, procesor z Windows (GetSystemTimes, licznik „% Processor Performance”).
+    static class Program
+    {
+        [STAThread]
+        static void Main(string[] args)
+        {
+            using var one = new System.Threading.Mutex(true, @"Local\VelivoMonitor", out bool first);
+            if (!first) return;   // jedna kopia
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var m = new Monitor();
+            app.Startup += (s, e) => m.Start();
+            app.Run();
+        }
+    }
+
+    sealed class Monitor
+    {
+        // ---------- ustawienia (plik tekstowy klucz=wartość) ----------
+        static readonly string Dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor");
+        static readonly string SetFile = System.IO.Path.Combine(Dir, "ustawienia.txt");
+        readonly Dictionary<string, string> set = new Dictionary<string, string>();
+        string Get(string k, string d = null) => set.TryGetValue(k, out var v) ? v : d;
+        double GetD(string k, double d) => double.TryParse(Get(k), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : d;
+        void Put(string k, object v)
+        {
+            set[k] = Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture);
+            try { Directory.CreateDirectory(Dir); File.WriteAllLines(SetFile + ".tmp", set.Select(x => x.Key + "=" + x.Value)); File.Move(SetFile + ".tmp", SetFile, true); } catch (Exception) { }
+        }
+
+        // ---------- pomiar ----------
+        [DllImport("kernel32.dll")] static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
+        [DllImport("powrprof.dll")] static extern uint CallNtPowerInformation(int level, IntPtr inBuf, int inLen, [Out] byte[] outBuf, int outLen);
+        [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhOpenQuery(string src, IntPtr user, out IntPtr q);
+        [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhAddEnglishCounter(IntPtr q, string path, IntPtr user, out IntPtr c);
+        [DllImport("pdh.dll")] static extern int PdhCollectQueryData(IntPtr q);
+        [DllImport("pdh.dll")] static extern int PdhGetFormattedCounterValue(IntPtr c, uint fmt, IntPtr type, out PdhValue v);
+        [StructLayout(LayoutKind.Sequential)] struct PdhValue { public uint Status; public uint Pad; public double Value; }
+
+        long lastIdle, lastKer, lastUsr, lastSent = -1, lastRecv = -1; DateTime lastAt;
+        IntPtr pdhQ, pdhC; double maxMhz;
+        public double Up, Down, Cpu, Ghz;   // B/s, B/s, %, GHz
+        const int N = 60; readonly double[] hUp = new double[N], hDown = new double[N], hGhz = new double[N]; int hPos;
+
+        void InitCpu()
+        {
+            try
+            {   // najwyższe taktowanie bazowe (MHz) z Windows - PROCESSOR_POWER_INFORMATION: 6 × uint, MaxMhz na pozycji 2
+                int n = Environment.ProcessorCount; var b = new byte[24 * n];
+                if (CallNtPowerInformation(11, IntPtr.Zero, 0, b, b.Length) == 0) maxMhz = BitConverter.ToUInt32(b, 8);
+            }
+            catch (Exception) { }
+            try { if (PdhOpenQuery(null, IntPtr.Zero, out pdhQ) == 0 && PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\% Processor Performance", IntPtr.Zero, out pdhC) == 0) PdhCollectQueryData(pdhQ); else pdhQ = IntPtr.Zero; } catch (Exception) { pdhQ = IntPtr.Zero; }
+        }
+
+        void Sample()
+        {
+            var now = DateTime.UtcNow; double sec = lastAt == default ? 1 : Math.Max(0.2, (now - lastAt).TotalSeconds); lastAt = now;
+            long sent = 0, recv = 0;
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback || ni.NetworkInterfaceType == NetworkInterfaceType.Tunnel) continue;
+                    var st = ni.GetIPStatistics(); sent += st.BytesSent; recv += st.BytesReceived;
+                }
+            }
+            catch (Exception) { }
+            if (lastSent >= 0) { Up = Math.Max(0, (sent - lastSent) / sec); Down = Math.Max(0, (recv - lastRecv) / sec); }   // zmiana kart (Wi-Fi ↔ kabel) - bez ujemnych wartości
+            lastSent = sent; lastRecv = recv;
+            if (GetSystemTimes(out var idle, out var ker, out var usr))
+            {
+                long di = idle - lastIdle, dt = (ker - lastKer) + (usr - lastUsr);   // czas jądra zawiera czas bezczynności
+                if (lastKer != 0 && dt > 0) Cpu = Math.Max(0, Math.Min(100, 100.0 * (dt - di) / dt));
+                lastIdle = idle; lastKer = ker; lastUsr = usr;
+            }
+            if (pdhQ != IntPtr.Zero && maxMhz > 0 && PdhCollectQueryData(pdhQ) == 0 && PdhGetFormattedCounterValue(pdhC, 0x200, IntPtr.Zero, out var v) == 0)   // PDH_FMT_DOUBLE
+                Ghz = maxMhz * v.Value / 100 / 1000;   // „% Processor Performance” ponad 100 = turbo
+            else if (maxMhz > 0) Ghz = maxMhz / 1000;
+            hUp[hPos] = Up; hDown[hPos] = Down; hGhz[hPos] = Ghz; hPos = (hPos + 1) % N;
+        }
+
+        static string Rate(double b) => b < 1000 * 1024 ? (b / 1024).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " KB/s" : (b / 1048576).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " MB/s";
+        string GhzText => Ghz > 0 ? Ghz.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " GHz" : "– GHz";
+
+        // ---------- pasek zadań ----------
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string cls, string name);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string name);
+        [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+        [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
+        static readonly IntPtr Top = new IntPtr(-1);
+
+        Window bar; TextBlock barTxt;
+        void BuildBar()
+        {
+            bool light = false;
+            try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"); light = (k?.GetValue("SystemUsesLightTheme") as int?) == 1; } catch (Exception) { }
+            barTxt = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = light ? Brushes.Black : Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
+            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, SizeToContent = SizeToContent.Width, Height = 40, Content = barTxt,
+                ToolTip = "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu" };
+            bar.ContextMenu = Menu();
+            int dragX = 0; double dragOff = 0; bool drag = false;   // przesuwanie wzdłuż paska: zapamiętany odstęp od zegara
+            bar.MouseLeftButtonDown += (s, e) => { drag = true; dragX = System.Windows.Forms.Cursor.Position.X; dragOff = GetD("pasek-odstep", 0); bar.CaptureMouse(); };
+            bar.MouseMove += (s, e) => { if (!drag) return; set["pasek-odstep"] = Math.Max(0, dragOff + (dragX - System.Windows.Forms.Cursor.Position.X)).ToString(System.Globalization.CultureInfo.InvariantCulture); PlaceBar(); };
+            bar.MouseLeftButtonUp += (s, e) => { if (!drag) return; drag = false; bar.ReleaseMouseCapture(); Put("pasek-odstep", GetD("pasek-odstep", 0)); };
+            bar.Show(); PlaceBar();
+        }
+        void PlaceBar()
+        {
+            if (bar == null) return;
+            var tray = FindWindow("Shell_TrayWnd", null); if (tray == IntPtr.Zero || !GetWindowRect(tray, out var tr)) return;
+            var hwnd = new WindowInteropHelper(bar).Handle; if (hwnd == IntPtr.Zero) return;
+            var nt = FindWindowEx(tray, IntPtr.Zero, "TrayNotifyWnd", null);
+            int right = nt != IntPtr.Zero && GetWindowRect(nt, out var nr) ? nr.L : tr.R - 200;   // tuż przed ikonami przy zegarze
+            GetWindowRect(hwnd, out var me); int w = me.R - me.L, h = tr.B - tr.T;
+            int x = right - w - (int)GetD("pasek-odstep", 0);
+            SetWindowPos(hwnd, Top, x, tr.T, w, h, 0x0010);   // SWP_NOACTIVATE - zawsze nad paskiem zadań
+        }
+
+        // ---------- widżet na pulpicie ----------
+        Window wid; TextBlock wUp, wDown, wCpu; Polyline pUp, pDown, pGhz;
+        const double GW = 150, GH = 32;
+        void BuildWidget()
+        {
+            var dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2));
+            TextBlock T(Brush c) => new TextBlock { Foreground = c, FontSize = 11, FontFamily = new FontFamily("Segoe UI") };
+            wUp = T(new SolidColorBrush(Color.FromRgb(0xF5, 0xA5, 0x24))); wDown = T(new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80))); wCpu = T(new SolidColorBrush(Color.FromRgb(0x7C, 0x9C, 0xFF)));
+            var row1 = new DockPanel(); DockPanel.SetDock(wUp, Dock.Left); row1.Children.Add(wUp); wDown.HorizontalAlignment = HorizontalAlignment.Right; row1.Children.Add(wDown);
+            var cv = new Canvas { Width = GW, Height = GH, Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x24)), Margin = new Thickness(0, 3, 0, 0), ClipToBounds = true };
+            Polyline P(Color c, bool dash) { var p = new Polyline { Stroke = new SolidColorBrush(c), StrokeThickness = 1.2 }; if (dash) p.StrokeDashArray = new DoubleCollection { 3, 2 }; cv.Children.Add(p); return p; }
+            pGhz = P(Color.FromRgb(0x7C, 0x9C, 0xFF), true); pDown = P(Color.FromRgb(0x4A, 0xDE, 0x80), false); pUp = P(Color.FromRgb(0xF5, 0xA5, 0x24), false);
+            var st = new StackPanel(); st.Children.Add(row1); st.Children.Add(wCpu); st.Children.Add(cv);
+            wid = new Window { Title = "Velivo Monitor – widżet", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, SizeToContent = SizeToContent.WidthAndHeight,
+                Topmost = Get("widzet-wierzch", "1") == "1", WindowStartupLocation = WindowStartupLocation.Manual, Opacity = Math.Max(0.3, Math.Min(1, GetD("widzet-alfa", 0.9))),
+                Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x0F, 0x12, 0x17)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 5, 7, 6), Child = st },
+                ToolTip = "Wykres z ostatniej minuty: wysyłanie (pomarańczowy), pobieranie (zielony), taktowanie procesora (niebieski, przerywany).\nPrzeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu" };
+            double x = GetD("widzet-x", SystemParameters.WorkArea.Right - 190), y = GetD("widzet-y", SystemParameters.WorkArea.Top + 20);
+            if (x < SystemParameters.VirtualScreenLeft || x > SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 40 || y < SystemParameters.VirtualScreenTop || y > SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 30)
+            { x = SystemParameters.WorkArea.Right - 190; y = SystemParameters.WorkArea.Top + 20; }   // odłączony drugi monitor - widżet wraca na główny ekran
+            wid.Left = x; wid.Top = y;
+            wid.MouseLeftButtonDown += (s, e) => { try { wid.DragMove(); Put("widzet-x", wid.Left); Put("widzet-y", wid.Top); } catch (Exception) { } };
+            wid.MouseWheel += (s, e) => { wid.Opacity = Math.Max(0.3, Math.Min(1, wid.Opacity + (e.Delta > 0 ? 0.1 : -0.1))); Put("widzet-alfa", wid.Opacity); };
+            wid.ContextMenu = Menu();
+            wid.Show();
+        }
+        void DrawGraph()
+        {
+            double mx = Math.Max(1024, Math.Max(hUp.Max(), hDown.Max())), gmx = Math.Max(0.1, hGhz.Max() * 1.15);
+            void Line(Polyline p, double[] h, double top)
+            {
+                var pts = new PointCollection(N);
+                for (int i = 0; i < N; i++) { double v = h[(hPos + i) % N]; pts.Add(new Point(i * GW / (N - 1), GH - 1 - (GH - 2) * Math.Min(1, v / top))); }
+                p.Points = pts;
+            }
+            Line(pUp, hUp, mx); Line(pDown, hDown, mx); Line(pGhz, hGhz, gmx);
+        }
+
+        // ---------- menu (zasobnik, pasek, widżet) ----------
+        System.Windows.Forms.NotifyIcon tray;
+        ContextMenu Menu()
+        {
+            var cm = new ContextMenu();
+            MenuItem It(string h, Action a, Func<bool> chk = null) { var mi = new MenuItem { Header = h, IsCheckable = chk != null }; mi.Click += (s, e) => a(); cm.Items.Add(mi); if (chk != null) cm.Opened += (s, e) => mi.IsChecked = chk(); return mi; }
+            It("Widżet na pulpicie", ToggleWidget, () => wid != null);
+            It("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
+            It("Na pasku zadań", ToggleBar, () => bar != null);
+            It("Uruchamiaj z Windows", ToggleAuto, AutoOn);
+            cm.Items.Add(new Separator());
+            It("Zakończ Velivo Monitor", Quit);
+            return cm;
+        }
+        void ToggleWidget() { if (wid != null) { wid.Close(); wid = null; Put("widzet", "0"); } else { BuildWidget(); Put("widzet", "1"); } }
+        void ToggleTop() { bool on = Get("widzet-wierzch", "1") != "1"; Put("widzet-wierzch", on ? "1" : "0"); if (wid != null) wid.Topmost = on; }
+        void ToggleBar() { if (bar != null) { bar.Close(); bar = null; Put("pasek", "0"); } else { BuildBar(); Put("pasek", "1"); } }
+        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        bool AutoOn() { try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("VelivoMonitor") != null; } catch (Exception) { return false; } }
+        void ToggleAuto() { try { using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey); if (AutoOn()) k.DeleteValue("VelivoMonitor", false); else k.SetValue("VelivoMonitor", "\"" + Environment.ProcessPath + "\""); } catch (Exception) { } }
+        void Quit() { tray.Visible = false; tray.Dispose(); Application.Current.Shutdown(); }
+
+        public void Start()
+        {
+            try { if (File.Exists(SetFile)) foreach (var l in File.ReadAllLines(SetFile)) { int k = l.IndexOf('='); if (k > 0) set[l.Substring(0, k)] = l.Substring(k + 1); } } catch (Exception) { }
+            InitCpu(); Sample();
+            tray = new System.Windows.Forms.NotifyIcon { Text = "Velivo Monitor", Visible = true };
+            try { tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath); } catch (Exception) { }
+            var tm = new System.Windows.Forms.ContextMenuStrip();
+            void Add(string h, Action a, Func<bool> chk = null) { var it = new System.Windows.Forms.ToolStripMenuItem(h); it.Click += (s, e) => a(); if (chk != null) tm.Opening += (s, e) => it.Checked = chk(); tm.Items.Add(it); }
+            Add("Widżet na pulpicie", ToggleWidget, () => wid != null);
+            Add("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
+            Add("Na pasku zadań", ToggleBar, () => bar != null);
+            Add("Uruchamiaj z Windows", ToggleAuto, AutoOn);
+            tm.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            Add("Zakończ Velivo Monitor", Quit);
+            tray.ContextMenuStrip = tm;
+            tray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) ToggleWidget(); };
+            if (Get("pasek", "1") == "1") BuildBar();
+            if (Get("widzet", "1") == "1") BuildWidget();
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            t.Tick += (s, e) =>
+            {
+                Sample();
+                if (bar != null) { barTxt.Text = "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
+                if (wid != null) { wUp.Text = "↑ " + Rate(Up); wDown.Text = "↓ " + Rate(Down); wCpu.Text = "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
+            };
+            t.Start();
+        }
+    }
+}

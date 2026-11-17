@@ -57,3 +57,18 @@ Filename: "{app}\VelivoMonitor.exe"; Description: "{cm:RunApp}"; Flags: nowait p
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoMonitor.exe"; Flags: runhidden; RunOnceId: "ZamknijMonitor"
+
+[Code]
+// program działa przy zegarze bez okna - Windows nie umie go zamknąć sam (Odmowa dostępu przy podmianie pliku); zamykamy go przed kopiowaniem
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Code, I: Integer;
+begin
+  Result := '';
+  for I := 1 to 10 do
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM VelivoMonitor.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    if Code <> 0 then break;
+    Sleep(300);
+  end;
+  Sleep(500);
+end;

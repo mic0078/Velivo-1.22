@@ -21,6 +21,7 @@ namespace VelivoMonitor
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Length == 1 && (args[0] == "--internet-wyl" || args[0] == "--internet-wl")) { Internet.Ustaw(args[0] == "--internet-wyl"); return; }   // uruchomione jako administrator tylko po to
             using var one = new System.Threading.Mutex(true, @"Local\VelivoMonitor", out bool first);
             if (!first) return;   // jedna kopia
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -213,6 +214,7 @@ namespace VelivoMonitor
             It("Widżet na pulpicie", ToggleWidget, () => wid != null);
             It("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
             It("Na pasku zadań", ToggleBar, () => bar != null);
+            It("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);
             It("Uruchamiaj z Windows", ToggleAuto, AutoOn);
             cm.Items.Add(new Separator());
             It("Zakończ Velivo Monitor", Quit);
@@ -221,6 +223,15 @@ namespace VelivoMonitor
         void ToggleWidget() { if (wid != null) { wid.Close(); wid = null; Put("widzet", "0"); } else { BuildWidget(); Put("widzet", "1"); } }
         void ToggleTop() { bool on = Get("widzet-wierzch", "1") != "1"; Put("widzet-wierzch", on ? "1" : "0"); if (wid != null) wid.Topmost = on; }
         void ToggleBar() { if (bar != null) { bar.Close(); bar = null; Put("pasek", "0"); } else { BuildBar(); Put("pasek", "1"); } }
+        // 🌐 internet wył./wł.: reguły zapory Windows (zmiana wymaga jednego „Tak” administratora - ten program uruchomiony z prawami tylko na tę chwilę)
+        void ToggleNet()
+        {
+            bool off = !Internet.Wylaczony();
+            try { using (var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ExePath, off ? "--internet-wyl" : "--internet-wl") { UseShellExecute = true, Verb = "runas" })) p?.WaitForExit(15000); }
+            catch (Exception) { }   // odmowa w okienku Windows - bez zmian
+            if (off && Internet.Wylaczony(true) && !Internet.ZaporaWindows())
+                MessageBox.Show("Reguła jest zapisana, ale zapora Windows jest wyłączona (np. zastąpiona zaporą antywirusa, jak Bitdefender) – internet nadal działa.\nWłącz zaporę Windows albo zablokuj internet w zaporze antywirusa.", "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         bool AutoOn() { try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("VelivoMonitor") != null; } catch (Exception) { return false; } }
         void ToggleAuto() { try { using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey); if (AutoOn()) k.DeleteValue("VelivoMonitor", false); else k.SetValue("VelivoMonitor", "\"" + ExePath + "\""); } catch (Exception) { } }
@@ -237,6 +248,7 @@ namespace VelivoMonitor
             Add("Widżet na pulpicie", ToggleWidget, () => wid != null);
             Add("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
             Add("Na pasku zadań", ToggleBar, () => bar != null);
+            Add("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);
             Add("Uruchamiaj z Windows", ToggleAuto, AutoOn);
             tm.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             Add("Zakończ Velivo Monitor", Quit);
@@ -251,10 +263,58 @@ namespace VelivoMonitor
             {
                 Sample();
                 TrayIcon();
-                if (bar != null) { barTxt.Text = "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
-                if (wid != null) { wUp.Text = "↑ " + Rate(Up); wDown.Text = "↓ " + Rate(Down); wCpu.Text = "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
+                if (bar != null) { barTxt.Text = (Internet.Wylaczony() ? "🌐✕ " : "") + "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
+                if (wid != null) { wUp.Text = "↑ " + Rate(Up); wDown.Text = "↓ " + Rate(Down); wCpu.Text = (Internet.Wylaczony() ? "🌐 bez internetu · " : "") + "CPU " + GhzText + "  ·  " + Cpu.ToString("0") + " %"; DrawGraph(); }
             };
             t.Start();
+        }
+    }
+
+    // 🌐 internet wyłączony, sieć domowa działa: dwie reguły zapory Windows blokują ruch do/z adresów publicznych;
+    // adresy domowe (192.168.x, 10.x, 172.16–31.x), lokalne IPv6, rozgłoszenia i multicast - bez zmian
+    static class Internet
+    {
+        const string Nazwa = "Velivo Monitor – bez internetu";
+        const string Publiczne = "1.0.0.0-9.255.255.255,11.0.0.0-100.63.255.255,100.128.0.0-126.255.255.255,128.0.0.0-169.253.255.255,169.255.0.0-172.15.255.255,172.32.0.0-192.167.255.255,192.169.0.0-223.255.255.255,2000::-3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff";
+        static object Policy() => Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
+        static object Rules(object pol) => pol.GetType().InvokeMember("Rules", System.Reflection.BindingFlags.GetProperty, null, pol, null);
+        static DateTime _at; static bool _st;
+        internal static bool Wylaczony() => Wylaczony(false);
+        internal static bool Wylaczony(bool teraz)
+        {
+            if (!teraz && (DateTime.UtcNow - _at).TotalSeconds < 2) return _st;   // odczyt zapory najwyżej co 2 s
+            _at = DateTime.UtcNow;
+            try { var r = Rules(Policy()); r.GetType().InvokeMember("Item", System.Reflection.BindingFlags.InvokeMethod, null, r, new object[] { Nazwa }); _st = true; } catch (Exception) { _st = false; }
+            return _st;
+        }
+        // czy zapora Windows działa w obecnej sieci (bez niej reguła nic nie blokuje)
+        internal static bool ZaporaWindows()
+        {
+            try
+            {
+                var pol = Policy(); var t = pol.GetType(); int prof = (int)t.InvokeMember("CurrentProfileTypes", System.Reflection.BindingFlags.GetProperty, null, pol, null);
+                foreach (int pf in new[] { 1, 2, 4 }) if ((prof & pf) != 0 && !(bool)t.InvokeMember("FirewallEnabled", System.Reflection.BindingFlags.GetProperty, null, pol, new object[] { pf })) return false;
+                return true;
+            }
+            catch (Exception) { return true; }
+        }
+        internal static void Ustaw(bool off)
+        {
+            try
+            {
+                var r = Rules(Policy()); var t = r.GetType();
+                for (int i = 0; i < 4; i++) try { t.InvokeMember("Remove", System.Reflection.BindingFlags.InvokeMethod, null, r, new object[] { Nazwa }); } catch (Exception) { }   // stare reguły precz
+                if (!off) return;
+                foreach (int dir in new[] { 1, 2 })   // 1 = przychodzące, 2 = wychodzące
+                {
+                    var rule = Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FWRule")); var rt = rule.GetType();
+                    void P(string n, object v) => rt.InvokeMember(n, System.Reflection.BindingFlags.SetProperty, null, rule, new[] { v });
+                    P("Name", Nazwa); P("Description", "Velivo Monitor: internet wyłączony, sieć domowa działa. Usuń regułę albo włącz internet w Velivo Monitor."); P("Protocol", 256); P("RemoteAddresses", Publiczne);
+                    P("Direction", dir); P("Action", 0); P("Profiles", 0x7FFFFFFF); P("Enabled", true);
+                    t.InvokeMember("Add", System.Reflection.BindingFlags.InvokeMethod, null, r, new[] { rule });
+                }
+            }
+            catch (Exception) { }
         }
     }
 }

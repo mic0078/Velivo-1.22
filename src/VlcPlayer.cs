@@ -1554,10 +1554,10 @@ namespace Velivo
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
             _playerMp = mp;
             AbAttach(mp);   // 🎚 Audio Balance / korektor: dzwiek przez procesor Velivo (przed pierwszym Play)
-            // 🔊 suwak głośności przy Audio Balance for Windows: film idzie do kabla w pełnej głośności, a ściszenie Audio Balance stosuje PO wyrównaniu
+            // 🔊 suwak głośności przy Audio Balance for Windows: Audio Balance dostaje jego pozycję - mierzy film tak, jakby grał w pełnej głośności, a ściszenie stosuje PO wyrównaniu
             //    (inaczej ściszony film był dla niego „cichym materiałem” i podciągał go z powrotem do celu LUFS)
             int volWant = 100; bool volAb = false;
-            Action<int> mpVol = v => { volWant = v; volAb = AbWinActive; mp.Volume = volAb && v > 0 ? Math.Max(100, v) : v; AbPlayerVol(volAb ? Math.Min(1, v / 100.0) : 1); };
+            Action<int> mpVol = v => { volWant = v; volAb = AbWinActive; mp.Volume = v; AbPlayerVol(volAb ? Math.Min(1, v / 100.0) : 1);   /* suwak ścisza jak zawsze; Audio Balance zna jego pozycję i przed pomiarem ją odwraca, a po wyrównaniu stosuje (jak głośność Windows) - działa też ze starszym AB */ };
             var volAbTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             volAbTimer.Tick += (s0, e0) => { if (AbWinActive != volAb) mpVol(volWant); else AbPlayerVol(volAb ? Math.Min(1, volWant / 100.0) : 1); };   // Audio Balance włączony / wyłączony w trakcie filmu; znak życia co sekundę
             volAbTimer.Start();

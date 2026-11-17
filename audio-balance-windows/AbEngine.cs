@@ -57,7 +57,7 @@ namespace Velivo
         // PRZED programem - kompresor i wyrównanie dostawały wtedy np. -50 dB (próg nigdy nieosiągany = „kompresor nie działa”, wyrównanie na limicie = „cicho”).
         // Teraz: przed przetwarzaniem poziom wraca do pełnego (o tyle, o ile ściszył Windows), a po przetwarzaniu jest ściszany o tyle samo.
         // Razem zawsze 1:1 - głośność z klawiszy działa jak dotąd, a przetwarzanie nie zależy od suwaka.
-        volatile float preT = 1, postT = 1, plVol = 1; internal float PostT => postT * plVol; System.Threading.Timer volTm; volatile bool volDirty; int volN;   // plVol - suwak głośności odtwarzacza Velivo (film przychodzi w pełnej głośności)
+        volatile float preT = 1, postT = 1, plVol = 1; internal float PostT => postT; System.Threading.Timer volTm; volatile bool volDirty; int volN;   // plVol - suwak głośności odtwarzacza Velivo (film przychodzi w pełnej głośności)
         MMDevice volIn, volCap; string volInId, volCapId, volOutId; bool volLogged; double volInLog, volCapLog; long volLogAt;
         void VolStart(string cableOutId, string outId)
         {
@@ -317,7 +317,7 @@ namespace Velivo
                 if (tmp.Length < n) tmp = new float[n];
                 // kopiowanie próbka po próbce - NAudio podaje tu tablicę bajtów „udającą” float[] (WaveBuffer); Array.Copy jej odmawia („Source array type cannot be assigned…”)
                 // 🎚 pełny poziom przed przetwarzaniem (płynnie, 20 ms - bez trzasku przy zmianie głośności)
-                float pT = Owner?.preT ?? 1, qT = (Owner?.postT ?? 1) * (Owner?.plVol ?? 1);
+                float pv = Owner?.plVol ?? 1, pT = (Owner?.preT ?? 1) / Math.Max(0.05f, pv), qT = (Owner?.postT ?? 1) * pv;   // 🔊 suwak odtwarzacza Velivo: przed pomiarem odwrócony (pełny poziom filmu), po wyrównaniu zastosowany - jak głośność Windows
                 for (int i = 0; i < n; i += 2) { pre += (pT - pre) * 0.001f; tmp[i] = buffer[offset + i] * pre; tmp[i + 1] = buffer[offset + i + 1] * pre; }
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); Diag.Out();
                 try { proc.Process(tmp, n / 2); } catch (Exception ex) { App.LogError(ex); return n; }   // błąd przetwarzania - dźwięk bez zmian, nie cisza

@@ -3400,7 +3400,7 @@ namespace Velivo
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             if (!KomSamodzielny || KomPrzegladarka != null) menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));   // osobny Komunikator: tylko gdy Velivo Przeglądarka / Velivo jest zainstalowane
             menu.Items.Add(KomSamodzielny ? L.T("Zamknij komunikator") : L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
-            _komTray.ContextMenuStrip = menu;
+            _komTray.ContextMenuStrip = menu; CentrumZasobnik.Podlacz(_komTray, false);   // 🧩 menu z Velivo Centrum (ikona zostaje - powiadomienia)
             _komTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(() => ShowMessenger()); };
             KomTrayUpdate();
         }

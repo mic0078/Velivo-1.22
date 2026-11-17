@@ -29,6 +29,7 @@
     <Compile Include="..\src\WindowTheme.cs" />
     <Compile Include="..\src\VelivoData.cs" />
     <Compile Include="..\src\VelivoBledy.cs" />
+    <Compile Include="..\src\CentrumZasobnik.cs" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="..\src\komunikator.ico" Link="komunikator.ico" />

@@ -132,12 +132,25 @@ namespace VelivoCentrum
                 void Mi(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); }
                 Mi(run ? "▶ Otwórz " + p.Name : "▶ Uruchom " + p.Name, () => { Open(pp); win.Hide(); });
                 if (run) Mi("✕ Zamknij " + p.Name, () => Close(pp));
-                bd.ContextMenu = cm;
+                // prawy przycisk: oryginalne menu programu (to samo co przy jego ikonie przy zegarze); starsza wersja programu bez tej możliwości - menu powyżej
+                bd.MouseRightButtonUp += (s, e) => { if (run && ProgMenu(pp)) { e.Handled = true; win.Hide(); } else { cm.PlacementTarget = bd; cm.IsOpen = true; e.Handled = true; } };
+                // 📌 pokazywać też przy zegarze (obok Centrum) - zapamiętane dla programu
+                bool pin = Pinned(pp);
+                var pinB = new TextBlock { Text = "📌", FontSize = 13, Opacity = pin ? 1 : 0.3, Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand,
+                    ToolTip = pin ? "Pokazywany też przy zegarze – kliknij, aby tylko w Centrum" : "Tylko w Centrum – kliknij, aby pokazywać też przy zegarze" };
+                pinB.MouseLeftButtonUp += (s, e) => { SetPinned(pp, !Pinned(pp)); e.Handled = true; Fill(); };
+                DockPanel.SetDock(pinB, Dock.Right); row.Children.Insert(2, pinB); bd.Tag = cm;
                 list.Children.Add(bd);
             }
             if (n == 0) list.Children.Add(new TextBlock { Text = "Nie znaleziono zainstalowanych programów Velivo.", Foreground = Dim, Margin = new Thickness(6), TextWrapping = TextWrapping.Wrap });
             count.Text = on + " z " + n + " działa";
         }
+
+        // 📌 „też przy zegarze” - program czyta to sam (HKCU\Software\Velivo\Centrum\<proces>)
+        static bool Pinned(Prog p) { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Velivo\Centrum")) return (k?.GetValue(p.Proc) as int?) == 1; } catch (Exception) { return false; } }
+        static void SetPinned(Prog p, bool on) { try { using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Velivo\Centrum")) k.SetValue(p.Proc, on ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord); } catch (Exception) { } }
+        // menu programu: znak dla programu, który pokazuje swoje menu przy kursorze; false = program go nie zna (starsza wersja)
+        static bool ProgMenu(Prog p) { try { using (var ev = System.Threading.EventWaitHandle.OpenExisting(@"Local\Velivo.Menu." + p.Proc)) return ev.Set(); } catch (Exception) { return false; } }
 
         // uruchomienie działającego programu = jego okno (każdy program Velivo oddaje drugie uruchomienie pierwszemu)
         static void Open(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
@@ -188,7 +201,7 @@ namespace VelivoCentrum
             var ev = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset, @"Local\Velivo.Centrum.Pokaz");
             new System.Threading.Thread(() => { while (ev.WaitOne()) Application.Current.Dispatcher.BeginInvoke(new Action(ShowList)); }) { IsBackground = true }.Start();
             var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            t.Tick += (s, e) => { CpuTick(); if (win.IsVisible && !list.IsMouseOver && !list.Children.OfType<Border>().Any(b => b.ContextMenu != null && b.ContextMenu.IsOpen)) Fill(); };   // stan na żywo, gdy lista otwarta
+            t.Tick += (s, e) => { CpuTick(); if (win.IsVisible && !list.IsMouseOver && !list.Children.OfType<Border>().Any(b => b.Tag is ContextMenu bm && bm.IsOpen)) Fill(); };   // stan na żywo, gdy lista otwarta
             t.Start();
         }
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";

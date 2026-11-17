@@ -10,6 +10,7 @@ namespace Velivo
     static class CentrumZasobnik
     {
         static readonly string Proc = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+        static System.Windows.Forms.NotifyIcon _menuTray; static bool _menuOn;
 
         internal static void Podlacz(System.Windows.Forms.NotifyIcon tray, bool chowaj = true)
         {
@@ -21,10 +22,13 @@ namespace Velivo
             tm.Tick += (s, e) => { bool show = Pokazuj(); if (tray.Visible != show) try { tray.Visible = show; } catch (Exception) { } };
             tm.Start();
             }   // Komunikator: ikona zostaje (przez nią idą powiadomienia o wiadomościach) - tylko menu z Centrum
+            if (_menuTray != null && !chowaj) return;   // pełne Velivo: menu z Centrum = główna ikona programu, nie ikona komunikatora
+            _menuTray = tray;
+            if (_menuOn) return; _menuOn = true;   // jeden znak na program (dwie ikony w jednym procesie - jeden wątek)
             try
             {
                 var ev = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Velivo.Menu." + Proc);
-                new Thread(() => { while (ev.WaitOne()) sc?.Post(_ => Menu(tray), null); }) { IsBackground = true, Name = "Velivo Centrum menu" }.Start();
+                new Thread(() => { while (ev.WaitOne()) sc?.Post(_ => Menu(_menuTray), null); }) { IsBackground = true, Name = "Velivo Centrum menu" }.Start();
             }
             catch (Exception) { }
         }

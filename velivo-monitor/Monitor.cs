@@ -315,6 +315,9 @@ namespace VelivoMonitor
         {
             var cm = new ContextMenu();
             MenuItem It(string h, Action a, Func<bool> chk = null) { var mi = new MenuItem { Header = h, IsCheckable = chk != null }; mi.Click += (s, e) => a(); cm.Items.Add(mi); if (chk != null) cm.Opened += (s, e) => mi.IsChecked = chk(); return mi; }
+            var ab = It("🎚 Otwórz Audio Balance", OtworzAb); cm.Opened += (s, e) => ab.Visibility = AbDziala() ? Visibility.Visible : Visibility.Collapsed;   // tylko gdy Audio Balance działa
+            It("📊 Menedżer zadań Windows", () => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("taskmgr.exe") { UseShellExecute = true }); } catch (Exception) { } });
+            cm.Items.Add(new Separator());
             It("Widżet na pulpicie", ToggleWidget, () => wid != null);
             It("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
             It("Na pasku zadań", ToggleBar, () => bar != null);
@@ -327,6 +330,9 @@ namespace VelivoMonitor
             It("Zakończ Velivo Monitor", Quit);
             return cm;
         }
+        // 🎚 okno Velivo Audio Balance - sygnał „pokaż” do działającego programu
+        static bool AbDziala() { if (!System.Threading.EventWaitHandle.TryOpenExisting("VelivoAudioBalance.Pokaz", out var ev)) return false; ev.Dispose(); return true; }
+        static void OtworzAb() { if (System.Threading.EventWaitHandle.TryOpenExisting("VelivoAudioBalance.Pokaz", out var ev)) using (ev) ev.Set(); }
         void ToggleWidget() { if (wid != null) { wid.Close(); wid = null; Put("widzet", "0"); } else { BuildWidget(); Put("widzet", "1"); } }
         void ToggleTop() { bool on = Get("widzet-wierzch", "1") != "1"; Put("widzet-wierzch", on ? "1" : "0"); if (wid != null) wid.Topmost = on; }
         void ToggleBar() { if (bar != null) { bar.Close(); bar = null; ledTm?.Stop(); Put("pasek", "0"); } else { BuildBar(); Put("pasek", "1"); } }

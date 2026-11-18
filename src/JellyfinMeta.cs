@@ -183,13 +183,14 @@ namespace Velivo
         {
             var c = LoadJellyfinConf();
             var cur = LookupMeta(Meta, path);
-            if (c == null || string.IsNullOrEmpty(c.Url) || cur?.Id == null)
+            if (c == null || string.IsNullOrEmpty(c.Url))
             {
-                // film nieznany Jellyfin - wyszukiwarka w nowej karcie (Filmweb) i reczne uzupelnienie
+                // bez Jellyfin - wyszukiwarka w nowej karcie (Filmweb) i reczne uzupelnienie
                 ShowWebWindow(owner, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(fileTitle));
-                InfoBox(owner, L.T("Tego filmu nie ma w Jellyfin (albo Jellyfin nie jest ustawiony), więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”."));
+                InfoBox(owner, L.T("Jellyfin nie jest ustawiony, więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”."));
                 return;
             }
+            bool wJf = cur?.Id != null;   // film spoza Jellyfin: wyszukiwanie przez jego dostawców (TMDb), dane zapisane w Velivo
             var win = new Window { Title = L.T("🔎 Wyszukaj informacje o filmie"), Width = 720, Height = 560, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var ym = System.Text.RegularExpressions.Regex.Match(fileTitle ?? "", @"^(.+) \((\d{4})\)$");
@@ -207,7 +208,7 @@ namespace Velivo
                     using (var http = JellyfinClient(c))
                     {
                         int.TryParse(qYear.Text.Trim(), out var y);
-                        var body = JsonSerializer.Serialize(new Dictionary<string, object> { ["SearchInfo"] = y > 0 ? (object)new { Name = qName.Text.Trim(), Year = y } : new { Name = qName.Text.Trim() }, ["ItemId"] = cur.Id });
+                        var body = JsonSerializer.Serialize(new Dictionary<string, object> { ["SearchInfo"] = y > 0 ? (object)new { Name = qName.Text.Trim(), Year = y } : new { Name = qName.Text.Trim() }, ["ItemId"] = wJf ? cur.Id : null, ["IncludeDisabledProviders"] = false });
                         var resp = await Ok(http.PostAsync("Items/RemoteSearch/Movie", new StringContent(body, Encoding.UTF8, "application/json")));
                         var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
                         foreach (var r in doc.RootElement.EnumerateArray()) results.Add(r.Clone());
@@ -232,6 +233,20 @@ namespace Velivo
             var apply = SmallButton(L.T("✅ Zastosuj"), async () =>
             {
                 int i = list.SelectedIndex; if (i < 0 || i >= results.Count) return;
+                if (!wJf)
+                {   // film tylko w Velivo: tytuł, rok, opis i plakat z wyniku - jak „📝 Uzupełnij informacje”
+                    var r = results[i]; string S(string n) { return r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null; }
+                    var key0 = MetaKey(path);
+                    var m0 = new MovieInfo { Name = S("Name") ?? fileTitle, Original = S("OriginalTitle"), Overview = S("Overview") ?? " ", Year = r.TryGetProperty("ProductionYear", out var py0) && py0.ValueKind == JsonValueKind.Number ? py0.GetInt32() : 0, Genres = cur?.Genres, People = cur?.People, Director = cur?.Director, Rating = cur?.Rating ?? 0 };
+                    var iu = S("ImageUrl");
+                    if (iu != null)
+                        try { using (var hc = new HttpClient()) { var b = await hc.GetByteArrayAsync(iu); Directory.CreateDirectory(PosterDir); var pf = "reczny-" + Math.Abs(key0.GetHashCode()) + ".jpg"; File.WriteAllBytes(Path.Combine(PosterDir, pf), b); m0.Poster = pf; } }
+                        catch (Exception) { m0.Poster = cur?.Poster; }
+                    var man = LoadManual(); man[key0] = m0;
+                    Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
+                    Meta[key0] = m0; win.Close(); done?.Invoke();
+                    return;
+                }
                 status.Text = L.T("Przypisuję w Jellyfin i pobieram dane…");
                 try
                 {

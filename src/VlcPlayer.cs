@@ -4174,7 +4174,7 @@ namespace Velivo
                     var mp = path; Func<string> tyt = () => { var v = LoadLibrary().FirstOrDefault(x => x.Path == mp); return MetaTitle(MetaFor(mp)) ?? CleanTitle(v?.Title ?? System.IO.Path.GetFileNameWithoutExtension(mp)); };
                     add(L.T("🔎 Wyszukaj informacje w sieci…"), () => ShowMetaSearch(Window.GetWindow(overlay) ?? win, mp, tyt(), () => showInfo(true)), true);
                     add(L.T("📝 Uzupełnij informacje ręcznie (opis, plakat, ocena)…"), () => ShowMetaEditor(Window.GetWindow(overlay) ?? win, mp, tyt(), () => showInfo(true)), true);
-                    if (!LoadLibrary().Any(x => x.Path == mp)) add(L.T("➕ Dodaj do biblioteki…"), () => DodajDoBiblioteki(mp, tyt(), Window.GetWindow(overlay) ?? win), true);   // Jellyfin albo własna (z przeniesieniem pliku)
+                    add(L.T("➕ Dodaj do biblioteki…"), () => DodajDoBiblioteki(mp, tyt(), Window.GetWindow(overlay) ?? win), true);   // Jellyfin albo własna (z przeniesieniem pliku)
                 }
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {

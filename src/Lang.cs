@@ -1718,6 +1718,7 @@ namespace Velivo
             { "Ostatnia wieść", "Last heard" },
             { "Otwórz zaporę Windows", "Open Windows firewall" },
             { "Pliki", "Files" },
+            { "Jellyfin nie jest ustawiony, więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”.", "Jellyfin is not set up, so I opened a Filmweb search.\n\nYou can enter the details in “📝 Fill in details…”." },
             { "🔗 Plik zostaje na tym komputerze – w Jellyfin tylko link (Jellyfin czyta film przez sieć)", "🔗 The file stays on this computer – only a link in Jellyfin (Jellyfin reads the movie over the network)" },
             { "Do biblioteki Jellyfin trafia mały plik .strm ze ścieżką sieciową filmu. Folder z filmem musi być udostępniony w sieci, a ten komputer włączony, gdy oglądasz z Jellyfin.", "A small .strm file with the network path of the movie goes to the Jellyfin library. The movie folder must be shared on the network and this computer switched on when you watch from Jellyfin." },
             { "Folder z tym filmem nie jest udostępniony w sieci – udostępnij go (prawy przycisk na folderze → Właściwości → Udostępnianie), żeby Jellyfin mógł go czytać. Albo odznacz „tylko link” – film zostanie przeniesiony.", "The folder with this movie is not shared on the network – share it (right-click the folder → Properties → Sharing) so Jellyfin can read it. Or untick “only a link” – the movie will be moved." },

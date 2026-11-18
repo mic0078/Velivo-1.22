@@ -109,7 +109,6 @@ namespace Velivo
                     DockPanel.SetDock(pick, Dock.Right); row.Children.Add(pick); row.Children.Add(txt); rb.Content = row; pokaz();
                     opcje.Children.Add(rb); jf.Add((rb, x.S, x.Loc, () => dir));
                 }
-                var pierwszy = jf.FirstOrDefault(x => x.Dir() != null); if (pierwszy.Rb != null) pierwszy.Rb.IsChecked = true;
                 ok.IsEnabled = true;
             };
             ok.Click += async (s, e) =>

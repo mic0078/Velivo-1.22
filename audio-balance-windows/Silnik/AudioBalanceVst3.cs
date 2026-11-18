@@ -199,6 +199,16 @@ namespace Velivo
             IntPtr lib, factory, comp, proc, ctrl; Handler handler; Changes changes; int nIn, nOut; IntPtr bufIn, bufOut, chIn, chOut, data; bool ctrlSeparate, active;
             IntPtr cpComp, cpCtrl;
 
+            // 💤 wtyczka wyłączona: tylko wpis na liście, bez wczytywania biblioteki (Ozone to ~100 MB) - wczytywana przy włączeniu albo otwarciu okna
+            internal byte[] PendingState;
+            public bool Loaded => comp != IntPtr.Zero;
+            public static Plugin Stub(string path, string cid, byte[] state, bool on) => new Plugin { Path = path, Cid = cid, PendingState = state, On = on, Name = System.IO.Path.GetFileNameWithoutExtension(path) };
+            public void EnsureLoaded()
+            {
+                if (Loaded) return;
+                Open(Cid);
+                if (PendingState != null) { SetState(PendingState); PendingState = null; }
+            }
             public static Plugin Load(string path, string cid = null)
             {
                 var p = new Plugin { Path = path };
@@ -274,7 +284,7 @@ namespace Velivo
             {   // okno wtyczki pokazuje stan procesora (po starcie i po wczytaniu presetu)
                 if (ctrl == IntPtr.Zero) return; var st = new Stream(); try { if (CP(comp, 13, st.Ptr) == kOk) { st.M.Position = 0; CP(ctrl, 5, st.Ptr); } } finally { st.Rel(); }
             }
-            public byte[] GetState() { var st = new Stream(); try { return CP(comp, 13, st.Ptr) == kOk ? st.M.ToArray() : null; } finally { st.Rel(); } }
+            public byte[] GetState() { if (!Loaded) return PendingState; var st = new Stream(); try { return CP(comp, 13, st.Ptr) == kOk ? st.M.ToArray() : null; } finally { st.Rel(); } }
             public void SetState(byte[] b)
             {
                 if (b == null || b.Length == 0) return; var st = new Stream(b); try { CP(comp, 12, st.Ptr); } finally { st.Rel(); }
@@ -284,6 +294,7 @@ namespace Velivo
             // wątek dźwięku: blok stereo (n ≤ MaxBlock) w miejscu
             public void Process(float[] l, float[] r, int n)
             {
+                if (!Loaded) return;   // niewczytana (wyłączona) - dźwięk bez zmian
                 if (LatencyDirty) { LatencyDirty = false; Latency = Math.Max(0, C0(proc, 6)); }
                 var inL = (float*)((IntPtr*)chIn)[0]; var inR = (float*)((IntPtr*)chIn)[1];
                 for (int i = 0; i < n; i++) { inL[i] = l[i]; inR[i] = r[i]; }
@@ -299,6 +310,7 @@ namespace Velivo
             // okno producenta wtyczki (wątek okna)
             public void ShowEditor(string title)
             {
+                EnsureLoaded();
                 if (ctrl == IntPtr.Zero) throw new Exception(L.T("Ta wtyczka nie ma własnego okna"));
                 IntPtr view; fixed (byte* nm = Encoding.ASCII.GetBytes("editor\0")) view = ((delegate* unmanaged[Stdcall]<IntPtr, byte*, IntPtr>)Fn(ctrl, 17))(ctrl, nm);
                 if (view == IntPtr.Zero) throw new Exception(L.T("Ta wtyczka nie ma własnego okna"));

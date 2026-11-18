@@ -42,8 +42,10 @@ namespace Velivo
                 try
                 {
                     try { System.IO.File.WriteAllText(mark, it.Path); } catch (Exception) { }
+                    var st0 = string.IsNullOrEmpty(it.State) ? null : Convert.FromBase64String(it.State);
+                    if (!(c.Active && it.On)) { list.Add(Vst3.Plugin.Stub(it.Path, it.Cid, st0, it.On)); continue; }   // wyłączona - bez wczytywania (pamięć), wczyta się przy włączeniu
                     var p = Vst3.Plugin.Load(it.Path, it.Cid); p.On = it.On;
-                    if (!string.IsNullOrEmpty(it.State)) p.SetState(Convert.FromBase64String(it.State));
+                    if (st0 != null) p.SetState(st0);
                     list.Add(p);
                 }
                 catch (Exception ex) { _vstErrors.Add(System.IO.Path.GetFileName(it.Path) + ": " + ex.Message); App.LogError(new Exception("VST3: " + it.Path, ex)); }
@@ -130,7 +132,7 @@ namespace Velivo
                     var p = ch[i]; int idx = i;
                     var row = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
                     var cb = new CheckBox { IsChecked = p.On, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Włącz / wyłącz tę wtyczkę") };
-                    cb.Click += (s, e) => { p.On = cb.IsChecked == true; VstSave(); };
+                    cb.Click += (s, e) => { if (cb.IsChecked == true && Vst3.Active) try { p.EnsureLoaded(); } catch (Exception ex) { cb.IsChecked = false; ShowToast(L.T("🎛 Nie udało się wczytać wtyczki: ") + ex.Message, null); return; } p.On = cb.IsChecked == true; VstSave(); };
                     var btns = new StackPanel { Orientation = Orientation.Horizontal };
                     Button B(string t, string tip, Action a) { var b = mk(t, a); b.Margin = new Thickness(4, 0, 0, 0); b.Padding = new Thickness(8, 2, 8, 2); b.ToolTip = tip; btns.Children.Add(b); return b; }
                     B("▲", L.T("Wyżej w łańcuchu"), () => { if (idx == 0) return; var l = Vst3.Chain.ToList(); (l[idx - 1], l[idx]) = (l[idx], l[idx - 1]); VstSet(l.ToArray()); Refresh(); }).IsEnabled = idx > 0;
@@ -155,6 +157,7 @@ namespace Velivo
             on.Click += (s, e) =>
             {
                 if (on.IsChecked == true && Vst3.Chain.Length == 0) { on.IsChecked = false; ShowToast(L.T("🎛 Najpierw dodaj wtyczkę"), null); return; }
+                if (on.IsChecked == true) foreach (var p in Vst3.Chain) if (p.On) try { p.EnsureLoaded(); } catch (Exception ex) { p.On = false; ShowToast(L.T("🎛 Nie udało się wczytać wtyczki: ") + ex.Message, null); }   // wtyczki wczytywane dopiero przy włączeniu
                 Vst3.Active = on.IsChecked == true; VstSave(); if (Vst3.Active) AbNeedsRestartHint();
             };
             var brow = new WrapPanel();

@@ -2349,7 +2349,6 @@ namespace Velivo
             { "Usuń z ulubionych", "Remove from favourites" },
             { "Ulubione kanały", "Favourite channels" },
             { "Moje serwery", "My servers" },
-            { " (ten komputer)", " (this computer)" },
             { "Szukam filmów na: ", "Looking for films on: " },
             { " – nie odpowiada", " – not responding" },
             { "z komputera ", "from computer " },

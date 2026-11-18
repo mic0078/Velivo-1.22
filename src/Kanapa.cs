@@ -304,9 +304,12 @@ namespace Velivo
                         if (got == null) { peers = SendTargets();
                         box.Children.Clear();
                         if (peers.Count == 0 && tu.Count == 0) { box.Children.Add(new TextBlock { Text = L.T("Nie widać żadnego Twojego serwera filmów. Włącz Velivo Serwer filmów (albo Velivo) na drugim komputerze – musi być sparowany i w tym samym profilu."), FontSize = 18, Foreground = KnDim, TextWrapping = TextWrapping.Wrap }); return; }
-                        box.Children.Add(new TextBlock { Text = L.T("Szukam filmów na: ") + string.Join(", ", peers.Select(p => p.Device)) + "…", FontSize = 18, Foreground = KnDim });
-                        got = await System.Threading.Tasks.Task.WhenAll(peers.Select(p => RequestLibrary(p)));
-                        if (tab != "serwer") return; }   // lista pobrana raz na wejście w zakładkę - szukanie filtruje bez ponownego pytania serwerów
+                        box.Children.Add(new TextBlock { Text = L.T("Szukam filmów na: ") + string.Join(", ", peers.Select(p => p.Device).Distinct(StringComparer.OrdinalIgnoreCase)) + "…", FontSize = 18, Foreground = KnDim });
+                        var all = await System.Threading.Tasks.Task.WhenAll(peers.Select(p => RequestLibrary(p)));
+                        if (tab != "serwer") return;
+                        // kilka programów Velivo na jednym komputerze ogłasza się osobno - jeden komputer = jedna grupa (odpowiedź tego, który odpowiedział)
+                        var po = peers.Select((p, i) => (p, l: all[i])).GroupBy(x => x.p.Device, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(x => x.l?.Count ?? -1).First()).ToList();
+                        peers = po.Select(x => x.p).ToList(); got = po.Select(x => x.l).ToArray(); }   // lista pobrana raz na wejście w zakładkę - szukanie filtruje bez ponownego pytania serwerów
                         box.Children.Clear(); int n = 0;
                         { var q0 = szukaj.Text.Trim(); var lt = tu.Where(v => q0.Length == 0 || Tytul(v).IndexOf(q0, StringComparison.CurrentCultureIgnoreCase) >= 0).ToList();
                           if (lt.Count > 0) { n += lt.Count; box.Children.Add(new TextBlock { Text = "🎞 " + Environment.MachineName + L.T(" (ten komputer)") + "  (" + lt.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) }); box.Children.Add(Wrap(lt.Select(v => (UIElement)FilmTile(v)))); } }

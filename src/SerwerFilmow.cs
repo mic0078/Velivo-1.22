@@ -165,7 +165,7 @@ namespace Velivo
             {
                 var foldery = SerwerFoldery();
                 var filmy = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path)).GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase).ToList();
-                var teraz = SendTargets().Select(p => p.Device).ToList();
+                var teraz = SendTargets().Select(p => p.Device).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 kto.Text = Environment.MachineName + L.T(" · udostępnia filmów: ") + filmy.Count + " · " + (teraz.Count == 0 ? L.T("w sieci teraz: żaden Twój komputer z Velivo") : L.T("w sieci teraz: ") + string.Join(", ", teraz));
                 kto.ToolTip = teraz.Count == 0 ? L.T("Włącz Velivo na innym komputerze; musi być sparowany i w tym samym profilu.") : null;
                 var nowy = string.Join("|", foldery) + "#" + wybrany + "#" + string.Join("|", filmy.Select(v => { var m0 = LookupMeta(Meta, v.Path); return v.Path + "?" + m0?.Poster + "?" + (m0 != null); }));
@@ -264,7 +264,7 @@ namespace Velivo
             };
             Action odsw = () =>
             {
-                int n = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path)).Select(v => v.Path.ToLowerInvariant()).Distinct().Count(); var teraz = SendTargets().Select(p => p.Device).ToList();
+                int n = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path)).Select(v => v.Path.ToLowerInvariant()).Distinct().Count(); var teraz = SendTargets().Select(p => p.Device).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 stan.Text = L.T("Serwer działa · udostępnia filmów: ") + n;
                 stan.ToolTip = (teraz.Count == 0 ? L.T("W sieci teraz nie widać żadnego Twojego komputera z Velivo (musi być sparowany i w tym samym profilu).") : L.T("W sieci teraz: ") + string.Join(", ", teraz))
                     + "\n" + L.T("Twoje komputery z Velivo widzą filmy z folderów serwera – z opisem, obsadą i plakatem – i oglądają je prosto z tego komputera.");

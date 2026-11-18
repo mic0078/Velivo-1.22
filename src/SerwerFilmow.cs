@@ -84,7 +84,7 @@ namespace Velivo
             return true;
         }
 
-        // 🎞 okno serwera = biblioteka Odtwarzacza (ta sama lista, opisy, plakaty, wyszukiwanie, napisy) z filmami folderów serwera;
+        // 🎞 okno serwera = biblioteka Odtwarzacza (ta sama lista, opisy, plakaty, wyszukiwanie, napisy) z filmami folderów serwera,
         // na górze pasek: stan serwera, komputery w sieci, foldery (menu: usuń, przejrzyj), filmy z Jellyfin
         internal void SerwerOkno() => ShowVideoLibrary();
 

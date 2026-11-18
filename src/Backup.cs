@@ -236,7 +236,7 @@ namespace Velivo
 
         Window _tidyWin;
 
-        void ShowTidy()
+        internal void ShowTidy()
         {
             if (_tidyWin != null) { if (_tidyWin.WindowState == WindowState.Minimized) _tidyWin.WindowState = WindowState.Normal; _tidyWin.Activate(); return; }
             var w = new Window { Title = L.T("🧹 Porządki i kopia bezpieczeństwa"), Width = 560, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.CanMinimize, WindowStartupLocation = WindowStartupLocation.CenterScreen };

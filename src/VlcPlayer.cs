@@ -798,7 +798,7 @@ namespace Velivo
         {
             if (_libWin != null && _libWin.IsLoaded) { if (!_libWin.IsVisible) _libWin.Show(); if (_libWin.WindowState == WindowState.Minimized) _libWin.WindowState = WindowState.Normal; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
             // właściciel - okno Velivo, nie odtwarzacz: okna podrzędne zamykają się razem z właścicielem (biblioteka znikała po zamknięciu filmu)
-            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            var win = new Window { Title = Wariant.Serwer ? Wariant.Nazwa : L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             win.Topmost = owner.Topmost; win.Deactivated += (s0, e0) => win.Topmost = false;   // bez właściciela: przeglądarka może je zasłonić; nad odtwarzaczem na wierzchu tylko do kliknięcia gdzie indziej
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4) };
@@ -819,7 +819,8 @@ namespace Velivo
             var deleteBtn = SmallButton(L.T("🗑 Usuń bibliotekę"), null);
             renameBtn.Margin = deleteBtn.Margin = new Thickness(6, 8, 0, 4);
             var top = new DockPanel();
-            foreach (var c in new FrameworkElement[] { source, renameBtn, deleteBtn }) { DockPanel.SetDock(c, Dock.Left); top.Children.Add(c); }
+            if (!Wariant.Serwer) foreach (var c in new FrameworkElement[] { source, renameBtn, deleteBtn }) { DockPanel.SetDock(c, Dock.Left); top.Children.Add(c); }
+            else { var st = SerwerPasek(win); DockPanel.SetDock(st, Dock.Left); top.Children.Add(st); }   // 🎞 serwer: stan i foldery zamiast wyboru biblioteki
             top.Children.Add(searchBox);
             // filmy wspolnej biblioteki z innych Velivo (wlaczonych) - wczytywane przy wejsciu do wspolnej
             var peerItems = new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
@@ -854,12 +855,12 @@ namespace Velivo
                 var q = search.Text.Trim();
                 var key = sortKey; var desc = sortDesc; var shared = _libSharedView; var meta = Meta; var tv = _libTvView; var recDirs = TvRecDirs();
                 var peersNow = SendTargets(); var online = new HashSet<string>(peersNow.Select(p => p.Id));   // kopie z innych komputerow - dostepne, gdy tamten wlaczony
-                var fromPeers = shared && !tv ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
+                var fromPeers = shared && !tv && !Wariant.Serwer ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
                 var local = lib;
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var res = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    var mine = local.Where(v => tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();   // nagrania TV - tylko w swojej bibliotece
+                    var mine = local.Where(v => Wariant.Serwer ? WFolderze(v.Path) : tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();   // 🎞 serwer: tylko filmy z jego folderów   // nagrania TV - tylko w swojej bibliotece
                     var all = new List<LibraryVideo>(mine);
                     var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
                     // ten sam film z NAS na kilku komputerach = jedna pozycja
@@ -1189,7 +1190,7 @@ namespace Velivo
             buttons.Children.Add(contBtn);
             buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
             buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView && !_libTvView); }));
-            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView && !_libTvView); }));
+            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d == null) return; if (Wariant.Serwer) SerwerDodajFolder(d); else AddPathsToLibrary(new[] { d }, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("➖ Usuń z biblioteki"), remove));
             // odswiez: wspolna biblioteka od nowa z innych komputerow + (gdy ustawiony) nowe dane z Jellyfin w tle
             buttons.Children.Add(SmallButton(L.T("🔄 Odśwież"), async () =>

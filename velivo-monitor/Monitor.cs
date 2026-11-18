@@ -201,17 +201,17 @@ namespace VelivoMonitor
         const double GW = 184, GH = 22, BH = 11;   // lustro: od środka pobieranie w górę, wysyłanie w dół - każde ze swoją skalą
         void BuildWidget()
         {
-            TextBlock T(Brush c, double size = 11.5) { var tb = new TextBlock { Foreground = c, FontSize = size, FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center }; System.Windows.Documents.Typography.SetNumeralAlignment(tb, FontNumeralAlignment.Tabular); return tb; }   // cyfry równej szerokości - liczby nie skaczą
+            TextBlock T(Brush c, double size = 11.5) { var tb = new TextBlock { Foreground = c, FontSize = size, FontFamily = new FontFamily("Segoe UI"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, ShadowDepth = 0, BlurRadius = 4, Opacity = 1 } }; System.Windows.Documents.Typography.SetNumeralAlignment(tb, FontNumeralAlignment.Tabular); return tb; }   // cyfry równej szerokości - liczby nie skaczą
             wUp = T(new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18))); wDown = T(new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80))); wCpu = T(new SolidColorBrush(Color.FromRgb(0x7C, 0x9C, 0xFF)));
             wDown.Margin = new Thickness(7, 0, 0, 0);
             Canvas Cv(double op) => new Canvas { Width = GW, Height = GH, ClipToBounds = true, Opacity = op };
-            var cv = Cv(0.45);
+            var cv = Cv(0.28);   // wykres przygaszony - liczby na nim czytelne
             Polygon A(Color c) { var p = new Polygon { Fill = new SolidColorBrush(c) }; cv.Children.Add(p); return p; }
             pDown = A(Color.FromRgb(0x4A, 0xDE, 0x80)); pUp = A(Color.FromRgb(0xF5, 0xC5, 0x18));
             pGhz = new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x7C, 0x9C, 0xFF)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 2 } }; cv.Children.Add(pGhz);
             var t1 = new DockPanel { Height = GH, LastChildFill = false }; t1.Children.Add(wUp); t1.Children.Add(wDown); DockPanel.SetDock(wCpu, Dock.Right); t1.Children.Add(wCpu);
             var row1 = new Grid(); row1.Children.Add(cv); row1.Children.Add(t1);
-            var cvA = Cv(0.75); cvA.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = GH / 2, Y2 = GH / 2, Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)) });
+            var cvA = Cv(0.4); cvA.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = GH / 2, Y2 = GH / 2, Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)) });
             pGr = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), StrokeThickness = 1 }; cvA.Children.Add(pGr);
             pAb = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x40, 0x2E, 0xD3, 0xC6)), Stroke = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), StrokeThickness = 1 }; cvA.Children.Add(pAb);   // kolory z okna Audio Balance
             wAb = T(new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)), 12); wAb.FontWeight = FontWeights.SemiBold; wAbSub = T(new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA3)));
@@ -254,7 +254,7 @@ namespace VelivoMonitor
             DrawGraph(); Val(wUp, "↑", Up); Val(wDown, "↓", Down);
             bool off = Internet.Wylaczony(); if (off) { wUp.Foreground = wDown.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0x6C, 0xFF)); }
             else { wUp.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)); wDown.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)); }
-            wCpu.Text = GhzText + " · " + Cpu.ToString("0") + "%";
+            wCpu.Text = GhzText + " " + Cpu.ToString("0") + "%";
             wAbRow.Visibility = wSep.Visibility = abOk ? Visibility.Visible : Visibility.Collapsed;
             if (abOk) { wAb.Text = abOut == "-" ? "– dB" : abOut + " dB"; wAbSub.Text = abSub; }
             wid.ToolTip = (off ? "Internet WYŁĄCZONY – działa tylko sieć domowa (fioletowe strzałki).\n" : "") + "Wysyłanie ↑ / pobieranie ↓ – teraz; największe z ostatniej minuty: ↑ " + Short(maxUp) + "B/s, ↓ " + Short(maxDown) + "B/s.\n"

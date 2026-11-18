@@ -61,29 +61,23 @@ namespace Velivo
             var t = CleanTitle(v.Title ?? Path.GetFileNameWithoutExtension(v.Path));
             var ym = System.Text.RegularExpressions.Regex.Match(t, @"^(.+?)[ .(]+((?:19|20)\d{2})\)?");
             string q = ym.Success ? ym.Groups[1].Value.Replace('.', ' ').Trim() : t, rok = ym.Success ? ym.Groups[2].Value : null;
-            string id = null;
-            using (var http = WikiHttp())
-                foreach (var lang in new[] { "pl", "en" })
+            var wyn = await SzukajFilmu(q, rok);
+            // z rokiem w nazwie pliku - tylko wynik z tym rokiem (TMDb: rok produkcji, Wikidane: opis albo data premiery); bez roku - pierwszy
+            FilmWynik w = rok == null ? wyn.FirstOrDefault() : wyn.FirstOrDefault(x => x.Year.ToString() == rok || x.WdId != null && (x.Desc ?? "").Contains(rok));
+            if (w == null && rok != null)
+                using (var http = WikiHttp())
                 {
-                    var js = await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&type=item&limit=15&language=" + lang + "&uselang=pl&search=" + Uri.EscapeDataString(q));
-                    var r = JsonDocument.Parse(js).RootElement.GetProperty("search").EnumerateArray()
-                        .Select(x => (Id: WdStr(x, "id"), D: WdStr(x, "description") ?? "")).Where(x => x.Id != null && x.D.IndexOf("film", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
-                    if (rok == null) id = r.FirstOrDefault().Id;
-                    else
-                    {   // rok z nazwy pliku: w krótkim opisie albo w dacie premiery (P577) - tylko pasujący rok, bez zgadywania
-                        id = r.FirstOrDefault(x => x.D.Contains(rok)).Id;
-                        var ids = r.Take(6).Select(x => x.Id).ToList();
-                        if (id == null && ids.Count > 0)
-                        {
-                            var ent = JsonDocument.Parse(await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=" + string.Join("|", ids))).RootElement.GetProperty("entities");
-                            id = ids.FirstOrDefault(x => ent.TryGetProperty(x, out var e) && e.TryGetProperty("claims", out var c) && c.TryGetProperty("P577", out var pd)
-                                && pd.EnumerateArray().Any(d => (WdStr(d, "mainsnak", "datavalue", "value", "time") ?? "").Substring(Math.Min(1, (WdStr(d, "mainsnak", "datavalue", "value", "time") ?? "").Length)).StartsWith(rok)));
-                        }
+                    var ids = wyn.Where(x => x.WdId != null).Take(6).Select(x => x.WdId).ToList();
+                    if (ids.Count > 0)
+                    {
+                        var ent = JsonDocument.Parse(await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=" + string.Join("|", ids))).RootElement.GetProperty("entities");
+                        var id = ids.FirstOrDefault(x => ent.TryGetProperty(x, out var e) && e.TryGetProperty("claims", out var c) && c.TryGetProperty("P577", out var pd)
+                            && pd.EnumerateArray().Any(d => { var t = WdStr(d, "mainsnak", "datavalue", "value", "time") ?? ""; return t.Length > 5 && t.Substring(1, 4) == rok; }));
+                        w = wyn.FirstOrDefault(x => x.WdId == id && id != null);
                     }
-                    if (id != null) break;
                 }
-            if (id == null) return false;
-            var m = await WikiFilm(id, v.Path, null);
+            if (w == null) return false;
+            var m = await PobierzFilm(w, v.Path, null);
             var key = MetaKey(v.Path); var man = LoadManual(); man[key] = m;
             Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
             Meta[key] = m;

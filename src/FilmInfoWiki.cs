@@ -35,34 +35,23 @@ namespace Velivo
             var status = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(12, 4, 12, 4), TextWrapping = TextWrapping.Wrap };
             var list = new ListBox { Margin = new Thickness(12, 0, 12, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
             ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
-            var found = new List<(string Id, string Label, string Desc)>();
+            var found = new List<FilmWynik>();
             async Task Szukaj()
             {
                 status.Text = L.T("Szukam…"); list.Items.Clear(); found.Clear();
-                try
-                {
-                    using (var http = WikiHttp())
-                        foreach (var lang in new[] { "pl", "en" })
-                        {
-                            var js = await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&type=item&limit=20&language=" + lang + "&uselang=pl&search=" + Uri.EscapeDataString(qName.Text.Trim()));
-                            foreach (var r in JsonDocument.Parse(js).RootElement.GetProperty("search").EnumerateArray())
-                            {
-                                var d = WdStr(r, "description") ?? ""; var id = WdStr(r, "id");
-                                if (id == null || found.Any(f => f.Id == id) || d.IndexOf("film", StringComparison.OrdinalIgnoreCase) < 0 && d.IndexOf("serial", StringComparison.OrdinalIgnoreCase) < 0 && d.IndexOf("series", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                                found.Add((id, WdStr(r, "label") ?? id, d));
-                            }
-                            if (found.Count > 0) break;
-                        }
-                }
+                try { found = await SzukajFilmu(qName.Text.Trim(), qYear.Text.Trim()); }
                 catch (Exception ex) { status.Text = L.T("⚠ Błąd wyszukiwania: ") + ex.Message; return; }
-                var y = qYear.Text.Trim();
-                if (y.Length == 4) found = found.OrderByDescending(f => f.Desc.Contains(y)).ToList();   // rok w opisie („film z 2022 roku”) - wyżej
                 foreach (var f in found)
                 {
-                    var sp = new StackPanel { Margin = new Thickness(2, 4, 2, 4) };
-                    sp.Children.Add(new TextBlock { Text = f.Label, FontWeight = FontWeights.SemiBold, FontSize = 14 });
-                    sp.Children.Add(new TextBlock { Text = f.Desc, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap });
-                    list.Items.Add(new ListBoxItem { Content = sp });
+                    var row = new DockPanel { Margin = new Thickness(2, 4, 2, 4) };
+                    var img = new Image { Width = 46, Height = 68, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 10, 0) };
+                    if (f.Img != null) try { img.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(f.Img)); } catch (Exception) { }
+                    DockPanel.SetDock(img, Dock.Left); row.Children.Add(img);
+                    var sp = new StackPanel();
+                    sp.Children.Add(new TextBlock { Text = f.Label + (f.Year > 0 ? " (" + f.Year + ")" : ""), FontWeight = FontWeights.SemiBold, FontSize = 14 });
+                    sp.Children.Add(new TextBlock { Text = (f.Desc ?? "").Length > 240 ? f.Desc.Substring(0, 240) + "…" : f.Desc ?? "", Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap });
+                    row.Children.Add(sp);
+                    list.Items.Add(new ListBoxItem { Content = row });
                 }
                 if (found.Count > 0) list.SelectedIndex = 0;
                 status.Text = found.Count == 0 ? L.T("Nic nie znaleziono – zmień tytuł (np. oryginalny, angielski) i szukaj ponownie.") : L.T("Wybierz właściwy film i kliknij „Zastosuj”.");
@@ -74,7 +63,7 @@ namespace Velivo
                 status.Text = L.T("Pobieram opis, obsadę i plakat…");
                 try
                 {
-                    var m = await WikiFilm(found[i].Id, path, LookupMeta(Meta, path));
+                    var m = await PobierzFilm(found[i], path, LookupMeta(Meta, path));
                     var key = MetaKey(path); var man = LoadManual(); man[key] = m;
                     Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
                     Meta[key] = m; win.Close(); done?.Invoke();
@@ -94,6 +83,80 @@ namespace Velivo
             qName.KeyDown += async (s, e) => { if (e.Key == System.Windows.Input.Key.Enter) await Szukaj(); };
             win.Content = dock; win.Show();
             _ = Szukaj();
+        }
+
+        // wynik wyszukiwania: TMDb (przez Jellyfin - ta sama baza co w Odtwarzaczu) albo Wikidane
+        internal sealed class FilmWynik { public string WdId, Label, Desc, Img, Imdb, Tmdb; public int Year; public string Raw; }
+
+        // najpierw TMDb (opis, plakat, rok - jak Odtwarzacz), potem Wikidane (polskie i angielskie); pasujący rok wyżej
+        async Task<List<FilmWynik>> SzukajFilmu(string q, string rok)
+        {
+            var r = new List<FilmWynik>(); int.TryParse(rok, out var y);
+            var c = LoadJellyfinConf();
+            if (c != null && !string.IsNullOrEmpty(c.Url) && !string.IsNullOrEmpty(c.Key))
+                try
+                {
+                    var url = await JellyfinReach(c) ?? c.Url;
+                    using (var http = JellyfinClient(new JellyfinConf { Url = url, Key = c.Key }))
+                    {
+                        var body = JsonSerializer.Serialize(new Dictionary<string, object> { ["SearchInfo"] = y > 0 ? (object)new { Name = q, Year = y } : new { Name = q } });
+                        var resp = await http.PostAsync("Items/RemoteSearch/Movie", new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+                        if (resp.IsSuccessStatusCode)
+                            foreach (var x in JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement.EnumerateArray())
+                            {
+                                string S(string n) => x.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                                var pid = x.TryGetProperty("ProviderIds", out var p) ? p : default;
+                                r.Add(new FilmWynik { Label = S("Name"), Desc = S("Overview"), Img = S("ImageUrl"), Year = x.TryGetProperty("ProductionYear", out var py) && py.ValueKind == JsonValueKind.Number ? py.GetInt32() : 0,
+                                    Imdb = pid.ValueKind == JsonValueKind.Object ? WdStr(pid, "Imdb") : null, Tmdb = pid.ValueKind == JsonValueKind.Object ? WdStr(pid, "Tmdb") : null, Raw = x.GetRawText() });
+                            }
+                        else App.LogInfo("Wyszukiwanie filmu (TMDb przez Jellyfin): " + (int)resp.StatusCode);
+                    }
+                }
+                catch (Exception ex) { App.LogInfo("Wyszukiwanie filmu (TMDb przez Jellyfin): " + ex.Message); }
+            using (var http = WikiHttp())
+                foreach (var lang in new[] { "pl", "en" })
+                {
+                    var js = await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&type=item&limit=20&language=" + lang + "&uselang=pl&search=" + Uri.EscapeDataString(q));
+                    int przed = r.Count;
+                    foreach (var x in JsonDocument.Parse(js).RootElement.GetProperty("search").EnumerateArray())
+                    {
+                        var d = WdStr(x, "description") ?? ""; var id = WdStr(x, "id");
+                        if (id == null || r.Any(f => f.WdId == id) || d.IndexOf("film", StringComparison.OrdinalIgnoreCase) < 0 && d.IndexOf("serial", StringComparison.OrdinalIgnoreCase) < 0 && d.IndexOf("series", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        r.Add(new FilmWynik { WdId = id, Label = WdStr(x, "label") ?? id, Desc = d });
+                    }
+                    if (r.Count > przed) break;
+                }
+            if (y > 0) r = r.OrderByDescending(f => f.Year == y || f.Year == 0 && (f.Desc ?? "").Contains(rok)).ToList();
+            return r;
+        }
+
+        // wybrany wynik -> informacje: z TMDb tytuł, rok, opis, plakat; obsada, reżyseria, gatunek z Wikidanych (po numerze IMDb / TMDb)
+        async Task<MovieInfo> PobierzFilm(FilmWynik w, string path, MovieInfo cur)
+        {
+            if (w.WdId != null) return await WikiFilm(w.WdId, path, cur);
+            string wd = null;
+            try
+            {
+                using (var http = WikiHttp())
+                    foreach (var (prop, val) in new[] { ("P345", w.Imdb), ("P4947", w.Tmdb) })
+                    {
+                        if (string.IsNullOrEmpty(val)) continue;
+                        var js = await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=query&format=json&list=search&srlimit=1&srsearch=" + Uri.EscapeDataString("haswbstatement:" + prop + "=" + val));
+                        var hits = JsonDocument.Parse(js).RootElement.GetProperty("query").GetProperty("search");
+                        if (hits.GetArrayLength() > 0) { wd = WdStr(hits[0], "title"); break; }
+                    }
+            }
+            catch (Exception ex) { App.LogInfo("Wikidane po numerze filmu: " + ex.Message); }
+            MovieInfo m = null;
+            if (wd != null) try { m = await WikiFilm(wd, path, cur); } catch (Exception ex) { App.LogInfo("Wikidane – „" + w.Label + "”: " + ex.Message); }
+            m ??= new MovieInfo { Rating = cur?.Rating ?? 0, Genres = cur?.Genres ?? new List<string>(), People = cur?.People ?? new List<string>(), Director = cur?.Director };
+            m.Name = w.Label ?? m.Name; if (w.Year > 0) m.Year = w.Year;
+            if (!string.IsNullOrWhiteSpace(w.Desc)) m.Overview = w.Desc;   // opis z TMDb (po polsku, gdy Jellyfin ma język polski)
+            if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = " ";
+            if (w.Img != null)
+                try { using (var http = WikiHttp()) { var b = await http.GetByteArrayAsync(w.Img); Directory.CreateDirectory(PosterDir); var f = "reczny-" + Math.Abs(MetaKey(path).GetHashCode()) + ".jpg"; File.WriteAllBytes(Path.Combine(PosterDir, f), b); m.Poster = f; } }
+                catch (Exception ex) { App.LogInfo("Plakat (TMDb): " + ex.Message); }
+            return m;
         }
 
         async Task<MovieInfo> WikiFilm(string id, string path, MovieInfo cur)

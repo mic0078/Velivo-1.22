@@ -156,6 +156,7 @@ namespace VelivoMonitor
             Put("pasek-" + k, Pok(k) ? "0" : "1");
             if (!new[] { "up", "down", "ghz", "cpu", "ab" }.Any(Pok)) Put("pasek-" + k, "1");   // choć jedna wartość zostaje
             if (bar != null) { bar.Content = BarContent(ledLight); bar.Width = BarW(); BarText(); bar.UpdateLayout(); PlaceBar(); }
+            if (wid != null) WidgetText();
         }
         // napis na pasku: równe kolumny w obu wierszach (czcionka o stałej szerokości), strzałki świecą w LedTick
         void BarText()
@@ -246,7 +247,7 @@ namespace VelivoMonitor
             { var p = abOk ? abP : new string[0]; int at = (hPos + N - 1) % N;   // wykres jak „praca” w oknie Audio Balance: podgłaśnia/ścisza (turkus), kompresor (żółty)
               double D(int k) => p.Length > k && double.TryParse(p[k], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
               hGr[at] = D(2); hAb[at] = D(3); }
-            bool pokazuje = abOk && (wid != null || bar != null && Pok("ab"));
+            bool pokazuje = abOk && (wid != null || bar != null && Pok("ab"));   // widżet zawsze pokazuje wykres Audio Balance
             try { if (pokazuje) File.WriteAllText(System.IO.Path.Combine(Dir, "ab-w-monitorze.txt"), ""); } catch (Exception) { }   // Audio Balance chowa wtedy swój widżet
         }
         void WidgetText()
@@ -254,9 +255,10 @@ namespace VelivoMonitor
             DrawGraph(); Val(wUp, "↑", Up); Val(wDown, "↓", Down);
             bool off = Internet.Wylaczony(); if (off) { wUp.Foreground = wDown.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0x6C, 0xFF)); }
             else { wUp.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)); wDown.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)); }
-            wCpu.Text = GhzText + " " + Cpu.ToString("0") + "%";
+            wCpu.Text = (Pok("ghz") ? GhzText : "") + (Pok("ghz") && Pok("cpu") ? " " : "") + (Pok("cpu") ? Cpu.ToString("0") + "%" : "");   // wybór „Pokazuj” - te same liczby co na pasku; wykresy zawsze
+            wUp.Visibility = Pok("up") ? Visibility.Visible : Visibility.Hidden; wDown.Visibility = Pok("down") ? Visibility.Visible : Visibility.Hidden;
             wAbRow.Visibility = wSep.Visibility = abOk ? Visibility.Visible : Visibility.Collapsed;
-            if (abOk) { wAb.Text = abOut == "-" ? "– dB" : abOut + " dB"; wAbSub.Text = abSub; }
+            if (abOk) { wAb.Text = abOut == "-" ? "– dB" : abOut + " dB"; wAbSub.Text = abSub; wAb.Visibility = wAbSub.Visibility = Pok("ab") ? Visibility.Visible : Visibility.Hidden; }   // liczby wg wyboru, wykres pracy zawsze
             wid.ToolTip = (off ? "Internet WYŁĄCZONY – działa tylko sieć domowa (fioletowe strzałki).\n" : "") + "Wysyłanie ↑ / pobieranie ↓ – teraz; największe z ostatniej minuty: ↑ " + Short(maxUp) + "B/s, ↓ " + Short(maxDown) + "B/s.\n"
                 + (abOk ? "Dolny wiersz: Velivo Audio Balance – wynik (LUFS) i zmiana; wykres jak w oknie Audio Balance: turkus – podgłaśnia ↑ / ścisza ↓, żółty – kompresor ścisza głośne fragmenty (±24 dB od linii 0).\n" : "") + "Przeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu";
         }
@@ -329,7 +331,7 @@ namespace VelivoMonitor
             It("Widżet na pulpicie", ToggleWidget, () => wid != null);
             It("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
             It("Na pasku zadań", ToggleBar, () => bar != null);
-            var pok = new MenuItem { Header = "Na pasku pokazuj" }; cm.Items.Add(pok);
+            var pok = new MenuItem { Header = "Pokazuj liczby (pasek i widżet)", ToolTip = "Na pasku zadań i w widżecie – wykresy w widżecie widać zawsze" }; cm.Items.Add(pok);
             foreach (var (k, h) in new[] { ("up", "↑ Wysyłanie"), ("down", "↓ Pobieranie"), ("ghz", "Taktowanie procesora (GHz)"), ("cpu", "Użycie procesora (%)"), ("ab", "Audio Balance (głośność, gdy działa)") })
             { var mi = new MenuItem { Header = h, IsCheckable = true }; mi.Click += (s, e) => BarPokaz(k); cm.Opened += (s, e) => mi.IsChecked = Pok(k); pok.Items.Add(mi); }
             It("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);

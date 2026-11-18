@@ -2,52 +2,51 @@
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Makieta widżetów</title>
 <style>
-:root{--card:#141821;--line:#2A3240;--fg:#E8EBF0;--dim:#8A93A3;--up:#F5C518;--down:#4ADE80;--cpu:#7C9CFF;--ab:#A78BFA}
+:root{--line:#2A3240;--fg:#E8EBF0;--dim:#8A93A3;--up:#F5C518;--down:#4ADE80;--cpu:#7C9CFF;--ab:#A78BFA}
 body{margin:0;background:#0b0e14;color:var(--fg);font:14px "Segoe UI",system-ui,sans-serif;padding:16px}
-h2{font-size:16px;margin:28px 0 6px}p.o{color:#aab;margin:0 0 12px;max-width:760px}
-.desk{border-radius:10px;padding:28px;display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
-.d1{background:linear-gradient(135deg,#1d3557,#264653 60%,#2a9d8f)}.d2{background:linear-gradient(135deg,#e9ecef,#cfd8e3)}
-.w{background:rgba(20,24,33,.92);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:190px;height:92px;box-sizing:border-box;box-shadow:0 4px 14px rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
-.pair{display:flex}.pair .w:first-child{border-radius:10px 0 0 10px;border-right:none}.pair .w:last-child{border-radius:0 10px 10px 0;border-left:1px solid #222a37}
-.t{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);letter-spacing:.3px;text-transform:uppercase}
-.badge{font-size:10px;padding:0 6px;border-radius:8px;background:#14532d;color:#86efac;text-transform:none}
-.r{display:flex;justify-content:space-between;font-size:12.5px;margin-top:3px}.r span small{color:var(--dim)}
-svg{display:block;margin-top:4px}
-.big{font-size:20px;font-weight:600;color:var(--ab)}
+h2{font-size:16px;margin:26px 0 4px}p.o{color:#aab;margin:0 0 10px;max-width:760px}
+.desk{border-radius:10px;padding:24px;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;background:linear-gradient(135deg,#1d3557,#264653 60%,#2a9d8f)}
+.w{background:rgba(20,24,33,.92);border:1px solid var(--line);border-radius:9px;box-shadow:0 3px 10px rgba(0,0,0,.35);font-variant-numeric:tabular-nums;font-size:12px;box-sizing:border-box}
+.row{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.sep{width:1px;align-self:stretch;background:var(--line)}
+.dim{color:var(--dim)}
+svg{display:block}
 </style></head><body>
-<h1 style="font-size:20px;margin:0">Widżety Velivo: propozycja B (jeden styl, sklejane magnesem)</h1>
-<p class="o">Oba okienka mają tę samą wielkość (190 × 92), tło, ramkę, czcionkę i podpis u góry. Przeciągnięte do siebie same się dosuwają w jeden pasek. Każde działa samo.</p>
+<h1 style="font-size:20px;margin:0">Widżety Velivo: wersje oszczędzające miejsce</h1>
+<p class="o">Oba programy dalej osobne, ale gdy działają razem, ich okienka sklejają się w jedną małą kartę. Dla porównania: dziś dwa okienka zajmują razem ok. 330 × 92 px.</p>
 
-<h2>1. Razem (sklejone): ciemny pulpit</h2>
-<div class="desk d1"><div class="pair">
- <div class="w"><div class="t">Monitor <span class="badge">internet</span></div>
-  <div class="r"><span style="color:var(--up)">↑ 0.24 KB/s</span><span style="color:var(--down)">↓ 0.19 KB/s</span></div>
-  <div class="r" style="color:var(--cpu)"><span>CPU 2.12 GHz</span><span>21 %</span></div>
-  <svg width="170" height="26"><polygon fill="#4ADE8055" stroke="#4ADE80" points="0,13 10,6 20,9 30,4 40,8 50,5 60,10 70,3 80,7 90,9 100,5 110,8 120,4 130,9 140,6 150,8 160,5 170,9 170,13"/><polygon fill="#F5C51855" stroke="#F5C518" points="0,13 10,18 20,16 30,21 40,17 50,20 60,15 70,22 80,18 90,16 100,20 110,17 120,21 130,16 140,19 150,17 160,20 170,16 170,13"/></svg></div>
- <div class="w"><div class="t">Audio Balance <span class="badge">wł.</span></div>
-  <div class="r" style="align-items:baseline"><span class="big">−82.7 <small style="font-size:12px;color:var(--dim)">dB</small></span><span style="color:var(--dim)">▲ +17</span></div>
-  <svg width="170" height="30"><polyline fill="none" stroke="#A78BFA" stroke-width="1.6" points="0,20 12,18 24,22 36,14 48,16 60,10 72,15 84,19 96,12 108,17 120,21 132,13 144,16 156,18 170,15"/><line x1="0" x2="170" y1="16" y2="16" stroke="#8A93A3" stroke-dasharray="3 3" stroke-width=".7"/></svg></div>
-</div></div>
+<h2>A. Jedna karta, dwa wiersze: 200 × 58 px</h2>
+<p class="o">Górny wiersz to Monitor, dolny to Audio Balance. Każdy ma mały wykres w tle wiersza. Przy wyłączonym Audio Balance zostaje sam górny wiersz (200 × 30).</p>
+<div class="desk">
+ <div class="w" style="width:200px;padding:5px 8px">
+  <div class="row" style="position:relative;height:22px">
+   <svg width="182" height="22" style="position:absolute;left:0;top:0;opacity:.35"><polygon fill="#4ADE80" points="0,22 15,12 30,16 45,9 60,14 75,10 90,15 105,8 120,13 135,11 150,14 165,10 182,13 182,22"/></svg>
+   <span style="color:var(--up);position:relative">↑0.24K</span><span style="color:var(--down);position:relative">↓0.19K</span>
+   <span style="color:var(--cpu);position:relative;margin-left:auto">2.12 GHz · 21%</span></div>
+  <div style="height:1px;background:var(--line);margin:3px 0"></div>
+  <div class="row" style="position:relative;height:22px">
+   <svg width="182" height="22" style="position:absolute;left:0;top:0;opacity:.45"><polyline fill="none" stroke="#A78BFA" stroke-width="1.4" points="0,14 13,12 26,16 39,9 52,11 65,7 78,11 91,14 104,8 117,12 130,15 143,9 156,11 169,13 182,10"/></svg>
+   <span class="dim" style="position:relative">🔊</span><span style="color:var(--ab);font-weight:600;position:relative">−82.7 dB</span>
+   <span class="dim" style="position:relative;margin-left:auto">▲ +17</span></div>
+ </div>
+</div>
 
-<h2>2. Razem: jasny pulpit</h2>
-<div class="desk d2"><div class="pair">
- <div class="w"><div class="t">Monitor <span class="badge">internet</span></div>
-  <div class="r"><span style="color:var(--up)">↑ 1.20 MB/s</span><span style="color:var(--down)">↓ 24.8 MB/s</span></div>
-  <div class="r" style="color:var(--cpu)"><span>CPU 3.20 GHz</span><span>84 %</span></div>
-  <svg width="170" height="26"><polygon fill="#4ADE8055" stroke="#4ADE80" points="0,13 20,3 40,5 60,2 80,4 100,3 120,6 140,2 170,4 170,13"/><polygon fill="#F5C51855" stroke="#F5C518" points="0,13 20,17 40,15 60,18 80,16 100,17 120,15 140,18 170,16 170,13"/></svg></div>
- <div class="w"><div class="t">Audio Balance <span class="badge">wł.</span></div>
-  <div class="r" style="align-items:baseline"><span class="big">−23.4 <small style="font-size:12px;color:var(--dim)">dB</small></span><span style="color:var(--dim)">▼ −3</span></div>
-  <svg width="170" height="30"><polyline fill="none" stroke="#A78BFA" stroke-width="1.6" points="0,15 12,13 24,17 36,12 48,16 60,14 72,15 84,13 96,16 108,14 120,15 132,13 144,16 156,14 170,15"/><line x1="0" x2="170" y1="16" y2="16" stroke="#8A93A3" stroke-dasharray="3 3" stroke-width=".7"/></svg></div>
-</div></div>
+<h2>B. Jeden wąski pasek: 300 × 28 px</h2>
+<p class="o">Wszystko w jednej linii, bez wykresów. Wykres pokazuje się po najechaniu myszą. Najmniej wysokości, dobre przy górnej albo dolnej krawędzi ekranu.</p>
+<div class="desk">
+ <div class="w row" style="height:28px;padding:0 10px">
+  <span style="color:var(--up)">↑0.24K</span><span style="color:var(--down)">↓0.19K</span><span class="sep"></span>
+  <span style="color:var(--cpu)">2.12 GHz 21%</span><span class="sep"></span>
+  <span style="color:var(--ab);font-weight:600">−82.7 dB</span><span class="dim">▲+17</span></div>
+</div>
 
-<h2>3. Osobno (odsunięte albo jeden program wyłączony)</h2>
-<div class="desk d1">
- <div class="w"><div class="t">Monitor <span class="badge" style="background:#3b1d5e;color:#d8b4fe">sieć domowa</span></div>
-  <div class="r"><span style="color:#B06CFF">↑ 0.00 KB/s</span><span style="color:#B06CFF">↓ 0.00 KB/s</span></div>
-  <div class="r" style="color:var(--cpu)"><span>CPU 2.40 GHz</span><span>12 %</span></div>
-  <svg width="170" height="26"><line x1="0" x2="170" y1="13" y2="13" stroke="#B06CFF"/></svg></div>
- <div class="w"><div class="t">Audio Balance <span class="badge" style="background:#2A3240;color:#8A93A3">cisza</span></div>
-  <div class="r" style="align-items:baseline"><span class="big" style="color:var(--dim)">— <small style="font-size:12px">dB</small></span><span style="color:var(--dim)">±0</span></div>
-  <svg width="170" height="30"><line x1="0" x2="170" y1="16" y2="16" stroke="#8A93A3" stroke-dasharray="3 3" stroke-width=".7"/></svg></div>
+<h2>C. Na pasku zadań, bez widżetu na pulpicie: 0 px na pulpicie</h2>
+<p class="o">Audio Balance dopisuje się do paska zadań obok Monitora (tak jak dziś Monitor). Widżety na pulpicie można wyłączyć całkiem.</p>
+<div class="desk" style="background:#202020;padding:6px 14px;align-items:center">
+ <div class="row" style="font-size:12px;gap:10px;font-variant-numeric:tabular-nums">
+  <div style="line-height:1.25"><div><span style="color:var(--up)">↑</span> 0.00 KB/s</div><div><span style="color:var(--down)">↓</span> 0.00 KB/s</div></div>
+  <div style="line-height:1.25;color:var(--cpu)"><div>3.20 GHz</div><div>84 %</div></div>
+  <div style="line-height:1.25;color:var(--ab)"><div style="font-weight:600">−82.7 dB</div><div class="dim">▲ +17</div></div>
+  <span class="dim" style="margin-left:10px">^ 🔋 12:41</span></div>
 </div>
 </body></html>

@@ -64,7 +64,9 @@ namespace Velivo
             string q = ym.Success ? ym.Groups[1].Value.Replace('.', ' ').Trim() : t, rok = ym.Success ? ym.Groups[2].Value : null;
             var wyn = await SzukajFilmu(q, rok);
             // z rokiem w nazwie pliku - tylko wynik z tym rokiem (TMDb: rok produkcji, Wikidane: opis albo data premiery); bez roku - pierwszy
-            FilmWynik w = rok == null ? wyn.FirstOrDefault() : wyn.FirstOrDefault(x => x.Year.ToString() == rok || x.WdId != null && (x.Desc ?? "").Contains(rok));
+            string N(string x) => new string((x ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+            FilmWynik w = rok == null ? wyn.FirstOrDefault(x => N(x.Label) == N(q)) :   // bez roku w nazwie - tylko ten sam tytuł (bez zgadywania)
+                wyn.FirstOrDefault(x => x.Year.ToString() == rok || x.WdId != null && (x.Desc ?? "").Contains(rok));
             if (w == null && rok != null)
                 using (var http = WikiHttp())
                 {

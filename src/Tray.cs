@@ -73,7 +73,7 @@ namespace Velivo
                 var playerItem = menu.Items.Add(L.T("▶ Uruchom odtwarzacz wideo"), null, (s, e) => Dispatcher.Invoke(OpenEmptyPlayer));
                 var tvItem = menu.Items.Add(L.T("📺 Uruchom TV"), null, (s, e) => Dispatcher.Invoke(StartTv));
                 if (Wariant.MaFilmy) menu.Items.Add(L.T("🛋 Kanapa (telewizor)"), null, (s, e) => Dispatcher.Invoke(ShowKanapa));
-                if (Wariant.Serwer) { menu.Items.Add(L.T("📁 Foldery z filmami…"), null, (s, e) => Dispatcher.Invoke(SerwerFolderyOkno)); menu.Items.Add(L.T("🔄 Przejrzyj foldery i uzupełnij informacje"), null, (s, e) => Dispatcher.Invoke(() => SerwerSkanuj(true))); var jf = new System.Windows.Forms.ToolStripMenuItem(L.T("Udostępniaj też filmy z Jellyfin")) { CheckOnClick = true }; menu.Opening += (s, e) => jf.Checked = GetPref("serwer-jellyfin") == "1"; jf.Click += (s, e) => Dispatcher.Invoke(() => { SetPref("serwer-jellyfin", jf.Checked ? "1" : "0"); _sharedCache = null; }); menu.Items.Add(jf); }   // 🎞 serwer filmów
+                if (Wariant.Serwer) { menu.Items.Add(L.T("🎞 Okno serwera"), null, (s, e) => Dispatcher.Invoke(SerwerOkno)); menu.Items.Add(L.T("🔄 Przejrzyj foldery i uzupełnij informacje"), null, (s, e) => Dispatcher.Invoke(() => SerwerSkanuj(true))); var jf = new System.Windows.Forms.ToolStripMenuItem(L.T("Udostępniaj też filmy z Jellyfin")) { CheckOnClick = true }; menu.Opening += (s, e) => jf.Checked = GetPref("serwer-jellyfin") == "1"; jf.Click += (s, e) => Dispatcher.Invoke(() => { SetPref("serwer-jellyfin", jf.Checked ? "1" : "0"); _sharedCache = null; }); menu.Items.Add(jf); }   // 🎞 serwer filmów
                 if (!Wariant.MaKarty) menu.Items.Add(L.T("⚙ Ustawienia"), null, (s, e) => Dispatcher.Invoke(() => Settings_Click(null, null)));   // 🧩 Odtwarzacz: bez paska przeglądarki - Ustawienia (synchronizacja, parowanie telefonu) z zasobnika
                 if (!Wariant.MaKarty)   // 🧩 Odtwarzacz: start z Windows (w Ustawieniach ta opcja jest w dziale przeglądarki)
                 {
@@ -160,7 +160,7 @@ namespace Velivo
 
         // 🧩 Velivo Odtwarzacz: ikona (pulpit, zasobnik, drugie uruchomienie) otwiera wybrane okno; start z Windows - tylko ikona w zasobniku
         static bool OdtwKanapa => GetPref("odtw-otwiera") == "kanapa";
-        void OdtwOtworz() { if (Wariant.Serwer) { ShowVideoLibrary(); return; } if (OdtwKanapa) ShowKanapa(); else OpenEmptyPlayer(); }   // „okno” = główne okno odtwarzacza (czarne, logo Velivo), biblioteka z jego przycisku
+        void OdtwOtworz() { if (Wariant.Serwer) { SerwerOkno(); return; } if (OdtwKanapa) ShowKanapa(); else OpenEmptyPlayer(); }   // „okno” = główne okno odtwarzacza (czarne, logo Velivo), biblioteka z jego przycisku
         void ShowFromTray()
         {
             if (Wariant.Klawiatura) { ShowScreenKeyboard(); return; }   // ⌨ drugie uruchomienie / ikona - klawiatura

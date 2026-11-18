@@ -15,7 +15,7 @@
   #define AppName "Velivo Serwer filmów"
   #define Exe "VelivoSerwer.exe"
   #define Pid "VelivoSerwer"
-  #define Ikona "odtwarzacz.ico"
+  #define Ikona "serwer.ico"
   #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-SERWERFILMY}"
   #define SrcDir "..\build\serwer"
   #define OutName "Velivo-Serwer-Setup-" + AppVer

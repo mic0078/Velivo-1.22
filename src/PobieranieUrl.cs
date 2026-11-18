@@ -18,7 +18,7 @@ namespace Velivo
         static readonly string[] PlikiFilmow = { ".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".webm", ".wmv", ".flv", ".mpg", ".mpeg", ".m2ts", ".mp3", ".m4a", ".flac", ".aac", ".ogg" };
         Window _dlWin;
 
-        internal void ShowUrlDownload(string current, Window owner)
+        internal void ShowUrlDownload(string current, Window owner, string folderNa = null, Action<string> poPobraniu = null)
         {
             if (_dlWin != null) { _dlWin.Activate(); return; }
             string clip = null; try { if (Clipboard.ContainsText()) clip = Clipboard.GetText().Trim(); } catch (Exception) { }
@@ -59,7 +59,7 @@ namespace Velivo
             paste.Click += (s, e) => { try { if (Clipboard.ContainsText()) { url.Text = Clipboard.GetText().Trim(); fill(); } } catch (Exception) { } };
             now.Click += (s, e) => { url.Text = current; fill(); };
             url.LostFocus += (s, e) => { if (name.Text.Length == 0) fill(); };
-            string folder = !string.IsNullOrWhiteSpace(_settings.VideoDir) && Directory.Exists(_settings.VideoDir) ? _settings.VideoDir : DefaultVideoDir();
+            string folder = folderNa ?? (!string.IsNullOrWhiteSpace(_settings.VideoDir) && Directory.Exists(_settings.VideoDir) ? _settings.VideoDir : DefaultVideoDir());
             var where = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
             var folderText = new TextBlock { Text = folder, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 0, 8, 0), ToolTip = folder };
             var change = new Button { Content = L.T("Zmień folder…"), Padding = new Thickness(10, 3, 10, 3) };
@@ -67,7 +67,7 @@ namespace Velivo
             var wl = new TextBlock { Text = L.T("Zapisz w:"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
             DockPanel.SetDock(wl, Dock.Left); DockPanel.SetDock(change, Dock.Right); where.Children.Add(wl); where.Children.Add(change); where.Children.Add(folderText);
             sp.Children.Add(where);
-            var toLib = new CheckBox { Content = L.T("Dodaj do biblioteki filmów po pobraniu"), IsChecked = true, Margin = new Thickness(0, 8, 0, 0) }; sp.Children.Add(toLib);
+            var toLib = new CheckBox { Content = L.T("Dodaj do biblioteki filmów po pobraniu"), IsChecked = true, Margin = new Thickness(0, 8, 0, 0) }; if (poPobraniu == null) sp.Children.Add(toLib);
             var bar = new ProgressBar { Height = 8, Margin = new Thickness(0, 12, 0, 4), Visibility = Visibility.Collapsed };
             var stan = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray, FontSize = 12 };
             sp.Children.Add(bar); sp.Children.Add(stan);
@@ -88,7 +88,7 @@ namespace Velivo
                 if (!Http(u)) { stan.Text = L.T("Wpisz albo wklej adres zaczynający się od http:// lub https://"); return; }
                 if (name.Text.Trim().Length == 0) fill();
                 var plik = Path.Combine(folder, Czysta(name.Text.Trim().Length > 0 ? name.Text.Trim() : "film-" + DateTime.Now.ToString("yyyy-MM-dd-HHmm")));
-                if (folder != _settings.VideoDir) { _settings.VideoDir = folder; try { _settings.Save(DataDir); } catch (Exception) { } }
+                if (folderNa == null && folder != _settings.VideoDir) { _settings.VideoDir = folder; try { _settings.Save(DataDir); } catch (Exception) { } }
                 ok.IsEnabled = play.IsEnabled = url.IsEnabled = false; bar.Visibility = Visibility.Visible; bar.IsIndeterminate = true; stan.Text = L.T("Łączę z serwerem…");
                 cts = new CancellationTokenSource();
                 string wynik; bool lib = toLib.IsChecked == true;
@@ -101,6 +101,7 @@ namespace Velivo
                 catch (Exception ex) { App.LogInfo("Pobieranie z adresu " + VlcLogSafe(u) + ": " + ex.Message); wynik = null; stan.Text = "❌ " + ex.Message; }
                 if (wynik == null) { ok.IsEnabled = play.IsEnabled = url.IsEnabled = true; bar.Visibility = Visibility.Collapsed; return; }
                 if (wynik == "yt") { w.Close(); return; }   // strumień / strona - pobieranie przez yt-dlp (własny postęp i komunikat)
+                if (poPobraniu != null) { w.Close(); poPobraniu(wynik); return; }
                 if (lib) try { var l = LoadLibrary(); if (AddToLibrary(l, new[] { wynik }, false) > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } } catch (Exception ex) { App.LogError(ex); }
                 ShowToast(L.T("⬇ Pobrano: ") + Path.GetFileName(wynik), wynik);
                 w.Close();

@@ -4169,6 +4169,13 @@ namespace Velivo
                 add(L.T("➕ Dodaj do: 🔒 ") + myName, () => addTo(false), file);
                 if (!file && path != null && !_iptvPlaying.ContainsKey(path)) add(L.T("(film strumieniowany z innego komputera – jest w jego bibliotece)"), () => { }, false);
                 add(L.T("ℹ Pokaż informacje (I)"), () => showInfo(true), true);
+                if (path != null && !_iptvPlaying.ContainsKey(path))
+                {   // jak w bibliotece: opis, plakat, ocena dla grającego filmu
+                    var mp = path; Func<string> tyt = () => { var v = LoadLibrary().FirstOrDefault(x => x.Path == mp); return MetaTitle(MetaFor(mp)) ?? CleanTitle(v?.Title ?? System.IO.Path.GetFileNameWithoutExtension(mp)); };
+                    add(L.T("🔎 Wyszukaj informacje w sieci…"), () => ShowMetaSearch(Window.GetWindow(overlay) ?? win, mp, tyt(), () => showInfo(true)), true);
+                    add(L.T("📝 Uzupełnij informacje ręcznie (opis, plakat, ocena)…"), () => ShowMetaEditor(Window.GetWindow(overlay) ?? win, mp, tyt(), () => showInfo(true)), true);
+                    if (!LoadLibrary().Any(x => x.Path == mp)) add(L.T("➕ Dodaj do biblioteki…"), () => DodajDoBiblioteki(mp, tyt(), Window.GetWindow(overlay) ?? win), true);   // Jellyfin albo własna (z przeniesieniem pliku)
+                }
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {
                     add(L.T("📋 Lista kanałów (L / kursor przy lewej krawędzi)"), () => showChannels(true), true);
@@ -4195,7 +4202,7 @@ namespace Velivo
                 }
 
                 add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
-                add(L.T("⬇ Pobierz z adresu…"), () => ShowUrlDownload(path, Window.GetWindow(overlay) ?? win), true);   // jak „Otwórz strumień” w VLC, ale na dysk - adres tego, co gra, albo ze schowka
+                add(L.T("📥 Pobierz z adresu…"), () => ShowUrlDownload(path, Window.GetWindow(overlay) ?? win), true);   // jak „Otwórz strumień” w VLC, ale na dysk - adres tego, co gra, albo ze schowka
                 {   // ostatnio ogladane - osobno TV i filmy, po 20 ostatnich, najnowsze na gorze
                     var rf = new MenuItem { Header = L.T("🕘 Ostatnio oglądane Filmy") };
                     foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && FilmPlayable(v.Path)).OrderByDescending(v => v.Last).Take(20))
@@ -4297,7 +4304,7 @@ namespace Velivo
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
                     (null, new[] { "⏩ Na żywo (wróć", "⏮ Od początku programu", "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
-                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "⬇ Pobierz z adresu", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🔎 Wyszukaj informacje", "📝 Uzupełnij informacje", "➕ Dodaj do biblioteki", "📂 Otwórz plik", "📥 Pobierz z adresu", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" }),

@@ -497,9 +497,35 @@ namespace Velivo
         static Action<string> _physAddWord;   // Ctrl+Spacja: slowo do Mojego slownika
         static void PhysReset() { _sent.Clear(); _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; _pZeAuto = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
+        // tylko sledzenie slowa i Ctrl+Spacja (bez zadnych poprawek) - gdy autokorekta jest wylaczona
+        static bool PhysLearnOnly(int vk)
+        {
+            if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;
+            bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0;
+            if (vk >= 0x41 && vk <= 0x5A && (!ctrl && !alt || ctrl && alt))
+            {
+                char c = (char)(vk + 32);
+                if (ctrl && alt) { var i = "acelnoszx".IndexOf(c); if (i < 0) { _pWord = ""; return false; } c = "ąćęłńóśżź"[i]; }
+                _pWord += c; return false;
+            }
+            if (vk == 0x08 && !ctrl) { if (_pWord.Length > 0) _pWord = _pWord.Substring(0, _pWord.Length - 1); return false; }
+            var nw = _pWord; _pWord = "";
+            if (vk != 0x20 || !ctrl || alt || sh || nw.Length < 2 || SwipeTyping.IsKnown(nw)) return false;
+            var ins = new List<KbdInput>();
+            bool lc = GetAsyncKeyState(0xA2) < 0, rc = GetAsyncKeyState(0xA3) < 0;
+            if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2, Flags = KeyUp } } });
+            if (rc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyUp | KeyExt } } });
+            ins.AddRange(TextIn(" "));
+            if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2 } } });
+            if (rc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyExt } } });
+            Inject(ins);
+            var aw = _physAddWord; if (aw != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => aw(nw)));
+            return true;
+        }
         static bool PhysKey(int vk)
         {
             var corr = _physCorrect; _tapLast = Environment.TickCount64;   // pisanie trwa - sprawdzanie pola hasla aktywne
+            if (corr == null && _physAddWord != null && !(_physSecret && !_physStale) && !_physPause) return PhysLearnOnly(vk);   // korekta wylaczona: Ctrl+Spacja dalej dodaje slowo do Mojego slownika
             if (corr == null || _physSecret && !_physStale || _physPause) { PhysReset(); return false; }
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
             bool afterComma = _pAfterComma; _pAfterComma = false;   // przecinek tuz za slowem - nastepna litera dostaje spacje przed soba

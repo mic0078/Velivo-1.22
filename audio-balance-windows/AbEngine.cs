@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
@@ -297,12 +297,12 @@ namespace Velivo
                 if ((now - start) * tick >= 30000)
                 {
                     double sec = (now - start) * tick / 1000, pct = samples / (sec * sr) * 100;
-                    var line = $"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms"; System.Threading.Tasks.Task.Run(() => App.LogInfo(line));   // zapis na dysk poza wątkiem dźwięku
+                    var line = $"Pomiar 30 s: z kabla {pct:0.00}% próbek (100% = bez strat), najdłuższa przerwa odbioru {capMax:0} ms ({capLate}× >60 ms), odtwarzania {outMax:0} ms ({outLate}× >120 ms), przetwarzanie najdłużej {procMax:0.0} ms"; if (pct < 99.5 || capLate > 0 || outLate > 0 || procMax > 30) System.Threading.Tasks.Task.Run(() => App.LogInfo(line));   // czysty dziennik: tylko gdy coś było nie tak (straty, przerwy, wolne przetwarzanie); zapis poza wątkiem dźwięku
                     start = now; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0;
                 }
             }
             public static void Reset() { capLast = outLast = 0; samples = 0; capMax = outMax = procMax = 0; capLate = outLate = 0; }   // nowa sesja - przerwa na ponowny start nie liczy się jako zacięcie
-            public static void Out() { long now = System.Diagnostics.Stopwatch.GetTimestamp(); if (outLast != 0) { double g = (now - outLast) * tick; if (g > outMax) outMax = g; if (g > 120) outLate++; } outLast = now; }
+            public static void Out() { long now = System.Diagnostics.Stopwatch.GetTimestamp(); if (outLast != 0) { double g = (now - outLast) * tick; if (g < 10000) { if (g > outMax) outMax = g; if (g > 120) outLate++; } }   /* ponad 10 s - odtwarzanie stało (cisza, pauza), nie zacięcie */ outLast = now; }
             public static void Proc(long t) { double ms = t * tick; if (ms > procMax) procMax = ms; }
         }
 

@@ -166,11 +166,12 @@ namespace Velivo
         {
             try
             {
-                var marker = Path.Combine(Velivo.MainWindow.DataFolder, "dziala.txt");
+                var marker = Path.Combine(Velivo.MainWindow.DataFolder, "dziala-" + Velivo.Wariant.Pid + ".txt");   // 🧩 każdy program Velivo osobno - wspólny znacznik dawał fałszywe „zamknęło się nieoczekiwanie”, gdy startował drugi program
+                try { File.Delete(Path.Combine(Velivo.MainWindow.DataFolder, "dziala.txt")); } catch (Exception) { }   // stary wspólny znacznik
                 if (File.Exists(marker))
                 {
                     var since = File.GetLastWriteTime(marker).AddMinutes(-1);
-                    var log = new System.Text.StringBuilder("Velivo zamknęło się nieoczekiwanie (poprzednie uruchomienie: " + File.ReadAllText(marker).Trim() + ")\n");
+                    int werN = 0; var log = new System.Text.StringBuilder("Velivo zamknęło się nieoczekiwanie (poprzednie uruchomienie: " + File.ReadAllText(marker).Trim() + ")\n");
                     foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) })
                         foreach (var sub in new[] { "ReportArchive", "ReportQueue" })
                         {
@@ -179,10 +180,11 @@ namespace Velivo
                             foreach (var d in Directory.GetDirectories(dir, "*Velivo*").Where(d => Directory.GetLastWriteTime(d) >= since))
                             {
                                 var wer = Path.Combine(d, "Report.wer");
-                                if (File.Exists(wer)) log.Append(Path.GetFileName(d) + "\n" + string.Join("\n", File.ReadAllLines(wer).Where(l => l.StartsWith("Sig[") || l.StartsWith("EventType") || l.StartsWith("AppPath"))) + "\n");
+                                if (File.Exists(wer)) { werN++; log.Append(Path.GetFileName(d) + "\n" + string.Join("\n", File.ReadAllLines(wer).Where(l => l.StartsWith("Sig[") || l.StartsWith("EventType") || l.StartsWith("AppPath"))) + "\n"); }
                             }
                         }
-                    LogError(new Exception(log.ToString()));
+                    if (werN > 0) LogError(new Exception(log.ToString()));   // prawdziwa awaria - Windows ma jej raport
+                    else LogInfo(Velivo.Wariant.Nazwa + " zamknięte bez zwykłego wyjścia (instalator nowej wersji, Menedżer zadań albo wyłączenie prądu) – Windows nie zgłosił awarii");
                 }
                 File.WriteAllText(marker, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 Exit += (s, a) => { try { File.Delete(marker); } catch (Exception) { } };

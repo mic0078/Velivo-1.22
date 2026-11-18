@@ -23,7 +23,7 @@ namespace Velivo
             if (++tk % 10 != 0) return;
             var p = m.Eng.Shown; bool on = m.Eng.Running && p.Raw.ShortTerm > -69;
             string sub = !m.Eng.Running ? L.T("stop") : p.Bypass ? L.T("wył.") : on ? (p.GainDb >= 0 ? "▲+" : "▼") + p.GainDb.ToString("0") : L.T("cisza");
-            try { System.IO.Directory.CreateDirectory(MonDir); System.IO.File.WriteAllText(System.IO.Path.Combine(MonDir, "ab-stan.txt"), (on ? p.Out.ShortTerm.ToString("0.0", CultureInfo.InvariantCulture) : "-") + "\t" + sub + "\t" + (on && !p.Bypass && p.Pre.Params.IsEnabled ? p.Pre.CurrentGainReductionDb.ToString("0.0", CultureInfo.InvariantCulture) : "")); } catch (Exception) { }   // 3. pole: praca kompresora (dB, ≤ 0), puste = wyłączony
+            try { System.IO.Directory.CreateDirectory(MonDir); System.IO.File.WriteAllText(System.IO.Path.Combine(MonDir, "ab-stan.txt"), (on ? p.Out.ShortTerm.ToString("0.0", CultureInfo.InvariantCulture) : "-") + "\t" + sub + "\t" + (on && p.Pre.Params.IsEnabled ? Math.Min(0, p.Pre.CurrentGainReductionDb).ToString("0.0", CultureInfo.InvariantCulture) : "0") + "\t" + (on ? p.GainDb.ToString("0.0", CultureInfo.InvariantCulture) : "0")); } catch (Exception) { }   // pola: wynik LUFS, podpis, kompresor (dB ≤ 0), podgłaśnianie/ściszanie (dB) - jak wykres pracy w oknie
             bool wMon = false;
             try { var z = System.IO.Path.Combine(MonDir, "ab-w-monitorze.txt"); wMon = System.IO.File.Exists(z) && (DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(z)).TotalSeconds < 4; } catch (Exception) { }
             if (w != null) w.Visibility = wMon ? Visibility.Hidden : Visibility.Visible;

@@ -197,7 +197,7 @@ namespace VelivoMonitor
         // ---------- widżet na pulpicie ----------
         // 🧩 karta A (wybór właściciela 2026-11-18): 200 × 58, wiersz Monitora i wiersz Audio Balance, każdy z wykresem z ostatniej minuty w tle;
         // bez działającego Audio Balance - sam górny wiersz
-        Window wid; TextBlock wUp, wDown, wCpu, wAb, wAbSub; FrameworkElement wAbRow, wSep; Polygon pUp, pDown; Polyline pGhz, pAb; double maxDown, maxUp;
+        Window wid; TextBlock wUp, wDown, wCpu, wAb, wAbSub; FrameworkElement wAbRow, wSep; Polygon pUp, pDown; Polyline pGhz, pAb, pGr; double maxDown, maxUp;
         const double GW = 184, GH = 22, BH = 11;   // lustro: od środka pobieranie w górę, wysyłanie w dół - każde ze swoją skalą
         void BuildWidget()
         {
@@ -211,7 +211,7 @@ namespace VelivoMonitor
             pGhz = new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x7C, 0x9C, 0xFF)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 2 } }; cv.Children.Add(pGhz);
             var t1 = new DockPanel { Height = GH, LastChildFill = false }; t1.Children.Add(wUp); t1.Children.Add(wDown); DockPanel.SetDock(wCpu, Dock.Right); t1.Children.Add(wCpu);
             var row1 = new Grid(); row1.Children.Add(cv); row1.Children.Add(t1);
-            var cvA = Cv(0.55); pAb = new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0xA7, 0x8B, 0xFA)), StrokeThickness = 1.4 }; cvA.Children.Add(pAb);
+            var cvA = Cv(0.55); pAb = new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0xA7, 0x8B, 0xFA)), StrokeThickness = 1.4 }; cvA.Children.Add(pAb); pGr = new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)), StrokeThickness = 1.2 }; cvA.Children.Add(pGr);
             wAb = T(new SolidColorBrush(Color.FromRgb(0xA7, 0x8B, 0xFA)), 12); wAb.FontWeight = FontWeights.SemiBold; wAbSub = T(new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA3)));
             var t2 = new DockPanel { Height = GH, LastChildFill = false }; var ikA = T(wAbSub.Foreground); ikA.Text = "🔊"; ikA.Margin = new Thickness(0, 0, 6, 0); t2.Children.Add(ikA); t2.Children.Add(wAb); DockPanel.SetDock(wAbSub, Dock.Right); t2.Children.Add(wAbSub);
             var row2 = new Grid(); row2.Children.Add(cvA); row2.Children.Add(t2); wAbRow = row2;
@@ -231,7 +231,7 @@ namespace VelivoMonitor
             wid.Show();
         }
         // 🧩 Velivo Audio Balance: stan z pliku (zapisuje go co sekundę); nieświeży = Audio Balance nie działa
-        readonly double[] hAb = new double[N]; string abOut, abSub; bool abOk;
+        readonly double[] hAb = new double[N], hGr = new double[N]; string abOut, abSub; bool abOk;
         void ReadAb()
         {
             abOk = false;
@@ -241,6 +241,7 @@ namespace VelivoMonitor
                 if (File.Exists(f) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds < 4) { var p = File.ReadAllText(f).Split('\t'); abOut = p[0]; abSub = p.Length > 1 ? p[1] : ""; abOk = true; }
             }
             catch (Exception) { }
+            { var p = abOk ? File.ReadAllText(System.IO.Path.Combine(Dir, "ab-stan.txt")).Split('\t') : new string[0]; hGr[(hPos + N - 1) % N] = p.Length > 2 && double.TryParse(p[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var g) ? g : double.NaN; }   // kompresor: redukcja dB, NaN = wyłączony
             hAb[(hPos + N - 1) % N] = abOk && double.TryParse(abOut, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : double.NaN;
             bool pokazuje = abOk && (wid != null || bar != null && Pok("ab"));
             try { if (pokazuje) File.WriteAllText(System.IO.Path.Combine(Dir, "ab-w-monitorze.txt"), ""); } catch (Exception) { }   // Audio Balance chowa wtedy swój widżet
@@ -254,7 +255,7 @@ namespace VelivoMonitor
             wAbRow.Visibility = wSep.Visibility = abOk ? Visibility.Visible : Visibility.Collapsed;
             if (abOk) { wAb.Text = abOut == "-" ? "– dB" : abOut + " dB"; wAbSub.Text = abSub; }
             wid.ToolTip = (off ? "Internet WYŁĄCZONY – działa tylko sieć domowa (fioletowe strzałki).\n" : "") + "Wysyłanie ↑ / pobieranie ↓ – teraz; największe z ostatniej minuty: ↑ " + Short(maxUp) + "B/s, ↓ " + Short(maxDown) + "B/s.\n"
-                + (abOk ? "Dolny wiersz: Velivo Audio Balance – głośność po wyrównaniu (LUFS) i zmiana.\n" : "") + "Przeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu";
+                + (abOk ? "Dolny wiersz: Velivo Audio Balance – głośność po wyrównaniu (LUFS, fioletowa) i zmiana; żółta linia – praca kompresora (im niżej, tym mocniej ścisza, do −12 dB), gdy jest włączony.\n" : "") + "Przeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu";
         }
         // bieżąca wartość + szare maksimum z ostatniej minuty („↑ 0.84 KB / 10.8M”) - widżet bez zmiany rozmiaru
         static string Short(double b) => b < 1000 * 1024 ? (b / 1024).ToString(b < 100 * 1024 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "K" : (b / 1048576).ToString(b < 100 * 1048576 ? "0.0" : "0", System.Globalization.CultureInfo.InvariantCulture) + "M";
@@ -275,6 +276,9 @@ namespace VelivoMonitor
             var a = new PointCollection(N);   // Audio Balance: od -50 LUFS (dół) do -5 (góra); cisza / brak - przerwa
             for (int i = 0; i < N; i++) { double v = hAb[(hPos + i) % N]; if (!double.IsNaN(v)) a.Add(new Point(i * GW / (N - 1), GH - 1 - (GH - 2) * Math.Max(0, Math.Min(1, (v + 50) / 45)))); }
             pAb.Points = a;
+            var gr = new PointCollection(N);   // 🟡 praca kompresora: od góry w dół, 0 do −12 dB ściszenia; wyłączony - brak linii
+            for (int i = 0; i < N; i++) { double v = hGr[(hPos + i) % N]; if (!double.IsNaN(v)) gr.Add(new Point(i * GW / (N - 1), 1 + (GH - 2) * Math.Min(1, Math.Max(0, -v) / 12))); }
+            pGr.Points = gr;
             maxDown = hDown.Max(); maxUp = hUp.Max();
         }
 

@@ -233,17 +233,17 @@ namespace VelivoMonitor
             wid.Show();
         }
         // 🧩 Velivo Audio Balance: stan z pliku (zapisuje go co sekundę); nieświeży = Audio Balance nie działa
-        readonly double[] hAb = new double[N], hGr = new double[N]; string abOut, abSub; bool abOk;
+        readonly double[] hAb = new double[N], hGr = new double[N]; string abOut, abSub; string[] abP; bool abOk;
         void ReadAb()
         {
             abOk = false;
             try
             {
                 var f = System.IO.Path.Combine(Dir, "ab-stan.txt");
-                if (File.Exists(f) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds < 4) { var p = File.ReadAllText(f).Split('\t'); abOut = p[0]; abSub = p.Length > 1 ? p[1] : ""; abOk = true; }
+                if (File.Exists(f) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds < 4) { var p = abP = File.ReadAllText(f).Split('\t'); abOut = p[0]; abSub = p.Length > 1 ? p[1] : ""; abOk = true; }
             }
             catch (Exception) { }
-            { var p = abOk ? File.ReadAllText(System.IO.Path.Combine(Dir, "ab-stan.txt")).Split('\t') : new string[0]; int at = (hPos + N - 1) % N;   // wykres jak „praca” w oknie Audio Balance: podgłaśnia/ścisza (turkus), kompresor (żółty)
+            { var p = abOk ? abP : new string[0]; int at = (hPos + N - 1) % N;   // wykres jak „praca” w oknie Audio Balance: podgłaśnia/ścisza (turkus), kompresor (żółty)
               double D(int k) => p.Length > k && double.TryParse(p[k], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
               hGr[at] = D(2); hAb[at] = D(3); }
             bool pokazuje = abOk && (wid != null || bar != null && Pok("ab"));

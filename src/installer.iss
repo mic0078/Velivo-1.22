@@ -148,9 +148,10 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Sho
 #ifndef Wariant
 Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{cm:Shortcuts}"
 #endif
-Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
 #ifdef Klawiatura
 Name: "autostart"; Description: "{cm:KlawAuto}"; GroupDescription: "{cm:Shortcuts}"
+#else
+Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
 #endif
 #ifdef Odtwarzacz
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
@@ -514,8 +515,10 @@ begin
     RemoveOther('{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}', 'Velivo Odtwarzacz', 'VelivoOdtwarzacz.exe', 'VelivoOdtwarzacz');
   end;
 #endif
+#ifndef Klawiatura
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('firewall') then
     OpenFirewall(ExpandConstant('{app}\{#Exe}'));
+#endif
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then
     InstallVlc;
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer\iptv') then

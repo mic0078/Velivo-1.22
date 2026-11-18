@@ -200,10 +200,12 @@ Type: filesandordirs; Name: "{app}\zh-Hant"
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; kopia tego instalatora w folderze programu - Velivo dolacza ja do kopii bezpieczenstwa (odtworzenie bez internetu)
 Source: "{srcexe}"; DestDir: "{app}"; DestName: "Velivo-instalator.exe"; Flags: external ignoreversion
+; ikona programu jako plik - skróty wskazują ją wprost (Windows nie pokaże starej ikony z pamięci po zmianie)
+Source: "{#Ikona}"; DestDir: "{app}"; DestName: "ikona-programu.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#Exe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#Exe}"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#Exe}"; IconFilename: "{app}\ikona-programu.ico"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#Exe}"; IconFilename: "{app}\ikona-programu.ico"; Tasks: desktopicon
 #ifndef Wariant
 ; sama klawiatura ekranowa - osobny identyfikator, wiec po przypieciu ma wlasna ikone na pasku zadan
 Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Parameters: "--klawiatura"; AppUserModelID: "Velivo.Klawiatura"

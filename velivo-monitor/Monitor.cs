@@ -375,7 +375,7 @@ namespace VelivoMonitor
                 TrayIcon();
                 if (bar != null) { BarText(); PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
                 ReadAb();
-                if (wid != null) WidgetText();
+                if (wid != null) { WidgetText(); if (wid.Topmost) { var wh = new WindowInteropHelper(wid).Handle; if (wh != IntPtr.Zero) SetWindowPos(wh, Top, 0, 0, 0, 0, 0x0013); } }   // „zawsze na wierzchu” co sekundę od nowa - także nad pełnym ekranem (filmy, przeglądarka F11); SWP_NOSIZE|NOMOVE|NOACTIVATE
             };
             t.Start();
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,6 +15,19 @@ namespace Velivo
         readonly AbMain m; Window w; readonly Rectangle[] bars = new Rectangle[7]; double lvl;
         public AbWidget(AbMain main) { m = main; }
         public bool Open => w != null;
+        // 🧩 Velivo Monitor pokazuje Audio Balance w swojej karcie i na pasku zadań: stan co sekundę do pliku; gdy Monitor go pokazuje - własny widżet schowany
+        static readonly string MonDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Monitor");
+        int tk;
+        public void Tick()
+        {
+            if (++tk % 10 != 0) return;
+            var p = m.Eng.Shown; bool on = m.Eng.Running && p.Raw.ShortTerm > -69;
+            string sub = !m.Eng.Running ? L.T("stop") : p.Bypass ? L.T("wył.") : on ? (p.GainDb >= 0 ? "▲+" : "▼") + p.GainDb.ToString("0") : L.T("cisza");
+            try { System.IO.Directory.CreateDirectory(MonDir); System.IO.File.WriteAllText(System.IO.Path.Combine(MonDir, "ab-stan.txt"), (on ? p.Out.ShortTerm.ToString("0.0", CultureInfo.InvariantCulture) : "-") + "\t" + sub); } catch (Exception) { }
+            bool wMon = false;
+            try { var z = System.IO.Path.Combine(MonDir, "ab-w-monitorze.txt"); wMon = System.IO.File.Exists(z) && (DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(z)).TotalSeconds < 4; } catch (Exception) { }
+            if (w != null) w.Visibility = wMon ? Visibility.Hidden : Visibility.Visible;
+        }
 
         public void Toggle() { if (w != null) Close(); else Show(); }
         public void Close() { var x = w; w = null; x?.Close(); m.Put("widzet", "0"); }

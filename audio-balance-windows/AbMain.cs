@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -422,6 +422,7 @@ namespace Velivo
 
         void Tick()
         {
+            widget?.Tick();
             if (eng.Rec is { } rr && recBtn != null) SetText(recBtn, "⏹ " + TimeSpan.FromSeconds(rr.Frames / (double)AbProcessor.Fs).ToString(@"h\:mm\:ss"));   // czas nagrania
             if (!eng.Running && DateTime.UtcNow > retryAt && Get("wlaczony") != "0") { retryAt = DateTime.MaxValue; StartEngine(); }   // urządzenie wróciło / zmiana w Windows
             { var ic = AbIcon.Frame(eng.Running && !eng.Shown.Bypass ? eng.Proc.Out.Momentary : eng.Running && ReferenceEquals(eng.Shown, eng.MonProc) ? eng.MonProc.Out.Momentary : double.NegativeInfinity); if (tray != null && !ReferenceEquals(tray.Icon, ic)) try { tray.Icon = ic; } catch (Exception) { } }   // animowane słupki w zasobniku

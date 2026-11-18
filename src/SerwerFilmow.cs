@@ -41,7 +41,7 @@ namespace Velivo
                 var fol = SerwerFoldery().Where(Directory.Exists).ToList();
                 int nowe = 0;
                 if (fol.Count > 0) { var l = LoadLibrary(); nowe = await Task.Run(() => AddToLibrary(l, fol, true)); if (nowe > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }
-                var bez = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path) && LookupMeta(Meta, v.Path) == null && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
+                var bez = LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path) && LookupMeta(Meta, v.Path) == null && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
                 int opis = 0;
                 foreach (var v in bez)
                 {
@@ -124,7 +124,7 @@ namespace Velivo
             };
             Action odsw = () =>
             {
-                int n = LoadLibrary().Count(v => File.Exists(v.Path) && WFolderze(v.Path)); var teraz = SendTargets().Select(p => p.Device).ToList();
+                int n = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path)).Select(v => v.Path.ToLowerInvariant()).Distinct().Count(); var teraz = SendTargets().Select(p => p.Device).ToList();
                 stan.Text = L.T("Serwer działa · udostępnia filmów: ") + n;
                 stan.ToolTip = (teraz.Count == 0 ? L.T("W sieci teraz nie widać żadnego Twojego komputera z Velivo (musi być sparowany i w tym samym profilu).") : L.T("W sieci teraz: ") + string.Join(", ", teraz))
                     + "\n" + L.T("Twoje komputery z Velivo widzą filmy z folderów serwera – z opisem, obsadą i plakatem – i oglądają je prosto z tego komputera.");

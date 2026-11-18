@@ -354,7 +354,7 @@ namespace Velivo
         {
             var c = _sharedCache;
             if (c != null && DateTime.Now - c.Item1 < TimeSpan.FromMinutes(1)) return c.Item2;
-            var l = LoadLibrary().Where(v => Wariant.Serwer ? SerwerUdostepnia(v) : IsShared(v) && File.Exists(v.Path)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera   // serwer: też filmy z Jellyfin
+            var l = LoadLibrary().Where(v => Wariant.Serwer ? SerwerUdostepnia(v) : IsShared(v) && File.Exists(v.Path)).GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(v => v.Last).First()).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera   // serwer: też filmy z Jellyfin
             _sharedCache = Tuple.Create(DateTime.Now, l);
             return l;
         }

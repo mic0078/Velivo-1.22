@@ -860,7 +860,8 @@ namespace Velivo
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var res = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    var mine = local.Where(v => Wariant.Serwer ? WFolderze(v.Path) : tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();   // 🎞 serwer: tylko filmy z jego folderów   // nagrania TV - tylko w swojej bibliotece
+                    var mine = local.Where(v => Wariant.Serwer ? WFolderze(v.Path) : tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();
+                    if (Wariant.Serwer) mine = mine.GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();   // ten sam plik we wspólnej i prywatnej - raz   // 🎞 serwer: tylko filmy z jego folderów   // nagrania TV - tylko w swojej bibliotece
                     var all = new List<LibraryVideo>(mine);
                     var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
                     // ten sam film z NAS na kilku komputerach = jedna pozycja

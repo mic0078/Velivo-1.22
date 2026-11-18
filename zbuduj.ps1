@@ -26,27 +26,34 @@ if (-not $BezTestow) {
 Write-Host "3/4 Kompilacja programu..." -ForegroundColor Cyan
 dotnet build-server shutdown 2>$null | Out-Null   # zwalnia pliki trzymane przez poprzednia kompilacje / testy
 Remove-Item -Recurse -Force src\bin\Release\net10.0-windows10.0.19041.0\win-x64 -ErrorAction SilentlyContinue
-if (Buduj 'Velivo') {
-Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
 $edycja = if ($Podstawowa) { "-p:Podstawowa=true" } else { "-p:Podstawowa=false" }
-dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained false -o build\velivo $edycja
-if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -ForegroundColor Red; exit 1 }
-# darmowe efekty VST3 razem z Velivo (pelna wersja): foldery .vst3 i licencje z dodatki\VST3 (poza repozytorium) -> build\velivo\VST3
-if (-not $Podstawowa -and (Test-Path "dodatki\VST3")) { Copy-Item -Recurse -Force "dodatki\VST3" "build\velivo\VST3"; Write-Host ("Wtyczki VST3 w instalatorze: " + ((Get-ChildItem "dodatki\VST3" -Filter *.vst3).Count)) -ForegroundColor Green }
-}
-# Velivo Komunikator - samodzielny program (rozmowy i serwer) z tego samego kodu komunikatora
-if (Buduj 'Komunikator') {
-Remove-Item -Recurse -Force build\komunikator -ErrorAction SilentlyContinue
-dotnet publish komunikator-windows\VelivoKomunikator.csproj -c Release -r win-x64 --self-contained false -o build\komunikator
-if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
-}
-# 🧩 Velivo Odtwarzacz i Velivo Przeglądarka - osobne programy z tego samego kodu (zawsze ta sama wersja co Velivo - wspólne dane)
-foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-Object { Buduj $_ }) {
+# ⚡ wszystkie wybrane programy naraz: każdy we własnym folderze roboczym (build\obj\<program>), dziennik w build\log-<program>.txt
+$zadania = @()
+foreach ($w in @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer', 'Komunikator') | Where-Object { Buduj $_ }) {
     $d = 'build\' + $w.ToLower()
     Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
-    dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained false -o $d $edycja "-p:Wariant=$w"
-    if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo $w nie powiodla sie." -ForegroundColor Red; exit 1 }
-    if ($w -eq 'Odtwarzacz' -and -not $Podstawowa -and (Test-Path "dodatki\VST3")) { Copy-Item -Recurse -Force "dodatki\VST3" "$d\VST3" }   # Audio Balance z wtyczkami jak w Velivo
+    $proj = if ($w -eq 'Komunikator') { 'komunikator-windows\VelivoKomunikator.csproj' } else { 'src\Velivo.csproj' }
+    $ob = (Join-Path $PSScriptRoot "build\obj\$w") + '/'   # poza folderem projektu - kompilacje naraz sobie nie przeszkadzają (ukośnik na końcu: bez \" w cudzysłowie)
+    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
+    if ($w -ne 'Velivo' -and $w -ne 'Komunikator') { $a += "-p:Wariant=$w" }
+    $log = Join-Path $PSScriptRoot "build\log-$w.txt"
+    $arg = ($a | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '   # ścieżka repozytorium ze spacjami („Velivo 1.22 z github”)
+    $p = Start-Process dotnet -ArgumentList $arg -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError ($log + '.err')
+    $zadania += [pscustomobject]@{ Nazwa = $w; Proces = $p; Log = $log }
+    Write-Host ("  buduje: " + $w) -ForegroundColor DarkGray
+}
+$zle = @()
+foreach ($z in $zadania) { $z.Proces.WaitForExit(); if ($z.Proces.ExitCode -ne 0) { $zle += $z } else { Write-Host ("  gotowe: " + $z.Nazwa) -ForegroundColor Green } }
+# pliki diagnostyczne (pdb, DirectML.Debug) - niepotrzebne do działania, ok. 19 MB na program
+foreach ($z in $zadania) { $d = 'build\' + $z.Nazwa.ToLower(); Remove-Item "$d\*.pdb", "$d\DirectML.Debug.*" -Force -ErrorAction SilentlyContinue }
+if ($zle.Count -gt 0) {
+    foreach ($z in $zle) { Write-Host ("Kompilacja " + $z.Nazwa + " nie powiodla sie:") -ForegroundColor Red; Get-Content $z.Log -ErrorAction SilentlyContinue | Select-String ' error ' | Select-Object -First 10 | ForEach-Object { Write-Host ("  " + $_.Line.Trim()) -ForegroundColor Red } }
+    exit 1
+}
+# darmowe efekty VST3 razem z Velivo i Odtwarzaczem (pelna wersja): z dodatki\VST3 (poza repozytorium)
+if (-not $Podstawowa -and (Test-Path "dodatki\VST3")) {
+    foreach ($d in @('build\velivo', 'build\odtwarzacz') | Where-Object { Test-Path $_ }) { Copy-Item -Recurse -Force "dodatki\VST3" "$d\VST3" }
+    Write-Host ("Wtyczki VST3 w instalatorze: " + ((Get-ChildItem "dodatki\VST3" -Filter *.vst3).Count)) -ForegroundColor Green
 }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan

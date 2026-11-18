@@ -18,6 +18,8 @@
     <DefineConstants Condition="'$(Wariant)' == 'Klawiatura'">$(DefineConstants);WARIANT_KLAWIATURA</DefineConstants>
     <DefineConstants Condition="'$(Wariant)' == 'Serwer'">$(DefineConstants);WARIANT_SERWER</DefineConstants>
     <AssemblyName>Velivo</AssemblyName>
+    <!-- budowa kilku programów naraz (zbuduj.ps1): każdy we własnym folderze roboczym poza src - pliki z obj i bin nigdy w kompilacji -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
     <AssemblyName Condition="'$(Wariant)' != ''">Velivo$(Wariant)</AssemblyName>
     <Product>Velivo</Product>
     <AssemblyTitle>Velivo Browser</AssemblyTitle>

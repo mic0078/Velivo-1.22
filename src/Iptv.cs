@@ -245,8 +245,15 @@ namespace Velivo
 
         // program w oknie czasu [from, to]; klucz: id kanalu i jego nazwy (male litery) - lista bez tvg-id dopasowuje sie po nazwie
         // icons (opcjonalnie): logo kanalu z programu TV (<icon src>) - id i nazwy kanalu -> adres
-        internal static Dictionary<string, List<EpgItem>> ParseXmltv(Stream input, DateTime from, DateTime to, Dictionary<string, string> icons = null)
+        internal static Dictionary<string, List<EpgItem>> ParseXmltv(Stream input, DateTime from, DateTime to, Dictionary<string, string> icons = null, IptvPlaylist only = null)
         {
+            // 🧹 tylko kanały z listy (only): plik programu bywa ogromny (141 MB, tysiące kanałów z całego świata) - w pamięci zostawał program wszystkich (ponad 600 MB)
+            HashSet<string> want = null, keep = null;
+            if (only != null && only.Channels.Count > 0)
+            {
+                want = new HashSet<string>(StringComparer.OrdinalIgnoreCase); keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var c in only.Channels) { if (!string.IsNullOrEmpty(c.TvgId)) want.Add(c.TvgId); var nm = c.OrigName ?? c.Name; if (!string.IsNullOrEmpty(nm)) { want.Add(nm); var k = EpgKey(nm); if (k.Length > 0) want.Add(k); } }
+            }
             var buf = new BufferedStream(input);
             var head = new byte[2];
             int n = buf.Read(head, 0, 2);
@@ -278,12 +285,14 @@ namespace Velivo
                             }
                         }
                         if (icons != null && !string.IsNullOrEmpty(icon)) { icons[id] = icon; foreach (var dn in dns) if (!icons.ContainsKey(dn)) icons[dn] = icon; }
+                        if (keep != null && (want.Contains(id) || dns.Any(dn => want.Contains(dn) || want.Contains(EpgKey(dn))))) keep.Add(id);   // kanał z listy - jego program zostaje
                     }
                     else if (r.Name == "programme")
                     {
                         var start = ParseXmltvTime(r.GetAttribute("start")); var stop = ParseXmltvTime(r.GetAttribute("stop"));
                         var ch = r.GetAttribute("channel") ?? "";
                         if (start == null || stop == null || stop < from || start > to) { r.Skip(); next = false; continue; }
+                        if (keep != null && keep.Count > 0 && !keep.Contains(ch) && !want.Contains(ch)) { r.Skip(); next = false; continue; }   // kanału nie ma na liście - bez wczytywania (pusty zbiór = plik bez opisu kanałów: wszystko jak dawniej)
                         var it = new EpgItem { Start = start.Value, Stop = stop.Value };
                         using (var sub = r.ReadSubtree())
                         {
@@ -628,6 +637,13 @@ namespace Velivo
         bool AssignEpg(IptvChannel ch, Window owner)
         {
             var epg = _iptvEpg; if (epg == null) return false;
+            // w pamięci jest tylko program kanałów z listy - do wyboru potrzebne są wszystkie kanały z pliku programu: wczytane na czas okienka (najbliższe godziny), potem zwolnione
+            try
+            {
+                var src = IptvSt.Sources.FirstOrDefault(x => x.Id == IptvSt.Last) ?? IptvSt.Sources.FirstOrDefault(); var f = src == null ? null : IptvCache(src, ".epg");
+                if (f != null && File.Exists(f)) { var old = Mouse.OverrideCursor; Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait; try { using (var fs = File.OpenRead(f)) epg = ParseXmltv(fs, DateTime.Now.AddHours(-1), DateTime.Now.AddHours(3)); } finally { Mouse.OverrideCursor = old; } }
+            }
+            catch (Exception ex) { App.LogError(ex); epg = _iptvEpg; }
             var d = new Window { Title = L.T("📅 Przypisz program TV – ") + ch.Name, Width = 460, Height = 520, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             var q = new TextBox { Margin = new Thickness(8), Padding = new Thickness(4), Text = Regex.Replace(ch.Name ?? "", @"\b(hd|fhd|sd|uhd|4k)\b|\[.*?\]|\|.*?\|", "", RegexOptions.IgnoreCase).Trim() };
             var lb = new ListBox { Margin = new Thickness(8, 0, 8, 0) };
@@ -863,7 +879,7 @@ namespace Velivo
                                 if (ver != loadVer) return;
                                 progress.Value = 100 * f; count.Text = L.T("Wczytuję program TV… ") + (int)(100 * f) + "%";
                             }))))
-                                return ParseXmltv(fs, EpgFrom(pl, DateTime.Now), DateTime.Now.AddHours(30), ic);
+                                return ParseXmltv(fs, EpgFrom(pl, DateTime.Now), DateTime.Now.AddHours(30), ic, pl);
                         });
                         progress.Visibility = Visibility.Collapsed;
                         if (ver != loadVer) return;
@@ -1038,7 +1054,7 @@ namespace Velivo
                 add(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => _pipShow?.Invoke(r.Ch), r != null && _pipShow != null && _vlcWin != null);
                 add(L.T("✏ Edytuj kanał (nazwa, ikona)…"), () => EditChannel(r.Ch, win, () => fillList()), r != null);
                 add(L.T("📋 Kopiuj adres kanału"), () => { try { Clipboard.SetText(r.Ch.Url); } catch (Exception) { } }, r != null);
-                add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); } }, r != null && _iptvEpg != null);
+                add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); if (_iptvPl != null) ApplyEpgMap(_iptvPl); _iptvEpg = null; LoadIptvInBackground(() => Dispatcher.BeginInvoke(new Action(() => { fillList(); fillEpg(); }))); } }, r != null && _iptvEpg != null);   // w pamięci tylko kanały z listy - program nowo przypisanego doczytany w tle
                 menu.Items.Add(new Separator());
                 if (r != null && IsRecording(r.Ch.Url)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(r.Ch.Url), true);
                 else add(L.T("⏺ Nagrywaj teraz"), () => RecordNow(r.Ch, win), r != null);

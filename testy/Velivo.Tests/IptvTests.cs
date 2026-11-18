@@ -40,6 +40,21 @@ public class IptvTests
     }
 
     [Fact]
+    public void ProgramTvTylkoKanalyZListy()
+    {   // 141 MB programu = tysiące kanałów; w pamięci tylko te z listy (po tvg-id albo nazwie) - reszta pominięta
+        var now = DateTime.UtcNow;
+        string T(DateTime d) => d.ToString("yyyyMMddHHmmss") + " +0000";
+        var xml = "<?xml version=\"1.0\"?><tv>" +
+            "<channel id=\"tvp1.pl\"><display-name>TVP 1 HD</display-name></channel><channel id=\"obcy.us\"><display-name>Foreign</display-name></channel>" +
+            $"<programme start=\"{T(now.AddHours(-1))}\" stop=\"{T(now.AddHours(1))}\" channel=\"tvp1.pl\"><title>Wiadomości</title></programme>" +
+            $"<programme start=\"{T(now.AddHours(-1))}\" stop=\"{T(now.AddHours(1))}\" channel=\"obcy.us\"><title>News</title></programme></tv>";
+        var pl = new MainWindow.IptvPlaylist(); pl.Channels.Add(new MainWindow.IptvChannel { Name = "TVP 1 SD" });   // bez tvg-id, inna jakość w nazwie
+        var epg = MainWindow.ParseXmltv(new MemoryStream(Encoding.UTF8.GetBytes(xml)), DateTime.Now.AddHours(-6), DateTime.Now.AddHours(30), null, pl);
+        Assert.Equal("Wiadomości", MainWindow.EpgAt(MainWindow.EpgFor(epg, pl.Channels[0]), DateTime.Now).Title);
+        Assert.False(epg.ContainsKey("obcy.us"));
+    }
+
+    [Fact]
     public void ProgramTvTakzeGz()
     {
         var now = DateTime.UtcNow;

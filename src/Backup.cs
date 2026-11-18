@@ -87,6 +87,8 @@ namespace Velivo
             Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
             var tmp = zipPath + ".part";
             var manifest = new List<string>(); var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
             using (var fs = new FileStream(tmp, FileMode.Create))
             using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
             {
@@ -120,6 +122,8 @@ namespace Velivo
                     w.Write(L.T("Jak odtworzyć Velivo z tej kopii\r\n\r\n1. Rozpakuj z tego pliku ZIP folder _Instalator i uruchom Velivo-instalator.exe (jeśli Velivo nie jest zainstalowane).\r\n2. W Velivo kliknij 🧹 na górnym pasku → „♻ Przywróć z kopii…” i wskaż ten plik ZIP.\r\n3. Velivo uruchomi się ponownie z Twoimi danymi i ustawieniami.\r\n\r\nHasła są zaszyfrowane dla konta Windows – przywracaj na tym samym koncie.\r\n"));
                 if (File.Exists(IptvMarker)) zip.CreateEntry("_Instalator/iptv.on");   // modul TV byl wlaczony
             }
+            }
+            catch (Exception) { try { File.Delete(tmp); } catch (Exception) { } throw; }   // nieudana kopia - bez resztki .part
             if (File.Exists(zipPath)) File.Delete(zipPath);
             File.Move(tmp, zipPath);
             return n;
@@ -148,12 +152,14 @@ namespace Velivo
         (string Path, int Count) MakeBackupNow(bool? inc = null, Action<int> progress = null)
         {
             bool full = GetPref("kopia-pelna") != "0", incOn = inc ?? GetPref("kopia-przyrost") != "0"; var dir = BackupDir;
+            if (Directory.Exists(dir))   // resztki przerwanych kopii (program zamknięty w trakcie) - kopia zapisywana teraz jest otwarta i się nie usunie
+                foreach (var p in new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip.part")) try { p.Delete(); } catch (Exception) { }
             Dictionary<string, string> prev = null;
             if (incOn && Directory.Exists(dir))
             {
                 var all = new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip").OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
                 var lastFull = all.LastOrDefault(x => !IsIncrement(x.Name));
-                bool sameKind = GetPref("kopia-rodzaj-ostatniej") == (full ? "pelna" : "podstawowa");   // zmiana rodzaju - nowa pelna kopia
+                var kind = GetPref("kopia-rodzaj-ostatniej"); bool sameKind = kind == null || kind == (full ? "pelna" : "podstawowa");   // brak zapisu (inny program Velivo) - przyrost, nie nowa pelna   // zmiana rodzaju - nowa pelna kopia
                 if (lastFull != null && (DateTime.Now - lastFull.LastWriteTime < TimeSpan.FromDays(7) || inc == true) && sameKind) prev = ReadManifest(all.Last().FullName);
             }
             var path = NewBackupPath(prev != null);
@@ -206,6 +212,7 @@ namespace Velivo
             int days = int.TryParse(GetPref("kopia-auto"), out var d) ? d : 7;
             if (days <= 0) return;
             DateTime last = DateTime.TryParse(GetPref("kopia-ostatnia"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var l) ? l : DateTime.MinValue;
+            try { if (Directory.Exists(BackupDir)) foreach (var z in new DirectoryInfo(BackupDir).GetFiles(BackupPrefix + "*.zip")) if (z.LastWriteTime > last) last = z.LastWriteTime; } catch (Exception) { }   // data z samych kopii: wspólna dla wszystkich programów Velivo (zapis ustawienia mógł przepaść przy zamknięciu w trakcie)
             if (DateTime.Now - last < TimeSpan.FromDays(days)) return;
             Task.Run(() => MakeBackupNow()).ContinueWith(t =>
             {

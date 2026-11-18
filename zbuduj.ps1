@@ -34,7 +34,7 @@ foreach ($w in @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer',
     Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
     $proj = if ($w -eq 'Komunikator') { 'komunikator-windows\VelivoKomunikator.csproj' } else { 'src\Velivo.csproj' }
     $ob = (Join-Path $PSScriptRoot "build\obj\$w") + '/'   # poza folderem projektu - kompilacje naraz sobie nie przeszkadzają (ukośnik na końcu: bez \" w cudzysłowie)
-    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
+    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:TargetLatestRuntimePatch=false', '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
     if ($w -ne 'Velivo' -and $w -ne 'Komunikator') { $a += "-p:Wariant=$w" }
     $log = Join-Path $PSScriptRoot "build\log-$w.txt"
     $arg = ($a | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '   # ścieżka repozytorium ze spacjami („Velivo 1.22 z github”)

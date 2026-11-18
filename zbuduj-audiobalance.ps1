@@ -19,7 +19,7 @@ if ($ab) { try { Start-Process $ab.Path -ArgumentList '--aktualizacja' -Wait } c
 
 Write-Host "2/4 Kompilacja Velivo Audio Balance for Windows..." -ForegroundColor Cyan
 Remove-Item -Recurse -Force build\audiobalance -ErrorAction SilentlyContinue
-dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win-x64 --self-contained false -o build\audiobalance
+dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win-x64 --self-contained false -p:TargetLatestRuntimePatch=false -o build\audiobalance
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Audio Balance for Windows nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 
 Write-Host "3/4 VB-Audio Virtual Cable..." -ForegroundColor Cyan

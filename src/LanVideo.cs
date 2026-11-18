@@ -354,7 +354,7 @@ namespace Velivo
         {
             var c = _sharedCache;
             if (c != null && DateTime.Now - c.Item1 < TimeSpan.FromMinutes(1)) return c.Item2;
-            var l = LoadLibrary().Where(v => (Wariant.Serwer || IsShared(v)) && (File.Exists(v.Path) || Wariant.Serwer && JellyfinStreamUrl(v.Path) != null)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera   // serwer: też filmy z Jellyfin
+            var l = LoadLibrary().Where(v => Wariant.Serwer ? SerwerUdostepnia(v) : IsShared(v) && File.Exists(v.Path)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera   // serwer: też filmy z Jellyfin
             _sharedCache = Tuple.Create(DateTime.Now, l);
             return l;
         }
@@ -472,7 +472,7 @@ namespace Velivo
                     break;
                 case "want":   // drugi komputer chce obejrzec film z tej biblioteki
                 {
-                    var v = LoadLibrary().FirstOrDefault(x => FilmId(x.Path) == m.id && (Wariant.Serwer || IsShared(x)) && File.Exists(x.Path));   // serwer filmów udostępnia całą bibliotekę
+                    var v = LoadLibrary().FirstOrDefault(x => FilmId(x.Path) == m.id && (Wariant.Serwer ? SerwerUdostepnia(x) : IsShared(x)) && File.Exists(x.Path));   // serwer filmów - tylko filmy z jego folderów
                     if (v != null) PlayFilmOn(v, peer, m.act == "together");
                     break;
                 }

@@ -1718,6 +1718,7 @@ namespace Velivo
             { "Ostatnia wieść", "Last heard" },
             { "Otwórz zaporę Windows", "Open Windows firewall" },
             { "Pliki", "Files" },
+            { "Udostępniaj też filmy z Jellyfin", "Also share movies from Jellyfin" },
             { "🎞 Serwer już przegląda foldery…", "🎞 The server is already scanning folders…" },
             { "🎞 Serwer filmów: nowe filmy ", "🎞 Movie server: new movies " },
             { ", uzupełnione informacje ", ", details filled in " },

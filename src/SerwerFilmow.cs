@@ -17,6 +17,9 @@ namespace Velivo
     {
         static List<string> SerwerFoldery() => (GetPref("serwer-foldery") ?? "").Split('|').Where(x => x.Length > 0).ToList();
         System.Windows.Threading.DispatcherTimer _serwerTm; bool _serwerSkan;
+        // co serwer pokazuje innym: tylko filmy z jego folderów (nie cała biblioteka komputera); filmy z Jellyfin - tylko gdy włączone
+        static bool WFolderze(string p) => SerwerFoldery().Any(f => p.StartsWith(f.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+        bool SerwerUdostepnia(LibraryVideo v) => File.Exists(v.Path) ? WFolderze(v.Path) : GetPref("serwer-jellyfin") == "1" && JellyfinStreamUrl(v.Path) != null;
 
         void SerwerStart()
         {
@@ -37,7 +40,7 @@ namespace Velivo
                 var fol = SerwerFoldery().Where(Directory.Exists).ToList();
                 int nowe = 0;
                 if (fol.Count > 0) { var l = LoadLibrary(); nowe = await Task.Run(() => AddToLibrary(l, fol, true)); if (nowe > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }
-                var bez = LoadLibrary().Where(v => File.Exists(v.Path) && LookupMeta(Meta, v.Path) == null && GetPref("serwer-brak|" + MetaKey(v.Path)) == null).ToList();
+                var bez = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path) && LookupMeta(Meta, v.Path) == null && GetPref("serwer-brak|" + MetaKey(v.Path)) == null).ToList();
                 int opis = 0;
                 foreach (var v in bez)
                 {

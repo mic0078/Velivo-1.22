@@ -90,8 +90,6 @@ Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; Val
 ; wpis startu z Windows tworzy sam program (pole w oknie) - przy odinstalowaniu usuwany
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoAudioBalance"; Flags: uninsdeletevalue
 
-#include "..\src\dotnet10.iss"
-
 [Code]
 // plik deinstalatora (unins000.dat) trzymany przez antywirusa (Bitdefender) albo indeksowanie - „Proces nie może uzyskać dostępu”;
 // jak w instalatorze Velivo: stare pliki deinstalatora odkładane na bok przed instalacją
@@ -125,8 +123,7 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code: Integer; Exe: String;
 begin
-  Result := InstallDotnet10;   // wspólny .NET 10
-  if Result <> '' then exit;
+  Result := '';
   // aktualizacja: działający program kieruje cały dźwięk na kabel - najpierw Windows wraca do głośników (muzyka gra dalej, bez ciszy),
   // potem program jest zamykany; nowa wersja po uruchomieniu sama kieruje dźwięk z powrotem przez Audio Balance
   Exe := ExpandConstant('{app}\VelivoAudioBalance.exe');

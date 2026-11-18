@@ -34,7 +34,7 @@ foreach ($w in @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer',
     Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
     $proj = if ($w -eq 'Komunikator') { 'komunikator-windows\VelivoKomunikator.csproj' } else { 'src\Velivo.csproj' }
     $ob = (Join-Path $PSScriptRoot "build\obj\$w") + '/'   # poza folderem projektu - kompilacje naraz sobie nie przeszkadzają (ukośnik na końcu: bez \" w cudzysłowie)
-    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:TargetLatestRuntimePatch=false', '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
+    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
     if ($w -ne 'Velivo' -and $w -ne 'Komunikator') { $a += "-p:Wariant=$w" }
     $log = Join-Path $PSScriptRoot "build\log-$w.txt"
     $arg = ($a | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '   # ścieżka repozytorium ze spacjami („Velivo 1.22 z github”)
@@ -71,7 +71,7 @@ for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Fo
 if (Test-Path $old) { try { Rename-Item $old ("Velivo-Setup-stary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".exe") -ErrorAction Stop } catch { } }
 if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno instalacji Velivo i uruchom skrypt ponownie." -ForegroundColor Red; exit 1 }
 # antywirus skanuje nowy plik w chwili wstawiania ikony (EndUpdateResource failed) - do 6 prob, coraz dluzsza przerwa (dziala bez wykluczen w antywirusie)
-for ($i = 1; $i -le 6; $i++) { & $iscc $(if ($Podstawowa) { "/DBezplatna" } else { "/DPremium" }) "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny $(if ($Podstawowa) { "/DBezplatna" } else { "/DPremium" }) "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 if (Buduj 'Komunikator') {
@@ -83,7 +83,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powio
 foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-Object { Buduj $_ }) {
     $oldW = Join-Path $outDir ("Velivo-$w-Setup-1.22.exe")
     for ($i = 0; $i -lt 10 -and (Test-Path $oldW); $i++) { try { Remove-Item $oldW -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
-    for ($i = 1; $i -le 6; $i++) { & $iscc "/D$w" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora $w ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+    for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/D$w" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora $w ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Velivo $w nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 

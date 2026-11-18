@@ -1,20 +1,5 @@
 ; 🧩 wspólny .NET 10 dla wszystkich programów Velivo: programy bez wbudowanego .NET (kilkanaście MB zamiast ok. 150 MB każdy),
 ; instalator sprawdza .NET 10 Desktop Runtime i - gdy go brak - raz pobiera go od Microsoftu (ok. 55 MB). Dołączane do instalatorów Velivo.
-[InstallDelete]
-; resztki dawnej wersji z wbudowanym .NET: gdy obok programu leży hostfxr.dll, Windows szuka .NET w folderze programu
-; i pokazuje „You must install or update .NET”, choć .NET 10 jest zainstalowany - usuwamy pliki wbudowanego .NET (dane użytkownika są gdzie indziej)
-Type: files; Name: "{app}\hostfxr.dll"
-Type: files; Name: "{app}\hostpolicy.dll"
-Type: files; Name: "{app}\coreclr.dll"
-Type: files; Name: "{app}\clrjit.dll"
-Type: files; Name: "{app}\clrgc.dll"
-Type: files; Name: "{app}\System.Private.CoreLib.dll"
-Type: files; Name: "{app}\mscordaccore*.dll"
-Type: files; Name: "{app}\mscordbi.dll"
-Type: files; Name: "{app}\mscorrc.dll"
-Type: files; Name: "{app}\createdump.exe"
-Type: files; Name: "{app}\Microsoft.DiaSymReader.Native.amd64.dll"
-
 [CustomMessages]
 pl.GetDotnet=Pobieranie i instalacja .NET 10 Desktop Runtime od Microsoftu (jednorazowo, ok. 55 MB, wspólny dla wszystkich programów Velivo)…
 en.GetDotnet=Downloading and installing .NET 10 Desktop Runtime from Microsoft (one time, about 55 MB, shared by all Velivo programs)…

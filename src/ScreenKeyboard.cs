@@ -1029,13 +1029,7 @@ namespace Velivo
                 for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
             };
             root.Children.Add(sentB);
-            // Alt+Tab (poprzednie okno) - nad szukaniem i wylaczaniem, na wysokosci paska propozycji (jak Zaznacz wszystko)
-            var altTab = key(ico("\uE8F9", "Alt+Tab"), 104); altTab.Height = 30; altTab.Margin = new Thickness(2, 4, 2, 4); altTab.FontSize = 12;
-            altTab.HorizontalAlignment = HorizontalAlignment.Right; altTab.ToolTip = L.T("Przełączanie okien (Alt+Tab) – wybierz okno kliknięciem albo strzałkami i Enter");
-            altTab.Click += (s, e) => SendCombo(0x11, 0x12, 0x09);   // Ctrl+Alt+Tab: okno przelaczania zostaje otwarte - wybierz klikiem albo strzalkami i Enter
-            var predArea = new Grid(); predArea.Children.Add(predRow); predArea.Children.Add(altTab);
-            Action alignAlt = () => { var off = Math.Max(0, (predArea.ActualWidth - fnRow.ActualWidth) / 2); altTab.Margin = new Thickness(2, 4, off + 2, 4); };   // rowno z prawym brzegiem paska Notes / E-mail
-            fnRow.SizeChanged += (s, e) => alignAlt(); predArea.SizeChanged += (s, e) => alignAlt();
+            var predArea = new Grid(); predArea.Children.Add(predRow);   // Alt+Tab przeniesiony do panelu edycji po prawej
             root.Children.Add(predArea);
             root.Children.Add(fnRow);
             Button shiftB = null, capsB = null, altB = null;
@@ -1258,23 +1252,40 @@ namespace Velivo
                     b.Tag = br; b.Background = br;
                 }
             };
-            // klawiatura numeryczna po prawej (wykorzystuje wolne miejsce obok liter): cyfry, dzialania, Enter
+            // ✍ panel edycji po prawej (zamiast klawiatury numerycznej - cyfry są w górnym rzędzie): zaznaczanie, schowek, cofanie, Alt+Tab, poruszanie po tekście, Zapisz, Szukaj, Enter
             var numPad = new StackPanel { Margin = new Thickness(0, 10, 10, 10), VerticalAlignment = VerticalAlignment.Bottom };
-            // nad cyframi: kopiuj, wklej, cofnij, ponow (Ctrl+C / V / Z / Y w oknie, w ktorym piszesz)
-            // waski pasek "Zaznacz wszystko" (Ctrl+A) nad kopiuj / wklej
-            var selAll = key(ico("\uE8B3", L.T("Zaznacz wszystko")), 196); selAll.Height = 30; selAll.Margin = new Thickness(2, 4, 2, 4); selAll.FontSize = 12;   // 38 px - na wysokosci paska propozycji
-            selAll.ToolTip = L.T("Zaznacz wszystko (Ctrl+A)"); selAll.Click += (s, e) => SendCombo(0x11, 0x41);
-            numPad.Children.Add(selAll);
-            var editRow = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var (g, tip, vk) in new[] { ("\uE8C8", L.T("Kopiuj (Ctrl+C)"), (ushort)0x43), ("\uE77F", L.T("Wklej (Ctrl+V)"), (ushort)0x56), ("\uE7A7", L.T("Cofnij (Ctrl+Z)"), (ushort)0x5A), ("\uE7A6", L.T("Ponów (Ctrl+Y)"), (ushort)0x59) })
-            { var kb2 = key(ico(g, null), 46); kb2.Height = 32; /* jak pasek Notes / E-mail obok */ kb2.ToolTip = tip; var v2 = vk; kb2.Click += (s, e) => SendCombo(0x11, v2); editRow.Children.Add(kb2); }
-            numPad.Children.Add(editRow);
-            foreach (var nr in new[] { "789/", "456*", "123-", "0.,+" })
-            {
-                var nrow = new StackPanel { Orientation = Orientation.Horizontal };
-                foreach (var c0 in nr) { var c = c0; var nb = key(c.ToString(), 46); nb.Click += (s, e) => tap(0, c); nrow.Children.Add(nb); }
-                numPad.Children.Add(nrow);
-            }
+            Func<string, string, object> icoV = (glyph, label) =>
+            {   // ikona nad krótkim podpisem - wąski klawisz
+                var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+                sp.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily(glyph.Length == 1 && glyph[0] >= '\uE000' ? "Segoe MDL2 Assets" : "Segoe UI"), FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center });
+                if (label != null) sp.Children.Add(new TextBlock { Text = label, FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) });
+                return sp;
+            };
+            Action<StackPanel, object, double, string, Action> pk = (row, content, w, tip, act) => { var b = key(content, w); b.ToolTip = tip; b.Click += (s, e) => act(); row.Children.Add(b); };
+            StackPanel R() { var r = new StackPanel { Orientation = Orientation.Horizontal }; numPad.Children.Add(r); return r; }
+            var e1 = R();
+            pk(e1, icoV("\uE8B3", L.T("Zaznacz wszystko")), 96, L.T("Zaznacz wszystko (Ctrl+A)"), () => SendCombo(0x11, 0x41));
+            pk(e1, icoV("⇤⇥", L.T("Zaznacz słowo")), 96, L.T("Zaznacz słowo przy kursorze"), () => { SendCombo(0x11, 0x25); SendCombo(0x11, 0x10, 0x27); });
+            var e2 = R();
+            pk(e2, icoV("\uE8C6", L.T("Wytnij")), 46, L.T("Wytnij (Ctrl+X)"), () => SendCombo(0x11, 0x58));
+            pk(e2, icoV("\uE8C8", L.T("Kopiuj")), 46, L.T("Kopiuj (Ctrl+C)"), () => SendCombo(0x11, 0x43));
+            pk(e2, icoV("\uE77F", L.T("Wklej")), 46, L.T("Wklej (Ctrl+V)"), () => SendCombo(0x11, 0x56));
+            pk(e2, icoV("\uE74D", L.T("Usuń")), 46, L.T("Usuń znak za kursorem albo zaznaczenie (Delete)"), () => tap(0x2E, '\0'));
+            var e3 = R();
+            pk(e3, icoV("\uE7A7", L.T("Cofnij")), 46, L.T("Cofnij (Ctrl+Z)"), () => SendCombo(0x11, 0x5A));
+            pk(e3, icoV("\uE7A6", L.T("Ponów")), 46, L.T("Ponów (Ctrl+Y)"), () => SendCombo(0x11, 0x59));
+            pk(e3, "Esc", 46, L.T("Esc – zamknij okienko / anuluj"), () => tap(0x1B, '\0'));
+            pk(e3, icoV("\uE8F9", "Alt+Tab"), 46, L.T("Przełączanie okien (Alt+Tab) – wybierz okno kliknięciem albo strzałkami i Enter"), () => SendCombo(0x11, 0x12, 0x09));
+            var e4 = R();
+            pk(e4, icoV("⇱", "Home"), 46, L.T("Początek wiersza (Home)"), () => tap(0x24, '\0'));
+            pk(e4, icoV("▲", L.T("Str ↑")), 46, L.T("Strona w górę (Page Up)"), () => tap(0x21, '\0'));
+            pk(e4, icoV("⇲", "End"), 46, L.T("Koniec wiersza (End)"), () => tap(0x23, '\0'));
+            pk(e4, icoV("\uE74E", L.T("Zapisz")), 46, L.T("Zapisz (Ctrl+S)"), () => SendCombo(0x11, 0x53));
+            var e5 = R();
+            pk(e5, "◀", 46, L.T("Kursor w lewo"), () => tap(0x25, '\0'));
+            pk(e5, icoV("▼", L.T("Str ↓")), 46, L.T("Strona w dół (Page Down)"), () => tap(0x22, '\0'));
+            pk(e5, "▶", 46, L.T("Kursor w prawo"), () => tap(0x27, '\0'));
+            pk(e5, icoV("\uE721", L.T("Szukaj")), 46, L.T("Szukaj w tym oknie (Ctrl+F)"), () => SendCombo(0x11, 0x46));
             var numEnter = key("⏎", 196); numEnter.Background = accent; numEnter.Foreground = accentText; numEnter.ToolTip = L.T("Enter – zatwierdź / nowa linia"); numEnter.Click += (s, e) => tap(0x0D, '\0');
             numPad.Children.Add(numEnter);
             numPad.Visibility = GetPref("klawiatura-numeryczna") == "0" ? Visibility.Collapsed : Visibility.Visible;

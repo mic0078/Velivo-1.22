@@ -64,6 +64,7 @@ namespace Velivo
             try
             {
                 _trayIcon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
+                if (Wariant.Serwer) try { using (var st = Application.GetResourceStream(new Uri("pack://application:,,,/serwer.ico")).Stream) _trayIcon = new System.Drawing.Icon(st, 32, 32); } catch (Exception) { }   // 🎞 ikona serwera na stałe w programie
                 // lagodny "oddech": 100% -> 65% -> 100% w 8 krokach (bez migania)
                 _trayFrames = new[] { 1f, 0.92f, 0.82f, 0.72f, 0.65f, 0.72f, 0.82f, 0.92f }.Select(a => MakeDimIcon(_trayIcon, a)).ToArray();
                 _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = Wariant.Nazwa, Visible = true };

@@ -84,7 +84,10 @@ namespace Velivo
             var top = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12) };
             top.Children.Add(new TextBlock { Text = L.T("Tytuł:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }); top.Children.Add(qName);
             top.Children.Add(new TextBlock { Text = L.T("Rok:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }); top.Children.Add(qYear); top.Children.Add(go);
-            var bottom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) }; bottom.Children.Add(apply);
+            var bottom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
+            bottom.Children.Add(SmallButton(L.T("🌐 Szukaj w Filmweb"), () => ShowWebWindow(win, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(qName.Text.Trim()))));   // film spoza Wikipedii
+            bottom.Children.Add(SmallButton(L.T("📝 Wpisz ręcznie"), () => { win.Close(); ShowMetaEditor(owner, path, qName.Text.Trim(), done); }));
+            bottom.Children.Add(apply);
             var dock = new DockPanel(); DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(status, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
             dock.Children.Add(top); dock.Children.Add(status); dock.Children.Add(bottom); dock.Children.Add(list);
             list.MouseDoubleClick += (s, e) => apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -97,7 +100,8 @@ namespace Velivo
         {
             using (var http = WikiHttp())
             {
-                var e = JsonDocument.Parse(await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=labels|claims|sitelinks&languages=pl|en&ids=" + id)).RootElement.GetProperty("entities").GetProperty(id);
+                var e = JsonDocument.Parse(await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=labels|descriptions|claims|sitelinks&languages=pl|en&ids=" + id)).RootElement.GetProperty("entities").GetProperty(id);
+                var opisWd = WdStr(e, "descriptions", "pl", "value") ?? WdStr(e, "descriptions", "en", "value");
                 var claims = e.GetProperty("claims");
                 string Label(JsonElement x) => WdStr(x, "labels", "pl", "value") ?? WdStr(x, "labels", "en", "value");
                 var dirs = WdIds(claims, "P57"); var cast = WdIds(claims, "P161").Take(12).ToList(); var genres = WdIds(claims, "P136").Take(4).ToList();
@@ -113,20 +117,25 @@ namespace Velivo
                 if (claims.TryGetProperty("P577", out var pd)) foreach (var c in pd.EnumerateArray()) { var t = WdStr(c, "mainsnak", "datavalue", "value", "time"); if (t != null && t.Length > 5 && int.TryParse(t.Substring(1, 4), out var y) && (year == 0 || y < year)) year = y; }
                 var orig = claims.TryGetProperty("P1476", out var ot) ? WdStr(ot[0], "mainsnak", "datavalue", "value", "text") : null;
                 var m = new MovieInfo { Name = Label(e) ?? cur?.Name, Original = orig, Year = year, Director = string.Join(", ", N(dirs)), People = N(cast), Genres = N(genres), Rating = cur?.Rating ?? 0 };
-                // opis i plakat z artykułu: polska Wikipedia, zapasowo angielska (obrazek artykułu o filmie to zwykle plakat)
+                // opis i plakat z artykułu: polska Wikipedia, zapasowo angielska (obrazek artykułu o filmie to zwykle plakat); podstawowe API Wikipedii
                 string poster = null;
                 foreach (var (site, host) in new[] { ("plwiki", "pl"), ("enwiki", "en") })
                 {
                     var title = WdStr(e, "sitelinks", site, "title"); if (title == null) continue;
                     try
                     {
-                        var sum = JsonDocument.Parse(await http.GetStringAsync("https://" + host + ".wikipedia.org/api/rest_v1/page/summary/" + Uri.EscapeDataString(title.Replace(' ', '_')))).RootElement;
-                        if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = WdStr(sum, "extract");
-                        poster ??= WdStr(sum, "originalimage", "source") ?? WdStr(sum, "thumbnail", "source");
+                        var q = JsonDocument.Parse(await http.GetStringAsync("https://" + host + ".wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageimages&exintro=1&explaintext=1&piprop=original&redirects=1&titles=" + Uri.EscapeDataString(title))).RootElement;
+                        foreach (var pg in q.GetProperty("query").GetProperty("pages").EnumerateObject())
+                        {
+                            var ex = WdStr(pg.Value, "extract");
+                            if (string.IsNullOrWhiteSpace(m.Overview) && !string.IsNullOrWhiteSpace(ex)) m.Overview = ex.Trim();
+                            poster ??= WdStr(pg.Value, "original", "source");
+                        }
                     }
-                    catch (Exception) { }
+                    catch (Exception ex) { App.LogInfo("Wikipedia (" + host + ") – „" + title + "”: " + ex.Message); }
                     if (!string.IsNullOrWhiteSpace(m.Overview) && poster != null) break;
                 }
+                if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = opisWd;   // bez artykułu - krótki opis z Wikidanych
                 if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = " ";   // film uznany za opisany
                 m.Poster = cur?.Poster;
                 if (poster != null)

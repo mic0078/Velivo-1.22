@@ -47,6 +47,7 @@
   <ItemGroup>
     <Resource Include="app.ico" />
     <Resource Include="komunikator.ico" />
+    <Resource Include="serwer.ico" />
     <Content Include="komunikator.ico" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="slowa-pl.txt" />
     <EmbeddedResource Include="slowa-pl-dodatek.txt" />

@@ -436,6 +436,7 @@ namespace Velivo
 
         void StartLanSync()
         {
+            if (Wariant.Klawiatura) return;   // ⌨ sama klawiatura nie uzywa sieci - nie zajmuje sieci domowej (prowadzi ja Przegladarka / Odtwarzacz / pelne Velivo)
             StopLanSync(); KomVelivoProwadzi(); if (_komWKomunikatorze) KomPrzejmijPotem();
             if (_settings == null || !_settings.LanSync) { KomStartWar(); return; }   // 💬 komunikator dziala i bez synchronizacji
             if (!LanLeadTake()) { KomStartWar(false); return; }   // 🧩 sieć domową na tym komputerze prowadzi już inny program Velivo (Odtwarzacz / Przeglądarka / pełne) - przejmiemy po jego zamknięciu

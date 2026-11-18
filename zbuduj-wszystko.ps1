@@ -33,7 +33,37 @@ function Changed($name, $patterns) {
     if ($LASTEXITCODE -ne 0) { return $true }   # nieznana zmiana (np. po przepisaniu historii) - budujemy
     return [bool]($files | Where-Object { $p = $_; $patterns | Where-Object { $p -like $_ } })
 }
-$needWin = (-not $TylkoAndroid) -and (Changed 'windows' @('src/*', 'testy/*', 'zbuduj.ps1', 'komunikator-windows/*'))
+# 🧩 które programy Windows zmieniły się od ich ostatniej budowy (każdy program pamięta swoją wersję kodu); plik spoza grup = wspólny (wszystkie)
+$grupy = @{
+    'Odtwarzacz'   = @('src/AbStyl.cs', 'src/AbWidok.cs', 'src/AudioBalance*.cs', 'src/Dzwiek.cs', 'src/FloatingVideo.cs', 'src/Iptv*.cs', 'src/JellyfinMeta.cs', 'src/Kanapa.cs', 'src/LanVideo.cs', 'src/LektorWprost.cs', 'src/OpenSubtitles.cs', 'src/Pilot*.cs', 'src/PlayerPad.cs', 'src/PobieranieUrl.cs', 'src/SubtitleLector.cs', 'src/VideoPlayer.cs', 'src/VlcPlayer.cs')
+    'Klawiatura'   = @('src/ScreenKeyboard.cs', 'src/SwipeTyping.cs', 'src/Hunspell.cs', 'src/slowa-*')
+    'Przegladarka' = @('src/AdBlocker.cs', 'src/Autofill.cs', 'src/Bank*.cs', 'src/BrowserImport.cs', 'src/ContextMenu.cs', 'src/Downloads.cs', 'src/ElementBlocker.cs', 'src/Extensions.cs', 'src/FilterLists.cs', 'src/History.cs', 'src/MobileView.cs', 'src/PasswordVault.cs', 'src/PdfReader.cs', 'src/ReaderMode.cs', 'src/SejfBridge.cs', 'src/SleepTabs.cs', 'src/SplitView.cs', 'src/StickyNotes.cs', 'src/TabExtras.cs', 'src/Torrents.cs', 'src/Ubol.cs', 'src/WebStore.cs', 'src/Zoom.cs')
+    'Lektor'       = @('src/Piper.cs', 'src/Supertonic*.cs', 'src/Xtts.cs', 'src/GlosyAktualizacje.cs', 'src/ReadAloud.cs')
+}
+$komPliki = @('komunikator-windows/*', 'src/Komunikator*.cs', 'src/WindowTheme.cs', 'src/VelivoData.cs', 'src/VelivoBledy.cs', 'src/CentrumZasobnik.cs')
+function Dotyczy($prog, $p) {
+    if ($p -like 'testy/*' -or $p -eq 'zbuduj.ps1') { return $true }
+    if ($prog -eq 'Komunikator') { return [bool]($komPliki | Where-Object { $p -like $_ }) }
+    if ($p -notlike 'src/*') { return $false }
+    if ($prog -eq 'Velivo') { return $true }   # pełne Velivo ma wszystko
+    if ($p -eq 'src/Lang.cs') { return $false }   # tłumaczenia: nowe napisy dotyczą programu, którego plik się zmienił (sam Lang.cs - tylko pełne Velivo)
+    $g = @($grupy.Keys | Where-Object { $k = $_; $grupy[$k] | Where-Object { $p -like $_ } })
+    if ($g.Count -eq 0) { return $true }   # wspólny plik
+    return ($g -contains $prog) -or ($g -contains 'Lektor' -and ($prog -eq 'Odtwarzacz' -or $prog -eq 'Przegladarka'))
+}
+$programy = @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Komunikator')
+if (-not $Tylko -and -not $TylkoAndroid) {
+    $Tylko = @(foreach ($pr in $programy) {
+        if ($Wszystko) { $pr; continue }
+        $f = Join-Path $cfgDir "ostatnio-win-$pr.txt"; if (-not (Test-Path $f)) { $f = Join-Path $cfgDir 'ostatnio-windows.txt' }
+        if (-not (Test-Path $f)) { $pr; continue }
+        $files = git diff --name-only ((Get-Content $f -Raw).Trim()) $head 2>$null
+        if ($LASTEXITCODE -ne 0) { $pr; continue }
+        if ($files | Where-Object { Dotyczy $pr $_ }) { $pr }
+    })
+    if ($Tylko.Count -gt 0) { Write-Host ("Zmienione programy Windows: " + ($Tylko -join ', ')) -ForegroundColor Cyan }
+}
+$needWin = (-not $TylkoAndroid) -and $Tylko.Count -gt 0
 $needAnd = ((-not $TylkoWindows) -or $tylkoApk) -and (Changed 'android' @('android/*', 'src/QuickAccessExtension/kod/*', 'src/Rozmowa/*'))
 if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od ostatniej budowy - nic do budowania (dokumentacja nie wymaga nowej wersji). Wymuszenie: .\zbuduj-wszystko.ps1 -Wszystko" -ForegroundColor Green; exit 0 }
 Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan
@@ -41,7 +71,7 @@ Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 
 if ($needWin) {
     & (Join-Path $PSScriptRoot 'zbuduj.ps1') -Podstawowa:$Podstawowa -Tylko $Tylko   # testy, Velivo na Windows, instalator (-Tylko Odtwarzacz,Velivo - tylko te programy)
     if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane." -ForegroundColor Red; exit 1 }
-    if (-not $Tylko) { Set-Content (Join-Path $cfgDir 'ostatnio-windows.txt') $head }   # część programów - reszta dalej czeka na budowę
+    foreach ($pr in $Tylko) { Set-Content (Join-Path $cfgDir "ostatnio-win-$pr.txt") $head }   # tylko zbudowane - reszta dalej czeka na swoją budowę
 } else { Write-Host "Windows bez zmian - pomijam (instalator z poprzedniej budowy jest aktualny)." -ForegroundColor DarkGray }
 if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
 

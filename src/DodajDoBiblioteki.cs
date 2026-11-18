@@ -67,7 +67,8 @@ namespace Velivo
             sp.Children.Add(new TextBlock { Text = zAdresu ? L.T("Film z adresu – najpierw się pobierze, potem trafi do wybranej biblioteki.") : L.T("Gdzie dodać ten film?"), Foreground = Brushes.Gray, FontSize = 12, Margin = new Thickness(0, 2, 0, 8), TextWrapping = TextWrapping.Wrap });
             var szukam = new TextBlock { Text = L.T("Szukam folderów biblioteki Jellyfin…"), Foreground = Brushes.Gray, FontSize = 12 }; sp.Children.Add(szukam);
             var opcje = new StackPanel(); sp.Children.Add(opcje);
-            var wlasna = new RadioButton { Content = L.T("🔒 Własna biblioteka Velivo"), FontSize = 14, Margin = new Thickness(0, 6, 0, 2), IsChecked = true };
+            var wlasna = new RadioButton { Content = L.T("📚 Wspólna biblioteka na tym komputerze – widzą ją i oglądają też Twoje inne komputery w domu"), FontSize = 14, Margin = new Thickness(0, 6, 0, 2), IsChecked = true, GroupName = "cel" };
+            var prywatna = new RadioButton { Content = L.T("🔒 Prywatna biblioteka – tylko ten komputer"), FontSize = 14, Margin = new Thickness(0, 2, 0, 2), GroupName = "cel" };
             string folder = !string.IsNullOrWhiteSpace(_settings.VideoDir) && Directory.Exists(_settings.VideoDir) ? _settings.VideoDir : DefaultVideoDir();
             var przenies = new CheckBox { Content = zAdresu ? L.T("Pobierz do folderu:") : L.T("Przenieś plik do folderu biblioteki:"), IsChecked = true, Margin = new Thickness(22, 2, 0, 2) };
             var fRow = new DockPanel { Margin = new Thickness(22, 0, 0, 4) };
@@ -81,7 +82,7 @@ namespace Velivo
             var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(16, 5, 16, 5) };
             var bs = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) }; bs.Children.Add(ok); bs.Children.Add(cancel);
             var stan = new TextBlock { Foreground = Brushes.Gray, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
-            sp.Children.Add(link); sp.Children.Add(wlasna); sp.Children.Add(przenies); sp.Children.Add(fRow); sp.Children.Add(info); sp.Children.Add(stan); sp.Children.Add(bs);
+            sp.Children.Add(link); sp.Children.Add(wlasna); sp.Children.Add(prywatna); sp.Children.Add(przenies); sp.Children.Add(fRow); sp.Children.Add(info); sp.Children.Add(stan); sp.Children.Add(bs);
             var w = new Window { Title = L.T("➕ Dodaj do biblioteki"), Width = 560, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = owner, Topmost = owner?.Topmost == true, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = sp };
             fBtn.Click += (s, e) => { var d = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = folder, Title = L.T("Folder własnej biblioteki") }; if (d.ShowDialog(w) == true) { folder = d.FolderName; fTxt.Text = folder; } };
             cancel.Click += (s, e) => w.Close();
@@ -95,7 +96,7 @@ namespace Velivo
                 foreach (var x in l)
                 {
                     string dir = x.Dir; var xx = x;
-                    var rb = new RadioButton { FontSize = 14, Margin = new Thickness(0, 4, 0, 2) };
+                    var rb = new RadioButton { FontSize = 14, Margin = new Thickness(0, 4, 0, 2), GroupName = "cel" };
                     var row = new DockPanel();
                     var txt = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
                     Action pokaz = () => txt.Text = "🎞 Jellyfin " + xx.Name + "\n    " + (dir != null ? dir + (dir != xx.Loc ? "  (= " + xx.Loc + L.T(" na serwerze)") : "") : xx.Loc + L.T(" na serwerze – wskaż ten folder w sieci"));
@@ -114,7 +115,7 @@ namespace Velivo
             ok.Click += async (s, e) =>
             {
                 var cel = jf.FirstOrDefault(x => x.Rb.IsChecked == true);
-                bool doJf = cel.Rb != null, ruch = doJf || przenies.IsChecked == true;
+                bool wsp = prywatna.IsChecked != true; bool doJf = cel.Rb != null, ruch = doJf || przenies.IsChecked == true;
                 if (doJf && cel.Dir() == null) { stan.Text = L.T("Wskaż najpierw ten folder Jellyfin w sieci (przycisk „Wskaż folder w sieci…”)."); return; }
                 var nazwa = string.Join("_", title.Split(Path.GetInvalidFileNameChars())).Trim();
                 var dir = doJf ? Path.Combine(cel.Dir(), nazwa) : folder;   // Jellyfin: film we własnym folderze „Tytuł (rok)”
@@ -122,7 +123,7 @@ namespace Velivo
                 if (zAdresu)
                 {
                     w.Close();
-                    ShowUrlDownload(path, owner, dir, f => Dodano(f, doJf ? cel.S : null, szukaj, title, owner));
+                    ShowUrlDownload(path, owner, dir, f => Dodano(f, doJf ? cel.S : null, szukaj, title, owner, wsp));
                     return;
                 }
                 if (doJf && link.IsChecked == true)
@@ -136,7 +137,7 @@ namespace Velivo
                     }
                     catch (Exception ex) { stan.Text = "❌ " + ex.Message; return; }
                     w.Close();
-                    Dodano(path, cel.S, szukaj, title, owner);
+                    Dodano(path, cel.S, szukaj, title, owner, wsp);
                     return;
                 }
                 ok.IsEnabled = false; stan.Text = ruch ? L.T("Przenoszę plik…") : "";
@@ -145,7 +146,7 @@ namespace Velivo
                     try { nowa = await Task.Run(() => Przenies(path, dir)); }
                     catch (Exception ex) { stan.Text = "❌ " + ex.Message; ok.IsEnabled = true; return; }
                 w.Close();
-                Dodano(nowa, doJf ? cel.S : null, szukaj, title, owner);
+                Dodano(nowa, doJf ? cel.S : null, szukaj, title, owner, wsp);
                 if (nowa != path && File.Exists(path)) InfoBox(owner, L.T("Plik skopiowany do biblioteki. Oryginału nie dało się usunąć, bo właśnie gra – usuń go po obejrzeniu:\n") + path);
             };
             w.ShowDialog();
@@ -188,9 +189,9 @@ namespace Velivo
             return best;
         }
 
-        void Dodano(string plik, JellyfinConf jf, bool szukaj, string title, Window owner)
+        void Dodano(string plik, JellyfinConf jf, bool szukaj, string title, Window owner, bool wsp)
         {
-            try { var l = LoadLibrary(); if (AddToLibrary(l, new[] { plik }, false) > 0) SaveLibrary(l); _libRefresh?.Invoke(); } catch (Exception ex) { App.LogError(ex); }
+            try { var l = LoadLibrary(); if (AddToLibrary(l, new[] { plik }, wsp) > 0) SaveLibrary(l); _libRefresh?.Invoke(); } catch (Exception ex) { App.LogError(ex); }
             if (jf != null)
             {   // Jellyfin skanuje bibliotekę; po chwili Velivo pobiera od niego opis i plakat
                 ShowToast(L.T("🎞 Dodano do Jellyfin – skanuje bibliotekę, opis i plakat pojawią się za chwilę"), null);
@@ -206,7 +207,7 @@ namespace Velivo
                 });
                 return;
             }
-            ShowToast(L.T("🔒 Dodano do własnej biblioteki: ") + Path.GetFileName(plik), plik);
+            ShowToast((wsp ? L.T("📚 Dodano do wspólnej biblioteki: ") : L.T("🔒 Dodano do prywatnej biblioteki: ")) + Path.GetFileName(plik), plik);
             if (szukaj) ShowMetaSearch(owner, plik, title, () => _libRefresh?.Invoke());
         }
     }

@@ -99,7 +99,7 @@ namespace Velivo
                     var url = await JellyfinReach(c) ?? c.Url;
                     using (var http = JellyfinClient(new JellyfinConf { Url = url, Key = c.Key }))
                     {
-                        var body = JsonSerializer.Serialize(new Dictionary<string, object> { ["SearchInfo"] = y > 0 ? (object)new { Name = q, Year = y } : new { Name = q } });
+                        var body = JsonSerializer.Serialize(new Dictionary<string, object> { ["SearchInfo"] = y > 0 ? (object)new { Name = q, Year = y, MetadataLanguage = "pl", MetadataCountryCode = "PL" } : new { Name = q, MetadataLanguage = "pl", MetadataCountryCode = "PL" } });   // opisy po polsku
                         var resp = await http.PostAsync("Items/RemoteSearch/Movie", new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json"));
                         if (resp.IsSuccessStatusCode)
                             foreach (var x in JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement.EnumerateArray())

@@ -61,6 +61,8 @@ namespace Velivo
             public string s { get; set; }   // napisy
             public string fn { get; set; }  // nazwa pliku (dopasowanie informacji o filmie, np. z Jellyfin)
             public LibraryVideo f { get; set; }   // ustawienia filmu
+            public MovieInfo m { get; set; }   // opis, obsada, gatunek, rok (jak w Jellyfin) - z biblioteki tamtego komputera
+            public string pu { get; set; }    // plakat: adres na serwerze filmów tamtego komputera (tylko dla tego komputera, 12 h)
         }
 
         // film z innego komputera w playliscie odtwarzacza (klucz = adres strumienia albo sciezka NAS)
@@ -358,13 +360,13 @@ namespace Velivo
         }
 
         // jedna paczka: od pozycji off, ile zmiesci sie w pakiecie LAN (limit ok. 60 KB - do ok. 120 KB tekstu przed kompresja)
-        internal static List<LibraryVideo> LibraryPage(List<LibraryVideo> shared, int off, out bool more)
+        internal static List<LibraryVideo> LibraryPage(List<LibraryVideo> shared, int off, out bool more, Func<LibraryVideo, int> extra = null)
         {
             var page = new List<LibraryVideo>(); int size = 0, i = Math.Max(0, off);
             for (; i < shared.Count; i++)
             {
                 var v = shared[i];
-                size += 280 + Math.Min(90, v.Title.Length) + v.Path.Length * 3;
+                size += 280 + Math.Min(90, v.Title.Length) + v.Path.Length * 3 + (extra?.Invoke(v) ?? 0);
                 if (size > 120000 && page.Count > 0) break;
                 page.Add(v);
             }
@@ -374,11 +376,52 @@ namespace Velivo
 
         List<LanFilmItem> LibraryFor(LanPeerInfo peer, int off, out bool more)
         {
-            return LibraryPage(SharedForPeers(), off, out more).Select(v => new LanFilmItem
+            // 🎞 jak serwer Jellyfin: z filmem idą jego informacje (opis skrócony, obsada, gatunek) i plakat przez serwer filmów
+            MovieInfo Info(LibraryVideo v)
             {
-                i = FilmId(v.Path), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
-                n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path),
+                var mi = LookupMeta(Meta, v.Path); if (mi == null) return null;
+                var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…";
+                return new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList(), People = (mi.People ?? new List<string>()).Take(12).ToList(), Poster = mi.Poster };
+            }
+            return LibraryPage(SharedForPeers(), off, out more, v => { var mi = Info(v); return mi == null ? 0 : 200 + (mi.Overview?.Length ?? 0) * 2 + string.Join(",", mi.People).Length * 2; }).Select(v =>
+            {
+                var mi = Info(v); string pu = null;
+                if (mi?.Poster != null) { var pf = Path.Combine(PosterDir, mi.Poster); if (File.Exists(pf)) pu = ShareFilm(pf, peer); }
+                if (mi != null) mi.Poster = null;   // nazwa pliku tutaj nic tamtemu komputerowi nie mówi
+                return new LanFilmItem
+                {
+                    i = FilmId(v.Path), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
+                    n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path), m = mi, pu = pu,
+                };
             }).ToList();
+        }
+
+        // informacje o filmach z biblioteki innego komputera: do bazy informacji pod kluczem filmu (lokalny Jellyfin / ręczne wpisy mają pierwszeństwo),
+        // plakat pobierany raz do folderu plakatów („peer-<id>.jpg”) z serwera filmów tamtego komputera
+        void PeerInfo(List<LanFilmItem> items)
+        {
+            var nowe = items.Where(x => x.m != null).ToList(); if (nowe.Count == 0) return;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                foreach (var x in nowe)
+                {
+                    var key = PeerFilmKey(x); var old = LookupMeta(Meta, key);
+                    if (old != null && old.Id != null) continue;   // ten film zna lokalny Jellyfin
+                    var pf = "peer-" + x.i + ".jpg"; x.m.Poster = File.Exists(Path.Combine(PosterDir, pf)) ? pf : old?.Poster;
+                    Meta[MetaKey(key)] = x.m;   // ten sam klucz, którego szuka LookupMeta
+                }
+                _libRefresh?.Invoke();
+            }));
+            var doPobrania = nowe.Where(x => x.pu != null && !File.Exists(Path.Combine(PosterDir, "peer-" + x.i + ".jpg"))).ToList();
+            if (doPobrania.Count == 0) return;
+            _ = Task.Run(async () =>
+            {
+                using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) })
+                    foreach (var x in doPobrania)
+                        try { var b = await http.GetByteArrayAsync(x.pu); Directory.CreateDirectory(PosterDir); File.WriteAllBytes(Path.Combine(PosterDir, "peer-" + x.i + ".jpg"), b); var xx = x; await Dispatcher.InvokeAsync(() => { if (Meta.TryGetValue(MetaKey(PeerFilmKey(xx)), out var mi) && mi.Id == null) mi.Poster = "peer-" + xx.i + ".jpg"; }); }
+                        catch (Exception) { }
+                await Dispatcher.InvokeAsync(() => _libRefresh?.Invoke());
+            });
         }
 
         // klucz filmu z innego komputera do informacji z Jellyfin
@@ -422,6 +465,7 @@ namespace Velivo
                     break;
                 case "lib":
                     if (m.req != null && _libMore.TryGetValue(m.req, out var mr)) mr.Item2[0] = m.more;
+                    if (m.items != null) PeerInfo(m.items);   // opisy i plakaty filmów tamtego komputera - jak z Jellyfin
                     if (m.req != null && _libRequests.TryGetValue(m.req, out var tcs)) tcs.TrySetResult(m.items ?? new List<LanFilmItem>());
                     break;
                 case "want":   // drugi komputer chce obejrzec film z tej biblioteki

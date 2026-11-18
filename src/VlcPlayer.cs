@@ -609,7 +609,24 @@ namespace Velivo
         // ⏱ prawdziwa różnica dźwięku względem zegara obrazu - VLC podaje ją w dzienniku wyjścia dźwięku („playback too late (µs)”, „not synchronized (µs)”)
         static long _vlcDriftUs; static DateTime _vlcDriftAt;
         static readonly System.Text.RegularExpressions.Regex VlcDriftRx = new System.Text.RegularExpressions.Regex(@"(?:playback (?:way )?too (?:late|early)|not synchronized) \((-?\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
-        static volatile bool _aoutFailed;   // VLC nie otworzyl wyjscia dzwieku (biezacy film)
+        static volatile bool _aoutFailed;
+        // 🤖 dźwięk zablokowany: VLC wyrzuca każdy kawałek dźwięku jako spóźniony („buffer too late … dropped”) - po przełączeniu wyjścia dźwięku Windows sam z tego nie wychodzi
+        static int _vlcDropN; static DateTime _vlcDropAt;
+        // czysty dziennik: ten sam komunikat seriami (różnią się tylko liczby) - jeden wiersz z liczbą powtórzeń zamiast setek
+        static readonly object _vlcRepLock = new object(); static string _vlcRepKey, _vlcRepLine; static int _vlcRepN;
+        static readonly System.Text.RegularExpressions.Regex VlcNumRx = new System.Text.RegularExpressions.Regex(@"-?\d+", System.Text.RegularExpressions.RegexOptions.Compiled);
+        static void VlcLogLine(string mod, string lvl, string msg)
+        {
+            var key = mod + "|" + VlcNumRx.Replace(msg, "#"); string flush = null;
+            lock (_vlcRepLock)
+            {
+                if (key == _vlcRepKey) { _vlcRepN++; return; }
+                if (_vlcRepN > 0) flush = _vlcRepLine.TrimEnd('\n') + "   (powtórzone ×" + _vlcRepN + ")\n";
+                _vlcRepKey = key; _vlcRepN = 0; _vlcRepLine = DateTime.Now.ToString("HH:mm:ss") + " " + lvl + " " + mod + ": " + msg + "\n";
+            }
+            if (flush != null) VlcLogQueue(flush);
+            VlcLogQueue(_vlcRepLine);
+        }   // VLC nie otworzyl wyjscia dzwieku (biezacy film)
 
         // plik AVI po zawartosci (bywa z inna koncowka, np. .ts)
         internal static bool IsAviFile(string path)
@@ -1274,8 +1291,10 @@ namespace Velivo
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
                     if (e.Message != null && VlcDriftRx.Match(e.Message) is var dm && dm.Success && long.TryParse(dm.Groups[1].Value, out var dus)) { _vlcDriftUs = dus; _vlcDriftAt = DateTime.Now; }
                     bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
+                    if (e.Message != null && e.Message.StartsWith("buffer too late") && e.Message.EndsWith("dropped")) { var nw = DateTime.Now; if ((nw - _vlcDropAt).TotalSeconds > 2) _vlcDropN = 0; _vlcDropN++; _vlcDropAt = nw; }
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
-                    VlcLogQueue(DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + VlcLogSafe(e.Message) + "\n");   // zapis w tle - wątek obrazu/dźwięku VLC nie czeka na dysk
+                    if (e.Message != null && (e.Message.Contains("SetThumbNailClip") || e.Message.StartsWith("unsupported control query"))) return;   // bez znaczenia dla odtwarzania (miniatura na pasku zadań, zapytanie okna) - nie zaśmieca dziennika
+                    VlcLogLine(e.Module, e.Level.ToString(), VlcLogSafe(e.Message));   // zapis w tle - wątek obrazu/dźwięku VLC nie czeka na dysk
                 };
                 return true;
             }
@@ -2489,10 +2508,16 @@ namespace Velivo
             MouseButtonEventHandler aReset = (s, e) => { e.Handled = true; setADelay(0); resync(); };
             aEarly.MouseRightButtonUp += aReset; aLate.MouseRightButtonUp += aReset; aDelayTips();
             mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { try { extMs = AbWinDelayMs; if (aDelayMs != 0 || extMs != 0) applyADelay(); if (aDelayMs != 0) showOsd(aDelayText()); } catch (Exception) { } }));   // zapamiętane przesunięcie widoczne przy starcie - inaczej wygląda jak stałe opóźnienie   // każdy film / kanał z tym samym przesunięciem
-            var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) }; var dropFix = DateTime.MinValue;
             tvWatch.Tick += (s, e) =>
             {
                 { int ex = AbWinDelayMs; if (ex != extMs) { extMs = ex; applyADelay(); } }   // Audio Balance for Windows włączony / wyłączony / inne opóźnienie w trakcie
+                if (mp.State == VLCState.Playing && _vlcDropN >= 20 && (DateTime.Now - _vlcDropAt).TotalSeconds < 3 && (DateTime.Now - dropFix).TotalSeconds > 60)
+                {   // 🤖 dźwięk „jak robot”: zmierzone - VLC wyrzuca dźwięk jako spóźniony; jedno wyrównanie (film - skok w to samo miejsce, TV - kanał od nowa), najwyżej raz na minutę
+                    dropFix = DateTime.Now; var n0 = _vlcDropN; _vlcDropN = 0;
+                    try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " naprawa: dzwiek zablokowany (" + n0 + " odrzuconych kawalkow) - wyrownanie obrazu z dzwiekiem\n"); } catch (Exception) { }
+                    resync();
+                }
                 var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 // opcja: ogladany kanal zaczal sie nagrywac - przejscie na plik nagrania (zostaje jedno polaczenie)
                 if (pth != null && _iptvPlaying.ContainsKey(pth) && IptvSt.WatchFromRec && curRecFile == null && !userStopped && mp.State == VLCState.Playing && RecFileFor(pth) != null)

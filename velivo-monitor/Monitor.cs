@@ -198,7 +198,7 @@ namespace VelivoMonitor
         // ---------- widżet na pulpicie ----------
         // 🧩 karta A (wybór właściciela 2026-11-18): 200 × 58, wiersz Monitora i wiersz Audio Balance, każdy z wykresem z ostatniej minuty w tle;
         // bez działającego Audio Balance - sam górny wiersz
-        Window wid; TextBlock wUp, wDown, wCpu, wAb, wAbSub; FrameworkElement wAbRow, wSep; Polygon pUp, pDown; Polyline pGhz; Polygon pAb, pGr; double maxDown, maxUp;
+        Window wid; TextBlock wUp, wDown, wCpu, wAb, wAbSub; FrameworkElement wAbRow, wSep, wNetRow; Polygon pUp, pDown; Polyline pGhz; Polygon pAb, pGr; double maxDown, maxUp;
         const double GW = 184, GH = 22, BH = 11;   // lustro: od środka pobieranie w górę, wysyłanie w dół - każde ze swoją skalą
         void BuildWidget()
         {
@@ -211,7 +211,7 @@ namespace VelivoMonitor
             pDown = A(Color.FromRgb(0x4A, 0xDE, 0x80)); pUp = A(Color.FromRgb(0xF5, 0xC5, 0x18));
             pGhz = new Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x7C, 0x9C, 0xFF)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 3, 2 } }; cv.Children.Add(pGhz);
             var t1 = new DockPanel { Height = GH, LastChildFill = false }; t1.Children.Add(wUp); t1.Children.Add(wDown); DockPanel.SetDock(wCpu, Dock.Right); t1.Children.Add(wCpu);
-            var row1 = new Grid(); row1.Children.Add(cv); row1.Children.Add(t1);
+            var row1 = new Grid(); row1.Children.Add(cv); row1.Children.Add(t1); wNetRow = row1;
             var cvA = Cv(0.4); cvA.Children.Add(new Line { X1 = 0, X2 = GW, Y1 = GH / 2, Y2 = GH / 2, Stroke = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)) });
             pGr = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFA, 0xCC, 0x15)), Stroke = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), StrokeThickness = 1 }; cvA.Children.Add(pGr);
             pAb = new Polygon { Fill = new SolidColorBrush(Color.FromArgb(0x40, 0x2E, 0xD3, 0xC6)), Stroke = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), StrokeThickness = 1 }; cvA.Children.Add(pAb);   // kolory z okna Audio Balance
@@ -247,7 +247,7 @@ namespace VelivoMonitor
             { var p = abOk ? abP : new string[0]; int at = (hPos + N - 1) % N;   // wykres jak „praca” w oknie Audio Balance: podgłaśnia/ścisza (turkus), kompresor (żółty)
               double D(int k) => p.Length > k && double.TryParse(p[k], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
               hGr[at] = D(2); hAb[at] = D(3); }
-            bool pokazuje = abOk && (wid != null || bar != null && Pok("ab"));   // widżet zawsze pokazuje wykres Audio Balance
+            bool pokazuje = abOk && Get("ab-osobno", "0") != "1" && (wid != null && Get("wykres", "oba") != "net" || bar != null && Pok("ab"));   // „osobno” - Audio Balance pokazuje swój widżet   // widżet zawsze pokazuje wykres Audio Balance
             try { if (pokazuje) File.WriteAllText(System.IO.Path.Combine(Dir, "ab-w-monitorze.txt"), ""); } catch (Exception) { }   // Audio Balance chowa wtedy swój widżet
         }
         void WidgetText()
@@ -257,7 +257,8 @@ namespace VelivoMonitor
             else { wUp.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)); wDown.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)); }
             wCpu.Text = (Pok("ghz") ? GhzText : "") + (Pok("ghz") && Pok("cpu") ? " " : "") + (Pok("cpu") ? Cpu.ToString("0") + "%" : "");   // wybór „Pokazuj” - te same liczby co na pasku; wykresy zawsze
             wUp.Visibility = Pok("up") ? Visibility.Visible : Visibility.Hidden; wDown.Visibility = Pok("down") ? Visibility.Visible : Visibility.Hidden;
-            wAbRow.Visibility = wSep.Visibility = abOk ? Visibility.Visible : Visibility.Collapsed;
+            bool abW = abOk && Get("ab-osobno", "0") != "1" && Get("wykres", "oba") != "net", netW = !abW || Get("wykres", "oba") != "ab";   // który wykres: internet i procesor / Audio Balance / oba
+            wNetRow.Visibility = netW ? Visibility.Visible : Visibility.Collapsed; wAbRow.Visibility = abW ? Visibility.Visible : Visibility.Collapsed; wSep.Visibility = netW && abW ? Visibility.Visible : Visibility.Collapsed;
             if (abOk) { wAb.Text = abOut == "-" ? "– dB" : abOut + " dB"; wAbSub.Text = abSub; wAb.Visibility = wAbSub.Visibility = Pok("ab") ? Visibility.Visible : Visibility.Hidden; }   // liczby wg wyboru, wykres pracy zawsze
             wid.ToolTip = (off ? "Internet WYŁĄCZONY – działa tylko sieć domowa (fioletowe strzałki).\n" : "") + "Wysyłanie ↑ / pobieranie ↓ – teraz; największe z ostatniej minuty: ↑ " + Short(maxUp) + "B/s, ↓ " + Short(maxDown) + "B/s.\n"
                 + (abOk ? "Dolny wiersz: Velivo Audio Balance – wynik (LUFS) i zmiana; wykres jak w oknie Audio Balance: turkus – podgłaśnia ↑ / ścisza ↓, żółty – kompresor ścisza głośne fragmenty (±24 dB od linii 0).\n" : "") + "Przeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu";
@@ -334,6 +335,10 @@ namespace VelivoMonitor
             var pok = new MenuItem { Header = "Pokazuj liczby (pasek i widżet)", ToolTip = "Na pasku zadań i w widżecie – wykresy w widżecie widać zawsze" }; cm.Items.Add(pok);
             foreach (var (k, h) in new[] { ("up", "↑ Wysyłanie"), ("down", "↓ Pobieranie"), ("ghz", "Taktowanie procesora (GHz)"), ("cpu", "Użycie procesora (%)"), ("ab", "Audio Balance (głośność, gdy działa)") })
             { var mi = new MenuItem { Header = h, IsCheckable = true }; mi.Click += (s, e) => BarPokaz(k); cm.Opened += (s, e) => mi.IsChecked = Pok(k); pok.Items.Add(mi); }
+            var wyk = new MenuItem { Header = "Wykres w widżecie" }; cm.Items.Add(wyk);
+            foreach (var (k, h) in new[] { ("net", "Internet i procesor"), ("ab", "Audio Balance"), ("oba", "Oba") })
+            { var mi = new MenuItem { Header = h, IsCheckable = true }; mi.Click += (s, e) => { Put("wykres", k); if (wid != null) WidgetText(); }; cm.Opened += (s, e) => mi.IsChecked = Get("wykres", "oba") == k; wyk.Items.Add(mi); }
+            It("Osobny widżet Audio Balance", () => { Put("ab-osobno", Get("ab-osobno", "0") == "1" ? "0" : "1"); if (wid != null) WidgetText(); }, () => Get("ab-osobno", "0") == "1").ToolTip = "Audio Balance pokazuje swój własny widżet (włączony w Audio Balance → 📌 Widżet), a Monitor tylko internet i procesor";
             It("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);
             It("Uruchamiaj z Windows", ToggleAuto, AutoOn);
             cm.Items.Add(new Separator());

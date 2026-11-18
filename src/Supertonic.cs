@@ -71,13 +71,14 @@ namespace Velivo
         // 🧩 Velivo Odtwarzacz bez odtwarzania (okna mogą być otwarte): zwalnia model lektora i oddaje Windows nieużywaną pamięć
         // (zostaje lekki dla Pilota i nagrań TV; przy filmie lektor wczytuje się znowu w tle - SupertonicWarm)
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr proc, IntPtr min, IntPtr max);
-        System.Windows.Threading.DispatcherTimer _odtLekko; int _odtPusto;
+        System.Windows.Threading.DispatcherTimer _odtLekko; int _odtPusto, _odtMin;
         void StartOdtwarzaczLekko()
         {
             if (!Wariant.Odtwarzacz || _odtLekko != null) return;
             _odtLekko = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _odtLekko.Tick += (s, e) =>
             {
+                if (++_odtMin == 2 || _odtMin % 30 == 0) PamiecLog();   // 🔬 co zajmuje pamięć (po 2 min i co 30 min)
                 bool pauza = false; try { pauza = _playerMp != null && _playerMp.State == LibVLCSharp.Shared.VLCState.Paused; } catch (Exception) { }
                 if (PlayerBusy || pauza) { _odtPusto = 0; return; }   // gra film / TV - lektor potrzebny
                 if (++_odtPusto != 2) return;   // 2 minuty bez odtwarzania (także z otwartym oknem odtwarzacza, biblioteką, Kanapą) - raz, do następnego filmu; model lektora (~400 MB) wraca w tle przy włączeniu filmu
@@ -91,6 +92,21 @@ namespace Velivo
                 });
             };
             _odtLekko.Start();
+        }
+
+        // 🔬 pamięć Odtwarzacza w dzienniku: proces, sterta .NET i najwięksi podejrzani (lista kanałów, program TV, biblioteka, lektor)
+        void PamiecLog()
+        {
+            try
+            {
+                using (var me = System.Diagnostics.Process.GetCurrentProcess())
+                {
+                    int epgCh = _iptvEpg?.Count ?? 0; long epgIt = _iptvEpg?.Values.Sum(l => (long)l.Count) ?? 0;
+                    App.LogInfo("Pamięć Odtwarzacza: proces " + me.PrivateMemorySize64 / 1048576 + " MB, sterta .NET " + GC.GetTotalMemory(false) / 1048576 + " MB; kanały na liście " + (_iptvPl?.Channels.Count ?? 0) + (_knownPl != null && _knownPl != _iptvPl ? " + kopia " + _knownPl.Channels.Count : "") +
+                        ", program TV " + epgCh + " kanałów / " + epgIt + " audycji, biblioteka " + (_libRefresh != null ? "okno otwarte" : "-") + ", lektor " + (_stTts != null ? "wczytany" : "nie") + ", okna: " + string.Join(" ", new[] { ("Kanapa", (System.Windows.Window)_kanapa), ("odtwarzacz", _vlcWin), ("biblioteka", _libWin), ("TV", _tvWin) }.Where(w => w.Item2 != null).Select(w => w.Item1)));
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
         }
 
         // 🗣 model wczytywany w tle już przy otwarciu filmu z lektorem - pierwsza kwestia bez czekania (dawniej kilkanaście sekund: wczytanie na kartę przy pierwszym zdaniu)

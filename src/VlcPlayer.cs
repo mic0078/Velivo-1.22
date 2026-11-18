@@ -4195,6 +4195,7 @@ namespace Velivo
                 }
 
                 add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
+                add(L.T("⬇ Pobierz z adresu…"), () => ShowUrlDownload(path, Window.GetWindow(overlay) ?? win), true);   // jak „Otwórz strumień” w VLC, ale na dysk - adres tego, co gra, albo ze schowka
                 {   // ostatnio ogladane - osobno TV i filmy, po 20 ostatnich, najnowsze na gorze
                     var rf = new MenuItem { Header = L.T("🕘 Ostatnio oglądane Filmy") };
                     foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && FilmPlayable(v.Path)).OrderByDescending(v => v.Last).Take(20))
@@ -4296,7 +4297,7 @@ namespace Velivo
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
                     (null, new[] { "⏩ Na żywo (wróć", "⏮ Od początku programu", "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
-                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "⬇ Pobierz z adresu", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" }),

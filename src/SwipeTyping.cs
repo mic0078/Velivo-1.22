@@ -12,6 +12,7 @@ namespace Velivo
     {
         // polskie litery przeciaga sie przez litere podstawowa - takze "ź" przez "z" (jak w telefonie)
         // odmiana znanego czasownika (slownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) / instaluje / instalujesz <- -ować
+        static readonly string[] Owy = { "owy", "owa", "owe", "owego", "owej", "owemu", "owym", "owych", "owymi", "ową", "owi" };
         static bool Imperative(string w, ICollection<string> m)
         {
             if (w.Length >= 4 && w.EndsWith("ąc") && m.Contains(w.Substring(0, w.Length - 1))) return true;   // psując <- psują
@@ -21,6 +22,8 @@ namespace Velivo
             if (b.Length >= 4 && (b.EndsWith("aj") && m.Contains(b.Substring(0, b.Length - 1) + "ć") || b.EndsWith("uj") && Owac(b.Substring(0, b.Length - 2)))) return true;
             foreach (var e in new[] { "uje", "ujesz", "ujemy", "ujecie", "ują", "ujący", "ująca", "ujące" })   // instaluje, instalujesz <- instalować
                 if (w.Length > e.Length + 2 && w.EndsWith(e) && Owac(w.Substring(0, w.Length - e.Length))) return true;
+            foreach (var e in Owy)   // przymiotnik od znanego rzeczownika: sprzętowy <- sprzęt, domowa <- dom
+                if (w.Length >= e.Length + 3 && w.EndsWith(e) && m.Contains(w.Substring(0, w.Length - e.Length))) return true;
             return false;
         }
 

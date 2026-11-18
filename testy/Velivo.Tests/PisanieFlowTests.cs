@@ -153,6 +153,14 @@ public class PisanieFlowTests
     }
 
     [Fact]
+    public void PrzymiotnikOdZnanegoRzeczownika()
+    {
+        SwipeTyping.Load(new[] { "sprzęt", "sprzętów", "dom" });
+        Assert.Null(SwipeTyping.Complete("sprzętowy", new HashSet<string>()));   // nie zmienia na „sprzętów”
+        Assert.Null(SwipeTyping.Complete("domowa", new HashSet<string>()));
+    }
+
+    [Fact]
     public void SpacjaWstawiaDokonczenieZPaska()
     {
         SwipeTyping.Load(new[] { "nie", "dom", "komputer", "przepraszam", "dziękuję" });

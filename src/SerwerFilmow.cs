@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,9 +16,18 @@ namespace Velivo
     public partial class MainWindow
     {
         static List<string> SerwerFoldery() => (GetPref("serwer-foldery") ?? "").Split('|').Where(x => x.Length > 0).ToList();
+        // 🧩 foldery serwera wspólne dla programów Velivo na tym komputerze (Odtwarzacz prowadzący sieć udostępnia filmy Serwera) - z pliku, odświeżane co 10 s
+        static List<string> _serwerFol; static DateTime _serwerFolAt;
+        static List<string> SerwerFolderyTeraz() { if (Wariant.Serwer) return SerwerFoldery(); if (_serwerFol == null || (DateTime.UtcNow - _serwerFolAt).TotalSeconds > 10) { _serwerFol = SerwerFolderyZPliku(); _serwerFolAt = DateTime.UtcNow; } return _serwerFol; }
+        // foldery serwera prosto z pliku ustawień (okna.txt) - Odtwarzacz na tym samym komputerze widzi zmiany Serwera bez ponownego uruchomienia
+        static List<string> SerwerFolderyZPliku()
+        {
+            try { foreach (var l in File.ReadAllLines(WindowsFile)) if (l.StartsWith("ust:serwer-foldery\t")) return l.Substring(19).Split('|').Where(x => x.Length > 0).ToList(); } catch (Exception) { }
+            return SerwerFoldery();
+        }
         System.Windows.Threading.DispatcherTimer _serwerTm; bool _serwerSkan;
         // co serwer pokazuje innym: tylko filmy z jego folderów (nie cała biblioteka komputera); filmy z Jellyfin - tylko gdy włączone
-        static bool WFolderze(string p) => SerwerFoldery().Any(f => p.StartsWith(f.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+        static bool WFolderze(string p) => SerwerFolderyTeraz().Any(f => p.StartsWith(f.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
         bool SerwerUdostepnia(LibraryVideo v) => File.Exists(v.Path) ? WFolderze(v.Path) : GetPref("serwer-jellyfin") == "1" && JellyfinStreamUrl(v.Path) != null;
 
         void SerwerStart()

@@ -89,9 +89,20 @@ namespace Velivo
             SLine = Fz(0x2A, 0x32, 0x40), SField = Fz(0x0F, 0x13, 0x1B), SAccent = Fz(0x6A, 0x3B, 0xE0), SOk = Fz(0x86, 0xEF, 0xAC), SOkBg = Fz(0x14, 0x53, 0x2D), SWarn = Fz(0xFC, 0xA5, 0xA5);
         static SolidColorBrush Fz(byte r, byte g, byte b) { var x = new SolidColorBrush(Color.FromRgb(r, g, b)); x.Freeze(); return x; }
         static TextBlock STxt(string t, double size = 13, Brush c = null, bool bold = false) => new TextBlock { Text = t, FontSize = size, Foreground = c ?? SFg, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        // ikony Windows (Segoe Fluent) zamiast emoji - ostre, w kolorze tekstu (WPF nie ma kolorowych emoji)
+        static readonly Dictionary<string, string> SIkony = new Dictionary<string, string> { ["🔄"] = "\uE72C", ["🔎"] = "\uE721", ["▶"] = "\uE768", ["➕"] = "\uE710", ["➖"] = "\uE738", ["🎞"] = "\uE8B2", ["📁"] = "\uE8B7" };
+        static readonly FontFamily SIkonyFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), STekstFont = new FontFamily("Segoe UI Variable Text, Segoe UI");
+        static UIElement SZIkona(string t, double size, Brush c, bool bold)
+        {
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            int k = t.IndexOf(' ');
+            if (k > 0 && SIkony.TryGetValue(t.Substring(0, k), out var g)) { sp.Children.Add(new TextBlock { Text = g, FontFamily = SIkonyFont, FontSize = size, Foreground = c, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) }); t = t.Substring(k + 1); }
+            sp.Children.Add(new TextBlock { Text = t, FontSize = size, Foreground = c, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center });
+            return sp;
+        }
         static Button SBtnMake(string t, Action a, Brush bg = null)
         {
-            var b = new Button { Content = t, Template = KomBtnTemplate, Background = bg ?? SBtn, Foreground = SFg, BorderBrush = SLine, BorderThickness = new Thickness(0), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6), Cursor = System.Windows.Input.Cursors.Hand };
+            var b = new Button { Content = SZIkona(t, 13, SFg, false), Template = KomBtnTemplate, Background = bg ?? SBtn, Foreground = SFg, BorderBrush = SLine, BorderThickness = new Thickness(0), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6), Cursor = System.Windows.Input.Cursors.Hand };
             b.Click += (s, e) => a(); return b;
         }
         static Border SCardMake(UIElement c, Thickness? m = null) => new Border { Background = SCard, CornerRadius = new CornerRadius(8), Padding = new Thickness(10), Margin = m ?? new Thickness(0, 0, 0, 6), Child = c };
@@ -103,14 +114,14 @@ namespace Velivo
         {
             if (_serwerWin != null) { if (_serwerWin.WindowState == WindowState.Minimized) _serwerWin.WindowState = WindowState.Normal; _serwerWin.Activate(); return; }
             var wa = SystemParameters.WorkArea;
-            var w = _serwerWin = new Window { Title = L.T("🎞 Velivo Serwer filmów"), Width = Math.Min(1100, wa.Width - 40), Height = Math.Min(720, wa.Height - 40), WindowStartupLocation = WindowStartupLocation.CenterScreen, Background = SBg, Foreground = SFg };
+            var w = _serwerWin = new Window { Title = Wariant.Nazwa, Width = Math.Min(1100, wa.Width - 40), Height = Math.Min(720, wa.Height - 40), WindowStartupLocation = WindowStartupLocation.CenterScreen, Background = SBg, Foreground = SFg, FontFamily = STekstFont };
             Independent(w); w.Uid = "own-theme"; var ik = SerwerIkona(); if (ik != null) w.Icon = ik;
             w.SourceInitialized += (s, e) => { try { int on = 1; DwmSetWindowAttribute(new System.Windows.Interop.WindowInteropHelper(w).Handle, 20, ref on, 4); } catch (Exception) { } };   // ciemny pasek tytułu
             w.Closed += (s, e) => _serwerWin = null;
             var root = new DockPanel { Margin = new Thickness(18) };
             // góra: nazwa, stan, kto widzi
             var head = new DockPanel(); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head);
-            var nazwa = STxt(L.T("🎞 Velivo Serwer filmów"), 19, null, true);
+            var nazwa = SZIkona(L.T("🎞 Velivo Serwer filmów"), 20, SFg, true);
             var dziala = new Border { Background = SOkBg, CornerRadius = new CornerRadius(9), Padding = new Thickness(9, 2, 9, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = STxt(L.T("● działa"), 12, SOk) };
             var kto = STxt("", 12.5, SDim); kto.TextAlignment = TextAlignment.Right; kto.Margin = new Thickness(16, 0, 0, 0);
             DockPanel.SetDock(nazwa, Dock.Left); DockPanel.SetDock(dziala, Dock.Left); head.Children.Add(nazwa); head.Children.Add(dziala); head.Children.Add(kto);
@@ -120,7 +131,7 @@ namespace Velivo
             root.Children.Add(grid);
             // lewa: foldery (karty do zaznaczenia) i ustawienia
             var left = new StackPanel(); grid.Children.Add(left);
-            left.Children.Add(STxt(L.T("📁 Foldery serwera"), 14.5, null, true));
+            left.Children.Add(SZIkona(L.T("📁 Foldery serwera"), 14.5, SFg, true));
             var fol = new StackPanel { Margin = new Thickness(0, 8, 0, 4) }; left.Children.Add(fol);
             var fRow = new WrapPanel(); left.Children.Add(fRow);
             string wybrany = null;

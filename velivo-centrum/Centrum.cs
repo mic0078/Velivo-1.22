@@ -43,6 +43,7 @@ namespace VelivoCentrum
             new Prog("VelivoOdtwarzacz", "Velivo Odtwarzacz", "filmy, TV, Kanapa", "VelivoOdtwarzacz", "Velivo Odtwarzacz"),
             new Prog("Velivo", "Velivo", "przeglądarka, filmy, komunikator", "Velivo", "Velivo"),
             new Prog("VelivoPrzegladarka", "Velivo Przeglądarka", "strony internetowe", "VelivoPrzegladarka", "Velivo Przeglądarka"),
+            new Prog("VelivoSerwer", "Velivo Serwer filmów", "biblioteka filmów dla Twoich komputerów", "VelivoSerwer", "Velivo Serwer filmów"),
             new Prog("VelivoKomunikator", "Velivo Komunikator", "wiadomości i rozmowy", "VelivoKomunikator", "Velivo Komunikator"),
             new Prog("VelivoAudioBalance", "Audio Balance", "wyrównywanie dźwięku Windows", "VelivoAudioBalance", "Velivo Audio Balance for Windows"),
             new Prog("VelivoMonitor", "Velivo Monitor", "sieć i procesor", "VelivoMonitor", "Velivo Monitor"),
@@ -183,7 +184,7 @@ namespace VelivoCentrum
             catch (Exception) { }
         }
         void StartAll() { foreach (var p in All) if (p.Exe != null && !Running(p)) Uruchom(p); win.Hide(); }
-        static void Uruchom(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
+        static void Uruchom(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" || p.Pid == "VelivoSerwer" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
 
         void ShowList()
         {

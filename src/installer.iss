@@ -10,6 +10,15 @@
   #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}"
   #define SrcDir "..\build\odtwarzacz"
   #define OutName "Velivo-Odtwarzacz-Setup-" + AppVer
+#elif defined(Serwer)
+  #define Wariant
+  #define AppName "Velivo Serwer filmów"
+  #define Exe "VelivoSerwer.exe"
+  #define Pid "VelivoSerwer"
+  #define Ikona "odtwarzacz.ico"
+  #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-SERWERFILMY}"
+  #define SrcDir "..\build\serwer"
+  #define OutName "Velivo-Serwer-Setup-" + AppVer
 #elif defined(Klawiatura)
   #define Wariant
   #define AppName "Velivo Klawiatura"
@@ -36,7 +45,7 @@
   #define AppIdV "{{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}"
 #endif
 ; 🧩 co program ma: NieStrony - bez rejestracji przeglądarki i PDF (Odtwarzacz, Klawiatura); NieFilmy - bez filmów (Przeglądarka, Klawiatura)
-#if defined(Odtwarzacz) || defined(Klawiatura)
+#if defined(Odtwarzacz) || defined(Klawiatura) || defined(Serwer)
   #define NieStrony
 #endif
 #if defined(Przegladarka) || defined(Klawiatura)
@@ -141,6 +150,8 @@ en.NeedDotnet=.NET 10 Desktop Runtime (x64), required by the browser, is missing
 pl.NeedWebView=Nie wykryto Microsoft Edge WebView2 Runtime (zwykle jest w Windows 11).%nBez niego przeglądarka nie wyświetli stron. Otworzyć stronę pobierania?
 pl.KlawAuto=Uruchamiaj klawiaturę razem z Windows (ikona w zasobniku)
 en.KlawAuto=Start the keyboard with Windows (tray icon)
+pl.SerwerAuto=Uruchamiaj serwer filmów razem z Windows (działa w tle – Twoje komputery widzą bibliotekę)
+en.SerwerAuto=Start the movie server with Windows (runs in the background – your computers see the library)
 en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included in Windows 11).%nWithout it the browser cannot display pages. Open the download page?
 
 [Tasks]
@@ -152,6 +163,9 @@ Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{
 Name: "autostart"; Description: "{cm:KlawAuto}"; GroupDescription: "{cm:Shortcuts}"
 #else
 Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
+#endif
+#ifdef Serwer
+Name: "autostart"; Description: "{cm:SerwerAuto}"; GroupDescription: "{cm:Shortcuts}"
 #endif
 #ifdef Odtwarzacz
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
@@ -210,7 +224,7 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\{#Pid}"; ValueType: string; ValueN
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; autostart wlaczany w Ustawieniach Velivo - przy odinstalowaniu wpis znika (ValueType none = instalator go nie tworzy)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#Pid}"; Flags: uninsdeletevalue
-#ifdef Klawiatura
+#if defined(Klawiatura) || defined(Serwer)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#Pid}"; ValueData: """{app}\{#Exe}"" --autostart 10"; Tasks: autostart; Flags: uninsdeletevalue
 #endif
 ; rejestracja jako przegladarka (pojawia sie na liscie "Aplikacje domyslne"); wybor robi uzytkownik w Ustawieniach

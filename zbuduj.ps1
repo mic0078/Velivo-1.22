@@ -4,7 +4,7 @@
 # Wymagane raz: winget install Git.Git Microsoft.DotNet.SDK.10 JRSoftware.InnoSetup
 param([switch]$BezTestow, [switch]$Podstawowa, [string[]]$Tylko)   # -Podstawowa: Velivo bezpłatne (bez Audio Balance, VST3, Supertonic i XTTS)
 $ErrorActionPreference = 'Stop'
-# -Tylko Velivo,Odtwarzacz,Przegladarka,Klawiatura,Komunikator - buduje tylko wybrane programy (bez -Tylko: wszystkie)
+# -Tylko Velivo,Odtwarzacz,Przegladarka,Klawiatura,Serwer,Komunikator - buduje tylko wybrane programy (bez -Tylko: wszystkie)
 $Tylko = @($Tylko | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 function Buduj($n) { return $Tylko.Count -eq 0 -or ($Tylko -contains $n) }
 if ($Tylko.Count -gt 0) { Write-Host ("Tylko: " + ($Tylko -join ', ')) -ForegroundColor Cyan }
@@ -41,7 +41,7 @@ dotnet publish komunikator-windows\VelivoKomunikator.csproj -c Release -r win-x6
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 # 🧩 Velivo Odtwarzacz i Velivo Przeglądarka - osobne programy z tego samego kodu (zawsze ta sama wersja co Velivo - wspólne dane)
-foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura') | Where-Object { Buduj $_ }) {
+foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-Object { Buduj $_ }) {
     $d = 'build\' + $w.ToLower()
     Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
     dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o $d $edycja "-p:Wariant=$w"
@@ -73,7 +73,7 @@ for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -
 for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
-foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura') | Where-Object { Buduj $_ }) {
+foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-Object { Buduj $_ }) {
     $oldW = Join-Path $outDir ("Velivo-$w-Setup-1.22.exe")
     for ($i = 0; $i -lt 10 -and (Test-Path $oldW); $i++) { try { Remove-Item $oldW -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
     for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/D$w" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora $w ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
@@ -85,4 +85,5 @@ if (Buduj 'Komunikator') { Write-Host "Gotowe: build\instalator\Velivo-Komunikat
 if (Buduj 'Odtwarzacz') { Write-Host "Gotowe: build\instalator\Velivo-Odtwarzacz-Setup-1.22.exe (filmy, TV, Kanapa, Pilot, lektor - bez przegladarki)" -ForegroundColor Green }
 if (Buduj 'Klawiatura') { Write-Host "Gotowe: build\instalator\Velivo-Klawiatura-Setup-1.22.exe (sama klawiatura ekranowa i poprawianie pisania - w kazdym programie Windows)" -ForegroundColor Green }
 if (Buduj 'Przegladarka') { Write-Host "Gotowe: build\instalator\Velivo-Przegladarka-Setup-1.22.exe (sama przegladarka - filmy otwiera Velivo Odtwarzacz)" -ForegroundColor Green }
+if (Buduj 'Serwer') { Write-Host "Gotowe: build\instalator\Velivo-Serwer-Setup-1.22.exe (serwer filmow - biblioteka dla Twoich komputerow, w tle)" -ForegroundColor Green }
 Start-Process $outDir

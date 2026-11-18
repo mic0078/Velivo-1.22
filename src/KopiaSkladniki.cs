@@ -21,7 +21,7 @@ namespace Velivo
             new Skladnik { Id = "velivo", Nazwa = "Velivo (pełne)", Opis = "przeglądarka, filmy, komunikator", Proc = "Velivo", Prefiksy = new[] { "profil/" }, Sprzatanie = new[] { PamiecStron("profil") } },
             new Skladnik { Id = "przegladarka", Nazwa = "Velivo Przeglądarka", Opis = "strony, logowania, miniatury", Proc = "VelivoPrzegladarka", Prefiksy = new[] { "profil-velivoprzegladarka/", "miniatury stron/" },
                 Sprzatanie = new[] { PamiecStron("profil-velivoprzegladarka"), new Czysc { Nazwa = "Miniatury stron", Opis = "szybki dostęp – odtworzą się", Domyslnie = true, Pasuje = r => r.StartsWith("miniatury stron/") } } },
-            new Skladnik { Id = "odtwarzacz", Nazwa = "Velivo Odtwarzacz", Opis = "filmy, TV, lektor (także w pełnym Velivo)", Proc = "VelivoOdtwarzacz", Uzywaja = new[] { "Velivo" },
+            new Skladnik { Id = "odtwarzacz", Nazwa = "Velivo Odtwarzacz", Opis = "filmy, TV, lektor (także w pełnym Velivo)", Proc = "VelivoOdtwarzacz", Uzywaja = new[] { "Velivo", "VelivoSerwer" },
                 Prefiksy = new[] { "profil-velivoodtwarzacz/", "filmy-info/", "iptv/", "lektor/", "supertonic/", "piper/", "xtts/" },
                 Sprzatanie = new[] {
                     new Czysc { Nazwa = "Ikony kanałów TV", Opis = "pobiorą się na nowo", Pasuje = r => r.StartsWith("iptv/logo/") },
@@ -35,7 +35,7 @@ namespace Velivo
             new Skladnik { Id = "ab", Nazwa = "Audio Balance", Opis = "ustawienia, wtyczki, kanały i filmy", Proc = "VelivoAudioBalance", Inny = "Audio Balance for Windows",
                 Sprzatanie = new[] { new Czysc { Nazwa = "Dziennik", Opis = "zapisy pracy programu", Domyslnie = true, Pasuje = r => r.EndsWith(".log") } } },
             new Skladnik { Id = "monitor", Nazwa = "Velivo Monitor", Opis = "ustawienia", Proc = "VelivoMonitor", Inny = "Monitor" },
-            new Skladnik { Id = "wspolne", Nazwa = "Wspólne", Opis = "zakładki, hasła, ustawienia, narzędzia", Uzywaja = new[] { "Velivo", "VelivoPrzegladarka", "VelivoOdtwarzacz", "VelivoKlawiatura", "VelivoKomunikator" },
+            new Skladnik { Id = "wspolne", Nazwa = "Wspólne", Opis = "zakładki, hasła, ustawienia, narzędzia", Uzywaja = new[] { "Velivo", "VelivoPrzegladarka", "VelivoOdtwarzacz", "VelivoKlawiatura", "VelivoKomunikator", "VelivoSerwer" },
                 Sprzatanie = new[] {
                     new Czysc { Nazwa = "Dzienniki", Opis = "vlc.log, pobierania – bez dziennika błędów", Domyslnie = true, Pasuje = r => r.EndsWith(".log") && !r.EndsWith("bledy.log") },
                     new Czysc { Nazwa = "Kosz Velivo", Opis = "pliki odłożone do usunięcia", Domyslnie = true, Pasuje = r => r.StartsWith("velivo-smieci/") },

@@ -7,7 +7,7 @@
 #   Windows - zmiany w src\, testy\ albo zbuduj.ps1
 #   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
-#   -Tylko Odtwarzacz,Velivo - tylko wybrane programy Windows (Velivo, Odtwarzacz, Przegladarka, Klawiatura, Komunikator)
+#   -Tylko Odtwarzacz,Velivo - tylko wybrane programy Windows (Velivo, Odtwarzacz, Przegladarka, Klawiatura, Serwer, Komunikator)
 param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows, [switch]$Podstawowa, [string[]]$Tylko)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
 $tylkoApk = $Przegladarka -or $Klawiatura -or $Komunikator
 if ($tylkoApk) { $Wszystko = $true; if (-not $TylkoWindows) { $TylkoAndroid = $true } }   # -TylkoWindows -Komunikator = Windows + ten APK
@@ -38,6 +38,7 @@ $grupy = @{
     'Odtwarzacz'   = @('src/AbStyl.cs', 'src/AbWidok.cs', 'src/AudioBalance*.cs', 'src/Dzwiek.cs', 'src/FloatingVideo.cs', 'src/Iptv*.cs', 'src/JellyfinMeta.cs', 'src/Kanapa.cs', 'src/LanVideo.cs', 'src/LektorWprost.cs', 'src/OpenSubtitles.cs', 'src/Pilot*.cs', 'src/PlayerPad.cs', 'src/PobieranieUrl.cs', 'src/SubtitleLector.cs', 'src/VideoPlayer.cs', 'src/VlcPlayer.cs')
     'Klawiatura'   = @('src/ScreenKeyboard.cs', 'src/SwipeTyping.cs', 'src/Hunspell.cs', 'src/slowa-*')
     'Przegladarka' = @('src/AdBlocker.cs', 'src/Autofill.cs', 'src/Bank*.cs', 'src/BrowserImport.cs', 'src/ContextMenu.cs', 'src/Downloads.cs', 'src/ElementBlocker.cs', 'src/Extensions.cs', 'src/FilterLists.cs', 'src/History.cs', 'src/MobileView.cs', 'src/PasswordVault.cs', 'src/PdfReader.cs', 'src/ReaderMode.cs', 'src/SejfBridge.cs', 'src/SleepTabs.cs', 'src/SplitView.cs', 'src/StickyNotes.cs', 'src/TabExtras.cs', 'src/Torrents.cs', 'src/Ubol.cs', 'src/WebStore.cs', 'src/Zoom.cs')
+    'Serwer'       = @('src/SerwerFilmow.cs')
     'Lektor'       = @('src/Piper.cs', 'src/Supertonic*.cs', 'src/Xtts.cs', 'src/GlosyAktualizacje.cs', 'src/ReadAloud.cs')
 }
 $komPliki = @('komunikator-windows/*', 'src/Komunikator*.cs', 'src/WindowTheme.cs', 'src/VelivoData.cs', 'src/VelivoBledy.cs', 'src/CentrumZasobnik.cs')
@@ -49,9 +50,10 @@ function Dotyczy($prog, $p) {
     if ($p -eq 'src/Lang.cs') { return $false }   # tłumaczenia: nowe napisy dotyczą programu, którego plik się zmienił (sam Lang.cs - tylko pełne Velivo)
     $g = @($grupy.Keys | Where-Object { $k = $_; $grupy[$k] | Where-Object { $p -like $_ } })
     if ($g.Count -eq 0) { return $true }   # wspólny plik
+    if ($prog -eq 'Serwer' -and ($g -contains 'Odtwarzacz' -or $g -contains 'Lektor')) { return $true }   # serwer filmów ma kod odtwarzacza
     return ($g -contains $prog) -or ($g -contains 'Lektor' -and ($prog -eq 'Odtwarzacz' -or $prog -eq 'Przegladarka'))
 }
-$programy = @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Komunikator')
+$programy = @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer', 'Komunikator')
 if (-not $Tylko -and -not $TylkoAndroid) {
     $Tylko = @(foreach ($pr in $programy) {
         if ($Wszystko) { $pr; continue }

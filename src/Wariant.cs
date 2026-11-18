@@ -5,7 +5,10 @@ namespace Velivo
     // Każdy działa sam; gdy kilka działa na jednym komputerze - wspólne dane (Velivo\Dane), sieć domową prowadzi jeden.
     static class Wariant
     {
-#if WARIANT_ODTWARZACZ
+#if WARIANT_SERWER
+        internal const string Nazwa = "Velivo Serwer filmów", Pid = "VelivoSerwer";   // 🎞 biblioteka filmów jako serwer dla moich komputerów (jak Jellyfin) - w tle, bez okna odtwarzacza na starcie
+        internal const bool Odtwarzacz = true, Przegladarka = false, Pelne = false;
+#elif WARIANT_ODTWARZACZ
         internal const string Nazwa = "Velivo Odtwarzacz", Pid = "VelivoOdtwarzacz";
         internal const bool Odtwarzacz = true, Przegladarka = false, Pelne = false;
 #elif WARIANT_PRZEGLADARKA
@@ -20,6 +23,11 @@ namespace Velivo
 #endif
         // co ma ten program: przeglądarka (karty), odtwarzacz (filmy, TV, Kanapa, Pilot), komunikator
         internal const bool Klawiatura = !Pelne && !Odtwarzacz && !Przegladarka;
+#if WARIANT_SERWER
+        internal const bool Serwer = true;   // udostępnia całą bibliotekę, startuje w tle, ikona = okno biblioteki
+#else
+        internal const bool Serwer = false;
+#endif
         internal const bool MaKarty = Pelne || Przegladarka;
         internal const bool MaFilmy = Pelne || Odtwarzacz;
         internal const bool MaKomunikator = Pelne;

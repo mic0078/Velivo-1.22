@@ -354,7 +354,7 @@ namespace Velivo
         {
             var c = _sharedCache;
             if (c != null && DateTime.Now - c.Item1 < TimeSpan.FromMinutes(1)) return c.Item2;
-            var l = LoadLibrary().Where(v => IsShared(v) && File.Exists(v.Path)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera
+            var l = LoadLibrary().Where(v => (Wariant.Serwer || IsShared(v)) && (File.Exists(v.Path) || Wariant.Serwer && JellyfinStreamUrl(v.Path) != null)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera   // serwer: też filmy z Jellyfin
             _sharedCache = Tuple.Create(DateTime.Now, l);
             return l;
         }
@@ -392,6 +392,7 @@ namespace Velivo
                 {
                     i = FilmId(v.Path), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
                     n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path), m = mi, pu = pu,
+                    u = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path),   // film z Jellyfin serwera - strumień wprost z Jellyfin
                 };
             }).ToList();
         }
@@ -437,6 +438,7 @@ namespace Velivo
         void WantRemoteFilm(LanPeerInfo peer, LanFilmItem item, bool together)
         {
             if (together && !PremiumOk(L.T("👥 Oglądaj razem"))) return;
+            if (!together && item.u != null && item.u.Contains("/Videos/")) { _remoteFilms[item.u] = new RemoteFilm { PeerId = peer.Id, Id = item.i, Title = item.t, Pos = item.p, Len = item.l, Prefs = item.f }; PlayVideos(new[] { item.u }, 0); return; }   // film z Jellyfin serwera - wprost z Jellyfin
             if (!together && item.n != null && File.Exists(item.n))   // NAS widoczny tutaj - wprost z dysku sieciowego, z ustawieniami filmu
             {
                 _remoteFilms[item.n] = new RemoteFilm { PeerId = peer.Id, Id = item.i, Title = item.t, Pos = item.p, Len = item.l, Prefs = item.f };
@@ -470,7 +472,7 @@ namespace Velivo
                     break;
                 case "want":   // drugi komputer chce obejrzec film z tej biblioteki
                 {
-                    var v = LoadLibrary().FirstOrDefault(x => FilmId(x.Path) == m.id && IsShared(x) && File.Exists(x.Path));
+                    var v = LoadLibrary().FirstOrDefault(x => FilmId(x.Path) == m.id && (Wariant.Serwer || IsShared(x)) && File.Exists(x.Path));   // serwer filmów udostępnia całą bibliotekę
                     if (v != null) PlayFilmOn(v, peer, m.act == "together");
                     break;
                 }

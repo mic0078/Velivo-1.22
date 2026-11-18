@@ -142,7 +142,7 @@ namespace Velivo
         {
             try
             {
-                if (!IptvInstalled || _vlcWin != null || !File.Exists(TvResumeFile) || (Wariant.Odtwarzacz && AutoStarted) || !VelivoData.Jeden("tv")) return;   // Odtwarzacz z Windows: tylko ikona w zasobniku   // 🧩 dwa programy Velivo po starcie Windows nie włączają tego samego kanału dwa razy
+                if (!IptvInstalled || _vlcWin != null || !File.Exists(TvResumeFile) || (Wariant.Odtwarzacz && AutoStarted) || Wariant.Serwer || !VelivoData.Jeden("tv")) return;   // Odtwarzacz z Windows: tylko ikona w zasobniku   // 🧩 dwa programy Velivo po starcie Windows nie włączają tego samego kanału dwa razy
                 var r = JsonSerializer.Deserialize<TvResume>(File.ReadAllText(TvResumeFile));
                 if (r?.Chans == null || r.Chans.Count == 0) return;
                 _iptvPlaying.Clear();

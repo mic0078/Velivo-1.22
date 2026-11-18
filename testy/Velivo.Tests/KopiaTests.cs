@@ -37,6 +37,8 @@ public class KopiaTests
     [InlineData("Profil/EBWebView/GrShaderCache/data_0", false)]
     [InlineData("vlc.log", false)]
     [InlineData("kopia.zip.part", false)]
+    [InlineData("Xtts/python/Lib/site-packages/torch/lib/torch_cuda.dll", false)]
+    [InlineData("Xtts/moj-glos.wav", true)]
     public void PelnaKopia(string rel, bool want) => Assert.Equal(want, MainWindow.BackupInclude(rel, true));
 
     // kopia przyrostowa: przywracanie sklada lancuch od najblizszej pelnej do wybranego przyrostu

@@ -28,7 +28,8 @@ namespace Velivo
             var parts = r.Split('/');
             var name = parts[parts.Length - 1].ToLowerInvariant();
             if (name.EndsWith(".tmp") || name.EndsWith(".part") || name == "vlc.log" || name == "dziala.txt" || name == "przywroc-kopie.txt" || name.StartsWith("sesja.txt")) return false;
-            if (parts[0].Equals("Komunikator-WebView", StringComparison.OrdinalIgnoreCase)) return false;   // silnik rozmów wideo osobnego Komunikatora - setki plików bez wartości do odtworzenia
+            if (parts[0].Equals("Komunikator-WebView", StringComparison.OrdinalIgnoreCase)) return false;
+            if (parts[0].Equals("Xtts", StringComparison.OrdinalIgnoreCase) && name != "moj-glos.wav") return false;   // lektor XTTS: Python + PyTorch + model 3–6 GB - pobiera się na nowo, w kopii tylko puchł (każda kopia ~8 GB)   // silnik rozmów wideo osobnego Komunikatora - setki plików bez wartości do odtworzenia
             if (full)
             {
                 foreach (var p in parts.Take(parts.Length - 1).Select(x => x.ToLowerInvariant()))

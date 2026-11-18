@@ -141,12 +141,8 @@ pl.CleanConfirm=Czysta instalacja: ustawienia, zakładki, historia, zapisane has
 en.CleanConfirm=Clean install: settings, bookmarks, history, saved browser passwords and Quick Access will be moved to a backup (folder ending with "kopia-..."), and Velivo will start like new. This also applies to Velivo Player and Velivo Browser – the data is shared.%n%nContinue?
 pl.MoveFailed=Nie udało się przenieść folderu:%n%1%nZamknij Velivo i spróbuj ponownie albo usuń go ręcznie.
 en.MoveFailed=Could not move the folder:%n%1%nClose Velivo and try again, or delete it manually.
-pl.GetDotnet=Pobieranie i instalacja .NET 10 Desktop Runtime (jednorazowo, ok. 55 MB)…
-en.GetDotnet=Downloading and installing .NET 10 Desktop Runtime (one time, about 55 MB)…
 pl.GetWebView=Pobieranie i instalacja Microsoft Edge WebView2 Runtime…
 en.GetWebView=Downloading and installing Microsoft Edge WebView2 Runtime…
-pl.NeedDotnet=Brakuje .NET 10 Desktop Runtime (x64), potrzebnego do działania przeglądarki.%nOtworzyć stronę pobierania? Po instalacji runtime uruchom instalator ponownie.
-en.NeedDotnet=.NET 10 Desktop Runtime (x64), required by the browser, is missing.%nOpen the download page? After installing the runtime, run this installer again.
 pl.NeedWebView=Nie wykryto Microsoft Edge WebView2 Runtime (zwykle jest w Windows 11).%nBez niego przeglądarka nie wyświetli stron. Otworzyć stronę pobierania?
 pl.KlawAuto=Uruchamiaj klawiaturę razem z Windows (ikona w zasobniku)
 en.KlawAuto=Start the keyboard with Windows (tray icon)
@@ -321,24 +317,9 @@ Type: files; Name: "{app}\unins*.old-*"
 Type: filesandordirs; Name: "{app}\vlc"
 Type: files; Name: "{app}\iptv.on"
 
-[Code]
-function HasDesktopRuntime10: Boolean;
-var FindRec: TFindRec;
-begin
-  // potrzebne OBA skladniki: Microsoft.NETCore.App i Microsoft.WindowsDesktop.App w wersji 10
-  // (sam WindowsDesktop bez NETCore konczyl sie bledem "You must install or update .NET")
-  Result := False;
-  if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\10.*'), FindRec) then
-  begin
-    FindClose(FindRec);
-    if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.NETCore.App\10.*'), FindRec) then
-    begin
-      Result := True;
-      FindClose(FindRec);
-    end;
-  end;
-end;
+#include "dotnet10.iss"
 
+[Code]
 function HasWebView2: Boolean;
 var v: String;
 begin
@@ -578,23 +559,12 @@ end;
 
 // brakujace skladniki pobieramy i instalujemy sami - jeden instalator wystarczy
 function InstallPrereqs: String;
-var Code: Integer; F: String;
+var Code: Integer;
 begin
   Result := '';
 #ifndef Pelny
-  if not HasDesktopRuntime10 then
-  begin
-    WizardForm.StatusLabel.Caption := CustomMessage('GetDotnet');
-    try
-      DownloadTemporaryFile('https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe', 'dotnet-desktop.exe', '', nil);
-      F := ExpandConstant('{tmp}\dotnet-desktop.exe');
-      if not ShellExec('', F, '/install /quiet /norestart', '', SW_SHOW, ewWaitUntilTerminated, Code) or not HasDesktopRuntime10 then
-        Result := CustomMessage('NeedDotnet');
-    except
-      Result := CustomMessage('NeedDotnet');
-    end;
-    if Result <> '' then exit;
-  end;
+  Result := InstallDotnet10;   // wspólny .NET 10 (program bez wbudowanego)
+  if Result <> '' then exit;
 #endif
   if not HasWebView2 then
   begin

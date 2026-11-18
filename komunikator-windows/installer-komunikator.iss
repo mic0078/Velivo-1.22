@@ -77,6 +77,8 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoKomunikator.exe"; Flag
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"
 
+#include "..\src\dotnet10.iss"
+
 [Code]
 function HasWebView2: Boolean;
 var v: String;
@@ -125,7 +127,8 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code, I: Integer;
 begin
-  Result := '';
+  Result := InstallDotnet10;   // wspólny .NET 10
+  if Result <> '' then exit;
   if not HasWebView2 then
   begin
     WizardForm.StatusLabel.Caption := CustomMessage('GetWebView');

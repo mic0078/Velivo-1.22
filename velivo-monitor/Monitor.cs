@@ -115,7 +115,7 @@ namespace VelivoMonitor
             bool light = false;
             try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"); light = (k?.GetValue("SystemUsesLightTheme") as int?) == 1; } catch (Exception) { }
             barTxt = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = light ? Brushes.Black : Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
-            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = 154, Height = 40, Content = BarContent(light),   /* stała szerokość - napis nie skacze */
+            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = BarW(), Height = 40, Content = BarContent(light),   /* stała szerokość - napis nie skacze */
                 ToolTip = "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu" };
             bar.ContextMenu = Menu();
             int dragX = 0; double dragOff = 0; bool drag = false;   // przesuwanie wzdłuż paska: zapamiętany odstęp od zegara
@@ -135,11 +135,23 @@ namespace VelivoMonitor
             var r1 = new StackPanel { Orientation = Orientation.Horizontal }; r1.Children.Add(lUp); r1.Children.Add(bUp);
             var r2 = new StackPanel { Orientation = Orientation.Horizontal }; r2.Children.Add(lDown); r2.Children.Add(bDown);
             ledTm?.Stop(); ledTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) }; ledTm.Tick += (s, e) => LedTick(); ledTm.Start();
-            var c1 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 90 }; c1.Children.Add(r1); c1.Children.Add(r2);
-            var c2 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 56, Margin = new Thickness(4, 0, 0, 0) }; c2.Children.Add(bGhz); c2.Children.Add(bCpu);
+            var c1 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 74 }; c1.Children.Add(r1); c1.Children.Add(r2);
+            var c2 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 56 }; c2.Children.Add(bGhz); c2.Children.Add(bCpu);
+            if (!Pok("up")) r1.Visibility = Visibility.Collapsed; if (!Pok("down")) r2.Visibility = Visibility.Collapsed;
+            if (!Pok("ghz")) bGhz.Visibility = Visibility.Collapsed; if (!Pok("cpu")) bCpu.Visibility = Visibility.Collapsed;
+            if (!Pok("up") && !Pok("down")) c1.Visibility = Visibility.Collapsed; if (!Pok("ghz") && !Pok("cpu")) c2.Visibility = Visibility.Collapsed;
             var all = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             all.Children.Add(c1); all.Children.Add(c2);
             barTxt = bUp; return all;
+        }
+        // 🧩 co pokazuje pasek (wybór w menu): wysyłanie, pobieranie, GHz, użycie procesora; szerokość tylko na wybrane kolumny
+        bool Pok(string k) => Get("pasek-" + k, "1") == "1";
+        double BarW() => 8 + (Pok("up") || Pok("down") ? 74 : 0) + (Pok("ghz") || Pok("cpu") ? 56 : 0);
+        void BarPokaz(string k)
+        {
+            Put("pasek-" + k, Pok(k) ? "0" : "1");
+            if (!new[] { "up", "down", "ghz", "cpu" }.Any(Pok)) Put("pasek-" + k, "1");   // choć jedna wartość zostaje
+            if (bar != null) { bar.Content = BarContent(ledLight); bar.Width = BarW(); BarText(); bar.UpdateLayout(); PlaceBar(); }
         }
         // napis na pasku: równe kolumny w obu wierszach (czcionka o stałej szerokości), strzałki świecą w LedTick
         void BarText()
@@ -273,6 +285,9 @@ namespace VelivoMonitor
             It("Widżet na pulpicie", ToggleWidget, () => wid != null);
             It("Widżet zawsze na wierzchu", ToggleTop, () => Get("widzet-wierzch", "1") == "1");
             It("Na pasku zadań", ToggleBar, () => bar != null);
+            var pok = new MenuItem { Header = "Na pasku pokazuj" }; cm.Items.Add(pok);
+            foreach (var (k, h) in new[] { ("up", "↑ Wysyłanie"), ("down", "↓ Pobieranie"), ("ghz", "Taktowanie procesora (GHz)"), ("cpu", "Użycie procesora (%)") })
+            { var mi = new MenuItem { Header = h, IsCheckable = true }; mi.Click += (s, e) => BarPokaz(k); cm.Opened += (s, e) => mi.IsChecked = Pok(k); pok.Items.Add(mi); }
             It("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);
             It("Uruchamiaj z Windows", ToggleAuto, AutoOn);
             cm.Items.Add(new Separator());

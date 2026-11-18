@@ -248,11 +248,16 @@ namespace Velivo
         internal static Dictionary<string, List<EpgItem>> ParseXmltv(Stream input, DateTime from, DateTime to, Dictionary<string, string> icons = null, IptvPlaylist only = null)
         {
             // 🧹 tylko kanały z listy (only): plik programu bywa ogromny (141 MB, tysiące kanałów z całego świata) - w pamięci zostawał program wszystkich (ponad 600 MB)
-            HashSet<string> want = null, keep = null;
+            HashSet<string> want = null, keep = null, wantArch = null, keepArch = null; var near = DateTime.Now.AddHours(-6);
             if (only != null && only.Channels.Count > 0)
             {
                 want = new HashSet<string>(StringComparer.OrdinalIgnoreCase); keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var c in only.Channels) { if (!string.IsNullOrEmpty(c.TvgId)) want.Add(c.TvgId); var nm = c.OrigName ?? c.Name; if (!string.IsNullOrEmpty(nm)) { want.Add(nm); var k = EpgKey(nm); if (k.Length > 0) want.Add(k); } }
+                wantArch = new HashSet<string>(StringComparer.OrdinalIgnoreCase); keepArch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var c in only.Channels)
+                {
+                    var set = HasCatchup(c) ? new[] { want, wantArch } : new[] { want };   // program sprzed kilku dni tylko dla kanałów z archiwum
+                    foreach (var w in set) { if (!string.IsNullOrEmpty(c.TvgId)) w.Add(c.TvgId); var nm = c.OrigName ?? c.Name; if (!string.IsNullOrEmpty(nm)) { w.Add(nm); var k = EpgKey(nm); if (k.Length > 0) w.Add(k); } }
+                }
             }
             var buf = new BufferedStream(input);
             var head = new byte[2];
@@ -285,14 +290,16 @@ namespace Velivo
                             }
                         }
                         if (icons != null && !string.IsNullOrEmpty(icon)) { icons[id] = icon; foreach (var dn in dns) if (!icons.ContainsKey(dn)) icons[dn] = icon; }
-                        if (keep != null && (want.Contains(id) || dns.Any(dn => want.Contains(dn) || want.Contains(EpgKey(dn))))) keep.Add(id);   // kanał z listy - jego program zostaje
+                        if (keep != null && (want.Contains(id) || dns.Any(dn => want.Contains(dn) || want.Contains(EpgKey(dn))))) keep.Add(id);
+                        if (keepArch != null && (wantArch.Contains(id) || dns.Any(dn => wantArch.Contains(dn) || wantArch.Contains(EpgKey(dn))))) keepArch.Add(id);   // kanał z listy - jego program zostaje
                     }
                     else if (r.Name == "programme")
                     {
                         var start = ParseXmltvTime(r.GetAttribute("start")); var stop = ParseXmltvTime(r.GetAttribute("stop"));
                         var ch = r.GetAttribute("channel") ?? "";
                         if (start == null || stop == null || stop < from || start > to) { r.Skip(); next = false; continue; }
-                        if (keep != null && keep.Count > 0 && !keep.Contains(ch) && !want.Contains(ch)) { r.Skip(); next = false; continue; }   // kanału nie ma na liście - bez wczytywania (pusty zbiór = plik bez opisu kanałów: wszystko jak dawniej)
+                        if (keep != null && keep.Count > 0 && !keep.Contains(ch) && !want.Contains(ch)) { r.Skip(); next = false; continue; }
+                        if (keepArch != null && keep.Count > 0 && stop < near && !keepArch.Contains(ch) && !wantArch.Contains(ch)) { r.Skip(); next = false; continue; }   // starsze niż 6 h - tylko kanały z archiwum (1 mln audycji dla wszystkich kanałów)   // kanału nie ma na liście - bez wczytywania (pusty zbiór = plik bez opisu kanałów: wszystko jak dawniej)
                         var it = new EpgItem { Start = start.Value, Stop = stop.Value };
                         using (var sub = r.ReadSubtree())
                         {

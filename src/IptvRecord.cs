@@ -194,6 +194,7 @@ namespace Velivo
                     var ic = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     var e = await Task.Run(() => { using (var fs = File.OpenRead(epgFile)) return ParseXmltv(fs, EpgFrom(_iptvPl, DateTime.Now), DateTime.Now.AddHours(30), ic, _iptvPl); });
                     if (_iptvEpg == null) { _iptvEpg = e; _iptvIcons = ic; }   // okno TV moglo w miedzyczasie wczytac swoje
+                    _ = Task.Run(PamiecOddaj);   // wczytanie 141 MB XML zostawia setki MB nieużywanej pamięci - oddajemy Windows
                 }
                 _iptvLoaded?.Invoke(); done?.Invoke();
             }

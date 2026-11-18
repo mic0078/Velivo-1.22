@@ -94,6 +94,17 @@ namespace Velivo
             _odtLekko.Start();
         }
 
+        // 🧹 sprzątanie po dużym wczytaniu (program TV): pełne GC z ułożeniem dużych obiektów i oddanie nieużywanej pamięci Windows
+        void PamiecOddaj()
+        {
+            try
+            {
+                System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                GC.Collect(2, GCCollectionMode.Forced, true, true); GC.WaitForPendingFinalizers();
+                SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1));
+            }
+            catch (Exception) { }
+        }
         // 🔬 pamięć Odtwarzacza w dzienniku: proces, sterta .NET i najwięksi podejrzani (lista kanałów, program TV, biblioteka, lektor)
         void PamiecLog()
         {

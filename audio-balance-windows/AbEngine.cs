@@ -309,13 +309,18 @@ namespace Velivo
         // przetwarzanie w porcjach od głośników: dźwięk → Audio Balance (w miejscu)
         sealed class Processing : ISampleProvider
         {
-            readonly ISampleProvider src; readonly AbProcessor proc; float[] tmp = new float[9600]; public AbEngine Owner; float pre = 1, post = 1;
+            readonly ISampleProvider src; readonly AbProcessor proc; float[] tmp = new float[9600]; public AbEngine Owner; float pre = 1, post = 1; int quietN; public volatile bool Idle;   // Idle - cisza ponad 3 s, przetwarzanie stoi
             public Processing(ISampleProvider s, AbProcessor p) { src = s; proc = p; }
             public WaveFormat WaveFormat => src.WaveFormat;
             public int Read(float[] buffer, int offset, int count)
             { RtThread();
                 int n = src.Read(buffer, offset, count); if (n < 2) return n;
                 n -= n & 1;
+                // 💤 cisza (nic nie gra) dłużej niż 3 s: bez przetwarzania i wtyczek VST - procesor odpoczywa; pierwszy dźwięk wraca do pełnej obróbki od razu
+                float pk = 0; for (int i = 0; i < n; i++) { float a = buffer[offset + i]; if (a > pk) pk = a; else if (-a > pk) pk = -a; }
+                if (pk < 1e-6f) { if (quietN < int.MaxValue - n) quietN += n / 2; } else quietN = 0;
+                if (quietN > 3 * 48000) { for (int i = 0; i < n; i++) buffer[offset + i] = 0; Idle = true; return n; }
+                Idle = false;
                 if (tmp.Length < n) tmp = new float[n];
                 // kopiowanie próbka po próbce - NAudio podaje tu tablicę bajtów „udającą” float[] (WaveBuffer); Array.Copy jej odmawia („Source array type cannot be assigned…”)
                 // 🎚 pełny poziom przed przetwarzaniem (płynnie, 20 ms - bez trzasku przy zmianie głośności)

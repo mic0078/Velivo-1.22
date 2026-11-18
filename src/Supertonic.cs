@@ -68,7 +68,7 @@ namespace Velivo
         readonly Dictionary<string, Style> _stStyles = new Dictionary<string, Style>();
         readonly SemaphoreSlim _stLock = new SemaphoreSlim(1, 1);
 
-        // 🧩 Velivo Odtwarzacz przy zegarze bez otwartych okien: zwalnia model lektora i oddaje Windows nieużywaną pamięć
+        // 🧩 Velivo Odtwarzacz bez odtwarzania (okna mogą być otwarte): zwalnia model lektora i oddaje Windows nieużywaną pamięć
         // (zostaje lekki dla Pilota i nagrań TV; przy filmie lektor wczytuje się znowu w tle - SupertonicWarm)
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr proc, IntPtr min, IntPtr max);
         System.Windows.Threading.DispatcherTimer _odtLekko; int _odtPusto;
@@ -78,9 +78,9 @@ namespace Velivo
             _odtLekko = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _odtLekko.Tick += (s, e) =>
             {
-                bool otwarte = new[] { _kanapa, _vlcWin, _libWin, _tvWin }.Any(w => w != null && w.IsVisible);   // Kanapa, odtwarzacz (też okienko), biblioteka, TV
-                if (otwarte) { _odtPusto = 0; return; }
-                if (++_odtPusto != 2) return;   // 2 minuty bez okien - raz, do następnego otwarcia
+                bool pauza = false; try { pauza = _playerMp != null && _playerMp.State == LibVLCSharp.Shared.VLCState.Paused; } catch (Exception) { }
+                if (PlayerBusy || pauza) { _odtPusto = 0; return; }   // gra film / TV - lektor potrzebny
+                if (++_odtPusto != 2) return;   // 2 minuty bez odtwarzania (także z otwartym oknem odtwarzacza, biblioteką, Kanapą) - raz, do następnego filmu; model lektora (~400 MB) wraca w tle przy włączeniu filmu
                 _ = Task.Run(async () =>
                 {
                     if (!await _stLock.WaitAsync(0)) return;   // lektor właśnie mówi - nie teraz

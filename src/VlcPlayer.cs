@@ -162,7 +162,7 @@ namespace Velivo
             public bool? Shared { get; set; }  // we wspolnej bibliotece; null = film z dysku sieciowego (NAS) wspolny, z dysku tego komputera prywatny
         }
 
-        internal static bool IsShared(LibraryVideo v) { return v.Shared ?? NetworkPath(v.Path) != null; }
+        internal static bool IsShared(LibraryVideo v) { return WFolderze(v.Path) || (v.Shared ?? NetworkPath(v.Path) != null); }   // plik z folderu serwera - zawsze wspólny, nigdy prywatny
 
         // wpis filmu w danej bibliotece (ten sam plik moze byc we wspolnej i prywatnej - kazda z wlasnym licznikiem); shared null = dowolna
         internal static LibraryVideo FindEntry(List<LibraryVideo> lib, string path, bool? shared)
@@ -293,8 +293,9 @@ namespace Velivo
                 {
                     if (!IsVlcVideoFile(f) || IsAudioFile(f)) continue;
                     var full = System.IO.Path.GetFullPath(f);
-                    if (!known.Add(((shared ?? NetworkPath(full) != null) ? "S|" : "P|") + full)) continue;
-                    lib.Add(new LibraryVideo { Path = full, Title = System.IO.Path.GetFileNameWithoutExtension(full), Added = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Shared = shared });
+                    var sh = WFolderze(full) ? true : shared;   // folder serwera - tylko we wspólnej
+                    if (!known.Add(((sh ?? NetworkPath(full) != null) ? "S|" : "P|") + full)) continue;
+                    lib.Add(new LibraryVideo { Path = full, Title = System.IO.Path.GetFileNameWithoutExtension(full), Added = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Shared = sh });
                     added++;
                 }
             }
@@ -861,7 +862,7 @@ namespace Velivo
                 var res = await System.Threading.Tasks.Task.Run(() =>
                 {
                     var mine = local.Where(v => Wariant.Serwer ? WFolderze(v.Path) : tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();
-                    if (Wariant.Serwer) mine = mine.GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();   // ten sam plik we wspólnej i prywatnej - raz   // 🎞 serwer: tylko filmy z jego folderów   // nagrania TV - tylko w swojej bibliotece
+                    mine = mine.GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();   // ten sam plik we wspólnej i prywatnej - raz   // 🎞 serwer: tylko filmy z jego folderów   // nagrania TV - tylko w swojej bibliotece
                     var all = new List<LibraryVideo>(mine);
                     var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
                     // ten sam film z NAS na kilku komputerach = jedna pozycja

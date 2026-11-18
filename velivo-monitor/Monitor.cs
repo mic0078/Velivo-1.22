@@ -109,7 +109,7 @@ namespace VelivoMonitor
         [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
         static readonly IntPtr Top = new IntPtr(-1);
 
-        Window bar; TextBlock barTxt, bUp, bDown, bGhz, bCpu; System.Windows.Shapes.Ellipse bDot; 
+        Window bar; TextBlock barTxt, bUp, bDown, bGhz, bCpu, lUp, lDown; System.Windows.Threading.DispatcherTimer ledTm; readonly Random ledRnd = new Random(); bool ledLight;
         void BuildBar()
         {
             bool light = false;
@@ -130,24 +130,38 @@ namespace VelivoMonitor
             var fg = light ? Brushes.Black : Brushes.White; var blue = new SolidColorBrush(light ? Color.FromRgb(0x3B, 0x5B, 0xDB) : Color.FromRgb(0x7C, 0x9C, 0xFF));
             TextBlock T(Brush c) { var t = new TextBlock { Foreground = c, FontSize = 12, FontFamily = new FontFamily("Segoe UI") }; System.Windows.Documents.Typography.SetNumeralAlignment(t, FontNumeralAlignment.Tabular); return t; }
             bUp = T(fg); bDown = T(fg); bGhz = T(blue); bCpu = T(blue);
-            bDot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
-            var r1 = new StackPanel { Orientation = Orientation.Horizontal }; r1.Children.Add(bDot); r1.Children.Add(bUp);
-            var r2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(11, 0, 0, 0) }; r2.Children.Add(bDown);
+            TextBlock Led(string a) { var t = new TextBlock { Text = a, FontSize = 12, FontWeight = FontWeights.Bold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 4, 0), Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 0, BlurRadius = 7, Opacity = 0 } }; return t; }
+            lUp = Led("↑"); lDown = Led("↓"); ledLight = light;
+            var r1 = new StackPanel { Orientation = Orientation.Horizontal }; r1.Children.Add(lUp); r1.Children.Add(bUp);
+            var r2 = new StackPanel { Orientation = Orientation.Horizontal }; r2.Children.Add(lDown); r2.Children.Add(bDown);
+            ledTm?.Stop(); ledTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) }; ledTm.Tick += (s, e) => LedTick(); ledTm.Start();
             var c1 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 90 }; c1.Children.Add(r1); c1.Children.Add(r2);
             var c2 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 56, Margin = new Thickness(4, 0, 0, 0) }; c2.Children.Add(bGhz); c2.Children.Add(bCpu);
             var all = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             all.Children.Add(c1); all.Children.Add(c2);
             barTxt = bUp; return all;
         }
-        // napis na pasku: równe kolumny w obu wierszach (czcionka o stałej szerokości), bez internetu - strzałki czerwone (nic się nie przesuwa)
+        // napis na pasku: równe kolumny w obu wierszach (czcionka o stałej szerokości), strzałki świecą w LedTick
         void BarText()
         {
             bool off = Internet.Wylaczony();
-            bDot.Fill = new SolidColorBrush(off ? Color.FromRgb(0xF8, 0x71, 0x71) : Color.FromRgb(0x4A, 0xDE, 0x80));
-            void Arrow(TextBlock t, string a, Color c, double v) { t.Inlines.Clear(); t.Inlines.Add(new System.Windows.Documents.Run(a) { Foreground = new SolidColorBrush(off ? Color.FromRgb(0xF8, 0x71, 0x71) : c) }); t.Inlines.Add(new System.Windows.Documents.Run(" " + Rate(v).Trim())); }
-            Arrow(bUp, "↑", Color.FromRgb(0xF5, 0xA5, 0x24), Up); Arrow(bDown, "↓", Color.FromRgb(0x4A, 0xDE, 0x80), Down);
+            bUp.Text = Rate(Up).Trim(); bDown.Text = Rate(Down).Trim();
             bGhz.Text = GhzText; bCpu.Text = Cpu.ToString("0") + " %";
             bar.ToolTip = (off ? "Internet WYŁĄCZONY (sieć domowa działa)\n" : "Internet włączony\n") +  "Przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu";
+        }
+        // 💡 strzałki świecą jak diody LED: błyskają, gdy płyną dane (im więcej, tym częściej); internet - ↑ żółta, ↓ zielona; internet wyłączony (sama sieć domowa) - fioletowe
+        void LedTick()
+        {
+            if (bar == null) { ledTm?.Stop(); return; }
+            bool off = Internet.Wylaczony();
+            void One(TextBlock t, double v, Color c)
+            {
+                if (off) c = Color.FromRgb(0xB0, 0x6C, 0xFF);
+                bool on = v > 300 && ledRnd.NextDouble() < Math.Min(0.85, 0.25 + Math.Log10(v / 300 + 1) / 4);
+                t.Foreground = new SolidColorBrush(on ? c : ledLight ? Color.FromRgb(0xA0, 0xA0, 0xA0) : Color.FromRgb(0x55, 0x55, 0x55));
+                var ef = (System.Windows.Media.Effects.DropShadowEffect)t.Effect; ef.Color = c; ef.Opacity = on ? 0.9 : 0;
+            }
+            One(lUp, Up, Color.FromRgb(0xF5, 0xC5, 0x18)); One(lDown, Down, Color.FromRgb(0x4A, 0xDE, 0x80));
         }
         void PlaceBar()
         {
@@ -267,7 +281,7 @@ namespace VelivoMonitor
         }
         void ToggleWidget() { if (wid != null) { wid.Close(); wid = null; Put("widzet", "0"); } else { BuildWidget(); Put("widzet", "1"); } }
         void ToggleTop() { bool on = Get("widzet-wierzch", "1") != "1"; Put("widzet-wierzch", on ? "1" : "0"); if (wid != null) wid.Topmost = on; }
-        void ToggleBar() { if (bar != null) { bar.Close(); bar = null; Put("pasek", "0"); } else { BuildBar(); Put("pasek", "1"); } }
+        void ToggleBar() { if (bar != null) { bar.Close(); bar = null; ledTm?.Stop(); Put("pasek", "0"); } else { BuildBar(); Put("pasek", "1"); } }
         // 🌐 internet wył./wł.: reguły zapory Windows (zmiana wymaga jednego „Tak” administratora - ten program uruchomiony z prawami tylko na tę chwilę)
         void ToggleNet()
         {

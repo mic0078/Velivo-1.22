@@ -78,13 +78,26 @@ namespace VelivoCentrum
         static readonly Brush Bg = new SolidColorBrush(Color.FromArgb(0xF2, 0x14, 0x18, 0x21)), Line = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), Fg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEB, 0xF0)),
             Dim = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB2)), Hover = new SolidColorBrush(Color.FromRgb(0x23, 0x2A, 0x37)), OnBg = new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)), OnFg = new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC));
 
+        // logo Velivo jak na telefonie: zaokrąglony kwadrat fiolet → turkus, jasne V i trzy linie ruchu
+        static UIElement Logo()
+        {
+            var cv = new Canvas { Width = 24, Height = 24 };
+            var bg = new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(6), Background = new LinearGradientBrush(Color.FromRgb(0x6A, 0x3B, 0xE0), Color.FromRgb(0x2B, 0xA6, 0xD8), new Point(0, 0), new Point(1, 1)) };
+            cv.Children.Add(bg);
+            var ink = new SolidColorBrush(Color.FromRgb(0xE4, 0xE6, 0xEA));
+            var v = new System.Windows.Shapes.Polyline { Points = new PointCollection { new Point(11, 6.5), new Point(15, 17.5), new Point(19, 6.5) }, Stroke = ink, StrokeThickness = 3.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round };
+            cv.Children.Add(v);
+            void L(double x1, double x2, double y) => cv.Children.Add(new System.Windows.Shapes.Line { X1 = x1, X2 = x2, Y1 = y, Y2 = y, Stroke = ink, StrokeThickness = 1.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Opacity = 0.85 });
+            L(4.5, 9, 9.5); L(5.5, 9.8, 12); L(6.5, 10.6, 14.5);
+            return new Border { Child = cv, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        }
         void BuildWin()
         {
             var head = new DockPanel { Margin = new Thickness(4, 2, 4, 8) };
-            var logo = new Image { Width = 24, Height = 24, Source = IconOf(ExePath), Margin = new Thickness(0, 0, 8, 0) };
+            var logo = Logo();
             count = new TextBlock { Foreground = Dim, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
             DockPanel.SetDock(logo, Dock.Left); DockPanel.SetDock(count, Dock.Right);
-            head.Children.Add(logo); head.Children.Add(count); head.Children.Add(new TextBlock { Text = "Velivo", Foreground = Fg, FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            head.Children.Add(logo); head.Children.Add(count); var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center }; name.Inlines.Add(new System.Windows.Documents.Run("Velivo") { Foreground = Fg, FontSize = 14, FontWeight = FontWeights.SemiBold }); name.Inlines.Add(new System.Windows.Documents.Run("  by MichAel") { Foreground = Dim, FontSize = 11 }); head.Children.Add(name);
             list = new StackPanel();
             Button B(string t, Action a) { var b = new Button { Content = t, Margin = new Thickness(3, 0, 3, 0), Padding = new Thickness(6), Foreground = Fg, Background = Hover, BorderThickness = new Thickness(0), Cursor = Cursors.Hand }; b.Click += (s, e) => a(); return b; }
             var foot = new UniformGridLite(B("Uruchom wszystkie", StartAll), B("Zamknij wszystkie", CloseAll));

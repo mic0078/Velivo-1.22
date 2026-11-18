@@ -218,15 +218,15 @@ namespace VelivoMonitor
             wSep = new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), Margin = new Thickness(0, 3, 0, 3) };
             var st = new StackPanel(); st.Children.Add(row1); st.Children.Add(wSep); st.Children.Add(row2);
             wid = new Window { Title = "Velivo Monitor – widżet", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, SizeToContent = SizeToContent.Height, Width = GW + 16,
-                Topmost = Get("widzet-wierzch", "1") == "1", WindowStartupLocation = WindowStartupLocation.Manual, Opacity = Math.Max(0.3, Math.Min(1, GetD("widzet-alfa", 0.9))),
-                Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xEB, 0x14, 0x18, 0x21)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(7, 4, 7, 4), Child = st },
+                Topmost = Get("widzet-wierzch", "1") == "1", WindowStartupLocation = WindowStartupLocation.Manual, Opacity = Math.Round(Math.Max(0.1, Math.Min(1, GetD("widzet-alfa", 0.9))), 1),
+                Content = new Border { Background = new SolidColorBrush(Color.FromRgb(0x14, 0x18, 0x21)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x32, 0x40)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(7, 4, 7, 4), Child = st },
                 ToolTip = "Górny wiersz: wysyłanie (żółte), pobieranie (zielone), procesor – wykres z ostatniej minuty.\nDolny wiersz: Velivo Audio Balance – głośność po wyrównaniu (LUFS) i zmiana; widać go, gdy Audio Balance działa.\nPrzeciągnij – przesuń · kółko myszy – przezroczystość · prawy przycisk – menu" };
             double x = GetD("widzet-x", SystemParameters.WorkArea.Right - 220), y = GetD("widzet-y", SystemParameters.WorkArea.Top + 20);
             if (x < SystemParameters.VirtualScreenLeft || x > SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 40 || y < SystemParameters.VirtualScreenTop || y > SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 30)
             { x = SystemParameters.WorkArea.Right - 220; y = SystemParameters.WorkArea.Top + 20; }   // odłączony drugi monitor - widżet wraca na główny ekran
             wid.Left = x; wid.Top = y;
             wid.MouseLeftButtonDown += (s, e) => { try { wid.DragMove(); Put("widzet-x", wid.Left); Put("widzet-y", wid.Top); } catch (Exception) { } };
-            wid.MouseWheel += (s, e) => { wid.Opacity = Math.Max(0.3, Math.Min(1, wid.Opacity + (e.Delta > 0 ? 0.1 : -0.1))); Put("widzet-alfa", wid.Opacity); };
+            wid.MouseWheel += (s, e) => { wid.Opacity = Math.Round(Math.Max(0.1, Math.Min(1, wid.Opacity + (e.Delta > 0 ? 0.1 : -0.1))), 1); Put("widzet-alfa", wid.Opacity); };
             wid.ContextMenu = Menu();
             wid.Show();
         }

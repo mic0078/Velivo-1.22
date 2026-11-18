@@ -52,13 +52,13 @@ namespace Velivo
             var outT = new TextBlock { Text = "–", Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; g.Children.Add(outT);
             var subT = new TextBlock { Foreground = dim, FontSize = 9, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; g.Children.Add(subT);
             var info = new TextBlock { Foreground = Brushes.Black };
-            w.Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xE0, 0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(14), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g };
+            w.Content = new Border { Background = new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1F)), CornerRadius = new CornerRadius(14), BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x7C, 0x5C, 0xFF)), BorderThickness = new Thickness(1), Child = g };
             w.MouseLeftButtonDown += (s, e) =>
             {
                 if (e.ClickCount == 2) { m.ShowMain(); return; }
                 try { w.DragMove(); m.Put("widzet-x", w.Left.ToString(CultureInfo.InvariantCulture)); m.Put("widzet-y", w.Top.ToString(CultureInfo.InvariantCulture)); } catch (Exception) { }
             };
-            w.MouseWheel += (s, e) => { w.Opacity = Math.Max(0.3, Math.Min(1, w.Opacity + (e.Delta > 0 ? 0.1 : -0.1))); m.Put("widzet-alfa", w.Opacity.ToString(CultureInfo.InvariantCulture)); };
+            w.MouseWheel += (s, e) => { w.Opacity = Math.Round(Math.Max(0.1, Math.Min(1, w.Opacity + (e.Delta > 0 ? 0.1 : -0.1))), 1); m.Put("widzet-alfa", w.Opacity.ToString(CultureInfo.InvariantCulture)); };
             var cm = new ContextMenu();
             MenuItem It(string h, Action act) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => act(); cm.Items.Add(mi); return mi; }
             It(L.T("🎚 Otwórz Audio Balance"), m.ShowMain);

@@ -115,7 +115,7 @@ namespace VelivoMonitor
             bool light = false;
             try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"); light = (k?.GetValue("SystemUsesLightTheme") as int?) == 1; } catch (Exception) { }
             barTxt = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = light ? Brushes.Black : Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
-            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = 226, Height = 40, Content = barTxt,   /* stała szerokość - napis nie skacze */
+            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = 172, Height = 40, Content = barTxt,   /* stała szerokość - napis nie skacze */
                 ToolTip = "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu" };
             bar.ContextMenu = Menu();
             int dragX = 0; double dragOff = 0; bool drag = false;   // przesuwanie wzdłuż paska: zapamiętany odstęp od zegara
@@ -123,6 +123,17 @@ namespace VelivoMonitor
             bar.MouseMove += (s, e) => { if (!drag) return; set["pasek-odstep"] = Math.Max(0, dragOff + (dragX - System.Windows.Forms.Cursor.Position.X)).ToString(System.Globalization.CultureInfo.InvariantCulture); PlaceBar(); };
             bar.MouseLeftButtonUp += (s, e) => { if (!drag) return; drag = false; bar.ReleaseMouseCapture(); Put("pasek-odstep", GetD("pasek-odstep", 0)); };
             bar.Show(); PlaceBar();
+        }
+        // napis na pasku: równe kolumny w obu wierszach (czcionka o stałej szerokości), bez internetu - strzałki czerwone (nic się nie przesuwa)
+        void BarText()
+        {
+            bool off = Internet.Wylaczony(); var arrow = off ? (Brush)new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) : barTxt.Foreground;
+            string r1 = Rate(Up).Trim().PadLeft(10), r2 = Rate(Down).Trim().PadLeft(10);
+            string c1 = (Ghz > 0 ? Ghz.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "GHz" : "–").PadLeft(7), c2 = (Cpu.ToString("0") + "%").PadLeft(7);
+            barTxt.Inlines.Clear();
+            barTxt.Inlines.Add(new System.Windows.Documents.Run("↑") { Foreground = arrow }); barTxt.Inlines.Add(new System.Windows.Documents.Run(r1 + " CPU " + c1 + "\n"));
+            barTxt.Inlines.Add(new System.Windows.Documents.Run("↓") { Foreground = arrow }); barTxt.Inlines.Add(new System.Windows.Documents.Run(r2 + " CPU " + c2));
+            bar.ToolTip = (off ? "Internet WYŁĄCZONY (sieć domowa działa)\n" : "") + "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu";
         }
         void PlaceBar()
         {
@@ -286,7 +297,7 @@ namespace VelivoMonitor
             {
                 Sample();
                 TrayIcon();
-                if (bar != null) { barTxt.Text = (Internet.Wylaczony() ? "🌐✕ " : "") + "↑ " + Rate(Up) + "  CPU: " + GhzText + "\n↓ " + Rate(Down) + "  CPU: " + Cpu.ToString("0") + " %"; PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
+                if (bar != null) { BarText(); PlaceBar(); }   // co sekundę z powrotem nad paskiem (kliknięcie w pasek go przykrywa)
                 if (wid != null) { DrawGraph(); Val(wUp, "↑ ", Up, maxUp); Val(wDown, "↓ ", Down, maxDown); wCpu.Text = "CPU " + GhzText + " · " + Cpu.ToString("0") + " %"; bool off = Internet.Wylaczony(); wNet.Text = off ? "bez internetu" : "internet"; wNet.Foreground = off ? new SolidColorBrush(Color.FromRgb(0xFC, 0xA5, 0xA5)) : new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC)); wNetB.Background = off ? new SolidColorBrush(Color.FromRgb(0x3A, 0x1D, 0x1D)) : new SolidColorBrush(Color.FromRgb(0x14, 0x32, 0x1F)); }
             };
             t.Start();

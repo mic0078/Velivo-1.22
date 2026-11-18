@@ -1,16 +1,14 @@
 <!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Pasek Monitora</title>
 <style>body{background:#15181e;color:#e8ebf0;font:14px "Segoe UI",sans-serif;margin:0;padding:16px}
-h2{font-size:14px;margin:14px 0 6px;color:#c5cfdd}.bar{background:#1c1c1c;height:40px;display:flex;align-items:center;gap:12px;padding:0 10px;width:440px;border-radius:4px}
-.t{font:12px Consolas,monospace;line-height:16px;white-space:pre;color:#fff}.r{color:#f87171}.g{color:#8b95a5}
-.ic{width:20px;height:20px;border-radius:5px}</style></head><body>
-<h2>Teraz – emoji na początku przesuwa pierwszy wiersz, duże odstępy</h2>
-<div class="bar"><div class="t">🌐✕ ↑    0.04 KB/s  CPU: 2.14 GHz
-↓    0.19 KB/s  CPU: 16 %</div></div>
-<h2>Propozycja – równe kolumny, bez emoji; bez internetu: strzałki czerwone i „✕” w stałym miejscu</h2>
-<div class="bar"><div class="t">↑  5.05 KB/s  CPU 4.36 GHz
-↓ 15.59 KB/s  CPU   21 %</div></div>
-<div style="height:8px"></div>
-<div class="bar"><div class="t"><span class="r">✕↑</span> 0.04 KB/s  CPU 2.14 GHz
-<span class="r">✕↓</span> 0.19 KB/s  CPU   16 %</div></div>
-<p style="color:#9aa3b2;font-size:12px;max-width:440px">Każdy znak w tej samej kolumnie w obu wierszach. Liczby wyrównane do prawej w stałej szerokości – nic nie skacze. Bez internetu przed strzałkami czerwone „✕” (w obu wierszach, więc nie przesuwa układu).</p>
+h2{font-size:14px;margin:14px 0 6px;color:#c5cfdd}.bar{background:#1c1c1c;height:40px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:4px;width:fit-content}
+.t{font:12px Consolas,"Courier New",monospace;line-height:16px;white-space:pre;color:#fff;width:172px}.r{color:#f87171}.i{width:18px;height:18px;border-radius:4px;background:#22a34a}.v{width:18px;height:18px;border-radius:4px;background:linear-gradient(135deg,#6d28d9,#22b8d8)}</style></head><body>
+<h2>Teraz (szeroko, emoji przesuwa górny wiersz)</h2>
+<div class="bar"><div class="t" style="width:226px">🌐✕ ↑    0.04 KB/s  CPU: 2.14 GHz
+↓    0.19 KB/s  CPU: 16 %</div><div class="i"></div><div class="v"></div></div>
+<h2>Nowe – internet jest</h2>
+<div class="bar"><div class="t">↑  5.05 KB/s CPU 4.36GHz
+↓ 15.59 KB/s CPU     21%</div><div class="i"></div><div class="v"></div></div>
+<h2>Nowe – bez internetu (tylko strzałki czerwone, nic się nie przesuwa)</h2>
+<div class="bar"><div class="t"><span class="r">↑</span>  0.04 KB/s CPU 2.14GHz
+<span class="r">↓</span>  0.19 KB/s CPU     16%</div><div class="i"></div><div class="v"></div></div>
 </body></html>

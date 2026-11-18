@@ -24,6 +24,7 @@ namespace Velivo
         void SerwerStart()
         {
             if (!Wariant.Serwer || _serwerTm != null) return;
+            WymusCiemne = true;   // okna serwera w ciemnym wyglądzie Velivo
             _serwerTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
             _serwerTm.Tick += (s, e) => SerwerSkanuj(false);
             _serwerTm.Start();

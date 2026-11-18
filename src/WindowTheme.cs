@@ -26,7 +26,8 @@ namespace Velivo
         }
 
         static string _winTheme = "light";
-        internal static bool DarkWindows { get { return _winTheme == "dark" || _winTheme == "auto" && WindowsAppsDark(); } }
+        internal static bool WymusCiemne;   // Velivo Serwer filmów - zawsze ciemny wygląd Velivo
+        internal static bool DarkWindows { get { return WymusCiemne || _winTheme == "dark" || _winTheme == "auto" && WindowsAppsDark(); } }
 
         // ciemne okna w kolorach Velivo (jak motyw "Velivo nocny" okna glownego), nie szare
         static readonly Brush DarkBg = Frozen("#1B1733"), DarkPanel = Frozen("#2E2768"), DarkBorder = Frozen("#4A3F8A"), DarkFg = Frozen("#ECE8FF"), DarkHeader = Frozen("#241F45");

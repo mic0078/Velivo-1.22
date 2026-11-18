@@ -117,6 +117,7 @@ namespace Velivo
             }
             // sam film (skojarzenie plikow, odtwarzacz "jak VLC"): tylko okno odtwarzacza - bez wyciagania przegladarki na wierzch
             if (OnlyVlcVideos(urls)) { foreach (var u in urls) OpenArg(u); return; }
+            if (!Wariant.MaKarty) { ShowFromTray(); return; }   // 🧩 Klawiatura / Odtwarzacz uruchomione ponownie (np. z Velivo Centrum): ich okno - nigdy karta przeglądarki
             if (_inTray) { ShowFromTray(); if (urls.Length == 0) return; }
             if (urls.Length == 0) AddTab(NewTabUrl);
             foreach (var u in urls) OpenArg(u);

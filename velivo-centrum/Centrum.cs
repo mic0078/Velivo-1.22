@@ -136,7 +136,7 @@ namespace VelivoCentrum
                 bd.MouseRightButtonUp += (s, e) => { if (run && ProgMenu(pp)) { e.Handled = true; win.Hide(); } else { cm.PlacementTarget = bd; cm.IsOpen = true; e.Handled = true; } };
                 // 📌 pokazywać też przy zegarze (obok Centrum) - zapamiętane dla programu
                 bool pin = Pinned(pp);
-                var pinB = new TextBlock { Text = "📌", FontSize = 13, Opacity = pin ? 1 : 0.3, Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand,
+                var pinB = new TextBlock { Text = pin ? "\uE718" : "\uE77A", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 14, Foreground = pin ? new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)) : Dim, Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Background = Brushes.Transparent,   // pinezka: żółta = też przy zegarze, szara przekreślona = tylko w Centrum
                     ToolTip = pin ? "Pokazywany też przy zegarze – kliknij, aby tylko w Centrum" : "Tylko w Centrum – kliknij, aby pokazywać też przy zegarze" };
                 pinB.MouseLeftButtonUp += (s, e) => { SetPinned(pp, !Pinned(pp)); e.Handled = true; Fill(); };
                 DockPanel.SetDock(pinB, Dock.Right); row.Children.Insert(2, pinB); bd.Tag = cm;

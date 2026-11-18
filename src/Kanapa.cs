@@ -318,7 +318,7 @@ namespace Velivo
                             var pe = peers[i]; var items = got[i];
                             if (items == null) { box.Children.Add(new TextBlock { Text = pe.Device + L.T(" – nie odpowiada"), FontSize = 18, Foreground = KnDim, Margin = new Thickness(0, 0, 0, 16) }); continue; }
                             var q = szukaj.Text.Trim();
-                            var l = items.Where(x => q.Length == 0 || (x.m?.Name ?? x.t ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).OrderBy(x => x.m?.Name ?? x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
+                            var l = items.Where(x => x.sv).Where(x => q.Length == 0 || (x.m?.Name ?? x.t ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).OrderBy(x => x.m?.Name ?? x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
                             if (l.Count == 0) continue; n += l.Count;
                             box.Children.Add(new TextBlock { Text = "🎞 " + pe.Device + "  (" + l.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
                             box.Children.Add(Wrap(l.Select(x =>

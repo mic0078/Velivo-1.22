@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -62,6 +62,7 @@ namespace Velivo
             public string fn { get; set; }  // nazwa pliku (dopasowanie informacji o filmie, np. z Jellyfin)
             public LibraryVideo f { get; set; }   // ustawienia filmu
             public MovieInfo m { get; set; }   // opis, obsada, gatunek, rok (jak w Jellyfin) - z biblioteki tamtego komputera
+            public bool sv { get; set; }      // 🎞 film z folderu Velivo Serwer filmów (Kanapa → Moje serwery pokazuje tylko te)
             public string pu { get; set; }    // plakat: adres na serwerze filmów tamtego komputera (tylko dla tego komputera, 12 h)
         }
 
@@ -392,7 +393,7 @@ namespace Velivo
                 {
                     i = FilmId(v.Path), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
                     n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path), m = mi, pu = pu,
-                    u = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path),   // film z Jellyfin serwera - strumień wprost z Jellyfin
+                    u = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path), sv = NaSerwerze(v),   // film z Jellyfin serwera - strumień wprost z Jellyfin
                 };
             }).ToList();
         }

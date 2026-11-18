@@ -20,15 +20,24 @@ namespace Velivo
         static List<string> _serwerFol; static DateTime _serwerFolAt;
         static List<string> SerwerFolderyTeraz() { if (Wariant.Serwer) return SerwerFoldery(); if (_serwerFol == null || (DateTime.UtcNow - _serwerFolAt).TotalSeconds > 10) { _serwerFol = SerwerFolderyZPliku(); _serwerFolAt = DateTime.UtcNow; } return _serwerFol; }
         // foldery serwera prosto z pliku ustawień (okna.txt) - Odtwarzacz na tym samym komputerze widzi zmiany Serwera bez ponownego uruchomienia
-        static List<string> SerwerFolderyZPliku()
+        static string PrefZPliku(string k)
         {
-            try { foreach (var l in File.ReadAllLines(WindowsFile)) if (l.StartsWith("ust:serwer-foldery\t")) return l.Substring(19).Split('|').Where(x => x.Length > 0).ToList(); } catch (Exception) { }
-            return SerwerFoldery();
+            try { foreach (var l in File.ReadAllLines(WindowsFile)) if (l.StartsWith("ust:" + k + "\t")) return l.Substring(k.Length + 5); } catch (Exception) { return GetPref(k); }
+            return null;
+        }
+        static List<string> SerwerFolderyZPliku() => (PrefZPliku("serwer-foldery") ?? "").Split('|').Where(x => x.Length > 0).ToList();
+        // 🎞 film należy do serwera: plik z folderu serwera albo (gdy włączone w oknie serwera) film z Jellyfin
+        static bool _serwerJf; static DateTime _serwerJfAt;
+        bool NaSerwerze(LibraryVideo v)
+        {
+            if (File.Exists(v.Path)) return WFolderze(v.Path);
+            if (Wariant.Serwer) _serwerJf = GetPref("serwer-jellyfin") == "1"; else if ((DateTime.UtcNow - _serwerJfAt).TotalSeconds > 10) { _serwerJf = PrefZPliku("serwer-jellyfin") == "1"; _serwerJfAt = DateTime.UtcNow; }
+            return _serwerJf && JellyfinStreamUrl(v.Path) != null;
         }
         System.Windows.Threading.DispatcherTimer _serwerTm; bool _serwerSkan;
         // co serwer pokazuje innym: tylko filmy z jego folderów (nie cała biblioteka komputera); filmy z Jellyfin - tylko gdy włączone
         static bool WFolderze(string p) => SerwerFolderyTeraz().Any(f => p.StartsWith(f.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
-        bool SerwerUdostepnia(LibraryVideo v) => File.Exists(v.Path) ? WFolderze(v.Path) : GetPref("serwer-jellyfin") == "1" && JellyfinStreamUrl(v.Path) != null;
+        bool SerwerUdostepnia(LibraryVideo v) => NaSerwerze(v);
 
         void SerwerStart()
         {

@@ -41,6 +41,16 @@ public class KopiaTests
     [InlineData("Xtts/moj-glos.wav", true)]
     public void PelnaKopia(string rel, bool want) => Assert.Equal(want, MainWindow.BackupInclude(rel, true));
 
+    [Theory]
+    [InlineData("iptv/logo/1.img", "odtwarzacz")]
+    [InlineData("Profil-VelivoPrzegladarka/EBWebView/Default/Cookies", "przegladarka")]
+    [InlineData("komunikator-skrzynka.json", "komunikator")]
+    [InlineData("skrzynka/abc/1.bin", "komunikator")]
+    [InlineData("klawiatura-slowa.bin", "klawiatura")]
+    [InlineData("Profil/EBWebView/Default/Cookies", "velivo")]
+    [InlineData("zakladki.txt", null)]
+    public void ProgramPliku(string rel, string id) => Assert.Equal(id, KopiaSkladniki.Wlasciciel(rel)?.Id);
+
     // kopia przyrostowa: przywracanie sklada lancuch od najblizszej pelnej do wybranego przyrostu
     [Fact]
     public void LancuchPrzywracania()

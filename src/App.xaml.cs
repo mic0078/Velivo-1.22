@@ -95,7 +95,8 @@ namespace Velivo
             int autoDelay = Velivo.MainWindow.TakeAutostartArg(args);
             bool kbdOnly = args.Remove("--klawiatura");   // skrot "Velivo Klawiatura" (do przypiecia na pasku zadan): sama klawiatura ekranowa
             bool chatOnly = args.Remove("--komunikator");
-            bool tidyOnly = args.Remove("--porzadki");   // Velivo Centrum: okno „Porządki i kopia bezpieczeństwa”   // skrot "Komunikator Velivo": samo okno komunikatora, przegladarka w zasobniku
+            bool tidyOnly = args.Remove("--porzadki");   // Velivo Centrum: okno „Porządki i kopia bezpieczeństwa”
+            string kopia = null; int ki = args.IndexOf("--kopia"); if (ki >= 0) { kopia = ki + 1 < args.Count ? args[ki + 1] : "przyrost"; args.RemoveRange(ki, Math.Min(2, args.Count - ki)); }   // Velivo Centrum: kopia w tle (przyrost / pelna)   // skrot "Komunikator Velivo": samo okno komunikatora, przegladarka w zasobniku
             if (autoDelay > 0) System.Threading.Thread.Sleep(autoDelay * 1000);
             int p = args.IndexOf("--profil");
             string requestedProfile = null;
@@ -139,7 +140,7 @@ namespace Velivo
             // (pierwsze przyjmuje adresy dopiero po wczytaniu kart; dawniej nieudane przekazanie w tym czasie otwieralo drugie okno: dwa serwery, dwie synchronizacje)
             if (!Velivo.MainWindow.TryBecomePrimary())
             {
-                var fwd = kbdOnly ? new[] { "--klawiatura" } : chatOnly ? new[] { "--komunikator" } : tidyOnly ? new[] { "--porzadki" } : urls;
+                var fwd = kbdOnly ? new[] { "--klawiatura" } : chatOnly ? new[] { "--komunikator" } : tidyOnly ? new[] { "--porzadki" } : kopia != null ? new[] { "--kopia", kopia } : urls;
                 for (int i = 0; i < 20 && !Velivo.MainWindow.SendToPrimary(fwd); i++) System.Threading.Thread.Sleep(1000);   // do ~80 s (3 s na probe + 1 s)
                 Shutdown();
                 return;
@@ -147,11 +148,12 @@ namespace Velivo
             WatchUncleanExit();
             var main = new Velivo.MainWindow(urls);
             if (Velivo.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
-            else if ((autoDelay >= 0 || kbdOnly || chatOnly || tidyOnly || !Wariant.MaKarty) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
+            else if ((autoDelay >= 0 || kbdOnly || chatOnly || tidyOnly || kopia != null || !Wariant.MaKarty) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
             main.Show();
             if (kbdOnly) main.Dispatcher.BeginInvoke(new Action(Velivo.MainWindow.ShowScreenKeyboard), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (chatOnly) main.Dispatcher.BeginInvoke(new Action(() => main.ShowMessenger()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (tidyOnly) main.Dispatcher.BeginInvoke(new Action(() => main.ShowTidy()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (kopia != null) main.Dispatcher.BeginInvoke(new Action(() => main.KopiaZCentrum(kopia == "przyrost", true)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         // nagle zamkniecie (blad w VLC / WebView2 / systemie - bez wpisu w bledy.log): znacznik dziala.txt zostaje,

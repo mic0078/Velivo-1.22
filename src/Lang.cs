@@ -1718,6 +1718,7 @@ namespace Velivo
             { "Ostatnia wieść", "Last heard" },
             { "Otwórz zaporę Windows", "Open Windows firewall" },
             { "Pliki", "Files" },
+            { "Hasło przeniesienia (ustawione w Velivo Centrum na komputerze, na którym zrobiono kopię). Zostaw puste, jeśli przywracasz na tym samym koncie Windows:", "Transfer password (set in Velivo Centrum on the computer where the backup was made). Leave empty when restoring on the same Windows account:" },
             { "Port", "Port" },
             { "Połączeni przez internet", "Connected over the internet" },
             { "Połączeni przez internet: ", "Connected over the internet: " },

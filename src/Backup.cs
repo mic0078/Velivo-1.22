@@ -93,6 +93,7 @@ namespace Velivo
             using (var fs = new FileStream(tmp, FileMode.Create))
             using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
             {
+                var przen = PrzenosnaStart(zip);   // hasło przeniesienia ustawione - pliki konta Windows także w postaci do przeniesienia
                 var own = Path.GetFullPath(Path.GetDirectoryName(zipPath)).TrimEnd('\\') + "\\";
                 foreach (var f in Directory.EnumerateFiles(DataRoot, "*", SearchOption.AllDirectories))
                 {
@@ -100,6 +101,7 @@ namespace Velivo
                     if (f.StartsWith(own, StringComparison.OrdinalIgnoreCase) || (Path.GetFileName(f).StartsWith(BackupPrefix, StringComparison.OrdinalIgnoreCase) && f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))) continue;
                     var rel = Path.GetRelativePath(DataRoot, f);
                     if (!BackupInclude(rel, full)) continue;
+                    var ow = KopiaSkladniki.Wlasciciel(rel); if (ow != null && !KopiaSkladniki.WKopii(ow.Id)) continue;   // program wyłączony z kopii (Centrum / 🧹)
                     var key = rel.Replace('\\', '/'); string stamp;
                     try { var fi = new FileInfo(f); stamp = fi.Length + ":" + fi.LastWriteTimeUtc.Ticks; } catch (Exception) { continue; }
                     manifest.Add(key + "\t" + stamp); seen.Add(key);
@@ -109,10 +111,32 @@ namespace Velivo
                         using (var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                         using (var dst = zip.CreateEntry(rel.Replace('\\', '/'), BackupPacked(f) ? CompressionLevel.NoCompression : CompressionLevel.Optimal).Open())
                             src.CopyTo(dst);
+                        PrzenosnaDodaj(przen, zip, key, f);
                         n++; if (n % 25 == 0) progress?.Invoke(n);
                     }
                     catch (Exception) { }   // plik zablokowany na wylacznosc - pomijamy
                 }
+                foreach (var sk in KopiaSkladniki.Wszystkie.Where(x => x.Inny != null && KopiaSkladniki.WKopii(x.Id)))
+                {   // Audio Balance, Monitor: własne foldery obok danych - w kopii jako _inne/<program>/
+                    var root = KopiaSkladniki.FolderInny(sk); if (!Directory.Exists(root)) continue;
+                    foreach (var f in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                    {
+                        if (f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".part", StringComparison.OrdinalIgnoreCase)) continue;
+                        var key = "_inne/" + sk.Id + "/" + Path.GetRelativePath(root, f).Replace('\\', '/'); string stamp;
+                        try { var fi = new FileInfo(f); stamp = fi.Length + ":" + fi.LastWriteTimeUtc.Ticks; } catch (Exception) { continue; }
+                        manifest.Add(key + "\t" + stamp); seen.Add(key);
+                        if (prev != null && prev.TryGetValue(key, out var old) && old == stamp) continue;
+                        try
+                        {
+                            using (var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                            using (var dst = zip.CreateEntry(key, CompressionLevel.Optimal).Open())
+                                src.CopyTo(dst);
+                            n++; if (n % 25 == 0) progress?.Invoke(n);
+                        }
+                        catch (Exception) { }
+                    }
+                }
+                PrzenosnaKoniec(zip);   // ścieżki tego konta i ustawienia z rejestru - przeniesienie na inny komputer
                 using (var w = new StreamWriter(zip.CreateEntry("_manifest.txt").Open())) foreach (var l in manifest) w.WriteLine(l);
                 if (prev != null)   // pliki usuniete od poprzedniej kopii - przy przywracaniu tez znikna
                     using (var w = new StreamWriter(zip.CreateEntry("_usuniete.txt").Open())) foreach (var k in prev.Keys.Where(k => !seen.Contains(k))) w.WriteLine(k);
@@ -145,14 +169,17 @@ namespace Velivo
             catch (Exception) { }
         }
 
-        string BackupDir { get { var d = GetPref("kopia-folder"); return string.IsNullOrWhiteSpace(d) ? DefaultBackupDir : d; } }
+        // ustawienia kopii: rejestr (wspólny z Velivo Centrum), zapasowo dawne ustawienie Velivo
+        static string KP(string k) => KopiaSkladniki.Get(k) ?? GetPref(k);
+        static void KPSet(string k, string v) { KopiaSkladniki.Set(k, v); SetPref(k, v); }
+        string BackupDir { get { var d = KP("kopia-folder"); return string.IsNullOrWhiteSpace(d) ? DefaultBackupDir : d; } }
         string NewBackupPath(bool inc = false) { return Path.Combine(BackupDir, BackupPrefix + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + (inc ? IncSuffix : "") + ".zip"); }
 
         // jedna kopia: inc == null - wg ustawien (przyrostowa, gdy wlaczona i jest pelna z ostatnich 7 dni), true - przyrostowa na zyczenie
         // (gdy jest od czego - inaczej pelna), false - pelna na zyczenie; zwraca sciezke i liczbe plikow
         (string Path, int Count) MakeBackupNow(bool? inc = null, Action<int> progress = null)
         {
-            bool full = GetPref("kopia-pelna") != "0", incOn = inc ?? GetPref("kopia-przyrost") != "0"; var dir = BackupDir;
+            bool full = KP("kopia-pelna") != "0", incOn = inc ?? KP("kopia-przyrost") != "0"; var dir = BackupDir;
             if (Directory.Exists(dir))   // resztki przerwanych kopii (program zamknięty w trakcie) - kopia zapisywana teraz jest otwarta i się nie usunie
                 foreach (var p in new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip.part")) try { p.Delete(); } catch (Exception) { }
             Dictionary<string, string> prev = null;
@@ -160,14 +187,28 @@ namespace Velivo
             {
                 var all = new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip").OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
                 var lastFull = all.LastOrDefault(x => !IsIncrement(x.Name));
-                var kind = GetPref("kopia-rodzaj-ostatniej"); bool sameKind = kind == null || kind == (full ? "pelna" : "podstawowa");   // brak zapisu (inny program Velivo) - przyrost, nie nowa pelna   // zmiana rodzaju - nowa pelna kopia
+                var kind = KP("kopia-rodzaj-ostatniej"); bool sameKind = kind == null || kind == (full ? "pelna" : "podstawowa");   // brak zapisu (inny program Velivo) - przyrost, nie nowa pelna   // zmiana rodzaju - nowa pelna kopia
                 if (lastFull != null && (DateTime.Now - lastFull.LastWriteTime < TimeSpan.FromDays(7) || inc == true) && sameKind) prev = ReadManifest(all.Last().FullName);
             }
             var path = NewBackupPath(prev != null);
             int n = CreateBackup(path, full, prev, progress);
             TrimBackups(dir, 5);
-            SetPref("kopia-rodzaj-ostatniej", full ? "pelna" : "podstawowa");
+            KPSet("kopia-rodzaj-ostatniej", full ? "pelna" : "podstawowa");
             return (path, n);
+        }
+
+        // gdzie wraca plik z kopii: _inne/<program>/... - folder programu obok danych, reszta - folder danych; poza nimi - nic
+        static string RestoreTarget(string key)
+        {
+            string root = DataRoot, rel = key;
+            if (key.StartsWith("_inne/", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = key.Split(new[] { '/' }, 3); var sk = p.Length == 3 ? KopiaSkladniki.Wszystkie.FirstOrDefault(x => x.Inny != null && x.Id == p[1]) : null;
+                if (sk == null) return null;
+                root = KopiaSkladniki.FolderInny(sk); rel = p[2];
+            }
+            var dest = Path.GetFullPath(Path.Combine(root, rel));
+            return dest.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? dest : null;
         }
 
         // przywracanie: przy nastepnym starcie, zanim cokolwiek otworzy pliki danych (wolane z App przed oknem)
@@ -176,49 +217,77 @@ namespace Velivo
             try
             {
                 if (!File.Exists(RestoreMarker)) return;
-                var chain = File.ReadAllLines(RestoreMarker).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();   // pelna + przyrosty po kolei
+                var lines = File.ReadAllLines(RestoreMarker).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+                var haslo = HasloZeZnacznika(lines);   // hasło przeniesienia (inne konto / komputer)
+                var chain = lines.Where(x => !x.StartsWith("#")).ToList();   // pelna + przyrosty po kolei
                 File.Delete(RestoreMarker);
+                var bez = new List<string>(); int przen = 0;
                 foreach (var zipPath in chain.Where(File.Exists))
                 using (var zip = ZipFile.OpenRead(zipPath))
                 {
+                    var map = SciezkiMapa(zip);   // stare konto / foldery → obecne
                     foreach (var e in zip.Entries)
                     {
-                        if (string.IsNullOrEmpty(e.Name) || e.FullName == "_manifest.txt" || e.FullName == "_usuniete.txt") continue;
+                        if (string.IsNullOrEmpty(e.Name) || e.FullName == "_manifest.txt" || e.FullName == "_usuniete.txt" || PrzenosnyWpis(e.FullName)) continue;
                         if (e.FullName.StartsWith("_Instalator/", StringComparison.OrdinalIgnoreCase))
                         {   // nie dane: instalator i instrukcja zostaja w kopii; modul TV - wlaczany, jak byl
                             if (e.Name == "iptv.on" && VlcInstalled && !File.Exists(IptvMarker)) try { File.WriteAllText(IptvMarker, ""); } catch (Exception) { }
                             continue;
                         }
-                        var dest = Path.GetFullPath(Path.Combine(DataRoot, e.FullName));
-                        if (!dest.StartsWith(Path.GetFullPath(DataRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) continue;   // tylko w folderze danych
+                        var dest = RestoreTarget(e.FullName); if (dest == null) continue;   // tylko w folderze danych (i folderach Audio Balance / Monitora)
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
                         e.ExtractToFile(dest, true);
+                        SciezkiWPliku(dest, map);
                     }
+                    przen += PrzenosnaPrzywroc(zip, haslo, map, bez);
+                    RejestrPrzywroc(zip, map);
                     var del = zip.GetEntry("_usuniete.txt");   // przyrost: pliki usuniete od poprzedniej kopii
                     if (del != null)
                         using (var r = new StreamReader(del.Open()))
                             for (string l; (l = r.ReadLine()) != null;)
                             {
-                                var t = Path.GetFullPath(Path.Combine(DataRoot, l));
-                                if (t.StartsWith(Path.GetFullPath(DataRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) try { File.Delete(t); } catch (Exception) { }
+                                var t = RestoreTarget(l);
+                                if (t != null) try { File.Delete(t); } catch (Exception) { }
                             }
                 }
+                bez = bez.Distinct().ToList();
+                App.LogInfo("Przywrócono kopię: " + chain.Count + " plik(ów) kopii; pliki konta z hasła przeniesienia: " + przen + (bez.Count > 0 ? "; NIE przeniesione (brak / złe hasło przeniesienia): " + string.Join(", ", bez) : ""));
+                if (bez.Count > 0) MessageBox.Show("Velivo przywróciło kopię, ale tych danych nie dało się odszyfrować na tym koncie Windows (brak albo złe hasło przeniesienia):\n\n• " + string.Join("\n• ", bez.Take(12)) + "\n\nPrzywróć kopię jeszcze raz z Velivo Centrum i wpisz hasło przeniesienia ustawione na starym komputerze.", "Velivo", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // 🧩 kopia zlecona przez Velivo Centrum: w tle, postęp w kopia-stan.txt (Centrum go czyta); zakoncz - program uruchomiony tylko do kopii
+        static bool _kopiaTrwa;
+        internal void KopiaZCentrum(bool inc, bool zakoncz)
+        {
+            var stan = Path.Combine(DataRoot, KopiaSkladniki.StanPlik);
+            void Pisz(string t) { try { File.WriteAllText(stan, t); } catch (Exception) { } }
+            if (_kopiaTrwa) return;   // już trwa - Centrum pokazuje jej postęp
+            _kopiaTrwa = true; Pisz("trwa|0");
+            Task.Run(() => MakeBackupNow(inc, k => Pisz("trwa|" + k))).ContinueWith(t =>
+            {
+                _kopiaTrwa = false;
+                if (t.IsFaulted) { App.LogError(t.Exception.GetBaseException()); Pisz("blad|" + t.Exception.GetBaseException().Message.Replace('\n', ' ')); }
+                else { Pisz("gotowe|" + t.Result.Path + "|" + t.Result.Count); KPSet("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture)); }
+                if (zakoncz) Dispatcher.BeginInvoke(new Action(() => Application.Current.Shutdown()));
+            });
         }
 
         // automatyczna kopia w tle (raz dziennie / w tygodniu), zostaje 5 ostatnich
         void AutoBackup()
         {
-            int days = int.TryParse(GetPref("kopia-auto"), out var d) ? d : 7;
+            foreach (var k in new[] { "kopia-folder", "kopia-auto", "kopia-pelna", "kopia-przyrost" })   // dawne ustawienia Velivo - do rejestru, żeby widziało je Velivo Centrum
+                if (KopiaSkladniki.Get(k) == null && GetPref(k) != null) KopiaSkladniki.Set(k, GetPref(k));
+            int days = int.TryParse(KP("kopia-auto"), out var d) ? d : 7;
             if (days <= 0) return;
-            DateTime last = DateTime.TryParse(GetPref("kopia-ostatnia"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var l) ? l : DateTime.MinValue;
+            DateTime last = DateTime.TryParse(KP("kopia-ostatnia"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var l) ? l : DateTime.MinValue;
             try { if (Directory.Exists(BackupDir)) foreach (var z in new DirectoryInfo(BackupDir).GetFiles(BackupPrefix + "*.zip")) if (z.LastWriteTime > last) last = z.LastWriteTime; } catch (Exception) { }   // data z samych kopii: wspólna dla wszystkich programów Velivo (zapis ustawienia mógł przepaść przy zamknięciu w trakcie)
             if (DateTime.Now - last < TimeSpan.FromDays(days)) return;
             Task.Run(() => MakeBackupNow()).ContinueWith(t =>
             {
                 if (t.IsFaulted) { App.LogError(t.Exception.GetBaseException()); return; }
-                Dispatcher.BeginInvoke(new Action(() => SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture))));
+                Dispatcher.BeginInvoke(new Action(() => KPSet("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture))));
             });
         }
 
@@ -296,7 +365,7 @@ namespace Velivo
             {
                 var d = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder na kopie Velivo (najlepiej inny dysk albo pendrive)") };
                 if (Directory.Exists(BackupDir)) d.InitialDirectory = BackupDir;
-                if (d.ShowDialog(w) == true) { SetPref("kopia-folder", d.FolderName); dirBox.Text = BackupDir; }
+                if (d.ShowDialog(w) == true) { KPSet("kopia-folder", d.FolderName); dirBox.Text = BackupDir; }
             };
             DockPanel.SetDock(pick, Dock.Right); dirRow.Children.Add(pick); dirRow.Children.Add(dirBox);
             sp.Children.Add(dirRow);
@@ -305,8 +374,8 @@ namespace Velivo
             var autoBox = new ComboBox { Width = 200 };
             var autoKeys = new[] { "1", "7", "0" };
             foreach (var t in new[] { "codziennie", "raz w tygodniu", "wyłączona" }) autoBox.Items.Add(L.T(t));
-            autoBox.SelectedIndex = Math.Max(0, Array.IndexOf(autoKeys, GetPref("kopia-auto") ?? "7"));
-            autoBox.SelectionChanged += (s, e) => SetPref("kopia-auto", autoKeys[Math.Max(0, autoBox.SelectedIndex)]);
+            autoBox.SelectedIndex = Math.Max(0, Array.IndexOf(autoKeys, KP("kopia-auto") ?? "7"));
+            autoBox.SelectionChanged += (s, e) => KPSet("kopia-auto", autoKeys[Math.Max(0, autoBox.SelectedIndex)]);
             autoRow.Children.Add(autoBox);
             autoRow.Children.Add(new TextBlock { Text = L.T("  (zostaje 5 ostatnich)"), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(autoRow);
@@ -316,12 +385,12 @@ namespace Velivo
                 Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Inlines = { new System.Windows.Documents.Run(t) { FontWeight = FontWeights.SemiBold }, new System.Windows.Documents.Run(" – " + d) { Foreground = Brushes.Gray } } } };
             var fullBox = kind(L.T("Pełna"), L.T("wszystko bez śmieci: dane, program TV, ikony kanałów, głosy lektora, narzędzia, dane stron. Po przywróceniu nic do pobierania. Około 0,7–1 GB."));
             var dataBox = kind(L.T("Podstawowa"), L.T("same dane bez śmieci: hasła, zakładki, historia, ustawienia, profile, listy kanałów, ulubione, biblioteka filmów z okładkami, playlisty, tryb bankowy, logowania. Około 90 MB; resztę Velivo pobierze samo."));
-            fullBox.IsChecked = GetPref("kopia-pelna") != "0"; dataBox.IsChecked = !fullBox.IsChecked;
-            fullBox.Checked += (s, e) => SetPref("kopia-pelna", "1"); dataBox.Checked += (s, e) => SetPref("kopia-pelna", "0");
+            fullBox.IsChecked = KP("kopia-pelna") != "0"; dataBox.IsChecked = !fullBox.IsChecked;
+            fullBox.Checked += (s, e) => KPSet("kopia-pelna", "1"); dataBox.Checked += (s, e) => KPSet("kopia-pelna", "0");
             sp.Children.Add(dataBox); sp.Children.Add(fullBox);
-            var incBox = new CheckBox { Margin = new Thickness(0, 6, 0, 6), IsChecked = GetPref("kopia-przyrost") != "0",
+            var incBox = new CheckBox { Margin = new Thickness(0, 6, 0, 6), IsChecked = KP("kopia-przyrost") != "0",
                 Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = L.T("Kopie przyrostowe – pełna kopia co 7 dni, pozostałe tylko ze zmianami (zwykle kilka MB). Przy przywracaniu Velivo samo składa pełną z przyrostami.") } };
-            incBox.Click += (s, e) => SetPref("kopia-przyrost", incBox.IsChecked == true ? "1" : "0");
+            incBox.Click += (s, e) => KPSet("kopia-przyrost", incBox.IsChecked == true ? "1" : "0");
             sp.Children.Add(incBox);
             var lastInfo = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(0, 0, 0, 6) };
             Action showLast = () =>
@@ -346,7 +415,7 @@ namespace Velivo
                 try
                 {
                     var r = await Task.Run(() => MakeBackupNow(inc, k => Dispatcher.BeginInvoke(new Action(() => b.Content = L.T("Tworzę kopię…") + " " + k))));   // postęp - widać, że idzie
-                    SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
+                    KPSet("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
                     ShowToast((IsIncrement(r.Path) ? L.T("💾 Kopia przyrostowa gotowa: ") : L.T("💾 Kopia pełna gotowa: ")) + Path.GetFileName(r.Path) + " (" + r.Count + L.T(" plików, ") + Mb(new FileInfo(r.Path).Length) + ")", r.Path);
                 }
                 catch (Exception ex) { App.LogError(ex); InfoBox(w, L.T("Nie udało się utworzyć kopii:\n") + ex.Message); }
@@ -361,7 +430,10 @@ namespace Velivo
                 var chain = RestoreChain(Directory.GetFiles(Path.GetDirectoryName(d.FileName), BackupPrefix + "*.zip"), d.FileName);
                 if (chain == null) { InfoBox(w, L.T("To kopia przyrostowa, a w jej folderze nie ma pełnej kopii, od której się zaczyna. Przenieś je razem do jednego folderu.")); return; }
                 if (!AskYes(w, L.T("Przywrócić dane z kopii\n") + Path.GetFileName(d.FileName) + (chain.Count > 1 ? L.T("\n(pełna kopia + ") + (chain.Count - 1) + L.T(" przyrostów)") : "") + L.T("?\n\nVelivo uruchomi się ponownie. Dane z kopii zastąpią obecne."), L.T("Przywróć"), L.T("Anuluj"))) return;
-                try { File.WriteAllLines(RestoreMarker, chain); RestartVelivo(); }
+                string haslo = null;
+                if (chain.Any(MaPrzenosne))   // kopia z innego komputera / konta: hasło przeniesienia odszyfruje hasła, rozmowy, słownik
+                    haslo = Prompt(L.T("Hasło przeniesienia (ustawione w Velivo Centrum na komputerze, na którym zrobiono kopię). Zostaw puste, jeśli przywracasz na tym samym koncie Windows:"), "", w);
+                try { File.WriteAllLines(RestoreMarker, string.IsNullOrEmpty(haslo) ? chain : chain.Concat(new[] { HasloDoZnacznika(haslo) })); RestartVelivo(); }
                 catch (Exception ex) { App.LogError(ex); InfoBox(w, ex.Message); }
             };
             open.Click += (s, e) => { try { Directory.CreateDirectory(BackupDir); System.Diagnostics.Process.Start("explorer.exe", "\"" + BackupDir + "\""); } catch (Exception) { } };

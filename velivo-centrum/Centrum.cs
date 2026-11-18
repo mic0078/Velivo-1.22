@@ -36,7 +36,7 @@ namespace VelivoCentrum
         public Prog(string pid, string name, string desc, string proc, string dir) { Pid = pid; Name = name; Desc = desc; Proc = proc; DefDir = dir; }
     }
 
-    sealed class Centrum
+    sealed partial class Centrum
     {
         static readonly Prog[] All =
         {
@@ -100,9 +100,10 @@ namespace VelivoCentrum
             head.Children.Add(logo); head.Children.Add(count); var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center }; name.Inlines.Add(new System.Windows.Documents.Run("Velivo") { Foreground = Fg, FontSize = 14, FontWeight = FontWeights.SemiBold }); name.Inlines.Add(new System.Windows.Documents.Run("  by MichAel") { Foreground = Dim, FontSize = 11 }); head.Children.Add(name);
             list = new StackPanel();
             Button B(string t, Action a) { var b = new Button { Content = t, Margin = new Thickness(3, 0, 3, 0), Padding = new Thickness(6), Foreground = Fg, Background = Hover, BorderThickness = new Thickness(0), Cursor = Cursors.Hand }; b.Click += (s, e) => a(); return b; }
-            var foot = new UniformGridLite(B("Uruchom wszystkie", StartAll), B("Zamknij wszystkie", CloseAll));
+            var foot = new UniformGridLite(B("Uruchom wszystkie", StartAll), B("Zamknij…", () => { win.Hide(); ZamknijWybor(); }));
+            var konB = B("🧹 Porządki i kopia…", () => { win.Hide(); Konserwacja(); }); konB.Margin = new Thickness(3, 6, 3, 0);
             var root = new StackPanel(); root.Children.Add(head); root.Children.Add(new Border { Height = 1, Background = Line, Margin = new Thickness(0, 0, 0, 6) }); root.Children.Add(list);
-            root.Children.Add(new Border { Height = 1, Background = Line, Margin = new Thickness(0, 6, 0, 8) }); root.Children.Add(foot);
+            root.Children.Add(new Border { Height = 1, Background = Line, Margin = new Thickness(0, 6, 0, 8) }); root.Children.Add(foot); root.Children.Add(konB);
             win = new Window { Title = "Velivo Centrum", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = true, Width = 320, SizeToContent = SizeToContent.Height,
                 Content = new Border { Background = Bg, BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(10), Child = root } };
             win.Deactivated += (s, e) => win.Hide();   // klik obok - lista się chowa
@@ -181,13 +182,8 @@ namespace VelivoCentrum
             }
             catch (Exception) { }
         }
-        void StartAll() { foreach (var p in All) if (p.Exe != null && !Running(p)) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } } win.Hide(); }
-        void CloseAll()
-        {
-            if (MessageBox.Show("Zamknąć wszystkie programy Velivo?", "Velivo Centrum", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            foreach (var p in All) if (p.Exe != null && Running(p)) Shut(p);
-            Fill();
-        }
+        void StartAll() { foreach (var p in All) if (p.Exe != null && !Running(p)) Uruchom(p); win.Hide(); }
+        static void Uruchom(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
 
         void ShowList()
         {

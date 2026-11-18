@@ -218,8 +218,15 @@ namespace VelivoCentrum
             top.Children.Add(inc);
             var hRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
             var hStan = Txt("", 12);
-            Action hPokaz = () => { bool on = !string.IsNullOrEmpty(KopiaSkladniki.Get("haslo")); hStan.Text = on ? "🔑 Hasło przeniesienia ustawione – kopię przywrócisz na innym komputerze i koncie Windows (z hasłami, rozmowami i słownikiem)." : "⚠ Brak hasła przeniesienia – zapisane hasła stron, rozmowy, słownik i konta (Jellyfin, synchronizacja) z tej kopii odczytasz tylko na tym koncie Windows. Sejf trybu bankowego przenosi się zawsze (otwierasz go swoim hasłem albo kluczem sprzętowym)."; hStan.Foreground = on ? OnFg : Warn; };
-            var hBtn = Btn("🔑 Hasło przeniesienia…", () => { var h = Haslo(true); if (h == null) return; KopiaSkladniki.Set("haslo", h.Length == 0 ? "" : Convert.ToBase64String(System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(h), HasloEntropy, System.Security.Cryptography.DataProtectionScope.CurrentUser))); hPokaz(); });
+            Action hPokaz = () =>
+            {
+                var z = KopiaSkladniki.Get("zamki") ?? ""; bool on = z.Length > 0 && !string.IsNullOrEmpty(KopiaSkladniki.Get("klucz"));
+                int keys = on ? (z.Length - z.Replace("\"c\":", "").Length) / 4 : 0; bool pw = z.Contains("\"p\":");
+                hStan.Text = on ? "🔑 Przeniesienie włączone – hasło: " + (pw ? "ustawione" : "brak") + ", klucze sprzętowe: " + keys + ". Kopię przywrócisz na innym komputerze i koncie Windows razem z hasłami, rozmowami i słownikiem."
+                    : "⚠ Przeniesienie wyłączone – zapisane hasła stron, rozmowy, słownik i konta (Jellyfin, synchronizacja) z kopii wrócą tylko na tym koncie Windows. Sejf trybu bankowego przenosi się zawsze (Twoje hasło albo klucz sprzętowy).";
+                hStan.Foreground = on ? OnFg : Warn;
+            };
+            var hBtn = Btn("🔑 Hasło i klucze przeniesienia…", () => { if (Velivo("--kopia-zabezpiecz") == null) return; var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) }; int n = 0; t.Tick += (o, e) => { hPokaz(); if (++n > 300) t.Stop(); }; t.Start(); });
             hBtn.Margin = new Thickness(8, 0, 0, 0); DockPanel.SetDock(hBtn, Dock.Right); hRow.Children.Add(hBtn); hRow.Children.Add(hStan); hPokaz();
             top.Children.Add(hRow);
 
@@ -252,12 +259,8 @@ namespace VelivoCentrum
             DispatcherTimer poll = null; DateTime start = DateTime.MinValue;
             Action<string> zrob = rodzaj =>
             {
-                var exe = new[] { "Velivo", "VelivoPrzegladarka", "VelivoOdtwarzacz", "VelivoKlawiatura" }.Select(pid => All.First(a => a.Pid == pid)).Select(p => { p.Exe = FindExe(p); return p; }).Where(p => p.Exe != null)
-                    .OrderByDescending(p => Running(p)).FirstOrDefault();
-                if (exe == null) { MessageBox.Show(kon, "Kopię robi Velivo, a nie znalazłem żadnego programu Velivo (pełne, Przeglądarka, Odtwarzacz, Klawiatura).", "Velivo Centrum"); return; }
                 var plik = Path.Combine(Dane, KopiaSkladniki.StanPlik); try { File.Delete(plik); } catch (Exception) { }
-                try { Process.Start(new ProcessStartInfo(exe.Exe, "--kopia " + rodzaj) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe.Exe) }); }
-                catch (Exception ex) { MessageBox.Show(kon, "Nie udało się uruchomić " + exe.Name + ": " + ex.Message, "Velivo Centrum"); return; }
+                var exe = Velivo("--kopia " + rodzaj); if (exe == null) return;
                 bar.Visibility = Visibility.Visible; foreach (Button b in btns.Children) b.IsEnabled = false;
                 stan.Text = (rodzaj == "pelna" ? "Pełna kopia" : "Kopia przyrostowa") + " – robi ją " + exe.Name + "…"; start = DateTime.Now;
                 poll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -307,54 +310,20 @@ namespace VelivoCentrum
         {
             if (wyb.Count != 1) { MessageBox.Show(kon, "Zaznacz jedną kopię do przywrócenia.", "Velivo Centrum"); return; }
             var chosen = wyb[0];
-            var sorted = Directory.GetFiles(Path.GetDirectoryName(chosen), Prefix + "*.zip").OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ToList();
-            int ci = sorted.FindIndex(f => string.Equals(f, chosen, StringComparison.OrdinalIgnoreCase));
-            var chain = new List<string> { chosen };
-            if (Przyrost(chosen))
-            {
-                int fi = sorted.FindLastIndex(ci, x => !Przyrost(x));
-                if (fi < 0) { MessageBox.Show(kon, "To kopia przyrostowa, a w folderze nie ma pełnej kopii, od której się zaczyna.", "Velivo Centrum"); return; }
-                chain = sorted.Skip(fi).Take(ci - fi + 1).ToList();
-            }
-            var exe = new[] { "Velivo", "VelivoPrzegladarka", "VelivoOdtwarzacz", "VelivoKlawiatura" }.Select(pid => All.First(a => a.Pid == pid)).Select(p => { p.Exe = FindExe(p); return p; }).FirstOrDefault(p => p.Exe != null);
-            if (exe == null) { MessageBox.Show(kon, "Przywraca Velivo, a nie znalazłem żadnego programu Velivo – zainstaluj najpierw Velivo (instalator jest w kopii, folder _Instalator).", "Velivo Centrum"); return; }
-            if (MessageBox.Show(kon, "Przywrócić dane z kopii\n" + Path.GetFileName(chosen) + (chain.Count > 1 ? "\n(pełna + " + (chain.Count - 1) + " przyrostowych)" : "") + "?\n\nZamknę wszystkie programy Velivo, " + exe.Name + " uruchomi się i przywróci dane (zastąpią obecne). Pozostałe programy uruchomisz potem przyciskiem „Uruchom wszystkie”.", "Velivo Centrum", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-            string haslo = null;
-            if (chain.Any(MaPrzenosne))
-            {
-                haslo = Haslo(false);
-                if (haslo == null) return;
-            }
+            if (VelivoExe() == null) { MessageBox.Show(kon, "Przywraca Velivo, a nie znalazłem żadnego programu Velivo – zainstaluj najpierw Velivo (instalator jest w kopii, folder _Instalator).", "Velivo Centrum"); return; }
+            if (MessageBox.Show(kon, "Zamknąć wszystkie programy Velivo i przywrócić kopię " + Path.GetFileName(chosen) + "?\n\nVelivo zapyta jeszcze o potwierdzenie i – dla kopii z innego komputera – o hasło albo klucz sprzętowy przeniesienia. Pozostałe programy uruchomisz potem przyciskiem „Uruchom wszystkie”.", "Velivo Centrum", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             foreach (var p in All) { p.Exe = FindExe(p); if (p.Exe != null && Running(p)) Shut(p); }
-            var lines = new List<string>(chain);
-            if (!string.IsNullOrEmpty(haslo)) lines.Add("#haslo:" + Convert.ToBase64String(System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(haslo), HasloEntropy, System.Security.Cryptography.DataProtectionScope.CurrentUser)));
-            try { File.WriteAllLines(Path.Combine(Dane, "przywroc-kopie.txt"), lines); }
-            catch (Exception ex) { MessageBox.Show(kon, "Nie udało się zapisać polecenia przywrócenia: " + ex.Message, "Velivo Centrum"); return; }
-            Uruchom(exe);
+            Velivo("--przywroc \"" + chosen + "\"");
         }
 
-        static readonly byte[] HasloEntropy = System.Text.Encoding.UTF8.GetBytes("Velivo.Kopia.v1");   // to samo co w Velivo (KopiaPrzenosna)
-        static bool MaPrzenosne(string zip) { try { using (var z = System.IO.Compression.ZipFile.OpenRead(zip)) return z.GetEntry("_przenosne/_sol") != null; } catch (Exception) { return false; } }
-        // ustaw = nowe hasło (dwa razy, puste = wyłącz); inaczej - hasło do przywrócenia (puste = to samo konto Windows); null - anulowano
-        string Haslo(bool ustaw)
+        // program Velivo, który robi kopie i przywraca (działający najpierw)
+        static Prog VelivoExe() => new[] { "Velivo", "VelivoPrzegladarka", "VelivoOdtwarzacz", "VelivoKlawiatura" }.Select(pid => All.First(a => a.Pid == pid)).Select(p => { p.Exe = FindExe(p); return p; }).Where(p => p.Exe != null).OrderByDescending(Running).FirstOrDefault();
+        Prog Velivo(string args)
         {
-            var w = new Window { Title = ustaw ? "Hasło przeniesienia" : "Przywracanie – hasło przeniesienia", Width = 440, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = kon, Background = Bg, Foreground = Fg };
-            var sp = new StackPanel { Margin = new Thickness(14) };
-            sp.Children.Add(Txt(ustaw ? "Hasło, którym kopia zabezpiecza dane szyfrowane kontem Windows (zapisane hasła stron, rozmowy, słownik, Jellyfin, synchronizacja). Wpiszesz je przy przywracaniu na nowym komputerze. Zapisz je w bezpiecznym miejscu. Puste = wyłącz."
-                : "Ta kopia ma dane do przeniesienia. Wpisz hasło przeniesienia ustawione na komputerze, na którym ją zrobiono. Zostaw puste, jeśli przywracasz na tym samym koncie Windows.", 12));
-            PasswordBox Pb() { var p = new PasswordBox { Margin = new Thickness(0, 8, 0, 0), Padding = new Thickness(5), Background = Field, Foreground = Fg, BorderBrush = Line }; sp.Children.Add(p); return p; }
-            var a = Pb(); var b = ustaw ? Pb() : null; if (b != null) b.ToolTip = "Powtórz hasło";
-            var err = Txt("", 12, Warn); sp.Children.Add(err);
-            string wynik = null;
-            var row = new UniformGridLite(Btn("Anuluj", () => w.Close()), Btn("OK", () =>
-            {
-                if (b != null && a.Password != b.Password) { err.Text = "Hasła się różnią."; return; }
-                if (ustaw && a.Password.Length > 0 && a.Password.Length < 8) { err.Text = "Co najmniej 8 znaków."; return; }
-                wynik = a.Password; w.Close();
-            }, Accent));
-            row.Margin = new Thickness(0, 10, 0, 0); sp.Children.Add(row);
-            w.Content = sp; w.Loaded += (s, e) => a.Focus(); w.ShowDialog();
-            return wynik;
+            var p = VelivoExe();
+            if (p == null) { MessageBox.Show(kon, "Nie znalazłem żadnego programu Velivo (pełne, Przeglądarka, Odtwarzacz, Klawiatura).", "Velivo Centrum"); return null; }
+            try { Process.Start(new ProcessStartInfo(p.Exe, args) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); return p; }
+            catch (Exception ex) { MessageBox.Show(kon, "Nie udało się uruchomić " + p.Name + ": " + ex.Message, "Velivo Centrum"); return null; }
         }
 
         // ---------- ✕ zamykanie: wybrane programy i procesy pomocnicze ----------

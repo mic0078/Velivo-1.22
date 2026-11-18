@@ -27,6 +27,5 @@
     <Reference Include="System.Management" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
-    <Reference Include="System.Security" />
   </ItemGroup>
 </Project>

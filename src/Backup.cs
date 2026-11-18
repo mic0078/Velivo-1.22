@@ -218,7 +218,7 @@ namespace Velivo
             {
                 if (!File.Exists(RestoreMarker)) return;
                 var lines = File.ReadAllLines(RestoreMarker).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
-                var haslo = HasloZeZnacznika(lines);   // hasło przeniesienia (inne konto / komputer)
+                var kluczP = KluczZeZnacznika(lines);   // klucz przeniesienia (inne konto / komputer) - z hasła albo klucza sprzętowego
                 var chain = lines.Where(x => !x.StartsWith("#")).ToList();   // pelna + przyrosty po kolei
                 File.Delete(RestoreMarker);
                 var bez = new List<string>(); int przen = 0;
@@ -239,7 +239,7 @@ namespace Velivo
                         e.ExtractToFile(dest, true);
                         SciezkiWPliku(dest, map);
                     }
-                    przen += PrzenosnaPrzywroc(zip, haslo, map, bez);
+                    przen += PrzenosnaPrzywroc(zip, kluczP, map, bez);
                     RejestrPrzywroc(zip, map);
                     var del = zip.GetEntry("_usuniete.txt");   // przyrost: pliki usuniete od poprzedniej kopii
                     if (del != null)
@@ -252,7 +252,7 @@ namespace Velivo
                 }
                 bez = bez.Distinct().ToList();
                 App.LogInfo("Przywrócono kopię: " + chain.Count + " plik(ów) kopii; pliki konta z hasła przeniesienia: " + przen + (bez.Count > 0 ? "; NIE przeniesione (brak / złe hasło przeniesienia): " + string.Join(", ", bez) : ""));
-                if (bez.Count > 0) MessageBox.Show("Velivo przywróciło kopię, ale tych danych nie dało się odszyfrować na tym koncie Windows (brak albo złe hasło przeniesienia):\n\n• " + string.Join("\n• ", bez.Take(12)) + "\n\nPrzywróć kopię jeszcze raz z Velivo Centrum i wpisz hasło przeniesienia ustawione na starym komputerze.", "Velivo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (bez.Count > 0) MessageBox.Show("Velivo przywróciło kopię, ale tych danych nie dało się odszyfrować na tym koncie Windows (brak hasła / klucza przeniesienia):\n\n• " + string.Join("\n• ", bez.Take(12)) + "\n\nPrzywróć kopię jeszcze raz (Velivo Centrum albo 🧹) i otwórz ją hasłem albo kluczem sprzętowym przeniesienia.", "Velivo", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -426,15 +426,7 @@ namespace Velivo
             {
                 var d = new Microsoft.Win32.OpenFileDialog { Title = L.T("Kopia Velivo do przywrócenia"), Filter = L.T("Kopia Velivo") + "|*.zip" };
                 if (Directory.Exists(BackupDir)) d.InitialDirectory = BackupDir;
-                if (d.ShowDialog(w) != true) return;
-                var chain = RestoreChain(Directory.GetFiles(Path.GetDirectoryName(d.FileName), BackupPrefix + "*.zip"), d.FileName);
-                if (chain == null) { InfoBox(w, L.T("To kopia przyrostowa, a w jej folderze nie ma pełnej kopii, od której się zaczyna. Przenieś je razem do jednego folderu.")); return; }
-                if (!AskYes(w, L.T("Przywrócić dane z kopii\n") + Path.GetFileName(d.FileName) + (chain.Count > 1 ? L.T("\n(pełna kopia + ") + (chain.Count - 1) + L.T(" przyrostów)") : "") + L.T("?\n\nVelivo uruchomi się ponownie. Dane z kopii zastąpią obecne."), L.T("Przywróć"), L.T("Anuluj"))) return;
-                string haslo = null;
-                if (chain.Any(MaPrzenosne))   // kopia z innego komputera / konta: hasło przeniesienia odszyfruje hasła, rozmowy, słownik
-                    haslo = Prompt(L.T("Hasło przeniesienia (ustawione w Velivo Centrum na komputerze, na którym zrobiono kopię). Zostaw puste, jeśli przywracasz na tym samym koncie Windows:"), "", w);
-                try { File.WriteAllLines(RestoreMarker, string.IsNullOrEmpty(haslo) ? chain : chain.Concat(new[] { HasloDoZnacznika(haslo) })); RestartVelivo(); }
-                catch (Exception ex) { App.LogError(ex); InfoBox(w, ex.Message); }
+                if (d.ShowDialog(w) == true) PrzywrocKopie(d.FileName, w);
             };
             open.Click += (s, e) => { try { Directory.CreateDirectory(BackupDir); System.Diagnostics.Process.Start("explorer.exe", "\"" + BackupDir + "\""); } catch (Exception) { } };
             bRow.Children.Add(make); bRow.Children.Add(makeFull); bRow.Children.Add(restore); bRow.Children.Add(open);

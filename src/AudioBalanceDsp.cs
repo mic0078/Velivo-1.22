@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Collections.Generic;
 using System;
 
@@ -442,7 +442,7 @@ namespace Velivo
                     //    a cichnięcie widać od razu (3 s) - po wybuchu poziom dialogu wraca bez czekania na okno pomiarowe
                     // podstawa: głośność samej treści z 10 s (bramka -10 LU jak w BS.1770 - przerwy między zdaniami pomijane), na starcie 3 s;
                     //    krótki huk nie ciągnie (mediana + 3 dB) - bez falowania między zdaniami (było: okno 3 s z przerwami → „roller coaster”)
-                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
+                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm;   // start źródła: czeka na pomiar 3 s (poziom zapamiętany / 0), bez gonienia głośności z 0,4 s - falowanie po zmianie kanału; głośny start ścisza szybka warstwa
                     if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
                     // zmiana sceny: mediana z 1,5 s różni się od podstawy o ponad 5 dB dłużej niż 1 s - nowy poziom w ok. 1–2 s zamiast gonienia przez 15 s
                     //    (w obrębie sceny bez zmian: spokojna średnia 10 s - bez pompowania między zdaniami; pauzy i cisza nie przełączają - pomiar pomija ciszę)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Velivo
 {
@@ -74,13 +74,13 @@ namespace Velivo
         public volatile bool Hold;
         bool fastLvl; double stP, fP; int hiN, loN, bigN, trk; double mMx = -200, mMn = 200;   // mMx/mMn - zakres poziomu z ok. 0,6 s: mowa i muzyka „falują” (≥ 8 dB), szum tła w pauzie stoi   // 🔀 zmiana programu / kanału: moc z ok. 0,2 s i licznik „dłużej głośniej / ciszej niż typowy poziom” - szybkie przejście na nowy poziom
         double liftS, progP = double.NaN;   // progP - typowa MOC dźwięku (ta sama bramka co progDb) - do celu LUFS liczy się moc, nie średnia z dB
-        int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
+        int mtrN, progN; double progDb = double.NaN, expLow = double.PositiveInfinity;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
         DynParams cp; double ca, cr, cRms, cAvg, cs;   // współczynniki liczone raz na zmianę ustawień (nie co próbkę)
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
         public bool KeepLevel;   // dźwięk Windows na żywo: ponowny start toru (zmiana urządzenia, przerwa) to dalej ten sam materiał - zmierzony poziom i podbicie „do celu” zostają (bez nagłego ściszenia)
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; stP = 0; fP = 0; hiN = loN = bigN = trk = 0; mMx = -200; mMn = 200; liftS = 0; AutoLiftDb = 0; }
+        public void Reset() { expLow = double.PositiveInfinity; cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; stP = 0; fP = 0; hiN = loN = bigN = trk = 0; mMx = -200; mMn = 200; liftS = 0; AutoLiftDb = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);
@@ -151,7 +151,8 @@ namespace Velivo
             }
             double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
             // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)
-            double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progDb - 20);
+            if (progN < 3 * fs / 64 && !double.IsNaN(progDb)) expLow = Math.Min(expLow, progDb - 20);   // pierwsze 3 s: próg ciszy tylko w dół - nie skacze za każdym słowem
+            double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progN < 3 * fs / 64 ? expLow : progDb - 20);
             EffThresholdDb = (float)thr; EffExpanderDb = (float)expThr;
             double want = GainComputer(xDb, p, thr, expThr);
             grDb = want < grDb ? want + ca * (grDb - want) : want + cr * (grDb - want);   // mocniej - czas ataku, słabiej - czas powrotu

@@ -25,6 +25,8 @@ namespace Velivo
         internal const bool MaKomunikator = Pelne;
 
         // 🤝 współpraca: Przeglądarka oddaje filmy Odtwarzaczowi (gdy zainstalowany); Odtwarzacz strony - przeglądarce domyślnej
+        internal static string PrzegladarkaExe => ProgramExe("VelivoPrzegladarka", "{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA02}", "Velivo Przeglądarka", "VelivoPrzegladarka.exe");
+        internal static string VelivoExe => ProgramExe("Velivo", "{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}", "Velivo", "Velivo.exe");
         internal static string OdtwarzaczExe => ProgramExe("VelivoOdtwarzacz", "{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}", "Velivo Odtwarzacz", "VelivoOdtwarzacz.exe");
 
         // 🧩 gdzie jest zainstalowany inny program Velivo: miejsce zapisane przez instalator (Windows → Aplikacje), zapasowo folder domyślny

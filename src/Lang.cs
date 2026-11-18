@@ -1302,6 +1302,7 @@ namespace Velivo
             { "Strona w dół (Page Down)", "Page down" },
             { "Szukaj", "Search" },
             { "Szukaj w tym oknie (Ctrl+F)", "Search in this window (Ctrl+F)" },
+            { "Nie znaleziono Velivo Przeglądarki ani Velivo – zainstaluj jedną z nich", "Velivo Browser or Velivo not found – install one of them" },
             { "Zaznacz wszystko (Ctrl+A)", "Select all (Ctrl+A)" },
             { "Szukaj słowa – wpisz fragment; Enter: następne, Esc: wyczyść", "Find a word – type part of it; Enter: next, Esc: clear" },
             { "Szukaj…", "Search…" },

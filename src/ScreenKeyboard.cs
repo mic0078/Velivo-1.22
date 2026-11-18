@@ -899,6 +899,13 @@ namespace Velivo
             Func<MainWindow> mainW = () => Application.Current?.MainWindow as MainWindow;
             Action showMain = () =>
             {
+                if (!Wariant.MaKarty)
+                {   // 🧩 samodzielna Klawiatura (i Odtwarzacz) nie ma przeglądarki - otwiera zainstalowaną: Velivo Przeglądarka, a bez niej pełne Velivo
+                    var exe = new[] { Wariant.PrzegladarkaExe, Wariant.VelivoExe }.FirstOrDefault(System.IO.File.Exists);
+                    if (exe == null) { MessageBox.Show(L.T("Nie znaleziono Velivo Przeglądarki ani Velivo – zainstaluj jedną z nich"), "Velivo"); return; }
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = System.IO.Path.GetDirectoryName(exe) }); } catch (Exception ex) { App.LogError(ex); }
+                    return;
+                }
                 var mw = mainW(); if (mw == null) return;
                 if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
             };

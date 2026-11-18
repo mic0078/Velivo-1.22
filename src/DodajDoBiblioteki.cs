@@ -74,12 +74,14 @@ namespace Velivo
             var fTxt = new TextBlock { Text = folder, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 8, 0) };
             var fBtn = new Button { Content = L.T("Zmień folder…"), Padding = new Thickness(10, 3, 10, 3) };
             DockPanel.SetDock(fBtn, Dock.Right); fRow.Children.Add(fBtn); fRow.Children.Add(fTxt);
+            var link = new CheckBox { Content = L.T("🔗 Plik zostaje na tym komputerze – w Jellyfin tylko link (Jellyfin czyta film przez sieć)"), Margin = new Thickness(0, 6, 0, 0), IsEnabled = !zAdresu,
+                ToolTip = L.T("Do biblioteki Jellyfin trafia mały plik .strm ze ścieżką sieciową filmu. Folder z filmem musi być udostępniony w sieci, a ten komputer włączony, gdy oglądasz z Jellyfin.") };
             var info = new CheckBox { Content = L.T("Potem wyszukaj informacje (opis, plakat, ocena)"), IsChecked = true, Margin = new Thickness(0, 10, 0, 0) };
             var ok = new Button { Content = L.T("➕ Dodaj"), IsDefault = true, Padding = new Thickness(16, 5, 16, 5), Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
             var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(16, 5, 16, 5) };
             var bs = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) }; bs.Children.Add(ok); bs.Children.Add(cancel);
             var stan = new TextBlock { Foreground = Brushes.Gray, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
-            sp.Children.Add(wlasna); sp.Children.Add(przenies); sp.Children.Add(fRow); sp.Children.Add(info); sp.Children.Add(stan); sp.Children.Add(bs);
+            sp.Children.Add(link); sp.Children.Add(wlasna); sp.Children.Add(przenies); sp.Children.Add(fRow); sp.Children.Add(info); sp.Children.Add(stan); sp.Children.Add(bs);
             var w = new Window { Title = L.T("➕ Dodaj do biblioteki"), Width = 560, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = owner, Topmost = owner?.Topmost == true, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = sp };
             fBtn.Click += (s, e) => { var d = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = folder, Title = L.T("Folder własnej biblioteki") }; if (d.ShowDialog(w) == true) { folder = d.FolderName; fTxt.Text = folder; } };
             cancel.Click += (s, e) => w.Close();
@@ -124,6 +126,20 @@ namespace Velivo
                     ShowUrlDownload(path, owner, dir, f => Dodano(f, doJf ? cel.S : null, szukaj, title, owner));
                     return;
                 }
+                if (doJf && link.IsChecked == true)
+                {   // 🔗 link .strm: film zostaje tutaj, Jellyfin czyta go przez udostępniony folder
+                    var unc = SciezkaSieciowa(path);
+                    if (unc == null) { stan.Text = L.T("Folder z tym filmem nie jest udostępniony w sieci – udostępnij go (prawy przycisk na folderze → Właściwości → Udostępnianie), żeby Jellyfin mógł go czytać. Albo odznacz „tylko link” – film zostanie przeniesiony."); return; }
+                    try
+                    {
+                        Directory.CreateDirectory(dir);
+                        File.WriteAllText(Path.Combine(dir, nazwa + ".strm"), unc, new System.Text.UTF8Encoding(false));
+                    }
+                    catch (Exception ex) { stan.Text = "❌ " + ex.Message; return; }
+                    w.Close();
+                    Dodano(path, cel.S, szukaj, title, owner);
+                    return;
+                }
                 ok.IsEnabled = false; stan.Text = ruch ? L.T("Przenoszę plik…") : "";
                 string nowa = path;
                 if (ruch)
@@ -151,6 +167,26 @@ namespace Velivo
                 if (File.Exists(sub)) try { File.Move(sub, Path.Combine(dir, Path.GetFileNameWithoutExtension(dest) + ext)); } catch (Exception) { }
             }
             return dest;
+        }
+
+        // ścieżka sieciowa pliku (\\KOMPUTER\udział\…) z folderów udostępnionych na tym komputerze (rejestr serwera plików Windows); null - folder nieudostępniony
+        static string SciezkaSieciowa(string file)
+        {
+            if (file.StartsWith("\\\\")) return file;
+            string best = null; int len = 0; var full = Path.GetFullPath(file);
+            try
+            {
+                using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\LanmanServer\Shares"))
+                    foreach (var n in k?.GetValueNames() ?? new string[0])
+                    {
+                        if (n.EndsWith("$")) continue;
+                        var p = (k.GetValue(n) as string[] ?? new string[0]).FirstOrDefault(x => x.StartsWith("Path=", StringComparison.OrdinalIgnoreCase))?.Substring(5).TrimEnd('\\');
+                        if (string.IsNullOrEmpty(p) || p.Length <= len || !full.StartsWith(p + "\\", StringComparison.OrdinalIgnoreCase)) continue;
+                        best = "\\\\" + Environment.MachineName + "\\" + n + full.Substring(p.Length); len = p.Length;
+                    }
+            }
+            catch (Exception) { }
+            return best;
         }
 
         void Dodano(string plik, JellyfinConf jf, bool szukaj, string title, Window owner)

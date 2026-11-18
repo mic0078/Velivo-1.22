@@ -1,4 +1,4 @@
-# Velivo - budowa WSZYSTKIEGO na wlasnym komputerze: Windows (testy + instalator) i Android (3 wersje).
+﻿# Velivo - budowa WSZYSTKIEGO na wlasnym komputerze: Windows (testy + instalator) i Android (3 wersje).
 # Uzycie: PowerShell w folderze repozytorium ->  .\zbuduj-wszystko.ps1
 #                                              .\zbuduj-wszystko.ps1 -TylkoAndroid
 # Android: wersja "pelna" (APK dla rodziny) oraz "sklep" i "sklepyt" (AAB do Google Play), podpisane Twoim kluczem.
@@ -7,7 +7,8 @@
 #   Windows - zmiany w src\, testy\ albo zbuduj.ps1
 #   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
-param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows, [switch]$Podstawowa)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
+#   -Tylko Odtwarzacz,Velivo - tylko wybrane programy Windows (Velivo, Odtwarzacz, Przegladarka, Klawiatura, Komunikator)
+param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows, [switch]$Podstawowa, [string[]]$Tylko)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
 $tylkoApk = $Przegladarka -or $Klawiatura -or $Komunikator
 if ($tylkoApk) { $Wszystko = $true; if (-not $TylkoWindows) { $TylkoAndroid = $true } }   # -TylkoWindows -Komunikator = Windows + ten APK
 $ErrorActionPreference = 'Stop'
@@ -38,9 +39,9 @@ if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od os
 Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan
 
 if ($needWin) {
-    & (Join-Path $PSScriptRoot 'zbuduj.ps1') -Podstawowa:$Podstawowa   # testy, Velivo na Windows, instalator
+    & (Join-Path $PSScriptRoot 'zbuduj.ps1') -Podstawowa:$Podstawowa -Tylko $Tylko   # testy, Velivo na Windows, instalator (-Tylko Odtwarzacz,Velivo - tylko te programy)
     if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane." -ForegroundColor Red; exit 1 }
-    Set-Content (Join-Path $cfgDir 'ostatnio-windows.txt') $head
+    if (-not $Tylko) { Set-Content (Join-Path $cfgDir 'ostatnio-windows.txt') $head }   # część programów - reszta dalej czeka na budowę
 } else { Write-Host "Windows bez zmian - pomijam (instalator z poprzedniej budowy jest aktualny)." -ForegroundColor DarkGray }
 if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
 

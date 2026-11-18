@@ -109,13 +109,13 @@ namespace VelivoMonitor
         [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
         static readonly IntPtr Top = new IntPtr(-1);
 
-        Window bar; TextBlock barTxt;
+        Window bar; TextBlock barTxt, bUp, bDown, bGhz, bCpu; System.Windows.Shapes.Ellipse bDot; Rectangle[] bBars;
         void BuildBar()
         {
             bool light = false;
             try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"); light = (k?.GetValue("SystemUsesLightTheme") as int?) == 1; } catch (Exception) { }
             barTxt = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = light ? Brushes.Black : Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
-            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = 172, Height = 40, Content = barTxt,   /* stała szerokość - napis nie skacze */
+            bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = 184, Height = 40, Content = BarContent(light),   /* stała szerokość - napis nie skacze */
                 ToolTip = "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu" };
             bar.ContextMenu = Menu();
             int dragX = 0; double dragOff = 0; bool drag = false;   // przesuwanie wzdłuż paska: zapamiętany odstęp od zegara
@@ -124,16 +124,33 @@ namespace VelivoMonitor
             bar.MouseLeftButtonUp += (s, e) => { if (!drag) return; drag = false; bar.ReleaseMouseCapture(); Put("pasek-odstep", GetD("pasek-odstep", 0)); };
             bar.Show(); PlaceBar();
         }
+        // 🧩 układ C (wybór właściciela): kropka stanu internetu, ↑ ↓ z jednostkami (czcionka Windows, cyfry równej szerokości), GHz i %, słupki procesora z ostatnich 5 s
+        UIElement BarContent(bool light)
+        {
+            var fg = light ? Brushes.Black : Brushes.White; var blue = new SolidColorBrush(light ? Color.FromRgb(0x3B, 0x5B, 0xDB) : Color.FromRgb(0x7C, 0x9C, 0xFF));
+            TextBlock T(Brush c) { var t = new TextBlock { Foreground = c, FontSize = 12, FontFamily = new FontFamily("Segoe UI") }; System.Windows.Documents.Typography.SetNumeralAlignment(t, FontNumeralAlignment.Tabular); return t; }
+            bUp = T(fg); bDown = T(fg); bGhz = T(blue); bCpu = T(blue);
+            bDot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
+            var r1 = new StackPanel { Orientation = Orientation.Horizontal }; r1.Children.Add(bDot); r1.Children.Add(bUp);
+            var r2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(11, 0, 0, 0) }; r2.Children.Add(bDown);
+            var c1 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 90 }; c1.Children.Add(r1); c1.Children.Add(r2);
+            var c2 = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 56, Margin = new Thickness(4, 0, 0, 0) }; c2.Children.Add(bGhz); c2.Children.Add(bCpu);
+            var bars = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Height = 18 };
+            bBars = new Rectangle[5]; for (int i = 0; i < 5; i++) { bBars[i] = new Rectangle { Width = 3, Fill = blue, RadiusX = 1, RadiusY = 1, Margin = new Thickness(0, 0, 1, 0), VerticalAlignment = VerticalAlignment.Bottom, Height = 2 }; bars.Children.Add(bBars[i]); }
+            var all = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
+            all.Children.Add(c1); all.Children.Add(c2); all.Children.Add(bars);
+            barTxt = bUp; return all;
+        }
         // napis na pasku: równe kolumny w obu wierszach (czcionka o stałej szerokości), bez internetu - strzałki czerwone (nic się nie przesuwa)
         void BarText()
         {
-            bool off = Internet.Wylaczony(); var arrow = off ? (Brush)new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) : barTxt.Foreground;
-            string r1 = Rate(Up).Trim().PadLeft(10), r2 = Rate(Down).Trim().PadLeft(10);
-            string c1 = (Ghz > 0 ? Ghz.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "GHz" : "–").PadLeft(7), c2 = (Cpu.ToString("0") + "%").PadLeft(7);
-            barTxt.Inlines.Clear();
-            barTxt.Inlines.Add(new System.Windows.Documents.Run("↑") { Foreground = arrow }); barTxt.Inlines.Add(new System.Windows.Documents.Run(r1 + " CPU " + c1 + "\n"));
-            barTxt.Inlines.Add(new System.Windows.Documents.Run("↓") { Foreground = arrow }); barTxt.Inlines.Add(new System.Windows.Documents.Run(r2 + " CPU " + c2));
-            bar.ToolTip = (off ? "Internet WYŁĄCZONY (sieć domowa działa)\n" : "") + "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu";
+            bool off = Internet.Wylaczony();
+            bDot.Fill = new SolidColorBrush(off ? Color.FromRgb(0xF8, 0x71, 0x71) : Color.FromRgb(0x4A, 0xDE, 0x80));
+            void Arrow(TextBlock t, string a, Color c, double v) { t.Inlines.Clear(); t.Inlines.Add(new System.Windows.Documents.Run(a) { Foreground = new SolidColorBrush(off ? Color.FromRgb(0xF8, 0x71, 0x71) : c) }); t.Inlines.Add(new System.Windows.Documents.Run(" " + Rate(v).Trim())); }
+            Arrow(bUp, "↑", Color.FromRgb(0xF5, 0xA5, 0x24), Up); Arrow(bDown, "↓", Color.FromRgb(0x4A, 0xDE, 0x80), Down);
+            bGhz.Text = GhzText; bCpu.Text = Cpu.ToString("0") + " %";
+            for (int i = 0; i < 5; i++) bBars[i].Height = 2 + 16 * Math.Min(1, cpuH[i] / 100);
+            bar.ToolTip = (off ? "Internet WYŁĄCZONY (sieć domowa działa)\n" : "Internet włączony\n") + "Słupki: obciążenie procesora z ostatnich 5 s\nPrzeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu";
         }
         void PlaceBar()
         {

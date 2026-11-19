@@ -22,7 +22,10 @@ namespace VelivoKursory
             if (args.Length > 0 && args[0] == "--przywroc") { Kursory.Przywroc(); return; }   // odinstalowanie
             if (args.Length > 0 && args[0] == "--zastosuj") { Kursory.Zastosuj(args.Length > 1 && int.TryParse(args[1], out var n) && Kursory.Rozmiary.Contains(n) ? n : Kursory.Rozmiar()); return; }   // także z Velivo Centrum: --zastosuj 64
             Application.EnableVisualStyles();
-            Application.Run(new Okno());
+            // jedna kopia: drugie uruchomienie (skrót, Centrum) otwiera okno pierwszej
+            var pokaz = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset, @"Local\Velivo.Kursory.Pokaz", out bool pierwszy);
+            if (!pierwszy) { pokaz.Set(); return; }
+            Application.Run(new Zasobnik(pokaz, args.Length == 0 || args[0] != "--zasobnik"));
         }
     }
 
@@ -31,7 +34,8 @@ namespace VelivoKursory
         internal static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Kursory");
         static string Ust => Path.Combine(Dir, "rozmiar.txt");
         static string Kopia => Path.Combine(Dir, "poprzednie.txt");
-        internal static readonly int[] Rozmiary = { 32, 40, 48, 64, 96 };
+        internal static readonly int[] Rozmiary = { 24, 28, 32, 40, 48, 64, 96 };
+        internal static readonly string[] Opisy = { "24 px – mała", "28 px – trochę mniejsza", "32 px – normalna (jak Windows)", "40 px – trochę większa", "48 px – duża", "64 px – bardzo duża", "96 px – największa (słaby wzrok)" };   // ten sam wybór w oknie, przy zegarze i w Centrum
         internal static int Rozmiar() { try { int n = int.Parse(File.ReadAllText(Ust).Trim()); return Rozmiary.Contains(n) ? n : 32; } catch (Exception) { return 32; } }
 
         // rodzaj kursora: nazwa w rejestrze Windows (Panel sterowania\Kursory), podpis, punkt aktywny (w skali 32), liczba klatek
@@ -245,6 +249,49 @@ namespace VelivoKursory
         internal static bool Wlaczone() { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Klucz)) return (k?.GetValue("Arrow") as string ?? "").Contains(@"\Velivo\Kursory\"); } catch (Exception) { return false; } }
     }
 
+    // 🖱 ikona przy zegarze: wielkość, włącz / przywróć, ustawienia, start z Windows (Velivo Centrum chowa ją u siebie, prawy przycisk w Centrum = to menu)
+    sealed class Zasobnik : ApplicationContext
+    {
+        readonly NotifyIcon tray; Okno okno; readonly SynchronizationContextHolder sc = new SynchronizationContextHolder();
+        const string Run = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        static bool Auto() { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Run)) return k?.GetValue("VelivoKursory") != null; } catch (Exception) { return false; } }
+        static void SetAuto(bool on) { try { using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(Run)) { if (on) k.SetValue("VelivoKursory", "\"" + Application.ExecutablePath + "\" --zasobnik"); else k.DeleteValue("VelivoKursory", false); } } catch (Exception) { } }
+        public Zasobnik(System.Threading.EventWaitHandle pokaz, bool otworz)
+        {
+            tray = new NotifyIcon { Text = "Velivo Kursory", Visible = true };
+            try { tray.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { tray.Icon = SystemIcons.Application; }
+            var m = new ContextMenuStrip();
+            m.Items.Add("🖱 Ustawienia kursorów…", null, (s, e) => Pokaz());
+            var wl = new ToolStripMenuItem("Wielkość kursorów"); m.Items.Add(wl);
+            var opis = Kursory.Opisy;
+            for (int i = 0; i < Kursory.Rozmiary.Length; i++) { int px = Kursory.Rozmiary[i]; var it = new ToolStripMenuItem(opis[i]); it.Click += (s, e) => { Kursory.Zastosuj(px); okno?.Stan(); }; wl.DropDownItems.Add(it); }
+            var wlacz = new ToolStripMenuItem(); wlacz.Click += (s, e) => { if (Kursory.Wlaczone()) Kursory.Przywroc(); else Kursory.Zastosuj(Kursory.Rozmiar()); okno?.Stan(); }; m.Items.Add(wlacz);
+            var auto = new ToolStripMenuItem("Uruchamiaj z Windows") { CheckOnClick = true }; auto.Click += (s, e) => SetAuto(auto.Checked); m.Items.Add(auto);
+            m.Items.Add(new ToolStripSeparator());
+            m.Items.Add("✕ Zakończ Velivo Kursory (kursory zostają)", null, (s, e) => { tray.Visible = false; ExitThread(); });
+            m.Opening += (s, e) => { bool on = Kursory.Wlaczone(); wlacz.Text = on ? "↺ Przywróć kursory Windows" : "✔ Włącz kursory Velivo"; auto.Checked = Auto();
+                foreach (ToolStripMenuItem it in wl.DropDownItems) it.Checked = on && it.Text.StartsWith(Kursory.Rozmiar() + " "); };
+            tray.ContextMenuStrip = m;
+            tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) Pokaz(); };
+            Velivo.CentrumZasobnik.Podlacz(tray);
+            new System.Threading.Thread(() => { while (pokaz.WaitOne()) sc.Post(Pokaz); }) { IsBackground = true }.Start();
+            if (otworz) Pokaz();
+        }
+        void Pokaz()
+        {
+            if (okno == null || okno.IsDisposed) { okno = new Okno(); okno.FormClosed += (s, e) => okno = null; okno.Show(); }
+            if (okno.WindowState == FormWindowState.Minimized) okno.WindowState = FormWindowState.Normal;
+            okno.Activate();
+        }
+        protected override void Dispose(bool d) { if (d) tray.Dispose(); base.Dispose(d); }
+    }
+    // wątek okna (znak „pokaż” z drugiego uruchomienia przychodzi z innego wątku)
+    sealed class SynchronizationContextHolder
+    {
+        readonly System.Threading.SynchronizationContext ctx = System.Threading.SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+        public void Post(Action a) => ctx.Post(_ => a(), null);
+    }
+
     // okno: podgląd na żywo, rozmiar, zastosuj / przywróć
     sealed class Okno : Form
     {
@@ -272,8 +319,7 @@ namespace VelivoKursory
             }
             Controls.Add(new Label { Text = "Wielkość:", AutoSize = true, Location = new Point(20, 355) });
             var wielkosc = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(96, 351), Width = 260, BackColor = Karta, ForeColor = Fg, FlatStyle = FlatStyle.Flat };
-            string[] opis = { "32 px – normalna (jak Windows)", "40 px – trochę większa", "48 px – duża", "64 px – bardzo duża", "96 px – największa (słaby wzrok)" };
-            wielkosc.Items.AddRange(opis); wielkosc.SelectedIndex = Array.IndexOf(Kursory.Rozmiary, Kursory.Rozmiar());
+            wielkosc.Items.AddRange(Kursory.Opisy); wielkosc.SelectedIndex = Math.Max(0, Array.IndexOf(Kursory.Rozmiary, Kursory.Rozmiar()));
             Controls.Add(wielkosc);
             Button B(string t, int x, Color c) { var b = new Button { Text = t, Location = new Point(x, 388), Size = new Size(t.Length * 8 + 40, 36), FlatStyle = FlatStyle.Flat, BackColor = c, ForeColor = Fg, Cursor = Cursors.Hand }; b.FlatAppearance.BorderSize = 0; Controls.Add(b); return b; }
             var tak = B("✔ Zastosuj kursory Velivo", 20, Akcent);
@@ -286,6 +332,6 @@ namespace VelivoKursory
             tm.Tick += (s, e) => { klatka++; foreach (var p in podglad) if (p.Kl.Length > 1) p.Pb.Image = p.Kl[klatka % p.Kl.Length]; };
             tm.Start(); FormClosed += (s, e) => tm.Stop();
         }
-        void Stan() => stan.Text = Kursory.Wlaczone() ? "✔ Kursory Velivo są włączone (" + Kursory.Rozmiar() + " px)." : "Teraz: kursory Windows.";
+        internal void Stan() => stan.Text = Kursory.Wlaczone() ? "✔ Kursory Velivo są włączone (" + Kursory.Rozmiar() + " px)." : "Teraz: kursory Windows.";
     }
 }

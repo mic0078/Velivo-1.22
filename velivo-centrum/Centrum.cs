@@ -155,7 +155,7 @@ namespace VelivoCentrum
                 if (p.Pid == "VelivoKursory")
                 {   // 🖱 wielkość kursorów prosto z Centrum, przywrócenie kursorów Windows
                     var wl = new MenuItem { Header = "Wielkość kursorów" }; cm.Items.Add(wl);
-                    foreach (var (px, t) in new[] { ("32", "32 px – normalna"), ("40", "40 px – trochę większa"), ("48", "48 px – duża"), ("64", "64 px – bardzo duża"), ("96", "96 px – największa") })
+                    foreach (var (px, t) in new[] { ("24", "24 px – mała"), ("28", "28 px – trochę mniejsza"), ("32", "32 px – normalna (jak Windows)"), ("40", "40 px – trochę większa"), ("48", "48 px – duża"), ("64", "64 px – bardzo duża"), ("96", "96 px – największa") })
                     { var mi = new MenuItem { Header = t, IsCheckable = true, IsChecked = run && KursoryPx() == px }; mi.Click += (s, e) => { KursoryRun(pp, "--zastosuj " + px); Fill(); }; wl.Items.Add(mi); }
                     if (!run) Mi("✔ Włącz kursory Velivo", () => { KursoryRun(pp, "--zastosuj"); Fill(); });
                     else Mi("↺ Przywróć kursory Windows", () => { KursoryRun(pp, "--przywroc"); Fill(); });

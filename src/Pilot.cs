@@ -24,7 +24,7 @@ namespace Velivo
             if (cmd == null || remote == null || (cmd.to != _lanId && cmd.to != "*")) return;
             _pilotClients[pkt.id] = (remote, DateTime.UtcNow);   // odpowiedź na ten sam adres i port, z którego telefon wysłał
             EnsurePilotTcp();   // listy przez TCP (port 41916)
-            if (cmd.to == _lanId && (cmd.op == "list" || cmd.op == "play-tv" || cmd.op == "play-film" || cmd.op == "fav-tv" || cmd.op == "fav-film" || cmd.op == "info"))   // 📺🎬 listy i włączanie z telefonu (odtwarzacz nie musi być otwarty)
+            if (cmd.to == _lanId && (cmd.op == "list" || cmd.op == "bib" || cmd.op == "play-tv" || cmd.op == "play-film" || cmd.op == "fav-tv" || cmd.op == "fav-film" || cmd.op == "info"))   // 📺🎬 listy i włączanie z telefonu (odtwarzacz nie musi być otwarty)
             {
                 try { PilotLists(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
             }
@@ -62,6 +62,7 @@ namespace Velivo
 
         void PilotLists(string phoneId, LanPilotCmd cmd)
         {
+            if (cmd.op == "bib") { if (cmd.n >= 1 && cmd.n <= 4) { SetPref("biblioteka-wybor", ((int)cmd.n).ToString()); _pilotFilmsKey = null; _kanapaLib?.Invoke(); } return; }   // 📚 wybór biblioteki z telefonu - ten sam co w Kanapie
             string q = (cmd.q ?? "").Trim();
             if (_jfConfCache == null) try { _jfConfCache = LoadJellyfinConf(); } catch (Exception) { }   // plakaty i klucz Jellyfin
             // telefon mógł wybrać z listy zapisanej u siebie (bez pytania komputera) - numer na liście komputera może nie pasować: szukamy po nazwie
@@ -177,7 +178,7 @@ namespace Velivo
             else
             {
                 var favs = new HashSet<string>(LoadPlaylists().Named.TryGetValue(PilotFavList, out var fl0) ? fl0 : new List<string>(), StringComparer.OrdinalIgnoreCase);
-                string fkey = cmd.v + "|" + cmd.g + "|" + q + "|" + cmd.s;
+                string fkey = cmd.v + "|" + cmd.g + "|" + q + "|" + cmd.s + "|" + WybranaBib();
                 if (page > 0 && fkey == _pilotFilmsKey) { groups = _pilotFilmGroups; total = _pilotFilms.Count; }   // kolejne strony - lista już policzona (komputer nie liczy całej biblioteki dla każdej strony)
                 else
                 {
@@ -208,7 +209,7 @@ namespace Velivo
                     items.Add(new object[] { i, ShownTitle(v, m), sub, favs.Contains(v.Path), PilotPosterKey(m) is var pk && pk.Length > 0 ? pk : PilotPoster(m), m?.Id ?? "", m?.Year ?? 0, ResumeAt(v.Pos, v.Len) });   // [7] miejsce przerwania - telefon pyta: wznów / od początku   // plakat z Jellyfin, id i rok - telefon bierze plakat i opis z własnej biblioteki
                 }
             }
-            PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["libv"] = cmd.v == "tv" || cmd.v == "fav" ? PilotLibVer(true) : PilotLibVer(false), ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() });
+            PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = cmd.v, ["page"] = page, ["total"] = total, ["groups"] = groups, ["items"] = items, ["libv"] = cmd.v == "tv" || cmd.v == "fav" ? PilotLibVer(true) : PilotLibVer(false), ["bibs"] = BibNazwy().Skip(1).ToList(), ["bib"] = WybranaBib(), ["keys"] = JfServers(_jfConfCache).Select(c => new[] { PilotJfBase(c), c.Key }).ToList() });
         }
 
         static string PilotJfBase(JellyfinConf c) => (string.IsNullOrEmpty(c.Lan) ? c.Url : c.Lan).TrimEnd('/');   // w domu adres domowy (router nie zawraca ruchu)

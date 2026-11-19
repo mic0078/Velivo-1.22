@@ -503,6 +503,7 @@
     <string name="pilot_continue">Continue watching</string>
     <string name="pilot_group">Group</string>
     <string name="pilot_genre">Genre</string>
+    <string name="pilot_library">Library</string>
     <string name="pilot_any">all</string>
     <string name="pilot_search">Search…</string>
     <string name="pilot_loading">Loading the list from the computer…</string>

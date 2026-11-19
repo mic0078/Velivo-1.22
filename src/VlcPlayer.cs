@@ -529,8 +529,8 @@ namespace Velivo
                 default: return true;
             }
         }
-        // wybór biblioteki w Kanapie i Pilocie - jeden, zapamiętany (to samo miejsce pokazuje to samo)
-        static int WybranaBib() { int.TryParse(GetPref("biblioteka-wybor"), out var b); return b < 0 || b > 4 ? 0 : b; }
+        // wybór biblioteki w Kanapie i Pilocie (indeks 0 nieużywany) - jeden, zapamiętany (to samo miejsce pokazuje to samo)
+        static int WybranaBib() { int.TryParse(GetPref("biblioteka-wybor"), out var b); return b < 1 || b > 4 ? 2 : b; }   // bez „wszystkie” - biblioteki się nie mieszają; domyślnie 🔒 tego komputera
         string[] BibNazwy() => new[] { L.T("wszystkie"), "📚 " + (string.IsNullOrWhiteSpace(_settings.VlcSharedName) ? L.T("Wspólna biblioteka") : _settings.VlcSharedName),
             "🔒 " + (string.IsNullOrWhiteSpace(_settings.VlcLocalName) ? Environment.MachineName : _settings.VlcLocalName), L.T("🎬 z Jellyfin"), L.T("📺 Nagrane z TV") };
         Action _libRefreshWin;   // okno biblioteki

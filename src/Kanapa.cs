@@ -288,7 +288,7 @@ namespace Velivo
                         var list = l.ToList(); count.Text = list.Count + L.T(" filmów");
                         box.Content = Wrap(list.Select(v => (UIElement)FilmTile(v)));
                     }
-                    { var bn = BibNazwy(); Przycisk(bar, () => L.T("Biblioteka: ") + bn[WybranaBib()], _ => Lista(L.T("Wybierz bibliotekę"), bn.ToList(), WybranaBib(), k => SetPref("biblioteka-wybor", k.ToString()))); }
+                    { var bn = BibNazwy(); Przycisk(bar, () => L.T("Biblioteka: ") + bn[WybranaBib()], _ => Lista(L.T("Wybierz bibliotekę"), bn.Skip(1).ToList(), WybranaBib() - 1, k => { SetPref("biblioteka-wybor", (k + 1).ToString()); _pilotFilmsKey = null; })); }
                     Przycisk(bar, () => L.T("Sortuj: ") + sorts[kSort], b => { kSort = (kSort + 1) % sorts.Length; SetPref("kanapa-sort", kSort.ToString()); b.Content = L.T("Sortuj: ") + sorts[kSort]; Fill(); });
                     Przycisk(bar, () => L.T("Gatunek: ") + (kGen == 0 || kGen > genres.Count ? L.T("wszystkie") : genres[kGen - 1]), _ =>
                         Lista(L.T("Wybierz gatunek"), new[] { L.T("wszystkie") + "  (" + lib.Count + ")" }.Concat(genres.Select(g => g + "  (" + lib.Count(v => MetaFor(v.Path)?.Genres?.Contains(g, StringComparer.CurrentCultureIgnoreCase) ?? false) + ")")).ToList(), kGen, k => { kGen = k; SetPref("kanapa-gatunek", k == 0 ? "" : genres[k - 1]); }));

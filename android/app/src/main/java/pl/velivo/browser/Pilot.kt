@@ -424,9 +424,16 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val list = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
         box.addView(ScrollView(act).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
         var groups = listOf<String>()
+        var bibNames = listOf<String>(); var bibCur = prefs.getInt("pilot-bib", 0)   // 📚 biblioteka filmów na komputerze (ta sama co w Kanapie): 1 wspólna, 2 tego komputera, 3 Jellyfin, 4 nagrania TV
         lateinit var load: (Boolean) -> Unit
         fun drawTabs() {
             tabs.removeAllViews()
+            if (kind == "film" && bibNames.isNotEmpty() && bibCur in 1..bibNames.size) tabs.addView(pill(s(R.string.pilot_library) + ": " + bibNames[bibCur - 1] + " ▾", false) {
+                AlertDialog.Builder(act).setTitle(R.string.pilot_library).setItems(bibNames.toTypedArray()) { _, i ->
+                    bibCur = i + 1; prefs.edit().putInt("pilot-bib", bibCur).apply(); ask("bib", null, bibCur.toDouble()); pcLibv.remove(kind); drawTabs()
+                    h.postDelayed({ load(true) }, 400)   // komputer najpierw zmienia bibliotekę, potem lista
+                }.show()
+            }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), dp(8), 0) })
             val a = if (kind == "tv") listOf("fav" to "⭐ " + s(R.string.pilot_fav), "tv" to s(R.string.pilot_all)) else listOf("cont" to "▶ " + s(R.string.pilot_continue), "ffav" to "⭐ " + s(R.string.pilot_fav), "film" to s(R.string.pilot_all))
             for ((m, t) in a) tabs.addView(pill(t, mode == m) { mode = m; group = ""; prefs.edit().putString("pilot-tryb-$kind", m).putString("pilot-grupa-$kind", "").apply(); drawTabs(); load(true) }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), dp(8), 0) })
             if (mode == "tv" || mode == "film") tabs.addView(pill((if (kind == "tv") s(R.string.pilot_group) else s(R.string.pilot_genre)) + ": " + group.ifBlank { s(R.string.pilot_any) } + " ▾", false) {
@@ -443,7 +450,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(6), 0, 0) })
         }
         // 📦 lista trzymana w telefonie (bez szukania): po otwarciu od razu, z komputera tylko gdy zmieniła się tam biblioteka / program TV (wersja z „plans”)
-        fun cacheFile() = java.io.File(act.filesDir, "pilot-lista-" + (kind + "|" + mode + "|" + group + "|" + sort + "|" + cur).hashCode() + ".json")
+        fun cacheFile() = java.io.File(act.filesDir, "pilot-lista-" + (kind + "|" + mode + "|" + group + "|" + sort + "|" + cur + "|" + bibCur).hashCode() + ".json")
         var pages = org.json.JSONArray(); var replay = false; var fresh0 = false; var asked = 0L; var busy = false
         fun askPage() { asked = System.currentTimeMillis(); busy = true; if (!ask("list", mode, page.toDouble(), query, group, sort)) { busy = false; info.text = s(R.string.pilot_unavailable, curName) } }
         load = { fresh ->
@@ -464,6 +471,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             if (o.optString("kind") == mode && o.optInt("page") == page && (replay || (0 until pages.length()).none { pages.getJSONObject(it).optInt("page") == page })) {   // ta sama strona drugi raz (ponowienie) - pomijana
                 if (!replay) { busy = false; pages.put(o); o.optInt("libv").let { if (o.has("libv")) pcLibv[kind] = it } }
                 val g = o.optJSONArray("groups"); if (g != null && g.length() > 0) { groups = (0 until g.length()).map { g.optString(it) }; drawTabs() }
+                o.optJSONArray("bibs")?.let { b -> val nb = (0 until b.length()).map { b.optString(it) }; val nc = o.optInt("bib", bibCur); if (nb != bibNames || nc != bibCur) { bibNames = nb; bibCur = nc; prefs.edit().putInt("pilot-bib", nc).apply(); drawTabs() } }
                 val items = o.optJSONArray("items"); val total = o.optInt("total")
                 o.optJSONArray("keys")?.let { ka -> jfKeys = (0 until ka.length()).mapNotNull { ka.optJSONArray(it)?.let { p -> p.optString(0) to p.optString(1) } }.filter { it.first.isNotEmpty() } }
                 list.findViewWithTag<View>("more")?.let { list.removeView(it) }

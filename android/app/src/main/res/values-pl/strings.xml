@@ -503,6 +503,7 @@
     <string name="pilot_continue">Oglądaj dalej</string>
     <string name="pilot_group">Grupa</string>
     <string name="pilot_genre">Gatunek</string>
+    <string name="pilot_library">Biblioteka</string>
     <string name="pilot_any">wszystkie</string>
     <string name="pilot_search">Szukaj…</string>
     <string name="pilot_loading">Wczytuję listę z komputera…</string>

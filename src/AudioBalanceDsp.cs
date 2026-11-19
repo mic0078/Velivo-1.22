@@ -239,6 +239,7 @@ namespace Velivo
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
         public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow, QuietBelow = double.NaN, QuietLevel = double.NegativeInfinity;   /* QuietBelow: od jakiego poziomu (LUFS) nagranie jest bardzo ciche - NaN = cel −12; QuietLevel - zmierzony poziom */ double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
+        public bool NoVst;   // poprawianie pliku (osobny obiekt) - bez wtyczek VST3, które gra właśnie dźwięk Windows
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
         public double DialogDb;               // bieżące podbicie mowy (widżet)
@@ -250,7 +251,7 @@ namespace Velivo
         double aP, sS, sA;
         // 🗣 inteligentny lektor: podczas czytania film ściszany na bieżąco tylko o tyle, ile trzeba, by lektor był nad filmem w paśmie mowy
         //    (cicha scena - bez ściszania, głośna / dialog - więcej); płynnie, z przytrzymaniem między kwestiami - bez skoków głośności
-        public volatile bool LekOn, LekPath;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
+        public volatile bool LekOn, LekPath, LekHold;               // LekOn - lektor czyta teraz; LekPath - dźwięk idzie główną drogą procesora (warstwa działa)
         public volatile float LekRef = float.NaN;          // lektor w paśmie mowy (dBFS, z jego głośnością); NaN - jeszcze niezmierzony
         public volatile float LekFloorDb = -9;             // najgłębsze ściszenie (suwak „Film podczas czytania”)
         public volatile float KDb = float.NaN;             // film w paśmie mowy (dBFS, 300 ms) - do tego lektor dopasowuje swoją głośność
@@ -369,13 +370,13 @@ namespace Velivo
             bool abOn = !(pr == null && !eqOn && dlg == 0 && !preOn);   // Audio Balance coś robi (wyrównywanie, korektor, dialogi albo kompresor)
             LekPath = !Bypass && abOn;
             float[] raw = null;   // oryginał filmu sprzed wtyczek VST3 - do wskaźników „źródło” i widma
-            if (!Bypass && Vst3.Ready && abOn)
+            if (!Bypass && !NoVst && Vst3.Ready && abOn)
             {   // 🎛 wtyczki VST3 PRZED Audio Balance (właściciel): oryginał → wtyczki → kompresor → korektor, dialogi, LUFS → limiter (sufit bezpieczeństwa)
                 if (vstRaw.Length < frames * 2) vstRaw = new float[frames * 2];   // rośnie rzadko (tylko przy większej porcji), nie w każdej próbce
                 Array.Copy(buf, vstRaw, frames * 2);
                 if (Vst3.Run(buf, frames)) raw = vstRaw;
             }
-            else if (!Bypass && Vst3.Ready)
+            else if (!Bypass && !NoVst && Vst3.Ready)
             {   // 🎛 same wtyczki VST3 (Audio Balance nic nie robi): oryginał → wtyczki → głośność odtwarzacza
                 for (int f = 0; f < frames; f++)
                 {
@@ -456,10 +457,10 @@ namespace Velivo
                     {   // 📺 TV: poziom kanału z ostatniej minuty (bramka -10 LU, jak BS.1770) - nadąża za zmianą programu; cicha scena NIE podgłaśnia (falowanie),
                         //    głośniejsza scena (reklama) dalej szybko w dół
                         double lb = tvP < 0 ? tvP : double.NegativeInfinity; if (m15 > lb + 5) loudN++; else loudN = 0; bool loud = (scene || loudN > 5 * Fs) && m15 > lb; if (loud) scene = true;   // głośniejszy program niż średnia kanału (ponad 5 dB przez 5 s) - porównanie z poziomem kanału, nie z oknem 10 s   // głośna scena / reklama - nie wlicza się do średniej kanału
-                        if (n % 4800 == 0 && !loud) { double mo = In.Momentary; if (mo > -70 && (tvP >= 0 || mo > lb - 10)) { tvP = tvP >= 0 ? mo : mo > lb + 15 && ++tvUp > 50 ? tvP + (mo - tvP) / 50 : tvP + (Math.Min(mo, lb + 3) - tvP) / (sinceStart < Fs * 60 ? 150 : 300); tvQ = 0; if (!(mo > lb + 15)) tvUp = 0; } else if (tvP < 0 && mo > -70 && ++tvQ > 150) tvP -= 0.05; }   // średnia w dB z ok. 30 s: cisza i tło (-10 LU) pominięte, głośne fragmenty liczą się najwyżej +3 dB; 15 s bez treści ponad progiem (cichszy program) - poziom schodzi 0,5 dB/s
+                        if (n % 4800 == 0 && !loud && !LekHold) { double mo = In.Momentary; if (mo > -70 && (tvP >= 0 || mo > lb - 10)) { tvP = tvP >= 0 ? mo : mo > lb + 15 && ++tvUp > 50 ? tvP + (mo - tvP) / 50 : tvP + (Math.Min(mo, lb + 3) - tvP) / (sinceStart < Fs * 60 ? 150 : 300); tvQ = 0; if (!(mo > lb + 15)) tvUp = 0; } else if (tvP < 0 && mo > -70 && ++tvQ > 150) tvP -= 0.05; }   // średnia w dB z ok. 30 s: cisza i tło (-10 LU) pominięte, głośne fragmenty liczą się najwyżej +3 dB; 15 s bez treści ponad progiem (cichszy program) - poziom schodzi 0,5 dB/s
                         if (tvP < 0) basis = loud ? m15 : lb;
                     }
-                    if (basis > double.NegativeInfinity && In.Momentary > bgGate)
+                    if (basis > double.NegativeInfinity && In.Momentary > bgGate && !LekHold)
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian

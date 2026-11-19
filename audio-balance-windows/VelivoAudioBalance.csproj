@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <!-- Velivo Audio Balance for Windows: CAŁKOWICIE SAMODZIELNY program (bez przeglądarki Velivo) - cały dźwięk Windows (gry, filmy, przeglądarki, muzyka).
        Dźwięk: Windows → VB-Audio Virtual Cable (CABLE Input) → ten program (CABLE Output) → kompresor, LUFS, limiter → Twoje głośniki.
-       Własna kopia silnika (Silnik\) i własne teksty (Teksty.cs) - nic z ..\src. -->
+       Wspólny silnik dźwięku z ..\src (AudioBalanceDsp, AudioBalanceDynamics, AudioBalanceDynamicsUi); własne: Silnik\ (VST3), własne teksty (Teksty.cs); z ..\src także AbStyl, AbWidok, VelivoBledy, CentrumZasobnik. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
@@ -28,6 +28,10 @@
   <ItemGroup>
     <Compile Include="*.cs" />
     <Compile Include="Silnik\*.cs" />
+    <!-- 🎚 jeden wspólny silnik dźwięku z Velivo (2026-11-19, właściciel: „zrób”) - poprawka DSP w jednym miejscu dla obu programów -->
+    <Compile Include="..\src\AudioBalanceDsp.cs" Link="Silnik\AudioBalanceDsp.cs" />
+    <Compile Include="..\src\AudioBalanceDynamics.cs" Link="Silnik\AudioBalanceDynamics.cs" />
+    <Compile Include="..\src\AudioBalanceDynamicsUi.cs" Link="Silnik\AudioBalanceDynamicsUi.cs" />
     <Compile Include="..\src\AbStyl.cs" Link="AbStyl.cs" />
     <Compile Include="..\src\AbWidok.cs" Link="AbWidok.cs" />
     <Compile Include="..\src\VelivoBledy.cs" Link="VelivoBledy.cs" />

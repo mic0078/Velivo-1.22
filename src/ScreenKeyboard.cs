@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -267,6 +267,10 @@ namespace Velivo
                 var autoIt = new System.Windows.Forms.ToolStripMenuItem(L.T("Otwieraj samą po kliknięciu w pole tekstowe")) { Checked = _kbdAuto, ToolTipText = L.T("Jak klawiatura dotykowa Windows: klik w pole do pisania w dowolnym programie pokazuje klawiaturę Velivo") };
                 autoIt.Click += (s, e) => { _kbdAuto = !_kbdAuto; autoIt.Checked = _kbdAuto; Application.Current?.Dispatcher.BeginInvoke(new Action(() => SetPref("klawiatura-sama", _kbdAuto ? "1" : "0"))); };
                 menu.Items.Add(autoIt);
+                var korIt = new System.Windows.Forms.ToolStripMenuItem(L.T("✍ Poprawiaj pisanie zwykłą klawiaturą"));   // autokorekta przy pisaniu klawiaturą komputera - także przy zamkniętym oknie klawiatury
+                menu.Opening += (s, e) => korIt.Checked = GetPref("klawiatura-korekta") != "0";
+                korIt.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { bool on = GetPref("klawiatura-korekta") == "0"; SetPref("klawiatura-korekta", on ? "1" : "0"); if (!on) _physCorrect = null; else _physApplyS?.Invoke(); }));
+                menu.Items.Add(korIt);
                 if (Wariant.Klawiatura)
                 {   // ⌨ Velivo Klawiatura: start z Windows i zakończenie programu (to jedyna ikona tego programu)
                     var auto = new System.Windows.Forms.ToolStripMenuItem(L.T("Uruchamiaj z Windows")) { CheckOnClick = true };
@@ -286,9 +290,12 @@ namespace Velivo
 
         // "Zamknij klawiature" z zasobnika: zamyka okno (takze schowane), zdejmuje ikonke i nie otwiera sie sama po kliknieciu
         // w pole - do ponownego otwarcia klawiatury (rolka, skrot, przycisk). Wczesniej przy schowanej klawiaturze nic sie nie dzialo.
+        static Action _physApplyS;   // włącza / wyłącza poprawianie wg ustawienia (z okna klawiatury)
+        static bool _kbdKoniec; static System.Windows.Threading.DispatcherTimer _kbdSecretTm;   // „Zamknij klawiaturę” z zasobnika - koniec także poprawiania; ✕ w oknie - poprawianie zwykłej klawiatury działa dalej
         static void CloseKeyboardFully()
         {
-            _kbdUserHid = true;
+            _kbdUserHid = true; _kbdKoniec = true;
+            try { _kbdSecretTm?.Stop(); } catch (Exception) { } _kbdSecretTm = null; StopKeyEcho();
             try { _kbd?.Close(); } catch (Exception) { }
             try { if (_kbdTray != null) { _kbdTray.Visible = false; _kbdTray.Dispose(); } } catch (Exception) { }
             _kbdTray = null;
@@ -1126,6 +1133,7 @@ namespace Velivo
             var fixB = key(ico("\uE8FB", "abc"), 58); fixB.Height = 28; fixB.FontSize = 12; DockPanel.SetDock(fixB, Dock.Right);
             Action fixShow = () => { bool on = GetPref("klawiatura-korekta") != "0"; fixB.Background = on ? accent : Brushes.Transparent; fixB.ToolTip = on ? L.T("Autokorekta pisowni: włączona – słowo spoza słownika poprawiane po spacji (też polskie znaki: zolw → żółw); ⌫ zaraz po poprawce cofa ją. Kliknij, aby wyłączyć") : L.T("Autokorekta pisowni: wyłączona (kliknij, aby włączyć)"); };
             Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) { SwipeTyping.Prev = _physPrev; try { return SwipeTyping.Complete(wd, noFix) ?? SwipeTyping.ContextFix(_physPrev, wd, noFix); } finally { SwipeTyping.Prev = null; } } }) : null;
+            _physApplyS = physApply;   // przełącznik w menu ikony klawiatury (działa też przy zamkniętym oknie)
             fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); physApply(); };
             head.Children.Add(fixB);
             // 🔈 klik przy pisaniu (wl./wyl., domyslnie wlaczony)
@@ -1597,12 +1605,14 @@ namespace Velivo
             };
             // zwykla klawiatura: autokorekta w podsluchu (PhysKey); pole hasla sprawdzane co 0,3 s - tam nic nie poprawiamy
             _physSecret = true;
-            var secretTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _kbdKoniec = false; try { _kbdSecretTm?.Stop(); } catch (Exception) { }   // sprawdzanie pól haseł z poprzedniego okna - zastępuje je to okno
+            var secretTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) }; _kbdSecretTm = secretTimer;
             // bez pisania przez 20 s - nie pytamy Windows co 0,3 s (mniej obciazenia, bez przycinek); wtedy bezpiecznie "pole hasla" do pierwszego sprawdzenia
             bool secretBusy = false;
             // pole w innym programie: pytanie dostepnosci Windows (UI Automation) w tle - w watku okna potrafilo zatrzymac Velivo na chwile
             secretTimer.Tick += async (s, e) =>
             {
+                if (_kbd == null) { var fg0 = GetForegroundWindow(); if (fg0 != IntPtr.Zero) _kbdTarget = fg0; }   // okno klawiatury zamknięte - pole hasła sprawdzane w oknie, w którym się pisze
                 if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physStale = true; return; }
                 if (secretBusy) return;
                 secretBusy = true;
@@ -1636,7 +1646,13 @@ namespace Velivo
             SwipeTyping.UseCount = wd => { lock (_swLearned) return _swLearned.TryGetValue(wd, out var n) ? n : 0; };
             physApply();
             StartKeyEcho();
-            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); secretTimer.Stop(); StopKeyEcho(); };
+            w.Closed += (s, e) =>
+            {
+                _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop();
+                if (_kbdKoniec) { secretTimer.Stop(); StopKeyEcho(); return; }
+                // ✕ zamyka tylko okno: poprawianie zwykłej klawiatury (i pilnowanie pól haseł) działa dalej; bez pasków podpowiedzi okna
+                _onPhysKey = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null; _physAddWord = null;
+            };
             _kbd = w; w.Show();
         }
 

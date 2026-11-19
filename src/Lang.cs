@@ -2349,6 +2349,7 @@ namespace Velivo
             { "Usuń z ulubionych", "Remove from favourites" },
             { "Ulubione kanały", "Favourite channels" },
             { "Moje serwery", "My servers" },
+            { "✍ Poprawiaj pisanie zwykłą klawiaturą", "✍ Correct typing on the regular keyboard" },
             { "Brak opisu – „🔎 Wyszukaj informacje” pobierze opis, obsadę i plakat.", "No description – “🔎 Search for information” will get the description, cast and poster." },
             { "Kliknij – szczegóły filmu (opis, obsada, odtwarzanie, usuwanie)", "Click – film details (description, cast, play, remove)" },
             { "Kliknij – szczegóły filmu i odtwarzanie (jak w Kanapie i serwerze)", "Click – film details and playback (as in Couch and the server)" },

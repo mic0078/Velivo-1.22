@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -20,7 +20,7 @@ namespace VelivoKursory
         static void Main(string[] args)
         {
             if (args.Length > 0 && args[0] == "--przywroc") { Kursory.Przywroc(); return; }   // odinstalowanie
-            if (args.Length > 0 && args[0] == "--zastosuj") { Kursory.Zastosuj(Kursory.Rozmiar()); return; }
+            if (args.Length > 0 && args[0] == "--zastosuj") { Kursory.Zastosuj(args.Length > 1 && int.TryParse(args[1], out var n) && Kursory.Rozmiary.Contains(n) ? n : Kursory.Rozmiar()); return; }   // także z Velivo Centrum: --zastosuj 64
             Application.EnableVisualStyles();
             Application.Run(new Okno());
         }
@@ -31,17 +31,18 @@ namespace VelivoKursory
         internal static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Kursory");
         static string Ust => Path.Combine(Dir, "rozmiar.txt");
         static string Kopia => Path.Combine(Dir, "poprzednie.txt");
-        internal static int Rozmiar() { try { return int.Parse(File.ReadAllText(Ust).Trim()) == 48 ? 48 : 32; } catch (Exception) { return 32; } }
+        internal static readonly int[] Rozmiary = { 32, 40, 48, 64, 96 };
+        internal static int Rozmiar() { try { int n = int.Parse(File.ReadAllText(Ust).Trim()); return Rozmiary.Contains(n) ? n : 32; } catch (Exception) { return 32; } }
 
         // rodzaj kursora: nazwa w rejestrze Windows (Panel sterowania\Kursory), podpis, punkt aktywny (w skali 32), liczba klatek
         internal sealed class Rodzaj { public string Rej, Nazwa; public float Hx, Hy; public int Klatki = 1; public string Plik; }
         internal static readonly Rodzaj[] Wszystkie =
         {
-            new Rodzaj { Rej = "Arrow", Nazwa = "Strzałka", Hx = 4, Hy = 2, Plik = "strzalka" },
+            new Rodzaj { Rej = "Arrow", Nazwa = "Strzałka", Hx = 4, Hy = 2, Klatki = 16, Plik = "strzalka" },
             new Rodzaj { Rej = "Hand", Nazwa = "Łącze", Hx = 13, Hy = 3, Klatki = 8, Plik = "lacze" },
             new Rodzaj { Rej = "IBeam", Nazwa = "Tekst", Hx = 16, Hy = 16, Plik = "tekst" },
-            new Rodzaj { Rej = "Wait", Nazwa = "Czekanie", Hx = 16, Hy = 16, Klatki = 12, Plik = "czekanie" },
-            new Rodzaj { Rej = "AppStarting", Nazwa = "Praca w tle", Hx = 3, Hy = 2, Klatki = 12, Plik = "praca" },
+            new Rodzaj { Rej = "Wait", Nazwa = "Czekanie", Hx = 16, Hy = 16, Klatki = 16, Plik = "czekanie" },
+            new Rodzaj { Rej = "AppStarting", Nazwa = "Praca w tle", Hx = 4, Hy = 2, Klatki = 16, Plik = "praca" },
             new Rodzaj { Rej = "SizeAll", Nazwa = "Przesuń", Hx = 16, Hy = 16, Plik = "przesun" },
             new Rodzaj { Rej = "SizeWE", Nazwa = "Rozmiar ↔", Hx = 16, Hy = 16, Plik = "poziomo" },
             new Rodzaj { Rej = "SizeNS", Nazwa = "Rozmiar ↕", Hx = 16, Hy = 16, Plik = "pionowo" },
@@ -69,17 +70,14 @@ namespace VelivoKursory
                 double t = r.Klatki > 1 ? (double)f / r.Klatki : 0;
                 switch (r.Plik)
                 {
-                    case "strzalka": Ksztalt(g, Strzalka(0, 0)); break;
+                    case "strzalka": Ksztalt(g, Strzalka(0, 0), t); break;   // fala wody w środku (wybór właściciela 2)
                     case "pomoc": Ksztalt(g, Strzalka(0, 0)); Znak(g, "?", 22, 18); break;
                     case "lacze": using (var p = Dlon()) { var m = new Matrix(); m.Translate(0, (float)(Math.Sin(t * 2 * Math.PI) * 1.4)); p.Transform(m); Ksztalt(g, p); } break;
                     case "tekst":
                         using (var pen = new Pen(Color.FromArgb(220, 255, 255, 255), 4.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round }) Belka(g, pen);
                         using (var pen = new Pen(Fiolet, 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round }) Belka(g, pen); break;
-                    case "czekanie": Kolo(g, 16, 16, 11, t, 4f); break;
-                    case "praca":
-                        Ksztalt(g, Strzalka(-1, 0));
-                        using (var ring = new Pen(Color.FromArgb((int)(90 + 110 * (0.5 + 0.5 * Math.Sin(t * 2 * Math.PI))), Turkus), 1.3f)) g.DrawEllipse(ring, 16, 16, 15, 15);   // pulsujący pierścień (styl C)
-                        Kolo(g, 23.5f, 23.5f, 5.5f, t, 2.6f); break;
+                    case "czekanie": Kreski(g, 16, 16, 1f, t); break;   // trzy poziome kreski płyną w prawo (wybór właściciela B)
+                    case "praca": Ksztalt(g, Strzalka(0, 0), t); Kreski(g, 24, 25, 0.5f, t); break;
                     case "przesun": Ksztalt(g, Przesun()); break;
                     case "poziomo": Ksztalt(g, Dwustronna(0)); break;
                     case "pionowo": Ksztalt(g, Dwustronna(90)); break;
@@ -100,12 +98,26 @@ namespace VelivoKursory
         }
 
         // wspólny wygląd: poświata, biały obrys (czytelność na jasnym i ciemnym), gradient Velivo
-        static void Ksztalt(Graphics g, GraphicsPath p)
+        static void Ksztalt(Graphics g, GraphicsPath p, double fala = -1)
         {
             using (p)
             {
                 using (var glow = new Pen(Color.FromArgb(70, Fiolet), 4.5f) { LineJoin = LineJoin.Round }) g.DrawPath(glow, p);
                 using (var br = new LinearGradientBrush(new PointF(0, 0), new PointF(32, 32), Fiolet, Turkus)) g.FillPath(br, p);
+                if (fala >= 0)
+                {   // 🌊 fala wody (wybór właściciela 2): turkusowa fala faluje w środku kształtu, przesuwa się w prawo
+                    var st = g.Save(); g.SetClip(p);
+                    using (var w = new GraphicsPath())
+                    {
+                        float x0 = (float)(-16 + fala * 8), y0 = 17f;   // jeden okres fali = 8 jednostek, pętla bez skoku
+                        var pts = new List<PointF>();
+                        for (float x = x0; x <= 40; x += 0.5f) pts.Add(new PointF(x, y0 + (float)Math.Sin((x - x0) / 8 * 2 * Math.PI) * 1.8f));
+                        pts.Add(new PointF(40, 40)); pts.Add(new PointF(x0, 40)); w.AddPolygon(pts.ToArray());
+                        using (var br = new LinearGradientBrush(new PointF(0, 14), new PointF(0, 32), Color.FromArgb(230, Turkus), Color.FromArgb(230, 0x14, 0x8C, 0xC8))) g.FillPath(br, w);
+                        using (var pianka = new Pen(Color.FromArgb(200, 0xE0, 0xF7, 0xFF), 0.9f)) g.DrawLines(pianka, pts.Take(pts.Count - 2).ToArray());
+                    }
+                    g.Restore(st);
+                }
                 using (var w = new Pen(Color.White, 1.6f) { LineJoin = LineJoin.Round }) g.DrawPath(w, p);
             }
         }
@@ -122,14 +134,24 @@ namespace VelivoKursory
                 new PointF(27, 15), new PointF(27, 23), new PointF(24, 29), new PointF(14, 29), new PointF(8, 22), new PointF(5, 17), new PointF(7, 15), new PointF(11, 18) });
             return p;
         }
-        static void Belka(Graphics g, Pen pen) { g.DrawLine(pen, 12, 5, 20, 5); g.DrawLine(pen, 16, 5, 16, 27); g.DrawLine(pen, 12, 27, 20, 27); }
-        static void Kolo(Graphics g, float cx, float cy, float r, double t, float w)
+        // ▬ trzy poziome kreski w kolorach Velivo, płyną w prawo jedna po drugiej (pojawiają się i gasną)
+        static readonly Color Srodek = Color.FromArgb(0x4F, 0x7B, 0xE0);
+        static void Kreski(Graphics g, float cx, float cy, float sk, double t)
         {
-            using (var tlo = new Pen(Color.FromArgb(150, 40, 44, 60), w + 1.6f)) g.DrawEllipse(tlo, cx - r, cy - r, 2 * r, 2 * r);
-            using (var br = new LinearGradientBrush(new PointF(cx - r, cy - r), new PointF(cx + r, cy + r), Fiolet, Turkus))
-            using (var pen = new Pen(br, w) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-                g.DrawArc(pen, cx - r, cy - r, 2 * r, 2 * r, (float)(t * 360) - 90, 110);
+            var kol = new[] { Fiolet, Srodek, Turkus };
+            for (int i = 0; i < 3; i++)
+            {
+                double ph = ((t - i * 0.17) % 1 + 1) % 1; float dx = (float)(-6 + 12 * ph) * sk; int a = (int)(255 * Math.Sin(Math.PI * ph));
+                float w = 16 * sk, h = 4 * sk, x = cx - w / 2 + dx, y = cy - 6 * sk + i * 6 * sk - h / 2;
+                using (var path = new GraphicsPath())
+                {
+                    float rr = h; path.AddArc(x, y, rr, rr, 90, 180); path.AddArc(x + w - rr, y, rr, rr, 270, 180); path.CloseFigure();
+                    using (var o = new Pen(Color.FromArgb(a * 3 / 4, 255, 255, 255), 1.4f * Math.Max(sk, 0.8f))) g.DrawPath(o, path);
+                    using (var b = new SolidBrush(Color.FromArgb(a, kol[i]))) g.FillPath(b, path);
+                }
+            }
         }
+        static void Belka(Graphics g, Pen pen) { g.DrawLine(pen, 12, 5, 20, 5); g.DrawLine(pen, 16, 5, 16, 27); g.DrawLine(pen, 12, 27, 20, 27); }
         static void Znak(Graphics g, string s, float x, float y)
         {
             using (var f = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Pixel))
@@ -237,7 +259,7 @@ namespace VelivoKursory
             ClientSize = new Size(640, 470); StartPosition = FormStartPosition.CenterScreen;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { }
             Controls.Add(new Label { Text = "Velivo Kursory", Font = new Font("Segoe UI Semibold", 16f), AutoSize = true, Location = new Point(18, 14) });
-            Controls.Add(new Label { Text = "Kursory myszy w stylu Velivo – z animacją czekania, pracy w tle i łącza. Windows je pamięta: program nie musi działać w tle.", ForeColor = Dim, Location = new Point(20, 50), Size = new Size(600, 40) });
+            Controls.Add(new Label { Text = "Kursory myszy w stylu Velivo – strzałka z falą wody w środku, trzy kreski przy czekaniu, łącze i „niedostępne” z animacją. Windows je pamięta: program nie musi działać w tle.", ForeColor = Dim, Location = new Point(20, 50), Size = new Size(600, 40) });
             var siatka = new FlowLayoutPanel { Location = new Point(18, 92), Size = new Size(606, 250), BackColor = Bg };
             Controls.Add(siatka);
             foreach (var r in Kursory.Wszystkie.Where(x => x.Rej != "Pin" && x.Rej != "Person"))
@@ -248,15 +270,17 @@ namespace VelivoKursory
                 var kl = Enumerable.Range(0, r.Klatki).Select(f => Kursory.Klatka(r, 48, f)).ToArray(); pb.Image = kl[0];
                 podglad.Add((pb, r, kl)); siatka.Controls.Add(p);
             }
-            var maly = new RadioButton { Text = "Normalny (32 px)", AutoSize = true, Location = new Point(22, 352), Checked = Kursory.Rozmiar() == 32, ForeColor = Fg };
-            var duzy = new RadioButton { Text = "Duży (48 px) – łatwiej zobaczyć", AutoSize = true, Location = new Point(180, 352), Checked = Kursory.Rozmiar() == 48, ForeColor = Fg };
-            Controls.Add(maly); Controls.Add(duzy);
+            Controls.Add(new Label { Text = "Wielkość:", AutoSize = true, Location = new Point(20, 355) });
+            var wielkosc = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(96, 351), Width = 260, BackColor = Karta, ForeColor = Fg, FlatStyle = FlatStyle.Flat };
+            string[] opis = { "32 px – normalna (jak Windows)", "40 px – trochę większa", "48 px – duża", "64 px – bardzo duża", "96 px – największa (słaby wzrok)" };
+            wielkosc.Items.AddRange(opis); wielkosc.SelectedIndex = Array.IndexOf(Kursory.Rozmiary, Kursory.Rozmiar());
+            Controls.Add(wielkosc);
             Button B(string t, int x, Color c) { var b = new Button { Text = t, Location = new Point(x, 388), Size = new Size(t.Length * 8 + 40, 36), FlatStyle = FlatStyle.Flat, BackColor = c, ForeColor = Fg, Cursor = Cursors.Hand }; b.FlatAppearance.BorderSize = 0; Controls.Add(b); return b; }
             var tak = B("✔ Zastosuj kursory Velivo", 20, Akcent);
             var nie = B("↺ Przywróć kursory Windows", 270, Karta);
             stan = new Label { ForeColor = Dim, Location = new Point(20, 434), Size = new Size(600, 24) };
             Controls.Add(stan); Stan();
-            tak.Click += (s, e) => { try { Kursory.Zastosuj(duzy.Checked ? 48 : 32); Stan(); } catch (Exception ex) { stan.Text = "Nie udało się: " + ex.Message; } };
+            tak.Click += (s, e) => { try { Kursory.Zastosuj(Kursory.Rozmiary[Math.Max(0, wielkosc.SelectedIndex)]); Stan(); } catch (Exception ex) { stan.Text = "Nie udało się: " + ex.Message; } };
             nie.Click += (s, e) => { try { Kursory.Przywroc(); Stan(); } catch (Exception ex) { stan.Text = "Nie udało się: " + ex.Message; } };
             var tm = new Timer { Interval = 90 };
             tm.Tick += (s, e) => { klatka++; foreach (var p in podglad) if (p.Kl.Length > 1) p.Pb.Image = p.Kl[klatka % p.Kl.Length]; };

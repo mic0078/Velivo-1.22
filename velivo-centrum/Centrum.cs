@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -48,6 +48,7 @@ namespace VelivoCentrum
             new Prog("VelivoAudioBalance", "Audio Balance", "wyrównywanie dźwięku Windows", "VelivoAudioBalance", "Velivo Audio Balance for Windows"),
             new Prog("VelivoMonitor", "Velivo Monitor", "sieć i procesor", "VelivoMonitor", "Velivo Monitor"),
             new Prog("VelivoKlawiatura", "Velivo Klawiatura", "klawiatura ekranowa i poprawianie pisania", "VelivoKlawiatura", "Velivo Klawiatura"),
+            new Prog("VelivoKursory", "Velivo Kursory", "kursory myszy w stylu Velivo", "VelivoKursory", "Velivo Kursory"),
         };
         static readonly string ExePath = System.Reflection.Assembly.GetEntryAssembly().Location;
 
@@ -58,7 +59,11 @@ namespace VelivoCentrum
             var d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", p.DefDir, p.Proc + ".exe");
             return File.Exists(d) ? d : null;
         }
-        static bool Running(Prog p) { var ps = Process.GetProcessesByName(p.Proc); foreach (var x in ps) x.Dispose(); return ps.Length > 0; }
+        // 🖱 Velivo Kursory nie działa w tle - „działa” = kursory Velivo włączone w Windows, wielkość z jego ustawień
+        static bool KursoryOn() { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Cursors")) return (k?.GetValue("Arrow") as string ?? "").Contains(@"\Velivo\Kursory\"); } catch (Exception) { return false; } }
+        static string KursoryPx() { try { return File.ReadAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Kursory", "rozmiar.txt")).Trim(); } catch (Exception) { return "32"; } }
+        static void KursoryRun(Prog p, string args) { try { Process.Start(new ProcessStartInfo(p.Exe, args) { UseShellExecute = false, CreateNoWindow = true }); } catch (Exception) { } }
+        static bool Running(Prog p) { if (p.Pid == "VelivoKursory") return KursoryOn(); var ps = Process.GetProcessesByName(p.Proc); foreach (var x in ps) x.Dispose(); return ps.Length > 0; }
 
         // na żywo: poziom z Audio Balance (pamięć współdzielona), procesor dla Monitora
         static string Live(Prog p, bool on)
@@ -67,6 +72,7 @@ namespace VelivoCentrum
             if (p.Pid == "VelivoAudioBalance")
                 try { using (var m = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\Velivo.AudioBalance.Wynik")) using (var v = m.CreateViewAccessor()) { if ((long)GetTickCount64() - v.ReadInt64(8) < 3000) { float l = v.ReadSingle(0); if (l > -70 && l < 0) return l.ToString("0.0") + " LUFS · przetwarza"; } } } catch (Exception) { }
             if (p.Pid == "VelivoMonitor" && cpu >= 0) return "procesor " + cpu.ToString("0") + " %";
+            if (p.Pid == "VelivoKursory") return "włączone · " + KursoryPx() + " px";
             return p.Desc;
         }
         [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
@@ -146,9 +152,17 @@ namespace VelivoCentrum
                 var cm = new ContextMenu();
                 void Mi(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (s, e) => a(); cm.Items.Add(mi); }
                 Mi(run ? "▶ Otwórz " + p.Name : "▶ Uruchom " + p.Name, () => { Open(pp); win.Hide(); });
-                if (run) Mi("✕ Zamknij " + p.Name, () => Close(pp));
+                if (p.Pid == "VelivoKursory")
+                {   // 🖱 wielkość kursorów prosto z Centrum, przywrócenie kursorów Windows
+                    var wl = new MenuItem { Header = "Wielkość kursorów" }; cm.Items.Add(wl);
+                    foreach (var (px, t) in new[] { ("32", "32 px – normalna"), ("40", "40 px – trochę większa"), ("48", "48 px – duża"), ("64", "64 px – bardzo duża"), ("96", "96 px – największa") })
+                    { var mi = new MenuItem { Header = t, IsCheckable = true, IsChecked = run && KursoryPx() == px }; mi.Click += (s, e) => { KursoryRun(pp, "--zastosuj " + px); Fill(); }; wl.Items.Add(mi); }
+                    if (!run) Mi("✔ Włącz kursory Velivo", () => { KursoryRun(pp, "--zastosuj"); Fill(); });
+                    else Mi("↺ Przywróć kursory Windows", () => { KursoryRun(pp, "--przywroc"); Fill(); });
+                }
+                else if (run) Mi("✕ Zamknij " + p.Name, () => Close(pp));
                 // prawy przycisk: oryginalne menu programu (to samo co przy jego ikonie przy zegarze); starsza wersja programu bez tej możliwości - menu powyżej
-                bd.MouseRightButtonUp += (s, e) => { if (run && ProgMenu(pp)) { e.Handled = true; win.Hide(); } else { cm.PlacementTarget = bd; cm.IsOpen = true; e.Handled = true; } };
+                bd.MouseRightButtonUp += (s, e) => { if (run && pp.Pid != "VelivoKursory" && ProgMenu(pp)) { e.Handled = true; win.Hide(); } else { cm.PlacementTarget = bd; cm.IsOpen = true; e.Handled = true; } };
                 // 📌 pokazywać też przy zegarze (obok Centrum) - zapamiętane dla programu
                 bool pin = Pinned(pp);
                 var pinB = new TextBlock { Text = pin ? "\uE718" : "\uE77A", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 14, Foreground = pin ? new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)) : Dim, Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Background = Brushes.Transparent,   // pinezka: żółta = też przy zegarze, szara przekreślona = tylko w Centrum
@@ -183,7 +197,7 @@ namespace VelivoCentrum
             }
             catch (Exception) { }
         }
-        void StartAll() { foreach (var p in All) if (p.Exe != null && !Running(p)) Uruchom(p); win.Hide(); }
+        void StartAll() { foreach (var p in All) if (p.Exe != null && p.Pid != "VelivoKursory" && !Running(p)) Uruchom(p); win.Hide(); }   // Kursory nie działa w tle - nie otwieramy jego okna
         static void Uruchom(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" || p.Pid == "VelivoSerwer" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
 
         void ShowList()

@@ -1,8 +1,0 @@
-/home/user/Velivo-1.22/velivo-kursory/bin/Debug/net48/kursory.ico
-/home/user/Velivo-1.22/velivo-kursory/bin/Debug/net48/VelivoKursory.exe.config
-/home/user/Velivo-1.22/velivo-kursory/bin/Debug/net48/VelivoKursory.exe
-/home/user/Velivo-1.22/velivo-kursory/obj/Debug/net48/VelivoKursory.GeneratedMSBuildEditorConfig.editorconfig
-/home/user/Velivo-1.22/velivo-kursory/obj/Debug/net48/VelivoKursory.AssemblyInfoInputs.cache
-/home/user/Velivo-1.22/velivo-kursory/obj/Debug/net48/VelivoKursory.AssemblyInfo.cs
-/home/user/Velivo-1.22/velivo-kursory/obj/Debug/net48/VelivoKursory.csproj.CoreCompileInputs.cache
-/home/user/Velivo-1.22/velivo-kursory/obj/Debug/net48/VelivoKursory.exe

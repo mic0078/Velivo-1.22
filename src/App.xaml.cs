@@ -68,6 +68,7 @@ namespace Velivo
             }));
             // Alt + kolko myszy = przezroczystosc okna (kazdego okna Velivo)
             EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Velivo.MainWindow.AlphaWheel));
+            Velivo.SuwakRolka.Wlacz();   // kółko myszy na każdym suwaku
             // klik rolka w pole do pisania = klawiatura ekranowa (kazde okno Velivo; tylko gdy wlaczona w ustawieniach)
             EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseDownEvent, new System.Windows.Input.MouseButtonEventHandler(Velivo.MainWindow.KeyboardOnMiddleClick));
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.

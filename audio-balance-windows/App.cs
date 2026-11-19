@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Windows;
@@ -45,6 +45,7 @@ namespace Velivo
             using var one = new Mutex(true, "VelivoAudioBalance.Jeden", out bool first);
             if (!first) { AbMain.SignalShow(); return; }   // drugie uruchomienie - pokaż okno działającej kopii
             var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Velivo.SuwakRolka.Wlacz();   // kółko myszy na każdym suwaku (jak w Velivo)
             app.DispatcherUnhandledException += (s, e) => { LogError(e.Exception); e.Handled = true; };
             AppDomain.CurrentDomain.UnhandledException += (s, e) => { if (e.ExceptionObject is Exception ex) LogError(ex); };
             var main = new AbMain(Array.Exists(args, a => a == "--zasobnik"));

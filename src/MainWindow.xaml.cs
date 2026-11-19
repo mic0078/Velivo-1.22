@@ -233,7 +233,7 @@ namespace Velivo
                     TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                     if (SilentStart && !Wariant.Klawiatura) StartSilently();   // ⌨ Velivo Klawiatura: tylko ikona klawiatury (bez ikony przeglądarki)
-                    if (Wariant.Klawiatura) { Hide(); EnsureKbdTray(); if (!AutoStarted) ShowScreenKeyboard(); }
+                    if (Wariant.Klawiatura) { Hide(); EnsureKbdTray(); StartPhysBackground(); if (!AutoStarted) ShowScreenKeyboard(); }   // poprawianie pisania od startu, także bez okna
                     _sessionReady = true;
                     if (Wariant.Odtwarzacz && !_odtwStartFilm && !AutoStarted) Dispatcher.BeginInvoke(new Action(OdtwOtworz), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // start z Windows: tylko ikona w zasobniku   // 🧩 Odtwarzacz startuje Kanapą
                     StartOdtwarzaczLekko();

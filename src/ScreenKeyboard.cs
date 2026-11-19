@@ -290,6 +290,40 @@ namespace Velivo
 
         // "Zamknij klawiature" z zasobnika: zamyka okno (takze schowane), zdejmuje ikonke i nie otwiera sie sama po kliknieciu
         // w pole - do ponownego otwarcia klawiatury (rolka, skrot, przycisk). Wczesniej przy schowanej klawiaturze nic sie nie dzialo.
+        // ⌨ poprawianie zwykłej klawiatury także bez otwierania okna (Velivo Klawiatura uruchomiona z Windows tylko przy zegarze - dotąd nie poprawiała)
+        static HashSet<string> _noFixBg;
+        internal static void StartPhysBackground()
+        {
+            if (_kbdKoniec) return;
+            if (_physApplyS == null)
+            {
+                _noFixBg = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0 && !SwipeTyping.IsMisspelling(x)));
+                var nf = _noFixBg;
+                _physApplyS = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (nf) { SwipeTyping.Prev = _physPrev; try { return SwipeTyping.Complete(wd, nf) ?? SwipeTyping.ContextFix(_physPrev, wd, nf); } finally { SwipeTyping.Prev = null; } } }) : null;
+            }
+            if (_physCorrect == null) _physApplyS();
+            EnsureSecretTimer(); StartKeyEcho();
+        }
+        static void EnsureSecretTimer()
+        {
+            if (_kbdSecretTm != null) return;
+            _physSecret = true;
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) }; _kbdSecretTm = t;
+            bool secretBusy = false;
+            t.Tick += async (s, e) =>
+            {
+                if (_kbd == null) { var fg0 = GetForegroundWindow(); if (fg0 != IntPtr.Zero) _kbdTarget = fg0; }   // okno klawiatury zamknięte - pole hasła sprawdzane w oknie, w którym się pisze
+                if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physStale = true; return; }
+                if (secretBusy) return;
+                secretBusy = true;
+                bool r;
+                try { GetWindowThreadProcessId(_kbdTarget, out var pid); r = pid == (uint)Environment.ProcessId ? SecretField() : await System.Threading.Tasks.Task.Run(SecretField); }
+                catch (Exception) { r = true; }
+                finally { secretBusy = false; }
+                _physSecret = r; _physStale = false;
+            };   // przerwa: bez sprawdzania (oszczednosc), pierwsze litery po niej nie gina
+            t.Start();
+        }
         static Action _physApplyS;   // włącza / wyłącza poprawianie wg ustawienia (z okna klawiatury)
         static bool _kbdKoniec; static System.Windows.Threading.DispatcherTimer _kbdSecretTm;   // „Zamknij klawiaturę” z zasobnika - koniec także poprawiania; ✕ w oknie - poprawianie zwykłej klawiatury działa dalej
         static void CloseKeyboardFully()
@@ -1605,24 +1639,8 @@ namespace Velivo
             };
             // zwykla klawiatura: autokorekta w podsluchu (PhysKey); pole hasla sprawdzane co 0,3 s - tam nic nie poprawiamy
             _physSecret = true;
-            _kbdKoniec = false; try { _kbdSecretTm?.Stop(); } catch (Exception) { }   // sprawdzanie pól haseł z poprzedniego okna - zastępuje je to okno
-            var secretTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) }; _kbdSecretTm = secretTimer;
-            // bez pisania przez 20 s - nie pytamy Windows co 0,3 s (mniej obciazenia, bez przycinek); wtedy bezpiecznie "pole hasla" do pierwszego sprawdzenia
-            bool secretBusy = false;
-            // pole w innym programie: pytanie dostepnosci Windows (UI Automation) w tle - w watku okna potrafilo zatrzymac Velivo na chwile
-            secretTimer.Tick += async (s, e) =>
-            {
-                if (_kbd == null) { var fg0 = GetForegroundWindow(); if (fg0 != IntPtr.Zero) _kbdTarget = fg0; }   // okno klawiatury zamknięte - pole hasła sprawdzane w oknie, w którym się pisze
-                if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physStale = true; return; }
-                if (secretBusy) return;
-                secretBusy = true;
-                bool r;
-                try { GetWindowThreadProcessId(_kbdTarget, out var pid); r = pid == (uint)Environment.ProcessId ? SecretField() : await System.Threading.Tasks.Task.Run(SecretField); }
-                catch (Exception) { r = true; }
-                finally { secretBusy = false; }
-                _physSecret = r; _physStale = false;
-            };   // przerwa: bez sprawdzania (oszczednosc), pierwsze litery po niej nie gina
-            secretTimer.Start();
+            _kbdKoniec = false;
+            EnsureSecretTimer();   // jedno sprawdzanie pól haseł - to samo przy otwartym oknie i w tle
             _physNotify = (from, to) => { ask.Text = L.T("Poprawiono: ") + from + " → " + to + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed; };
             fixLearned = (typo, good) =>
             {   // nowe slowo (imie, nazwa) - do Mojego slownika; znane - tylko zapis poprawki
@@ -1649,7 +1667,7 @@ namespace Velivo
             w.Closed += (s, e) =>
             {
                 _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop();
-                if (_kbdKoniec) { secretTimer.Stop(); StopKeyEcho(); return; }
+                if (_kbdKoniec) { try { _kbdSecretTm?.Stop(); } catch (Exception) { } _kbdSecretTm = null; StopKeyEcho(); return; }
                 // ✕ zamyka tylko okno: poprawianie zwykłej klawiatury (i pilnowanie pól haseł) działa dalej; bez pasków podpowiedzi okna
                 _onPhysKey = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null; _physAddWord = null;
             };

@@ -129,6 +129,7 @@ object Slownik {
         fun owac(stem: String) = arrayOf("", "za", "po", "prze", "wy", "do", "od", "na", "z", "s", "u", "roz", "przy", "w").any { it + stem + "ować" in m }
         if (b.length >= 4 && (b.endsWith("aj") && b.dropLast(1) + "ć" in m || b.endsWith("uj") && owac(b.dropLast(2)))) return true
         for (e in arrayOf("uje", "ujesz", "ujemy", "ujecie", "ują", "ujący", "ująca", "ujące")) if (w.length > e.length + 2 && w.endsWith(e) && owac(w.dropLast(e.length))) return true
+        for (e in arrayOf("ów", "om", "ami", "ach", "owi", "em")) if (w.length >= e.length + 4 && w.endsWith(e) && w.dropLast(e.length) in m) return true   // odmiana znanego rzeczownika: modułów <- moduł (jak Windows)
         for (e in owy) if (w.length >= e.length + 3 && w.endsWith(e) && w.dropLast(e.length) in m) return true   // przymiotnik od znanego rzeczownika: sprzętowy <- sprzęt
         return false
     }

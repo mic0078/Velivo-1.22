@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 
 namespace Velivo
@@ -130,7 +130,10 @@ namespace Velivo
             { "↶ Cofnięto do poprzednich ustawień (zostało kroków: ", "↶ Reverted to previous settings (steps left: " },
             { "Cofa ostatnią zmianę ustawień (krok po kroku, także Ctrl+Z). Oryginalny plik nigdy nie jest zmieniany – eksport to zawsze nowy plik.", "Undoes the last settings change (step by step, also Ctrl+Z). The original file is never changed – export is always a new file." },
             { "Bardzo ciche filmy", "Very quiet films" },
-            { "Ekstremalnie cicho nagrane filmy: RMS, próg -52 dB, 4:1, podbicie +22 dB, ekspander od -68 dB (szum nie rośnie). Wyrównanie LUFS dociąga potem do celu.", "Extremely quiet recordings: RMS, threshold -52 dB, 4:1, make-up +22 dB, expander from -68 dB (noise not boosted). LUFS levelling then pulls to the target." },
+            { "Spokojnie: próg automatyczny (średnia filmu +8 dB), 2,5:1, atak 20 ms, powrót 450 ms, ekspander od -55 dB. Poziom trzyma wyrównanie LUFS.", "Calm: automatic threshold (film average +8 dB), 2.5:1, attack 20 ms, release 450 ms, expander from -55 dB. Level kept by LUFS levelling." },
+            { "Mocniej: próg automatyczny (średnia +2 dB), 4:1, atak 15 ms, powrót 350 ms, ekspander od -55 dB. Poziom trzyma wyrównanie LUFS.", "Stronger: automatic threshold (average +2 dB), 4:1, attack 15 ms, release 350 ms, expander from -55 dB. Level kept by LUFS levelling." },
+            { "Cicho nagrane: próg automatyczny (średnia +4 dB), 3:1, powrót 400 ms, ekspander od -65 dB (szum nie rośnie). Do celu dociąga wyrównanie LUFS i „Bardzo ciche nagrania”.", "Quietly recorded: automatic threshold (average +4 dB), 3:1, release 400 ms, expander from -65 dB (noise does not rise). LUFS levelling and “Very quiet recordings” bring it to the target." },
+            { "Tylko szczyty: Peak, próg automatyczny (średnia +10 dB), 4:1, Mix 60%. Poziom trzyma wyrównanie LUFS.", "Peaks only: Peak, automatic threshold (average +10 dB), 4:1, Mix 60%. Level kept by LUFS levelling." },
             { "Program: ", "App: " },
             { "Własne ustawienia dla tego programu", "Own settings for this app" },
             { "📋 Zapisane dla programów…", "📋 Saved for apps…" },
@@ -153,7 +156,6 @@ namespace Velivo
             { "📌 Zawsze dla: ", "📌 Always for: " },
             { "wyłączone", "off" },
             { "● Działa", "● Running" },
-            { "Dialog nietknięty, wybuchy i muzyka trzymane blisko niego: RMS, próg automatyczny (średnia +3 dB), 6:1, powrót 400 ms, podbicie +4 dB.", "Dialogue untouched, explosions and music kept close to it: RMS, auto threshold (average +3 dB), 6:1, release 400 ms, make-up +4 dB." },
             { "⏺ Eksport na żywo (z VST)…", "⏺ Live export (with VST)…" },
             { "⏹ Zatrzymaj eksport", "⏹ Stop export" },
             { "⏺ Eksport na żywo – gra od początku; zmiany ustawień i wtyczek słychać i zapisują się. Inne dźwięki Windows też się nagrają – wycisz je.", "⏺ Live export – plays from the start; setting and plug-in changes are heard and saved. Other Windows sounds are recorded too – mute them." },

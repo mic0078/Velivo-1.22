@@ -137,6 +137,7 @@ namespace Velivo
             var w = new Window { Title = tytul, Width = 940, Height = 600, WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen, Owner = owner, Topmost = owner?.Topmost ?? false,
                 Background = SBg, Foreground = SFg, FontFamily = STekstFont, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize };
             w.SourceInitialized += (s, e) => { try { int on = 1; DwmSetWindowAttribute(new System.Windows.Interop.WindowInteropHelper(w).Handle, 20, ref on, 4); } catch (Exception) { } };   // ciemny pasek tytułu
+            w.Uid = "own-theme";   // własne ciemne kolory - motyw Velivo nie przemalowuje tła na białe (biały tekst na białym w Kanapie)
             w.KeyDown += (s, e) => { if (e.Key == System.Windows.Input.Key.Escape) w.Close(); };
             var g = new Grid { Margin = new Thickness(22) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) }); g.ColumnDefinitions.Add(new ColumnDefinition());
             g.Children.Add(new Border { CornerRadius = new CornerRadius(10), Background = SLine, ClipToBounds = true, VerticalAlignment = VerticalAlignment.Top, Height = 480,

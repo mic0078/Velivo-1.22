@@ -9,10 +9,10 @@ namespace Velivo
     {
         public bool IsEnabled;
         public DynDetection DetectionMode = DynDetection.Rms;
-        public float ThresholdDb = -32f, Ratio = 4f, AttackMs = 25f, ReleaseMs = 250f, KneeDb = 10f, MakeupGainDb = 6f, MixPercent = 100f;
+        public float ThresholdDb = -28f, Ratio = 2.5f, AttackMs = 20f, ReleaseMs = 450f, KneeDb = 8f, MakeupGainDb = 0f, MixPercent = 100f;   // domyślne = „Film / kino”
         public bool AutoMakeup;
-        public float ExpanderThresholdDb = -52f, ExpanderRatio = 1.5f;
-        public bool AutoThreshold; public float AutoOffsetDb = 6f;   // próg automatyczny: typowy poziom filmu + AutoOffsetDb (jak „Learn” w Ozone)
+        public float ExpanderThresholdDb = -55f, ExpanderRatio = 1.3f;
+        public bool AutoThreshold = true; public float AutoOffsetDb = 8f;   // próg automatyczny: typowy poziom filmu + AutoOffsetDb (jak „Learn” w Ozone)
 
         public DynParams Clone() => (DynParams)MemberwiseClone();
         // zakresy ze specyfikacji - wartości spoza nich (np. z ręcznie zmienionego pliku) przycinane
@@ -27,11 +27,11 @@ namespace Velivo
         static float C(float v, float lo, float hi) => float.IsNaN(v) ? lo : v < lo ? lo : v > hi ? hi : v;
 
         // gotowe ustawienia (presety)
-        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 8, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 2.5f, AttackMs = 20, ReleaseMs = 450, KneeDb = 8, MakeupGainDb = 0, ExpanderThresholdDb = -55, ExpanderRatio = 1.3f, MixPercent = 100 };   // tylko mikrodynamika: łagodny stopień, dłuższy powrót (bez pompowania), bez podbicia
-        // 🔈 bardzo cicho nagrane filmy (dialog ledwo słyszalny): mocne podbicie cichego, ekspander niżej (szum nie rośnie); dalej wyrównanie LUFS dociąga do celu
-        public static DynParams VeryQuiet() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -52, Ratio = 4, AttackMs = 15, ReleaseMs = 300, KneeDb = 12, MakeupGainDb = 22, ExpanderThresholdDb = -68, ExpanderRatio = 1.5f, MixPercent = 100 };
-        public static DynParams Night() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -42, Ratio = 6, AttackMs = 20, ReleaseMs = 250, KneeDb = 10, MakeupGainDb = 12, ExpanderThresholdDb = -50, MixPercent = 100 };
-        public static DynParams Parallel() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Peak, ThresholdDb = -20, Ratio = 4, AttackMs = 10, ReleaseMs = 150, KneeDb = 6, MakeupGainDb = 2, MixPercent = 60 };
+        // gotowe zestawy - wszystkie jednakowo: próg automatyczny (z typowego poziomu filmu/kanału), bez podbicia (poziom programu trzyma regulator LUFS za kompresorem)
+        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 8, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 2.5f, AttackMs = 20, ReleaseMs = 450, KneeDb = 8, MakeupGainDb = 0, ExpanderThresholdDb = -55, ExpanderRatio = 1.3f, MixPercent = 100 };
+        public static DynParams Night() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 2, DetectionMode = DynDetection.Rms, ThresholdDb = -34, Ratio = 4, AttackMs = 15, ReleaseMs = 350, KneeDb = 10, MakeupGainDb = 0, ExpanderThresholdDb = -55, ExpanderRatio = 1.5f, MixPercent = 100 };
+        public static DynParams VeryQuiet() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 4, DetectionMode = DynDetection.Rms, ThresholdDb = -40, Ratio = 3, AttackMs = 20, ReleaseMs = 400, KneeDb = 12, MakeupGainDb = 0, ExpanderThresholdDb = -65, ExpanderRatio = 1.3f, MixPercent = 100 };
+        public static DynParams Parallel() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 10, DetectionMode = DynDetection.Peak, ThresholdDb = -20, Ratio = 4, AttackMs = 10, ReleaseMs = 150, KneeDb = 6, MakeupGainDb = 0, ExpanderThresholdDb = -60, ExpanderRatio = 1.2f, MixPercent = 60 };
 
         // zapis w ustawieniach Velivo: jedna linia, kropka dziesiętna
         public string Save()
@@ -49,7 +49,7 @@ namespace Velivo
             p.IsEnabled = a[0] == "1"; p.DetectionMode = a[1] == "peak" ? DynDetection.Peak : DynDetection.Rms;
             p.ThresholdDb = F(2, p.ThresholdDb); p.Ratio = F(3, p.Ratio); p.AttackMs = F(4, p.AttackMs); p.ReleaseMs = F(5, p.ReleaseMs); p.KneeDb = F(6, p.KneeDb);
             p.MakeupGainDb = F(7, p.MakeupGainDb); p.AutoMakeup = a[8] == "1"; p.MixPercent = F(9, p.MixPercent); p.ExpanderThresholdDb = F(10, p.ExpanderThresholdDb); p.ExpanderRatio = F(11, p.ExpanderRatio);
-            if (a.Length >= 14) { p.AutoThreshold = a[12] == "1"; p.AutoOffsetDb = F(13, p.AutoOffsetDb); }   // starszy zapis (12 pól) - bez progu automatycznego
+            if (a.Length >= 14) { p.AutoThreshold = a[12] == "1"; p.AutoOffsetDb = F(13, p.AutoOffsetDb); } else p.AutoThreshold = false;   // starszy zapis (12 pól) - bez progu automatycznego
             return p.Clamped();
         }
     }

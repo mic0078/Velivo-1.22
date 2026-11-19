@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,6 +22,8 @@ namespace Velivo
             if (b.Length >= 4 && (b.EndsWith("aj") && m.Contains(b.Substring(0, b.Length - 1) + "ć") || b.EndsWith("uj") && Owac(b.Substring(0, b.Length - 2)))) return true;
             foreach (var e in new[] { "uje", "ujesz", "ujemy", "ujecie", "ują", "ujący", "ująca", "ujące" })   // instaluje, instalujesz <- instalować
                 if (w.Length > e.Length + 2 && w.EndsWith(e) && Owac(w.Substring(0, w.Length - e.Length))) return true;
+            foreach (var e in new[] { "ów", "om", "ami", "ach", "owi", "em" })   // odmiana znanego rzeczownika (słownik ma tylko niektóre formy): modułów <- moduł, plikami <- plik
+                if (w.Length >= e.Length + 4 && w.EndsWith(e) && m.Contains(w.Substring(0, w.Length - e.Length))) return true;
             foreach (var e in Owy)   // przymiotnik od znanego rzeczownika: sprzętowy <- sprzęt, domowa <- dom
                 if (w.Length >= e.Length + 3 && w.EndsWith(e) && m.Contains(w.Substring(0, w.Length - e.Length))) return true;
             return false;

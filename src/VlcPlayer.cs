@@ -1248,6 +1248,17 @@ namespace Velivo
             var dText = new TextBlock { TextWrapping = TextWrapping.Wrap };
             var dStack = new StackPanel { Margin = new Thickness(10, 4, 10, 4) }; dStack.Children.Add(dPoster); dStack.Children.Add(dText);
             var details = new ScrollViewer { Content = dStack, Width = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed };
+            dPoster.Cursor = Cursors.Hand; dPoster.ToolTip = L.T("Kliknij – szczegóły filmu i odtwarzanie (jak w Kanapie i serwerze)");
+            dPoster.MouseLeftButtonUp += (s, a) =>
+            {   // 🎬 to samo okno szczegółów co Kanapa i serwer filmów
+                var r = list.SelectedItem as LibRow; if (r == null) return; var v = r.Item; var m = MetaFor(v.Path);
+                FilmSzczegoly(win, ShownTitle(v, m), m, dPoster.Source, v.Len, v.Pos, v.Done, how =>
+                {
+                    if (remoteOf.TryGetValue(v, out var rem)) { if (how == "poczatek") rem.Value.p = 0; WantRemoteFilm(rem.Key, rem.Value, false); }
+                    else { _pilotResume = how; _playShared = _libSharedView; PlayVideos(new[] { v.Path }, 0); }
+                    LibAway(win);
+                });
+            };
             list.SelectionChanged += (s, a) =>
             {
                 var r = list.SelectedItem as LibRow; var m = r != null ? MetaFor(r.Item.Path) : null;

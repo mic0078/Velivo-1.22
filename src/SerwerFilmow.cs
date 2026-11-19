@@ -58,7 +58,7 @@ namespace Velivo
             {
                 var fol = SerwerFoldery().Where(Directory.Exists).ToList();
                 int nowe = 0;
-                if (fol.Count > 0) { var l = LoadLibrary(); nowe = await Task.Run(() => AddToLibrary(l, fol, true)); if (nowe > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }
+                if (fol.Count > 0) { var l = LoadLibrary(); var pom = SerwerPominiete(); nowe = await Task.Run(() => AddToLibrary(l, fol, true)); nowe -= l.RemoveAll(v => pom.Contains(v.Path)); if (nowe > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }   // usunięte z serwera nie wracają przy przeglądaniu
                 var bez = LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path) && LookupMeta(Meta, v.Path) == null && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
                 int opis = 0;
                 foreach (var v in bez)
@@ -130,6 +130,69 @@ namespace Velivo
         static ImageSource _serwerIco;
         internal static ImageSource SerwerIkona() { try { return _serwerIco ??= new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/serwer.ico")); } catch (Exception) { return null; } }
 
+        // 🎬 szczegóły filmu jak w Jellyfin (serwer i Kanapa - ta sama funkcja): duży plakat, opis, obsada, ▶ Odtwórz / ⏯ Wznów / ⏮ Od początku i dodatkowe czynności
+        //    graj("wznow" | "poczatek" | null) - odtwarzanie wybrane przez wołającego (plik, film z serwera)
+        internal void FilmSzczegoly(Window owner, string tytul, MovieInfo m, ImageSource plakat, long len, long pos, bool done, Action<string> graj, List<(string Txt, Action Act)> wiecej = null)
+        {
+            var w = new Window { Title = tytul, Width = 940, Height = 600, WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen, Owner = owner, Topmost = owner?.Topmost ?? false,
+                Background = SBg, Foreground = SFg, FontFamily = STekstFont, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize };
+            w.SourceInitialized += (s, e) => { try { int on = 1; DwmSetWindowAttribute(new System.Windows.Interop.WindowInteropHelper(w).Handle, 20, ref on, 4); } catch (Exception) { } };   // ciemny pasek tytułu
+            w.KeyDown += (s, e) => { if (e.Key == System.Windows.Input.Key.Escape) w.Close(); };
+            var g = new Grid { Margin = new Thickness(22) }; g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) }); g.ColumnDefinitions.Add(new ColumnDefinition());
+            g.Children.Add(new Border { CornerRadius = new CornerRadius(10), Background = SLine, ClipToBounds = true, VerticalAlignment = VerticalAlignment.Top, Height = 480,
+                Child = plakat != null ? (UIElement)new Image { Source = plakat, Stretch = Stretch.UniformToFill } : new TextBlock { Text = "🎬", FontSize = 80, Foreground = SDim, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } });
+            var d = new DockPanel(); Grid.SetColumn(d, 2); g.Children.Add(d);
+            var top = new StackPanel(); DockPanel.SetDock(top, Dock.Top); d.Children.Add(top);
+            top.Children.Add(STxt(m?.Name ?? tytul, 26, null, true));
+            if (!string.IsNullOrEmpty(m?.Original) && m.Original != m.Name) { var o = STxt(m.Original, 14, SDim); o.FontStyle = FontStyles.Italic; top.Children.Add(o); }
+            var meta = new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, len > 0 ? (len / 60000) + L.T(" min") : null, m?.Age,
+                m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null }.Where(x => !string.IsNullOrEmpty(x));
+            var mt = STxt(string.Join("   ·   ", meta), 14, SDim); mt.Margin = new Thickness(0, 8, 0, 0); top.Children.Add(mt);
+            if (!string.IsNullOrEmpty(m?.Director)) { var r0 = STxt(L.T("Reżyseria: ") + m.Director, 13.5, SDim); r0.Margin = new Thickness(0, 6, 0, 0); top.Children.Add(r0); }
+            if (m?.People?.Count > 0) { var p0 = STxt(L.T("Obsada: ") + string.Join(", ", m.People.Take(12)), 13.5, SDim); p0.Margin = new Thickness(0, 4, 0, 0); top.Children.Add(p0); }
+            var btn = new WrapPanel { Margin = new Thickness(0, 18, 0, 0) }; top.Children.Add(btn);
+            Action<string> start = how => { w.Close(); graj(how); };
+            bool wznow = pos > 0 && !done && len > 0;
+            var b0 = SBtnMake(wznow ? L.T("▶ Wznów od ") + TimeSpan.FromMilliseconds(pos).ToString(pos >= 3600000 ? @"h\:mm\:ss" : @"m\:ss") : L.T("▶ Odtwórz"), () => start(wznow ? "wznow" : null), SAccent); btn.Children.Add(b0);
+            if (wznow) btn.Children.Add(SBtnMake(L.T("⏮ Od początku"), () => start("poczatek")));
+            foreach (var x in wiecej ?? new List<(string, Action)>()) { var xx = x; btn.Children.Add(SBtnMake(xx.Txt, () => { w.Close(); xx.Act(); })); }
+            if (wznow) { var pr = new ProgressBar { Height = 5, Maximum = len, Value = pos, Margin = new Thickness(0, 4, 0, 0), Foreground = SAccent, Background = SLine, BorderThickness = new Thickness(0) }; top.Children.Add(pr); }
+            var ov = STxt(string.IsNullOrWhiteSpace(m?.Overview) ? L.T("Brak opisu – „🔎 Wyszukaj informacje” pobierze opis, obsadę i plakat.") : m.Overview, 15, string.IsNullOrWhiteSpace(m?.Overview) ? SDim : SFg);
+            ov.VerticalAlignment = VerticalAlignment.Top; ov.LineHeight = 22;
+            d.Children.Add(new ScrollViewer { Content = ov, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 18, 0, 0) });
+            w.Content = g; w.Loaded += (s, e) => b0.Focus(); w.Show(); w.Activate();
+        }
+
+        static bool WPrzycisku(DependencyObject d) { for (; d != null; d = d is Visual || d is System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d)) if (d is Button) return true; return false; }
+        // ➖ usunięte z serwera (plik zostaje) - nie wraca przy przeglądaniu folderów
+        static HashSet<string> SerwerPominiete() => new HashSet<string>((GetPref("serwer-pominiete") ?? "").Split('|').Where(x => x.Length > 0), StringComparer.OrdinalIgnoreCase);
+        void SerwerUsun(Window owner, string path, bool dysk)
+        {
+            var nazwa = Path.GetFileName(path);
+            if (MessageBox.Show(owner, dysk ? L.T("Usunąć film z serwera i z dysku (do Kosza)?") + "\n\n" + nazwa : L.T("Usunąć film z serwera? Plik zostaje na dysku, serwer przestaje go udostępniać.") + "\n\n" + nazwa,
+                Wariant.Nazwa, MessageBoxButton.YesNo, dysk ? MessageBoxImage.Warning : MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            try
+            {
+                if (dysk && File.Exists(path)) Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(path, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                if (!dysk) { var p = SerwerPominiete(); p.Add(path); SetPref("serwer-pominiete", string.Join("|", p)); }
+                var l = LoadLibrary(); if (l.RemoveAll(v => string.Equals(v.Path, path, StringComparison.OrdinalIgnoreCase)) > 0) SaveLibrary(l);
+                _sharedCache = null; _libRefresh?.Invoke();
+                ShowToast((dysk ? L.T("🗑 Usunięto z serwera i z dysku: ") : L.T("➖ Usunięto z serwera: ")) + nazwa, null);
+            }
+            catch (Exception ex) { App.LogError(ex); ShowToast(L.T("Nie udało się usunąć: ") + ex.Message, null); }
+        }
+        // szczegóły filmu serwera (z czynnościami zarządzania)
+        void SerwerFilm(Window owner, LibraryVideo v, Action po)
+        {
+            var m = LookupMeta(Meta, v.Path); var pf = m?.Poster != null ? Path.Combine(PosterDir, m.Poster) : null;
+            FilmSzczegoly(owner, ShownTitle(v, m), m, pf != null && File.Exists(pf) ? LoadLogo(pf, 640) : null, v.Len, v.Pos, v.Done, how => { _pilotResume = how; PlayVideos(new[] { v.Path }, 0); },
+                new List<(string, Action)> {
+                    (L.T("🔎 Wyszukaj informacje"), () => ShowMetaSearch(owner, v.Path, ShownTitle(v, MetaFor(v.Path)), po)),
+                    (L.T("📂 Pokaż plik"), () => { try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + v.Path + "\""); } catch (Exception) { } }),
+                    (L.T("➖ Usuń z serwera"), () => { SerwerUsun(owner, v.Path, false); po(); }),
+                    (L.T("🗑 Usuń z dysku"), () => { SerwerUsun(owner, v.Path, true); po(); }) });
+        }
+
         Window _serwerWin;
         internal void SerwerOkno()
         {
@@ -165,19 +228,30 @@ namespace Velivo
             // prawa: filmy serwera
             var right = new DockPanel(); Grid.SetColumn(right, 2); grid.Children.Add(right);
             var rHead = STxt("", 14.5, null, true); DockPanel.SetDock(rHead, Dock.Top); right.Children.Add(rHead);
-            var skan = SBtnMake(L.T("🔄 Przejrzyj foldery i uzupełnij informacje"), () => SerwerSkanuj(true), SAccent); skan.HorizontalAlignment = HorizontalAlignment.Left; skan.Margin = new Thickness(0, 10, 0, 0);
-            DockPanel.SetDock(skan, Dock.Bottom); right.Children.Add(skan);
+            var szukaj = new TextBox { Background = SField, Foreground = SFg, CaretBrush = SFg, BorderBrush = SLine, Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(0, 8, 0, 0), ToolTip = L.T("Szukaj filmu na serwerze (tytuł)") };
+            DockPanel.SetDock(szukaj, Dock.Top); right.Children.Add(szukaj);
+            Action fill = null; string sig = null;
+            szukaj.TextChanged += (s, e) => fill?.Invoke();
+            var dol = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) }; DockPanel.SetDock(dol, Dock.Bottom); right.Children.Add(dol);
+            dol.Children.Add(SBtnMake(L.T("🔄 Przejrzyj foldery i uzupełnij informacje"), () => SerwerSkanuj(true), SAccent));
+            dol.Children.Add(SBtnMake(L.T("🔃 Odśwież listę"), () => { sig = null; fill(); }));
+            dol.Children.Add(SBtnMake(L.T("🧹 Usuń brakujące pliki"), () =>
+            {   // wpisy filmów, których pliku już nie ma w folderach serwera (przeniesione, usunięte poza Velivo)
+                var l = LoadLibrary(); int n = l.RemoveAll(v => WFolderze(v.Path) && !File.Exists(v.Path));
+                if (n > 0) { SaveLibrary(l); _sharedCache = null; _libRefresh?.Invoke(); }
+                ShowToast(n > 0 ? L.T("🧹 Usunięto wpisy bez pliku: ") + n : L.T("🧹 Wszystkie filmy serwera mają pliki – nic do usunięcia"), null); sig = null; fill();
+            }));
+            if (SerwerPominiete().Count > 0) dol.Children.Add(SBtnMake(L.T("↩ Przywróć usunięte z serwera"), () => { SetPref("serwer-pominiete", ""); SerwerSkanuj(true); }));
             var lista = new StackPanel(); right.Children.Add(new ScrollViewer { Content = lista, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 8, 0, 0) });
-            string sig = null;
-            Action fill = null;
             fill = () =>
             {
                 var foldery = SerwerFoldery();
-                var filmy = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path)).GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase).ToList();
+                var fq = szukaj.Text.Trim();
+                var filmy = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path) && (fq.Length == 0 || ShownTitle(v, MetaFor(v.Path)).IndexOf(fq, StringComparison.CurrentCultureIgnoreCase) >= 0)).GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase).ToList();
                 var teraz = SendTargets().Select(p => p.Device).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 kto.Text = Environment.MachineName + L.T(" · udostępnia filmów: ") + filmy.Count + " · " + (teraz.Count == 0 ? L.T("w sieci teraz: żaden Twój komputer z Velivo") : L.T("w sieci teraz: ") + string.Join(", ", teraz));
                 kto.ToolTip = teraz.Count == 0 ? L.T("Włącz Velivo na innym komputerze; musi być sparowany i w tym samym profilu.") : null;
-                var nowy = string.Join("|", foldery) + "#" + wybrany + "#" + string.Join("|", filmy.Select(v => { var m0 = LookupMeta(Meta, v.Path); return v.Path + "?" + m0?.Poster + "?" + (m0 != null); }));
+                var nowy = string.Join("|", foldery) + "#" + wybrany + "#" + fq + "#" + string.Join("|", filmy.Select(v => { var m0 = LookupMeta(Meta, v.Path); return v.Path + "?" + m0?.Poster + "?" + (m0 != null); }));
                 if (nowy == sig) return; sig = nowy;   // przebudowa tylko przy zmianie
                 fol.Children.Clear();
                 if (foldery.Count == 0) fol.Children.Add(SCardMake(STxt(L.T("Brak folderów – kliknij „➕ Dodaj folder”."), 12.5, SDim)));
@@ -201,8 +275,8 @@ namespace Velivo
                         Child = jestPl ? new Image { Source = LoadLogo(pf, 148), Stretch = Stretch.UniformToFill } : null };
                     DockPanel.SetDock(img, Dock.Left); row.Children.Add(img);
                     var btns = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(btns, Dock.Right);
-                    btns.Children.Add(SBtnMake(L.T("🔎 Informacje"), () => ShowMetaSearch(w, vv.Path, ShownTitle(vv, MetaFor(vv.Path)), () => { sig = null; fill(); })));
                     btns.Children.Add(SBtnMake(L.T("▶ Odtwórz"), () => PlayVideos(new[] { vv.Path }, 0)));
+                    btns.Children.Add(SBtnMake(L.T("🔎 Informacje"), () => ShowMetaSearch(w, vv.Path, ShownTitle(vv, MetaFor(vv.Path)), () => { sig = null; fill(); })));
                     row.Children.Add(btns);
                     var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                     var tl = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis };
@@ -219,7 +293,9 @@ namespace Velivo
                         txt.Children.Add(STxt((jest.Count > 0 ? "✔ " + string.Join(", ", jest) : "") + (brak.Count > 0 ? (jest.Count > 0 ? "   " : "") + L.T("⚠ brak: ") + string.Join(", ", brak) : ""), 12.5, brak.Count == 0 ? SOk : SWarn));
                     }
                     row.Children.Add(txt);
-                    lista.Children.Add(SCardMake(row));
+                    var karta = SCardMake(row); karta.Cursor = System.Windows.Input.Cursors.Hand; karta.ToolTip = L.T("Kliknij – szczegóły filmu (opis, obsada, odtwarzanie, usuwanie)");
+                    karta.MouseLeftButtonUp += (o, e) => { if (!(e.OriginalSource is DependencyObject src && WPrzycisku(src))) SerwerFilm(w, vv, () => { sig = null; fill(); }); };   // klik w film = szczegóły (jak Jellyfin), przyciski - swoje czynności
+                    lista.Children.Add(karta);
                 }
             };
             fRow.Children.Add(SBtnMake(L.T("➕ Dodaj folder…"), () =>

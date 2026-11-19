@@ -58,6 +58,8 @@ namespace Velivo
             string tab = "start";
             void Wyjdz() { tm.Stop(); w.Close(); }
             void Graj(Action a) { Wyjdz(); try { a(); } catch (Exception ex) { App.LogError(ex); } }
+            // 🎬 szczegóły filmu - to samo okno co w serwerze filmów
+            void Szczegoly(LibraryVideo v) { var p = v.Path; FilmSzczegoly(w, Tytul(v), MetaFor(p), Poster(p), v.Len, v.Pos, v.Done, how => Graj(() => { _pilotResume = how; PlayVideos(new[] { p }, 0); })); }
 
             // kafelek: Button z własnym szablonem - złota ramka i powiększenie, gdy wybrany (z kanapy widać, gdzie jesteś)
             Button Tile(double wd, double ht, UIElement content, Action act)
@@ -111,7 +113,7 @@ namespace Velivo
                 if (v.Len > 0 && v.Pos > 0 && !v.Done)
                     g.Children.Add(new ProgressBar { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Minimum = 0, Maximum = v.Len, Value = v.Pos, Foreground = KnGold, Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) });
                 var path = v.Path;
-                var b = Tile(wd, wd * 1.5, g, () => Graj(() => PlayVideos(new[] { path }, 0))); infoOf[b] = () => FilmOpis(v); return b;
+                var b = Tile(wd, wd * 1.5, g, () => Szczegoly(v)); infoOf[b] = () => FilmOpis(v); return b;   // klik = szczegóły filmu (jak Jellyfin), odtwarzanie stamtąd
             }
             List<IptvChannel> FavChannels()
             {
@@ -220,7 +222,7 @@ namespace Velivo
                         var g = new Grid(); var img = Poster(v.Path);
                         if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                         g.Children.Add(Caption(Tytul(v)));
-                        var path = v.Path; var big = Tile(420, 236, g, () => Graj(() => PlayVideos(new[] { path }, 0))); DockPanel.SetDock(big, Dock.Left);
+                        var path = v.Path; var big = Tile(420, 236, g, () => Szczegoly(v)); DockPanel.SetDock(big, Dock.Left);
                         var info = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(14, 0, 0, 6) };
                         info.Children.Add(new TextBlock { Text = L.T("Oglądaj dalej"), FontSize = 28, FontWeight = FontWeights.Bold });
                         if (v.Len > v.Pos) { var left = TimeSpan.FromMilliseconds(v.Len - v.Pos); info.Children.Add(new TextBlock { Text = L.T("Zostało ") + (int)left.TotalMinutes + L.T(" min · skończy się o ") + DateTime.Now.Add(left).ToString("HH:mm"), FontSize = 17, Foreground = KnDim, Margin = new Thickness(0, 6, 0, 0) }); }
@@ -330,7 +332,7 @@ namespace Velivo
                                 else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
                                 g.Children.Add(Caption(m?.Name ?? x.t, m?.Year > 0 ? m.Year.ToString() : null));
                                 if (x.l > 0 && x.p > 0 && !x.d) g.Children.Add(new ProgressBar { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Minimum = 0, Maximum = x.l, Value = x.p, Foreground = KnGold, BorderThickness = new Thickness(0) });
-                                var xx = x; var b = Tile(170, 255, g, () => Graj(() => WantRemoteFilm(pe, xx, false)));
+                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); })));
                                 infoOf[b] = () => Opis(m?.Name ?? xx.t, string.Join("   ·   ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, L.T("z komputera ") + pe.Device }.Where(z => z != null)), string.IsNullOrWhiteSpace(m?.Overview) ? "" : m.Overview);
                                 return (UIElement)b;
                             })));

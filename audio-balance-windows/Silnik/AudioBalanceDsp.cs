@@ -1,4 +1,4 @@
-// ✂ WŁASNA KOPIA silnika dla programu Velivo Audio Balance for Windows (samodzielny program) - zmiany w Velivo (src\AudioBalanceDsp.cs) jej nie dotykają; skopiowano 2026-11-15
+﻿// ✂ WŁASNA KOPIA silnika dla programu Velivo Audio Balance for Windows (samodzielny program) - zmiany w Velivo (src\AudioBalanceDsp.cs) jej nie dotykają; skopiowano 2026-11-15
 using System.Linq;
 using System.Collections.Generic;
 using System;
@@ -423,6 +423,7 @@ namespace Velivo
                     double add = Math.Pow(10, dG / 20) - 1; l += add * spc; r += add * spc; DialogDb = dG;
                 }
                 else DialogDb = 0;
+                if (preOn) Pre.Frame(ref l, ref r, preP);   // 🎚 kompresor PRZED wyrównaniem LUFS (właściciel 2026-11-19: „LUFS ma pilnować jako ostatni”) - wyrównanie mierzy już skompresowany dźwięk i trzyma cel, nic po nim nie zmienia głośności (poza limiterem szczytów)
                 double p = In.Push(l, r);
                 if (++nfN >= 4800) { nfN = 0; double mo0 = In.Momentary; if (mo0 > -90) noiseFl = mo0 < noiseFl ? noiseFl + (mo0 - noiseFl) * 0.3 : Math.Min(mo0, noiseFl + 0.01); }   // 🔇 szum tła: najcichsze chwile nagrania co 0,1 s, także w przerwach (w dół szybko, w górę 0,1 dB/s)
                 double g = 0;
@@ -435,7 +436,7 @@ namespace Velivo
                     //    a cichnięcie widać od razu (3 s) - po wybuchu poziom dialogu wraca bez czekania na okno pomiarowe
                     // podstawa: głośność samej treści z 10 s (bramka -10 LU jak w BS.1770 - przerwy między zdaniami pomijane), na starcie 3 s;
                     //    krótki huk nie ciągnie (mediana + 3 dB) - bez falowania między zdaniami (było: okno 3 s z przerwami → „roller coaster”)
-                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
+                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm;   // start źródła: czeka na pomiar 3 s (poziom zapamiętany / 0), bez gonienia głośności z 0,4 s - falowanie po zmianie kanału; głośny start ścisza szybka warstwa
                     if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
                     // zmiana sceny: mediana z 1,5 s różni się od podstawy o ponad 5 dB dłużej niż 1 s - nowy poziom w ok. 1–2 s zamiast gonienia przez 15 s
                     //    (w obrębie sceny bez zmian: spokojna średnia 10 s - bez pompowania między zdaniami; pauzy i cisza nie przełączają - pomiar pomija ciszę)
@@ -492,11 +493,9 @@ namespace Velivo
                     LekDb += (kWant - LekDb) / ((kWant < LekDb ? 0.15 : 0.6) * Fs);
                     g += LekDb;
                 }
-                // 🎚 kompresor PO wyrównaniu LUFS (jak w procesorach radiowych: wolne wyrównanie → kompresor → limiter): dostaje już wyrównany poziom,
-                //    więc jego próg trafia zawsze w to samo miejsce i nie dubluje pracy wyrównania (dawniej stał przed nim i sam podciągał cały film do celu)
-                double lin;
-                if (preOn) { double gl = Math.Pow(10, g / 20); l *= gl; r *= gl; Pre.Frame(ref l, ref r, preP); lin = vS; }
-                else lin = Math.Pow(10, g / 20) * vS;
+                // kolejność: wtyczki → korektor → dialogi → kompresor → wyrównanie LUFS (ostatnie - trzyma cel) → limiter True Peak
+                //    (kompresor nie goni celu - AutoTargetDb = NaN; dawniej stał po wyrównaniu i zmieniał głośność już ustawioną przez LUFS - falowanie)
+                double lin = Math.Pow(10, g / 20) * vS;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami
                 double tp = tpIn.Push(l * lin, r * lin), rq = tp > ceil ? ceil / tp : 1;
                 // minimum w oknie La (kolejka monotoniczna)

@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/user/Velivo-1.22/velivo-kursory/VelivoKursory.csproj": {}
+  },
+  "projects": {
+    "/home/user/Velivo-1.22/velivo-kursory/VelivoKursory.csproj": {
+      "version": "1.22.0",
+      "restore": {
+        "projectUniqueName": "/home/user/Velivo-1.22/velivo-kursory/VelivoKursory.csproj",
+        "projectName": "VelivoKursory",
+        "projectPath": "/home/user/Velivo-1.22/velivo-kursory/VelivoKursory.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/home/user/Velivo-1.22/velivo-kursory/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/root/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net48"
+        ],
+        "sources": {
+          "/usr/lib/dotnet/library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net48": {
+            "targetAlias": "net48",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net48": {
+          "targetAlias": "net48",
+          "dependencies": {
+            "Microsoft.NETFramework.ReferenceAssemblies": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[1.0.3, )"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/10.0.114/RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

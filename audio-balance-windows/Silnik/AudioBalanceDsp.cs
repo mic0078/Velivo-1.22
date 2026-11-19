@@ -209,10 +209,10 @@ namespace Velivo
         {
             int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
             var p = new AbProfile { LimitOnly = lim, Name = (lim ? "limit" : "auto") + "-" + new[] { "light", "normal", "strong" }[k],
-                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 12.0, 10, 8 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
-                UpDbS = new[] { 0.7, 1.0, 1.5 }[k], DownDbS = new[] { 1.0, 1.5, 2.5 }[k], Gate = new[] { -25.0, -30, -35 }[k],
-                ThrOff = lim ? new[] { 8.0, 6, 4 }[k] : new[] { 8.0, 6, 5 }[k], Ratio = new[] { 1.5, 2, 2.5 }[k],
-                AttackMs = new[] { 25.0, 15, 8 }[k], ReleaseMs = new[] { 400.0, 300, 200 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
+                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 10.0, 8, 6 }[k], MaxBoost = lim ? 0 : new[] { 8.0, 12, 15 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
+                UpDbS = new[] { 0.5, 0.8, 1.2 }[k], DownDbS = new[] { 1.5, 2.0, 3.0 }[k], Gate = new[] { -25.0, -30, -35 }[k],
+                ThrOff = lim ? new[] { 8.0, 6, 4 }[k] : new[] { 9.0, 8, 6 }[k], Ratio = new[] { 1.5, 2, 2.5 }[k],
+                AttackMs = new[] { 25.0, 15, 10 }[k], ReleaseMs = new[] { 700.0, 500, 350 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
             return p;
         }
         public static readonly AbProfile[] All = { Mk(false, "light"), Mk(false, "normal"), Mk(false, "strong"), Mk(true, "light"), Mk(true, "normal"), Mk(true, "strong") };
@@ -358,7 +358,7 @@ namespace Velivo
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
-            var preP = Pre.Params; bool preOn = preP.IsEnabled;
+            var preP = Pre.Params; bool preOn = preP.IsEnabled; Pre.LufsPo = pr != null && !pr.LimitOnly;   // po kompresorze pracuje LUFS - kompresor nie dokłada podbicia (dwie pętle wzmocnienia = „bicie się”)
             bool abOn = !(pr == null && !eqOn && dlg == 0 && !preOn);   // Audio Balance coś robi (wyrównywanie, korektor, dialogi albo kompresor)
             LekPath = !Bypass && abOn;
             float[] raw = null;   // oryginał filmu sprzed wtyczek VST3 - do wskaźników „źródło” i widma
@@ -412,6 +412,7 @@ namespace Velivo
                 { int sp = ScopePos; Scope[sp] = (float)((rl + rr) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (przed korektorem, wyrównaniem i głośnością) - pracę Velivo pokazują V i paski
                 vS += (vol - vS) * kV; VuIn(rl * vS, rr * vS); Raw.Push(rl * vS, rr * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 { double dm0 = (rl + rr) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
+                if (preOn) Pre.Frame(ref l, ref r, preP);   // 🎚 łańcuch: VST3 → kompresor → korektor → dialogi → LUFS → limiter TP; kompresor tylko mikrodynamika (bez podbicia - poziom trzyma LUFS)
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
                 {
@@ -423,7 +424,6 @@ namespace Velivo
                     double add = Math.Pow(10, dG / 20) - 1; l += add * spc; r += add * spc; DialogDb = dG;
                 }
                 else DialogDb = 0;
-                if (preOn) Pre.Frame(ref l, ref r, preP);   // 🎚 kompresor PRZED wyrównaniem LUFS (właściciel 2026-11-19: „LUFS ma pilnować jako ostatni”) - wyrównanie mierzy już skompresowany dźwięk i trzyma cel, nic po nim nie zmienia głośności (poza limiterem szczytów)
                 double p = In.Push(l, r);
                 if (++nfN >= 4800) { nfN = 0; double mo0 = In.Momentary; if (mo0 > -90) noiseFl = mo0 < noiseFl ? noiseFl + (mo0 - noiseFl) * 0.3 : Math.Min(mo0, noiseFl + 0.01); }   // 🔇 szum tła: najcichsze chwile nagrania co 0,1 s, także w przerwach (w dół szybko, w górę 0,1 dB/s)
                 double g = 0;
@@ -460,8 +460,8 @@ namespace Velivo
                         QuietNoise = false;   // 🔈 bez „bezpiecznika szumu”: liczył szum z najcichszych chwil nagrania i po kilkudziesięciu sekundach zjeżdżał z podbiciem do 0 (działało chwilę i przestawało); tło i tak nie jest podbijane (bramka 10 dB pod poziomem nagrania), szum wycisza ekspander kompresora
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
-                        wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
-                        double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
+                        wantS += (want - wantS) * (1.0 / ((scene ? 1.0 : 3.0) * Fs));   // wygładzenie celu: 3 s, zmiana sceny 1 s (było 2 / 0,5 - przeskoki)
+                        double up = sinceStart < Fs * 6 || scene ? upS * 3 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 3 : dnS;   /* start i zmiana sceny ×3 (było ×6 - skoki) */ if (wantS < levDb && levDb > 0) dn *= 4;   // głośniejszy materiał przy dodatnim wzmocnieniu - podbicie zdejmowane szybko   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,

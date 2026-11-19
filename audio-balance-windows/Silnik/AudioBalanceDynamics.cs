@@ -28,7 +28,7 @@ namespace Velivo
         static float C(float v, float lo, float hi) => float.IsNaN(v) ? lo : v < lo ? lo : v > hi ? hi : v;
 
         // gotowe ustawienia (presety)
-        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 6, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 3.5f, AttackMs = 30, ReleaseMs = 300, KneeDb = 10, MakeupGainDb = 4, MixPercent = 100 };
+        public static DynParams Film() => new DynParams { IsEnabled = true, AutoThreshold = true, AutoOffsetDb = 8, DetectionMode = DynDetection.Rms, ThresholdDb = -28, Ratio = 2.5f, AttackMs = 20, ReleaseMs = 450, KneeDb = 8, MakeupGainDb = 0, ExpanderThresholdDb = -55, ExpanderRatio = 1.3f, MixPercent = 100 };   // tylko mikrodynamika: łagodny stopień, dłuższy powrót (bez pompowania), bez podbicia
         // 🔈 bardzo cicho nagrane filmy (dialog ledwo słyszalny): mocne podbicie cichego, ekspander niżej (szum nie rośnie); dalej wyrównanie LUFS dociąga do celu
         public static DynParams VeryQuiet() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -52, Ratio = 4, AttackMs = 15, ReleaseMs = 300, KneeDb = 12, MakeupGainDb = 22, ExpanderThresholdDb = -68, ExpanderRatio = 1.5f, MixPercent = 100 };
         public static DynParams Night() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -42, Ratio = 6, AttackMs = 20, ReleaseMs = 250, KneeDb = 10, MakeupGainDb = 12, ExpanderThresholdDb = -50, MixPercent = 100 };
@@ -73,6 +73,7 @@ namespace Velivo
         // 🗣 lektor Velivo czyta kwestię (znak od Velivo): typowy poziom programu jest wtedy zamrożony - głos lektora nie jest „nowym, głośniejszym programem”,
         // więc film nie jest ściszany na czas kwestii ani podciągany po niej (bez pompowania); bezpiecznik zostaje, z większym zapasem
         public volatile bool Hold;
+        public volatile bool LufsPo;   // za kompresorem pracuje regulator LUFS - podbicie (ręczne, auto, do celu) zbędne: poziom programu ustala LUFS
         bool fastLvl; double stP, fP; int hiN, loN, bigN, trk; double mMx = -200, mMn = 200;   // mMx/mMn - zakres poziomu z ok. 0,6 s: mowa i muzyka „falują” (≥ 8 dB), szum tła w pauzie stoi   // 🔀 zmiana programu / kanału: moc z ok. 0,2 s i licznik „dłużej głośniej / ciszej niż typowy poziom” - szybkie przejście na nowy poziom
         double liftS, progP = double.NaN;   // progP - typowa MOC dźwięku (ta sama bramka co progDb) - do celu LUFS liczy się moc, nie średnia z dB
         int mtrN, progN; double progDb = double.NaN, expLow = double.PositiveInfinity;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
@@ -150,7 +151,7 @@ namespace Velivo
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
                 else if (!fastLvl && xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);   // po 30 s średnia z ok. 60 s - próg stoi, nie jeździ za uderzeniami i frazami muzyki (falowanie zgłoszone przez właściciela)
             }
-            double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
+            double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-50, Math.Min(-12, progDb + p.AutoOffsetDb)) : p.ThresholdDb;   // próg automatyczny w rozsądnych granicach - nie zjeżdża w ciszę/szum ani nie blokuje się na huku
             // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)
             if (progN < 3 * fs / 64 && !double.IsNaN(progDb)) expLow = Math.Min(expLow, progDb - 20);   // pierwsze 3 s: próg ciszy tylko w dół - nie skacze za każdym słowem
             double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progN < 3 * fs / 64 ? expLow : progDb - 20);
@@ -165,7 +166,7 @@ namespace Velivo
             // 🛡 bezpiecznik: wynik z ostatnich 0,1 s nigdy więcej niż 8 dB ponad cel - przełączenie na głośniejszy program / reklama ściszane od razu, bez czekania na pomiar
             if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + (Hold ? 16 : 8) - (10 * Math.Log10(fP) + 2.3));
             liftS += Math.Max(-400 / fs, Math.Min(20 / fs, liftWant - liftS));
-            double mkWant = toTarget ? liftS : p.AutoThreshold ? -avgGr : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS,   /* próg automatyczny bez celu (kompresor po wyrównaniu LUFS): oddaje tyle, ile średnio ściszył - głośność dialogu zostaje, ściszone są tylko głośne fragmenty */ mixWant = p.MixPercent / 100.0;
+            double mkWant = LufsPo ? 0 : toTarget ? liftS : p.AutoThreshold ? -avgGr : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS,   /* próg automatyczny bez celu (kompresor po wyrównaniu LUFS): oddaje tyle, ile średnio ściszył - głośność dialogu zostaje, ściszone są tylko głośne fragmenty */ mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
             mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * (mkWant < mkS - 3 ? cs * 10 : cs);   /* duże ściszenie (bezpiecznik) w ok. 5 ms, reszta płynnie 50 ms */ mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;
             double gw = Math.Pow(10, (grDb + mkS) / 20);

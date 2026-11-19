@@ -127,10 +127,14 @@ namespace Velivo
         }
 
         // Dymek na dole okna, nad paskiem zadan (osobne okienko - nad strona WWW nie da sie nic narysowac).
+        // ⬇ postęp pobierania („⬇ Pobieram X: 65%”) - jeden dymek, który zmienia tekst, zamiast nowego dymka co 2 s
+        readonly Dictionary<string, (Window W, TextBlock T, DispatcherTimer Tm)> _toastPostep = new Dictionary<string, (Window, TextBlock, DispatcherTimer)>();
         Window ShowToast(string text, string file)
         {
+            int kp = text != null && text.StartsWith("⬇") && file == null ? text.LastIndexOf(':') : -1; string pk = kp > 0 ? text.Substring(0, kp) : null;
+            if (pk != null && _toastPostep.TryGetValue(pk, out var old) && old.W.IsVisible) { old.T.Text = text; old.Tm.Stop(); old.Tm.Start(); return old.W; }
             var panel = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
-            panel.Children.Add(new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 340 });
+            var tb = new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 340 }; panel.Children.Add(tb);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
             var toast = new Window
             {
@@ -151,7 +155,8 @@ namespace Velivo
             toast.Loaded += (s, e) => PlaceToast(toast);
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
             timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (InvalidOperationException) { } };
-            toast.Closed += (s, e) => timer.Stop();
+            toast.Closed += (s, e) => { timer.Stop(); if (pk != null && _toastPostep.TryGetValue(pk, out var t0) && t0.W == toast) _toastPostep.Remove(pk); };
+            if (pk != null) _toastPostep[pk] = (toast, tb, timer);
             toast.Show();
             timer.Start();
             return toast;

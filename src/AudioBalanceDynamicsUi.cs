@@ -81,7 +81,10 @@ namespace Velivo
             var expLine = new System.Windows.Shapes.Line { Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x2E, 0xD3, 0xC6)), StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 2 } };
             var curve = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)), StrokeThickness = 2 };
             var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), Stroke = Brushes.White, StrokeThickness = 1 };
-            plot.Children.Add(thrLine); plot.Children.Add(expLine); plot.Children.Add(curve); plot.Children.Add(dot);
+            // 📍 linia poziomu wejścia na żywo - widać, że kompresor pracuje (próg automatyczny zmienia się celowo powoli, żeby nie falował)
+            var lvlLine = new System.Windows.Shapes.Line { Y1 = 0, Y2 = H, Stroke = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)), StrokeThickness = 1, Visibility = Visibility.Hidden, ToolTip = L.T("Poziom dźwięku teraz – na prawo od żółtej linii kompresor ścisza, na lewo od turkusowej – ekspander") };
+            thrLine.ToolTip = L.T("Próg kompresora – przy progu automatycznym przesuwa się z poziomem filmu"); expLine.ToolTip = L.T("Próg ciszy (ekspander) – dopasowuje się do poziomu filmu");
+            plot.Children.Add(thrLine); plot.Children.Add(expLine); plot.Children.Add(curve); plot.Children.Add(lvlLine); plot.Children.Add(dot);
             vis.Children.Add(plot);
             void DrawCurve(DynParams p, double thr = double.NaN, double et = double.NaN)
             {
@@ -296,6 +299,7 @@ namespace Velivo
                 var pr = AbProc.Pre; bool act = pr.Params.IsEnabled && AbFlowing();
                 double xi = act ? pr.InputDb : -120, xo = act ? pr.OutputDb : -120, gr = act && xi > -70 ? pr.CurrentGainReductionDb : 0;   // w ciszy (pauza) 0 - nie wielki słupek ekspandera
                 Canvas.SetLeft(dot, X(xi) - 5); Canvas.SetTop(dot, Y(xo) - 5); dot.Visibility = act && xi > Lo ? Visibility.Visible : Visibility.Hidden;
+                lvlLine.X1 = lvlLine.X2 = X(Math.Max(Lo, xi)); lvlLine.Visibility = dot.Visibility;
                 double bh = bars.ActualHeight - 30; if (bh < 10) bh = 74;
                 mIn.bar.Height = Math.Max(0, (Math.Max(Lo, xi) - Lo) / -Lo * bh); mIn.val.Text = act ? xi.ToString("0") : "–";
                 mOut.bar.Height = Math.Max(0, (Math.Max(Lo, xo) - Lo) / -Lo * bh); mOut.val.Text = act ? xo.ToString("0") : "–";
@@ -304,7 +308,7 @@ namespace Velivo
                 double hw = hist.ActualWidth > 10 ? hist.ActualWidth : 200, hh = hist.Height; var pts = new PointCollection();
                 for (int k = 0; k < grHist.Length; k++) { double v = grHist[(grPos + k) % grHist.Length]; pts.Add(new Point(k * hw / (grHist.Length - 1), Math.Min(hh, -v / 24 * hh))); }
                 histLine.Points = pts;
-                if ((pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.1) || Math.Abs(pr.EffExpanderDb - lastExp) > 0.1) { lastThr = pr.EffThresholdDb; lastExp = pr.EffExpanderDb; DrawCurve(pr.Params, pr.Params.AutoThreshold ? lastThr : pr.Params.ThresholdDb, lastExp); }   // próg i próg ciszy z filmu - linie na żywo   // próg automatyczny - wykres na żywo
+                if ((pr.Params.AutoThreshold && Math.Abs(pr.EffThresholdDb - lastThr) > 0.02) || Math.Abs(pr.EffExpanderDb - lastExp) > 0.02) { lastThr = pr.EffThresholdDb; lastExp = pr.EffExpanderDb; DrawCurve(pr.Params, pr.Params.AutoThreshold ? lastThr : pr.Params.ThresholdDb, lastExp); }   // próg i próg ciszy z filmu - linie na żywo   // próg automatyczny - wykres na żywo
                 grText.Text = (pr.Params.AutoThreshold && act ? L.T("Próg teraz: ") + pr.EffThresholdDb.ToString("0.0") + " dB · " + L.T("do celu: ") + pr.AutoLiftDb.ToString("+0.0;-0.0;0") + " dB · " : "") + (!pr.Params.IsEnabled ? L.T("Kompresor wyłączony – dźwięk bez zmian") : !act ? L.T("Czekam na dźwięk filmu") : L.T("Redukcja teraz: ") + gr.ToString("0.0") + " dB");
             };
             exp.IsVisibleChanged += (s, e) => { if (exp.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy zakładka Kompresor jest na ekranie - nie zabiera czasu Audio Monitorowi

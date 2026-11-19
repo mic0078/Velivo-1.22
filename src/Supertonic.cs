@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -114,7 +114,7 @@ namespace Velivo
                 {
                     int epgCh = _iptvEpg?.Count ?? 0; long epgIt = _iptvEpg?.Values.Sum(l => (long)l.Count) ?? 0;
                     App.LogInfo("Pamięć Odtwarzacza: proces " + me.PrivateMemorySize64 / 1048576 + " MB, sterta .NET " + GC.GetTotalMemory(false) / 1048576 + " MB; kanały na liście " + (_iptvPl?.Channels.Count ?? 0) + (_knownPl != null && _knownPl != _iptvPl ? " + kopia " + _knownPl.Channels.Count : "") +
-                        ", program TV " + epgCh + " kanałów / " + epgIt + " audycji, biblioteka " + (_libRefresh != null ? "okno otwarte" : "-") + ", lektor " + (_stTts != null ? "wczytany" : "nie") + ", okna: " + string.Join(" ", new[] { ("Kanapa", (System.Windows.Window)_kanapa), ("odtwarzacz", _vlcWin), ("biblioteka", _libWin), ("TV", _tvWin) }.Where(w => w.Item2 != null).Select(w => w.Item1)));
+                        ", program TV " + epgCh + " kanałów / " + epgIt + " audycji, biblioteka " + (_libWin != null ? "okno otwarte" : "-") + ", lektor " + (_stTts != null ? "wczytany" : "nie") + ", okna: " + string.Join(" ", new[] { ("Kanapa", (System.Windows.Window)_kanapa), ("odtwarzacz", _vlcWin), ("biblioteka", _libWin), ("TV", _tvWin) }.Where(w => w.Item2 != null).Select(w => w.Item1)));
                 }
             }
             catch (Exception ex) { App.LogError(ex); }

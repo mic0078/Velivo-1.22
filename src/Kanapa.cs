@@ -203,7 +203,8 @@ namespace Velivo
                 try
                 {   // ten sam film kilka razy (plik na dysku + strumień z Jellyfin, kopia z innego komputera, kilka wersji) - jeden kafelek:
                     // obejrzany ostatnio (postęp), potem ten z plikiem na dysku
-                    lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path))
+                    var recD = TvRecDirs(); int bib = WybranaBib();
+                    lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path) && WBibliotece(v, bib, recD))
                         .GroupBy(v => { var m = MetaFor(v.Path); return !string.IsNullOrEmpty(m?.Id) ? "j:" + m.Id : "t:" + Tytul(v).ToLowerInvariant() + "|" + (m?.Year ?? 0); })
                         .Select(g => g.Count() == 1 ? g.First() : g.OrderByDescending(v => v.Last).ThenBy(v => v.Peer != null).ThenByDescending(v => File.Exists(v.Path)).First()).ToList();
                 }
@@ -287,6 +288,7 @@ namespace Velivo
                         var list = l.ToList(); count.Text = list.Count + L.T(" filmów");
                         box.Content = Wrap(list.Select(v => (UIElement)FilmTile(v)));
                     }
+                    { var bn = BibNazwy(); Przycisk(bar, () => L.T("Biblioteka: ") + bn[WybranaBib()], _ => Lista(L.T("Wybierz bibliotekę"), bn.ToList(), WybranaBib(), k => SetPref("biblioteka-wybor", k.ToString()))); }
                     Przycisk(bar, () => L.T("Sortuj: ") + sorts[kSort], b => { kSort = (kSort + 1) % sorts.Length; SetPref("kanapa-sort", kSort.ToString()); b.Content = L.T("Sortuj: ") + sorts[kSort]; Fill(); });
                     Przycisk(bar, () => L.T("Gatunek: ") + (kGen == 0 || kGen > genres.Count ? L.T("wszystkie") : genres[kGen - 1]), _ =>
                         Lista(L.T("Wybierz gatunek"), new[] { L.T("wszystkie") + "  (" + lib.Count + ")" }.Concat(genres.Select(g => g + "  (" + lib.Count(v => MetaFor(v.Path)?.Genres?.Contains(g, StringComparer.CurrentCultureIgnoreCase) ?? false) + ")")).ToList(), kGen, k => { kGen = k; SetPref("kanapa-gatunek", k == 0 ? "" : genres[k - 1]); }));
@@ -357,7 +359,7 @@ namespace Velivo
             TabBtn("serwer", "🎞 " + L.T("Moje serwery"), () => Pokaz("serwer"));
             TabBtn(null, "🎲 " + L.T("Co dziś?"), () =>
             {   // to samo losowanie co w bibliotece
-                List<LibraryVideo> pool; try { pool = LoadLibrary().Where(v => v.Peer == null && !string.IsNullOrEmpty(v.Path)).ToList(); } catch (Exception ex) { App.LogError(ex); pool = new List<LibraryVideo>(); }
+                List<LibraryVideo> pool; try { var recD = TvRecDirs(); int bib = WybranaBib(); pool = LoadLibrary().Where(v => v.Peer == null && !string.IsNullOrEmpty(v.Path) && WBibliotece(v, bib, recD)).ToList();   /* losowanie z wybranej biblioteki */ } catch (Exception ex) { App.LogError(ex); pool = new List<LibraryVideo>(); }
                 if (pool.Count == 0) { Opis(L.T("Biblioteka jest pusta"), "", L.T("Dodaj filmy w bibliotece (🎬 → Pobierz / uzupełnij z Jellyfin), a losowanie zadziała.")); return; }
                 var before = Application.Current.Windows.OfType<Window>().ToList();
                 ShowRandomPicker(w, pool, null, ps => Graj(() => PlayVideos(ps.ToArray(), 0)));
@@ -417,7 +419,8 @@ namespace Velivo
                 if ((down & 0x0200) != 0) Zakladka(1);                 // RB
             };
             pad.Start();
-            w.Closed += (s, e) => { tm.Stop(); pad.Stop(); if (_kanapa == w) _kanapa = null; };
+            _kanapaLib = () => w.Dispatcher.BeginInvoke(new Action(() => { if (_kanapa == w && !wyborGrupy && (tab == "start" || tab == "film")) Pokaz(tab); }), System.Windows.Threading.DispatcherPriority.Background);   // dodany / usunięty film - Kanapa od razu aktualna
+            w.Closed += (s, e) => { tm.Stop(); pad.Stop(); if (_kanapa == w) { _kanapa = null; _kanapaLib = null; } };
             w.Show(); w.Activate();
             // 📺 film / kanał, który gra, w okienku pod zegarem (jak PiP) zamiast samego dźwięku; po wyjściu z Kanapy odtwarzacz wraca, jak był
             var pv = _vlcWin;
@@ -477,5 +480,7 @@ namespace Velivo
             }
             return null;
         }
+    
+        Action _kanapaLib;   // 🛋 Kanapa otwarta - odświeżenie po każdej zmianie biblioteki (wołane razem z oknem biblioteki)
     }
 }

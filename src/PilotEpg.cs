@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -128,7 +128,7 @@ namespace Velivo
             if (cmd.op == "rand")   // 🎲 g = gatunek, q = "1" tylko nieobejrzane, s = długość (krotki / sredni / dlugi)
             {
                 List<LibraryVideo> pool;
-                try { pool = LoadLibrary().Where(v => v.Peer == null && !string.IsNullOrEmpty(v.Path)).ToList(); } catch (Exception ex) { App.LogError(ex); pool = new List<LibraryVideo>(); }
+                try { var recD = TvRecDirs(); int bib = WybranaBib(); pool = LoadLibrary().Where(v => v.Peer == null && !string.IsNullOrEmpty(v.Path) && WBibliotece(v, bib, recD)).ToList(); } catch (Exception ex) { App.LogError(ex); pool = new List<LibraryVideo>(); }
                 var genres = pool.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
                 var rnd = new Random();
                 var cand = pool.Where(v =>

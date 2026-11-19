@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -181,7 +181,8 @@ namespace Velivo
                 if (page > 0 && fkey == _pilotFilmsKey) { groups = _pilotFilmGroups; total = _pilotFilms.Count; }   // kolejne strony - lista już policzona (komputer nie liczy całej biblioteki dla każdej strony)
                 else
                 {
-                    var lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path))
+                    var recD = TvRecDirs(); int bib = WybranaBib();
+                    var lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path) && WBibliotece(v, bib, recD))   // ta sama biblioteka co w Kanapie
                         .GroupBy(v => { var m = MetaFor(v.Path); return !string.IsNullOrEmpty(m?.Id) ? "j:" + m.Id : "t:" + ShownTitle(v, m).ToLowerInvariant() + "|" + (m?.Year ?? 0); })
                         .Select(g => g.OrderByDescending(v => v.Last).ThenBy(v => v.Peer != null).First()).ToList();   // jeden film raz (jak Kanapa)
                     groups = lib.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct().OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();

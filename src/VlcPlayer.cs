@@ -515,7 +515,27 @@ namespace Velivo
         // ---------- okno biblioteki ----------
 
         Window _libWin;
-        Action _libRefresh;
+        // 📚 JEDNA zasada podziału bibliotek dla całego Velivo (okno Biblioteki, Kanapa, losowanie, Pilot): nagrania TV osobno, potem wspólna / tego komputera;
+        //    „z Jellyfin” = film bez pliku na dysku, grany z serwera Jellyfin. bib: 0 wszystkie, 1 📚 wspólna, 2 🔒 tego komputera, 3 🎬 z Jellyfin, 4 📺 nagrane z TV
+        internal bool WBibliotece(LibraryVideo v, int bib, List<string> recD)
+        {
+            bool rec = IsTvRec(v.Path, recD);
+            switch (bib)
+            {
+                case 1: return !rec && IsShared(v);
+                case 2: return !rec && !IsShared(v);
+                case 3: return !rec && !File.Exists(v.Path) && JellyfinStreamUrl(v.Path) != null;
+                case 4: return rec;
+                default: return true;
+            }
+        }
+        // wybór biblioteki w Kanapie i Pilocie - jeden, zapamiętany (to samo miejsce pokazuje to samo)
+        static int WybranaBib() { int.TryParse(GetPref("biblioteka-wybor"), out var b); return b < 0 || b > 4 ? 0 : b; }
+        string[] BibNazwy() => new[] { L.T("wszystkie"), "📚 " + (string.IsNullOrWhiteSpace(_settings.VlcSharedName) ? L.T("Wspólna biblioteka") : _settings.VlcSharedName),
+            "🔒 " + (string.IsNullOrWhiteSpace(_settings.VlcLocalName) ? Environment.MachineName : _settings.VlcLocalName), L.T("🎬 z Jellyfin"), L.T("📺 Nagrane z TV") };
+        Action _libRefreshWin;   // okno biblioteki
+        // zmiana biblioteki: okno biblioteki i 🛋 Kanapa (dodany, usunięty, uzupełniony film)
+        Action _libRefresh { get => _libRefreshWin == null && _kanapaLib == null ? null : (Action)(() => { _libRefreshWin?.Invoke(); _kanapaLib?.Invoke(); }); set => _libRefreshWin = value; }
 
         // Odswiezenie z Jellyfin (przycisk 🔄 i samo co interwal): dane filmow, nowe filmy do biblioteki, raport niedostepnych;
         // askOwner != null - od razu pytanie o filmy usuniete z Jellyfin. Zwraca tekst dymka.
@@ -878,7 +898,7 @@ namespace Velivo
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var res = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    var mine = local.Where(v => Wariant.Serwer ? WFolderze(v.Path) : tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();
+                    var mine = local.Where(v => Wariant.Serwer ? WFolderze(v.Path) : WBibliotece(v, tv ? 4 : shared ? 1 : 2, recDirs)).ToList();
                     mine = mine.GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();   // ten sam plik we wspólnej i prywatnej - raz   // 🎞 serwer: tylko filmy z jego folderów   // nagrania TV - tylko w swojej bibliotece
                     var all = new List<LibraryVideo>(mine);
                     var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
@@ -974,7 +994,7 @@ namespace Velivo
             deleteBtn.Click += (s, a) =>
             {
                 bool shared = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs();
-                Func<LibraryVideo, bool> mine = v => tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared;
+                Func<LibraryVideo, bool> mine = v => WBibliotece(v, tv ? 4 : shared ? 1 : 2, recDirs);
                 int here = LoadLibrary().Count(mine), fromPeers = shared && !tv ? remoteOf.Count : 0;
                 var name = tv ? L.T("Nagrane z TV") : shared ? sharedName() : localName();
                 // filmy z innych komputerow sa zapisane tam - tu mozna usunac tylko wpisy z tego komputera

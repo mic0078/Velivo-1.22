@@ -222,10 +222,10 @@ namespace Velivo
                 var l = Own(); l.RemoveAll(x => x.n == n); SaveOwn(l); SetName(null);
             };
             foreach (var (nm, tip, mkP) in new (string, string, Func<DynParams>)[] {
-                (L.T("Film / kino"), L.T("Spokojnie: próg automatyczny (średnia filmu +8 dB), 2,5:1, atak 20 ms, powrót 450 ms, ekspander od -55 dB. Poziom trzyma wyrównanie LUFS."), DynParams.Film),
-                (L.T("Noc / ciche nagrania"), L.T("Mocniej: próg automatyczny (średnia +2 dB), 4:1, atak 15 ms, powrót 350 ms, ekspander od -55 dB. Poziom trzyma wyrównanie LUFS."), DynParams.Night),
-                (L.T("Bardzo ciche filmy"), L.T("Cicho nagrane: próg automatyczny (średnia +4 dB), 3:1, powrót 400 ms, ekspander od -65 dB (szum nie rośnie). Do celu dociąga wyrównanie LUFS i „Bardzo ciche nagrania”."), DynParams.VeryQuiet),
-                (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg automatyczny (średnia +10 dB), 4:1, Mix 60%. Poziom trzyma wyrównanie LUFS."), DynParams.Parallel) })
+                (L.T("Film / kino"), L.T("Dialog nietknięty, wybuchy i muzyka trzymane blisko niego: RMS, próg automatyczny (średnia +3 dB), 6:1, powrót 400 ms, podbicie +4 dB."), DynParams.Film),
+                (L.T("Noc / ciche nagrania"), L.T("Mocne wyrównanie: RMS, próg -42 dB, 6:1, podbicie +12 dB, ekspander od -50 dB."), DynParams.Night),
+                (L.T("Bardzo ciche filmy"), L.T("Ekstremalnie cicho nagrane filmy: RMS, próg -52 dB, 4:1, podbicie +22 dB, ekspander od -68 dB (szum nie rośnie). Wyrównanie LUFS dociąga potem do celu."), DynParams.VeryQuiet),
+                (L.T("Delikatnie (równoległa)"), L.T("Tylko szczyty: Peak, próg -20 dB, 4:1, Mix 60%."), DynParams.Parallel) })
             { var f = mkP; var n0 = nm; var b = mk(nm, () => { Show(f()); Apply(); SetName(n0); }); b.ToolTip = tip; presets.Children.Add(b); }
             string shownSrc = "\u0000";
             void SrcUi()

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System;
 using Velivo;
 using Xunit;
@@ -346,7 +346,7 @@ public class AudioBalanceTests
     [Fact]
     public void KompresorWstepnySinusPonadProgiem()
     {
-        var d = new VelivoDynamicsProcessor(Fs) { Params = new DynParams { IsEnabled = true, AutoThreshold = false, ThresholdDb = -32, Ratio = 4, KneeDb = 10, MakeupGainDb = 0 } };   // próg stały (domyślnie jest automatyczny)
+        var d = new VelivoDynamicsProcessor(Fs) { Params = new DynParams { IsEnabled = true, ThresholdDb = -32, Ratio = 4, KneeDb = 10, MakeupGainDb = 0 } };
         var buf = new float[2048]; double a = Math.Pow(10, -12 / 20.0) * Math.Sqrt(2); int n = 0;
         for (int b = 0; b < 100; b++) { for (int i = 0; i < 1024; i++) { float v = (float)(a * Math.Sin(2 * Math.PI * 1000 * n++ / Fs)); buf[2 * i] = buf[2 * i + 1] = v; } d.Process(buf, 2); }
         Assert.InRange(d.CurrentGainReductionDb, -15.5, -14.5);
@@ -359,7 +359,7 @@ public class AudioBalanceTests
         var p = DynParams.Night(); p.AutoMakeup = true; p.DetectionMode = DynDetection.Peak; p.AutoThreshold = true; p.AutoOffsetDb = 8;
         var q = DynParams.Load(p.Save());
         Assert.True(q.IsEnabled); Assert.True(q.AutoMakeup); Assert.Equal(DynDetection.Peak, q.DetectionMode);
-        Assert.Equal(-34f, q.ThresholdDb); Assert.Equal(4f, q.Ratio); Assert.Equal(0f, q.MakeupGainDb); Assert.Equal(-55f, q.ExpanderThresholdDb);
+        Assert.Equal(-42f, q.ThresholdDb); Assert.Equal(6f, q.Ratio); Assert.Equal(12f, q.MakeupGainDb); Assert.Equal(-50f, q.ExpanderThresholdDb);
         Assert.True(q.AutoThreshold); Assert.Equal(8f, q.AutoOffsetDb);
         Assert.False(DynParams.Load("1;rms;-30;4;25;250;10;6;0;100;-52;1.5").AutoThreshold);   // starszy zapis (12 pól) - bez progu automatycznego
         Assert.False(DynParams.Load(null).IsEnabled);   // brak ustawienia = wyłączony (dźwięk bez zmian)

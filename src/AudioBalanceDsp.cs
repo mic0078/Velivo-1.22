@@ -210,10 +210,10 @@ namespace Velivo
         {
             int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
             var p = new AbProfile { LimitOnly = lim, Name = (lim ? "limit" : "auto") + "-" + new[] { "light", "normal", "strong" }[k],
-                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 10.0, 8, 6 }[k], MaxBoost = lim ? 0 : new[] { 8.0, 12, 15 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
-                UpDbS = new[] { 0.5, 0.8, 1.2 }[k], DownDbS = new[] { 1.5, 2.0, 3.0 }[k], Gate = new[] { -25.0, -30, -35 }[k],
-                ThrOff = lim ? new[] { 8.0, 6, 4 }[k] : new[] { 9.0, 8, 6 }[k], Ratio = new[] { 1.5, 2, 2.5 }[k],
-                AttackMs = new[] { 25.0, 15, 10 }[k], ReleaseMs = new[] { 700.0, 500, 350 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
+                Amount = new[] { 0.6, 0.85, 1.0 }[k], Dead = new[] { 4.0, 3, 2 }[k], FastHead = new[] { 12.0, 10, 8 }[k], MaxBoost = lim ? 0 : new[] { 10.0, 15, 20 }[k], MaxCut = new[] { 10.0, 15, 20 }[k],
+                UpDbS = new[] { 0.7, 1.0, 1.5 }[k], DownDbS = new[] { 1.0, 1.5, 2.5 }[k], Gate = new[] { -25.0, -30, -35 }[k],
+                ThrOff = lim ? new[] { 8.0, 6, 4 }[k] : new[] { 8.0, 6, 5 }[k], Ratio = new[] { 1.5, 2, 2.5 }[k],
+                AttackMs = new[] { 25.0, 15, 8 }[k], ReleaseMs = new[] { 400.0, 300, 200 }[k], FastDownDbS = new[] { 30.0, 40, 60 }[k] };
             return p;
         }
         public static readonly AbProfile[] All = { Mk(false, "light"), Mk(false, "normal"), Mk(false, "strong"), Mk(true, "light"), Mk(true, "normal"), Mk(true, "strong") };
@@ -238,7 +238,7 @@ namespace Velivo
         public volatile float CeilingDb = -1;   // limiter True Peak (dBTP)
         public volatile float Volume = 1;       // głośność odtwarzacza (VLC) - liniowo
         public volatile bool EqOn;
-        public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow, QuietBelow = double.NaN, QuietLevel = double.NegativeInfinity;   /* QuietBelow: od jakiego poziomu (LUFS) nagranie jest bardzo ciche - NaN = cel −12; QuietLevel - zmierzony poziom */ double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
+        public bool QuietOn, QuietNoise; public double QuietMaxDb = 15, QuietNow, QuietBelow = double.NaN, QuietLevel = double.NegativeInfinity;   /* QuietBelow: od jakiego poziomu nagrania (LUFS) uznać je za bardzo ciche - NaN = cel −12 (dawniej na stałe); QuietLevel - zmierzony poziom nagrania */ double noiseFl = -60; int nfN;   // 🔈 bardzo ciche nagrania: włączone, ile najwięcej ponad limit trybu, ile teraz
         public bool NoVst;   // poprawianie pliku (osobny obiekt) - bez wtyczek VST3, które gra właśnie dźwięk Windows
         public volatile bool Bypass;          // ⏻ jeden przycisk: całe przetwarzanie wyłączone (ustawienia zostają)
         public volatile int Dialog;           // 🗣 wyraźne dialogi: 0 wył., 1 średnio (do +4 dB), 2 mocno (do +8 dB)
@@ -267,13 +267,6 @@ namespace Velivo
         public struct Snap { public long F; public double VuL, VuR, VuInL, VuInR, Fast, RawM, OutM; }
         readonly Snap[] snaps = new Snap[512]; int snapI;
         public Snap Delayed(long behind) { long target = Frames - behind; int n = snapI; for (int k = n - 1; k >= 0 && k >= n - 512; k--) { var x = snaps[k & 511]; if (x.F <= target) return x; } return n > 0 ? snaps[Math.Max(0, n - 512) & 511] : default; }
-        // 🔗 tylko do wyświetlania w Velivo: wskaźniki programu Audio Balance for Windows (AbWidok) - ten obiekt nie przetwarza dźwięku
-        public void Mirror(double[] a, int scopePos)
-        {
-            Raw.Momentary = a[0]; Raw.ShortTerm = a[1]; Raw.Gated10 = a[2]; Out.Momentary = a[3]; Out.ShortTerm = a[4]; Out.Gated10 = a[5]; Out.IntegratedExt = a[6];
-            GainDb = a[7]; LimitDb = a[8]; PeakOutDb = a[9]; EffTarget = a[10]; Target = (float)a[11]; VuL = a[12]; VuR = a[13]; VuInL = a[14]; VuInR = a[15];
-            ScopePos = scopePos; Frames += 960; Active = true; SnapAdd();
-        }
         void SnapAdd() { snaps[snapI & 511] = new Snap { F = Frames, VuL = VuL, VuR = VuR, VuInL = VuInL, VuInR = VuInR, Fast = Out.Fast, RawM = Raw.Momentary, OutM = Out.Momentary }; snapI++; }
         public volatile bool Active; public long Frames;
         // wskazniki VU lewego i prawego kanalu wyjscia: moc RMS wygladzona ~80 ms, w dBFS
@@ -348,6 +341,13 @@ namespace Velivo
             KDb = (float)(10 * Math.Log10(mP + 1e-12));
         }
 
+        // 🔗 tylko do wyświetlania w Velivo: wskaźniki programu Audio Balance for Windows (AbWidok) - ten obiekt nie przetwarza dźwięku
+        public void Mirror(double[] a, int scopePos)
+        {
+            Raw.Momentary = a[0]; Raw.ShortTerm = a[1]; Raw.Gated10 = a[2]; Out.Momentary = a[3]; Out.ShortTerm = a[4]; Out.Gated10 = a[5]; Out.IntegratedExt = a[6];
+            GainDb = a[7]; LimitDb = a[8]; PeakOutDb = a[9]; EffTarget = a[10]; Target = (float)a[11]; VuL = a[12]; VuR = a[13]; VuInL = a[14]; VuInR = a[15];
+            ScopePos = scopePos; Frames += 960; Active = true; SnapAdd();
+        }
         public void Process(float[] buf, int frames) { ProcessCore(buf, frames); MixLek(buf, frames); }
         void ProcessCore(float[] buf, int frames)
         {
@@ -366,7 +366,7 @@ namespace Velivo
             double relLim = Math.Exp(-1000.0 / (80.0 * Fs));
             int dlg = Dialog; double dMax = dlg == 2 ? 8 : dlg == 1 ? 4 : 0;
             double eC = Math.Exp(-1000.0 / (50.0 * Fs)), dAtt = Math.Exp(-1000.0 / (80.0 * Fs)), dRel = Math.Exp(-1000.0 / (400.0 * Fs));
-            var preP = Pre.Params; bool preOn = preP.IsEnabled; Pre.LufsPo = pr != null && !pr.LimitOnly;   // po kompresorze pracuje LUFS - kompresor nie dokłada podbicia (dwie pętle wzmocnienia = „bicie się”)
+            var preP = Pre.Params; bool preOn = preP.IsEnabled;
             bool abOn = !(pr == null && !eqOn && dlg == 0 && !preOn);   // Audio Balance coś robi (wyrównywanie, korektor, dialogi albo kompresor)
             LekPath = !Bypass && abOn;
             float[] raw = null;   // oryginał filmu sprzed wtyczek VST3 - do wskaźników „źródło” i widma
@@ -420,7 +420,6 @@ namespace Velivo
                 { int sp = ScopePos; Scope[sp] = (float)((rl + rr) * 0.5); ScopePos = (sp + 1) & 65535; }   // widmo: surowy dźwięk filmu (przed korektorem, wyrównaniem i głośnością) - pracę Velivo pokazują V i paski
                 vS += (vol - vS) * kV; VuIn(rl * vS, rr * vS); Raw.Push(rl * vS, rr * vS);   // oryginal przy tej samej glosnosci odtwarzacza - porownanie uczciwe
                 { double dm0 = (rl + rr) * 0.5, sb = sLp.L(sHp.L(dm0)); sS += (sb * sb - sS) / Fs; sA += (dm0 * dm0 - sA) / Fs; }   // dialogi w oryginale (1 s)
-                if (preOn) Pre.Frame(ref l, ref r, preP);   // 🎚 łańcuch: VST3 → kompresor → korektor → dialogi → LUFS → limiter TP; kompresor tylko mikrodynamika (bez podbicia - poziom trzyma LUFS)
                 if (eqOn) for (int i = 0; i < 10; i++) { l = eq[i].L(l); r = eq[i].R(r); }
                 if (dlg > 0)
                 {
@@ -444,7 +443,7 @@ namespace Velivo
                     //    a cichnięcie widać od razu (3 s) - po wybuchu poziom dialogu wraca bez czekania na okno pomiarowe
                     // podstawa: głośność samej treści z 10 s (bramka -10 LU jak w BS.1770 - przerwy między zdaniami pomijane), na starcie 3 s;
                     //    krótki huk nie ciągnie (mediana + 3 dB) - bez falowania między zdaniami (było: okno 3 s z przerwami → „roller coaster”)
-                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm;   // start źródła: czeka na pomiar 3 s (poziom zapamiętany / 0), bez gonienia głośności z 0,4 s - falowanie po zmianie kanału; głośny start ścisza szybka warstwa
+                    double basis = In.Gated10 > double.NegativeInfinity && sinceStart > Fs * 6 ? In.Gated10 : In.ShortTerm > double.NegativeInfinity ? In.ShortTerm : In.Momentary;
                     if (In.Median > double.NegativeInfinity) basis = Math.Min(basis, In.Median + 3);
                     // zmiana sceny: mediana z 1,5 s różni się od podstawy o ponad 5 dB dłużej niż 1 s - nowy poziom w ok. 1–2 s zamiast gonienia przez 15 s
                     //    (w obrębie sceny bez zmian: spokojna średnia 10 s - bez pompowania między zdaniami; pauzy i cisza nie przełączają - pomiar pomija ciszę)
@@ -464,12 +463,12 @@ namespace Velivo
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double xb = QuietOn && film > -70 && film < qB ? Math.Min(QuietMaxDb, Math.Max(0, Tg - film - pr.MaxBoost)) : 0;   // tyle ponad limit trybu, ile brakuje do celu
-                        QuietNoise = false;   // 🔈 bez „bezpiecznika szumu” (szum liczony z najcichszych chwil zjeżdżał z podbiciem do 0); tło nie jest podbijane (bramka 10 dB pod poziomem), szum wycisza ekspander
+                        double xb = QuietOn && film > -70 && film < qB ? Math.Min(QuietMaxDb, Math.Max(0, Tg - film - pr.MaxBoost)) : 0;   // tyle ponad limit trybu, ile brakuje do celu (dawniej Tg−12−film: przy progu z ustawień mogło wyjść 0)
+                        QuietNoise = false;   // 🔈 bez „bezpiecznika szumu”: liczył szum z najcichszych chwil nagrania i po kilkudziesięciu sekundach zjeżdżał z podbiciem do 0 (działało chwilę i przestawało); tło i tak nie jest podbijane (bramka 10 dB pod poziomem nagrania), szum wycisza ekspander kompresora
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
-                        wantS += (want - wantS) * (1.0 / ((scene ? 1.0 : 3.0) * Fs));   // wygładzenie celu: 3 s, zmiana sceny 1 s (było 2 / 0,5 - przeskoki)
-                        double up = sinceStart < Fs * 6 || scene ? upS * 3 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 3 : dnS;   /* start i zmiana sceny ×3 (było ×6 - skoki) */ if (wantS < levDb && levDb > 0) dn *= 4;   // głośniejszy materiał przy dodatnim wzmocnieniu - podbicie zdejmowane szybko   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
+                        wantS += (want - wantS) * (1.0 / ((scene ? 0.5 : 2.0) * Fs));
+                        double up = sinceStart < Fs * 6 || scene ? upS * 6 : upS, dn = sinceStart < Fs * 6 || scene ? dnS * 6 : dnS;   // start źródła i zmiana sceny - szybko do poziomu, potem spokojnie   // pierwsze 6 s nowego źródła - szybko do poziomu (nowy kanał to nie pompowanie), potem spokojnie
                         levDb += Math.Max(-dn, Math.Min(up, wantS - levDb));
                     }
                     // nagłe zgłośnienie (reklama, głośniejsza scena): gdy głośność z 400 ms po obecnym wzmocnieniu przekracza cel o ponad 2 dB,
@@ -501,9 +500,11 @@ namespace Velivo
                     LekDb += (kWant - LekDb) / ((kWant < LekDb ? 0.15 : 0.6) * Fs);
                     g += LekDb;
                 }
-                // kolejność: wtyczki → korektor → dialogi → kompresor → wyrównanie LUFS (ostatnie - trzyma cel) → limiter True Peak
-                //    (kompresor nie goni celu - AutoTargetDb = NaN; dawniej stał po wyrównaniu i zmieniał głośność już ustawioną przez LUFS - falowanie)
-                double lin = Math.Pow(10, g / 20) * vS;
+                // 🎚 kompresor PO wyrównaniu LUFS (jak w procesorach radiowych: wolne wyrównanie → kompresor → limiter): dostaje już wyrównany poziom,
+                //    więc jego próg trafia zawsze w to samo miejsce i nie dubluje pracy wyrównania (dawniej stał przed nim i sam podciągał cały film do celu)
+                double lin;
+                if (preOn) { double gl = Math.Pow(10, g / 20); l *= gl; r *= gl; Pre.Frame(ref l, ref r, preP); lin = vS; }
+                else lin = Math.Pow(10, g / 20) * vS;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami
                 double tp = tpIn.Push(l * lin, r * lin), rq = tp > ceil ? ceil / tp : 1;
                 // minimum w oknie La (kolejka monotoniczna)

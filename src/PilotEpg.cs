@@ -231,8 +231,14 @@ namespace Velivo
                     if (pkt == null || pkt.t != "pilot" || _lanEncryptionKey == null) return;
                     var cmd = DecryptLanBlob<LanPilotCmd>(pkt);   // tylko sparowany telefon (klucz grupy)
                     if (cmd == null || cmd.to != _lanId) return;
+                    cmd.op = cmd.op ?? "";
                     var replies = new List<Dictionary<string, object>>();
-                    if (cmd.op == "img") replies.Add(await Dispatcher.Invoke(() => { _pilotSink = replies; try { return PilotImgBuild(cmd.q ?? ""); } finally { _pilotSink = null; } }));
+                    if (cmd.op != "img" && cmd.op != "list" && cmd.op != "bib" && cmd.op != "info" && !cmd.op.StartsWith("play-") && !cmd.op.StartsWith("fav-") && cmd.op != "epg" && cmd.op != "epg-act" && cmd.op != "plans" && cmd.op != "plan-del" && cmd.op != "rand")
+                    {
+                        var cep = c.Client.RemoteEndPoint as System.Net.IPEndPoint;
+                        await Dispatcher.InvokeAsync(() => { var ep0 = _pilotClients.TryGetValue(pkt.id, out var known) ? known.Item1 : cep == null ? null : new System.Net.IPEndPoint(cep.Address, LanPort); if (ep0 != null) ReceivePilot(pkt, cmd, ep0); });   // sterowanie (pauza, głośność…) - ta sama obsługa co UDP
+                    }
+                    else if (cmd.op == "img") replies.Add(await Dispatcher.Invoke(() => { _pilotSink = replies; try { return PilotImgBuild(cmd.q ?? ""); } finally { _pilotSink = null; } }));
                     else await Dispatcher.InvokeAsync(() =>
                     {
                         _pilotSink = replies;

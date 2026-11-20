@@ -323,7 +323,9 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val c = cur ?: run { choosePc(); return }
         val p = pcs[c]
         if (!reachable(p) || p?.st == null) { android.widget.Toast.makeText(act, if (!reachable(p)) s(R.string.pilot_unavailable, curName) else s(R.string.pilot_closed), android.widget.Toast.LENGTH_SHORT).show(); return }
-        lan.sendPilot(c, op, v, n, p.addr)
+        val a = p.addr
+        if (a == null || (tcpFail[c] ?: 0L) > System.currentTimeMillis() - 300_000L) { lan.sendPilot(c, op, v, n, a); return }
+        Thread { if (lan.pilotTcp(c, a, op, v, n) == null) { tcpFail[c] = System.currentTimeMillis(); lan.sendPilot(c, op, v, n, a) } }.start()   // sterowanie TCP: UDP na wspólny port Windows oddaje tylko jednemu programowi Velivo
     }
 
     private fun choosePc() {

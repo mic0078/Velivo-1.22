@@ -68,19 +68,19 @@ namespace Velivo
         readonly Dictionary<string, Style> _stStyles = new Dictionary<string, Style>();
         readonly SemaphoreSlim _stLock = new SemaphoreSlim(1, 1);
 
-        // 🧩 Velivo Odtwarzacz bez odtwarzania (okna mogą być otwarte): zwalnia model lektora i oddaje Windows nieużywaną pamięć
+        // 🧩 program Velivo bez odtwarzania i czytania (okna mogą być otwarte): zwalnia model lektora i oddaje Windows nieużywaną pamięć
         // (zostaje lekki dla Pilota i nagrań TV; przy filmie lektor wczytuje się znowu w tle - SupertonicWarm)
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr proc, IntPtr min, IntPtr max);
         System.Windows.Threading.DispatcherTimer _odtLekko; int _odtPusto, _odtMin;
         void StartOdtwarzaczLekko()
         {
-            if (!Wariant.Odtwarzacz || _odtLekko != null) return;
+            if (_odtLekko != null) return;   // każdy program Velivo (Przeglądarka po czytaniu strony trzymała model ~400 MB na stałe)
             _odtLekko = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _odtLekko.Tick += (s, e) =>
             {
-                if (++_odtMin == 2 || _odtMin % 30 == 0) PamiecLog();   // 🔬 co zajmuje pamięć (po 2 min i co 30 min)
+                if (Wariant.Odtwarzacz && (++_odtMin == 2 || _odtMin % 30 == 0)) PamiecLog();   // 🔬 co zajmuje pamięć (po 2 min i co 30 min)
                 bool pauza = false; try { pauza = _playerMp != null && _playerMp.State == LibVLCSharp.Shared.VLCState.Paused; } catch (Exception) { }
-                if (PlayerBusy || pauza) { _odtPusto = 0; return; }   // gra film / TV - lektor potrzebny
+                if (PlayerBusy || pauza || _piperDriven.Count > 0) { _odtPusto = 0; return; }   // gra film / TV albo czyta lektor stron   // gra film / TV - lektor potrzebny
                 if (++_odtPusto != 2) return;   // 2 minuty bez odtwarzania (także z otwartym oknem odtwarzacza, biblioteką, Kanapą) - raz, do następnego filmu; model lektora (~400 MB) wraca w tle przy włączeniu filmu
                 _ = Task.Run(async () =>
                 {

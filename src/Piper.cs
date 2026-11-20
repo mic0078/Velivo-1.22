@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -302,8 +302,8 @@ namespace Velivo
                     catch (Exception) { break; }   // strona/okno zamkniete
                     var str = JsonSerializer.Deserialize<string>(raw);
                     if (str == "X") break;
-                    if (string.IsNullOrEmpty(str)) { if (++idle > 750) break; continue; }   // ~1 min bez czytania - konczymy
-                    idle = 0;
+                    if (string.IsNullOrEmpty(str)) { if (++idle == 25) LektorZnak(false); if (idle > 750) break; continue; }   // ~1 min bez czytania - konczymy; po 2 s ciszy Audio Balance znów wyrównuje
+                    idle = 0; LektorZnak(true);   // 🗣 czyta lektor stron - Audio Balance nie wyrównuje głosu zdanie po zdaniu (falowanie), jak przy lektorze filmów
                     var p = JsonSerializer.Deserialize<PiperPending>(str);
                     var v = SelectedPiperVoice(ReadVoiceTag());
                     if (v == null) break;   // wybrano głos Windows - czyta strona (ReadVoiceApply wyłączył tryb zewnętrzny)
@@ -328,7 +328,7 @@ namespace Velivo
                     bool interrupted = false;
                     while (!ended.Task.IsCompleted)
                     {
-                        await Task.WhenAny(ended.Task, Task.Delay(150));
+                        await Task.WhenAny(ended.Task, Task.Delay(150)); LektorZnak(true);   // znak odświeżany (Audio Balance kasuje go po 40 s bez przerwy)
                         if (ended.Task.IsCompleted) break;
                         JsonElement? s2;
                         try { s2 = await PiperState(core); } catch (Exception) { s2 = null; }
@@ -345,6 +345,7 @@ namespace Velivo
             finally
             {
                 _piperDriven.Remove(core);
+                LektorZnak(false);
                 if (_piperPlayer != null) { try { _piperPlayer.Stop(); _piperPlayer.Close(); } catch (Exception) { } _piperPlayer = null; }
             }
         }

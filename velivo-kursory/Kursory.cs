@@ -64,13 +64,13 @@ namespace VelivoKursory
         static readonly Color Fiolet = Color.FromArgb(0x7C, 0x3A, 0xED), Turkus = Color.FromArgb(0x22, 0xB8, 0xD8), Czerwony = Color.FromArgb(0xF8, 0x71, 0x71);
 
         // jedna klatka kursora (S x S, przezroczyste tło)
-        internal static Bitmap Klatka(Rodzaj r, int S, int f)
+        internal static Bitmap Klatka(Rodzaj r, int S, int f, int C = 0)
         {
-            var bmp = new Bitmap(S, S, PixelFormat.Format32bppArgb);
+            if (C < S) C = S; var bmp = new Bitmap(C, C, PixelFormat.Format32bppArgb);   // C - pole kursora (Windows rozciąga mniejsze pliki do swojej wielkości), S - wielkość rysunku
             using (var g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias; g.PixelOffsetMode = PixelOffsetMode.HighQuality; g.Clear(Color.Transparent);
-                float k = S / 32f; g.ScaleTransform(k, k);
+                var o = Przesuniecie(r, S, C); g.TranslateTransform(o.X, o.Y); float k = S / 32f; g.ScaleTransform(k, k);
                 double t = r.Klatki > 1 ? (double)f / r.Klatki : 0;
                 switch (r.Plik)
                 {
@@ -198,9 +198,15 @@ namespace VelivoKursory
                 return ms.ToArray();
             }
         }
+        // mały kursor w polu Windows: strzałka przy lewym górnym rogu (tam jest punkt aktywny), kursory środkowe (czekanie, rozmiar) - na środku pola
+        static PointF Przesuniecie(Rodzaj r, int S, int C) => new PointF(r.Hx == 16 ? (C - S) / 2f : 0, r.Hy == 16 ? (C - S) / 2f : 0);
+        static (int X, int Y) Punkt(Rodzaj r, int S, int C) { var o = Przesuniecie(r, S, C); return ((int)(r.Hx * S / 32 + o.X), (int)(r.Hy * S / 32 + o.Y)); }
+        [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
+        static int Pole(int S) { int c = 32; try { c = Math.Max(16, GetSystemMetrics(13)); } catch (Exception) { } return Math.Max(S, c); }   // SM_CXCURSOR - wielkość, w jakiej Windows rysuje kursor
         static byte[] Ani(Rodzaj r, int S)
         {
-            var klatki = Enumerable.Range(0, r.Klatki).Select(f => { using (var b = Klatka(r, S, f)) return Cur(b, (int)(r.Hx * S / 32), (int)(r.Hy * S / 32)); }).ToList();
+            int C = Pole(S); var h = Punkt(r, S, C);
+            var klatki = Enumerable.Range(0, r.Klatki).Select(f => { using (var b = Klatka(r, S, f, C)) return Cur(b, h.X, h.Y); }).ToList();
             using (var ms = new MemoryStream()) using (var w = new BinaryWriter(ms))
             {
                 void Tag(string s) => w.Write(Encoding.ASCII.GetBytes(s));
@@ -234,7 +240,7 @@ namespace VelivoKursory
             }
             SystemParametersInfo(0x57, 0, IntPtr.Zero, 0x03);   // SPI_SETCURSORS - Windows wczytuje kursory od razu
         }
-        static byte[] CurPlik(Rodzaj r, int S) { using (var b = Klatka(r, S, 0)) return Cur(b, (int)(r.Hx * S / 32), (int)(r.Hy * S / 32)); }
+        static byte[] CurPlik(Rodzaj r, int S) { int C = Pole(S); var h = Punkt(r, S, C); using (var b = Klatka(r, S, 0, C)) return Cur(b, h.X, h.Y); }
         internal static void Przywroc()
         {
             using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(Klucz))

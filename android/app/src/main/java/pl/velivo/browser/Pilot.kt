@@ -267,6 +267,9 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     private fun got(id: String, dev: String, st: JSONObject?, from: InetAddress?) {
         val p = pcs.getOrPut(id) { Pc(id, dev, from, 0, null) }
         p.name = dev.ifBlank { p.name }; if (from != null) p.addr = from; p.seen = System.currentTimeMillis(); p.st = st
+        // 🧩 na komputerze działa kilka programów Velivo (Serwer, Odtwarzacz, pełne) - każdy ma inny identyfikator; stan odtwarzacza wysyła tylko ten,
+        // który obsługuje Pilota. Ten sam komputer, inny program z odtwarzaczem = przełączamy się sami (było: „odtwarzacz zamknięty”, choć działał)
+        if (st != null && cur != null && cur != id && p.name.isNotBlank() && p.name.equals(curName, ignoreCase = true) && pcs[cur]?.st == null) { cur = id; prefs.edit().putString("pilot-pc", id).apply() }
         if (cur == id && curName != p.name) { curName = p.name; prefs.edit().putString("pilot-pc-nazwa", curName).apply() }
         if (cur == null && !askedChoice && System.currentTimeMillis() - opened > 2500) { askedChoice = true; choosePc() }   // pierwszy raz - wybór komputera
         refresh()
@@ -324,7 +327,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
     }
 
     private fun choosePc() {
-        val list = pcs.values.sortedBy { it.name.lowercase() }.toMutableList()
+        val list = pcs.values.groupBy { it.name.lowercase() }.map { g -> g.value.firstOrNull { it.st != null } ?: g.value.maxByOrNull { it.seen }!! }.sortedBy { it.name.lowercase() }.toMutableList()   // jeden wpis na komputer (ten z odtwarzaczem)
         if (cur != null && pcs[cur] == null) list.add(0, Pc(cur!!, curName, null, 0, null))   // zapamiętany, choć teraz wyłączony
         if (list.isEmpty()) { AlertDialog.Builder(act).setTitle(R.string.pilot_choose_pc).setMessage(R.string.pilot_no_pc).setPositiveButton(android.R.string.ok, null).show(); return }
         // czytelna karta na komputer: nazwa (pogrubiona), stan krótko, co gra (kanał / film) i co teraz leci - osobne wiersze, duże odstępy

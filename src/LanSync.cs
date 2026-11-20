@@ -92,7 +92,21 @@ namespace Velivo
         };
 
         const int LanPort = 41919;
-        string _lanId = Guid.NewGuid().ToString("N");
+        // 🧩 jeden stały identyfikator komputera (wszystkie programy Velivo, także po ponownym uruchomieniu) - telefon (Pilot) i inne komputery
+        //    wysyłają polecenia na identyfikator; losowany przy każdym starcie i inny w każdym programie odcinał „włącz film / kanał” z telefonu
+        string _lanId = StalyLanId();
+        static string StalyLanId()
+        {
+            try
+            {
+                using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Velivo"))
+                {
+                    if (k.GetValue("LanId") is string id && id.Length == 32) return id;
+                    var nowy = Guid.NewGuid().ToString("N"); k.SetValue("LanId", nowy); return nowy;
+                }
+            }
+            catch (Exception) { return Guid.NewGuid().ToString("N"); }
+        }
         readonly string _lanDeviceName = Environment.MachineName;
         CancellationTokenSource _lanCts;
         UdpClient _lanRx;

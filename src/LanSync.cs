@@ -466,7 +466,7 @@ namespace Velivo
                 _lanTick.Tick += (s, e) =>
                 {
                     if (_lanApplying) return;
-                    if (!Wariant.MaFilmy && ++_lanFilmyCheck % 3 == 0 && LanFilmyObok()) { StopLanSync(); LanOddajPorty(); LanLeadWait(); return; }   // 🧩 co 9 s: wystartował program Velivo z filmami i Pilotem - Przeglądarka oddaje mu sieć
+                    if ((!Wariant.MaFilmy || Wariant.Serwer) && ++_lanFilmyCheck % 3 == 0 && LanFilmyObok()) { StopLanSync(); LanOddajPorty(); LanLeadWait(); return; }   // 🧩 co 9 s: wystartował program Velivo z filmami i Pilotem - Przeglądarka i Serwer filmów oddają mu sieć
                     ExpireLanPairings();
                     if (_lanLegacyNoKeyMode)
                     {
@@ -569,7 +569,7 @@ namespace Velivo
         }
         // 🧩 programy Velivo są równe: sieć domową prowadzi ten, który wystartował pierwszy, drugi przejmuje po jego zamknięciu (żaden nie jest „główny”).
         // Jedyny wyjątek wynika z możliwości, nie z ważności: Przeglądarka nie ma filmów ani Pilota - gdy działa program, który je ma, oddaje mu sieć.
-        static bool LanFilmyObok() => !Wariant.MaFilmy && (ProcesDziala("Velivo") || ProcesDziala("VelivoOdtwarzacz"));
+        static bool LanFilmyObok() => (!Wariant.MaFilmy || Wariant.Serwer) && (ProcesDziala("Velivo") || ProcesDziala("VelivoOdtwarzacz"));   // 🎞 Serwer filmów też oddaje sieć - Pilot z telefonu ma trafiać do odtwarzacza na ekranie (filmy serwera udostępnia każdy prowadzący)
         static bool ProcesDziala(string nazwa)
         {
             var ps = System.Diagnostics.Process.GetProcessesByName(nazwa);

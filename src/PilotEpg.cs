@@ -244,7 +244,7 @@ namespace Velivo
                             for (int guard = 0; guard < 2000; guard++)   // wszystkie strony od razu
                             {
                                 int before = replies.Count;
-                                if (cmd.op == "list" || cmd.op == "play-tv" || cmd.op == "play-film" || cmd.op == "fav-tv" || cmd.op == "fav-film" || cmd.op == "info") PilotLists(pkt.id, cmd);
+                                if (cmd.op == "list" || cmd.op == "bib" || cmd.op == "play-tv" || cmd.op == "play-film" || cmd.op == "fav-tv" || cmd.op == "fav-film" || cmd.op == "info") PilotLists(pkt.id, cmd);
                                 else PilotGuide(pkt.id, cmd);
                                 if (!paged || replies.Count == before) break;
                                 var last = replies[replies.Count - 1];

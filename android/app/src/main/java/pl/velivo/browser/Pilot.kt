@@ -388,7 +388,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         return lan.sendPilot(c, op, v, n, addr, q, g, sort)
     }
     // listy, program TV, obrazki, opisy i plany - przez TCP (całość naraz); sterowanie (play, głośność…) dalej UDP - małe pakiety
-    private val tcpOps = setOf("list", "epg", "epg-act", "rand", "img", "info", "plans", "plan-del")
+    private val tcpOps = setOf("list", "epg", "epg-act", "rand", "img", "info", "plans", "plan-del", "play-tv", "play-film", "fav-tv", "fav-film", "bib")   // włączanie też TCP: UDP na wspólny port 41919 Windows oddaje tylko jednemu programowi Velivo
     private val tcpFail = HashMap<String, Long>()
     private var batchKey = ""; private var batchAt = 0L
 

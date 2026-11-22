@@ -15,7 +15,7 @@ namespace VelivoProcesor
 
     sealed class Pomiar
     {
-        public double Cpu, Gpu = -1, Temp = -1, Dysk, Ghz; public string Program = ""; public int Pid; public bool Bateria;
+        public double Cpu, Gpu = -1, Temp = -1, Dysk, DyskMBs, DyskKol, Ghz; public string Program = ""; public int Pid; public bool Bateria;
     }
 
     sealed class Silnik
@@ -58,6 +58,8 @@ namespace VelivoProcesor
         [DllImport("kernel32.dll")] static extern bool GetSystemPowerStatus(out PowerStatus s);
         [StructLayout(LayoutKind.Sequential)] struct PowerStatus { public byte AC, Battery, Percent, Saver; public int Life, Full; }
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        delegate bool EnumProc(IntPtr h, IntPtr l);
+        [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc cb, IntPtr l);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhOpenQuery(string src, IntPtr user, out IntPtr q);
         [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhAddEnglishCounter(IntPtr q, string path, IntPtr user, out IntPtr c);
@@ -66,13 +68,16 @@ namespace VelivoProcesor
         [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhGetFormattedCounterArray(IntPtr c, uint fmt, ref int size, out int count, IntPtr buf);
         [StructLayout(LayoutKind.Sequential)] struct PdhValue { public uint Status; public uint Pad; public double Value; }
 
-        long lIdle, lKer, lUsr; IntPtr pdhQ, cPerf, cDysk, cGpu, cTz; double tzMnoznik = 1; int tempTick; double tempOst = -1;
+        long lIdle, lKer, lUsr; IntPtr pdhQ, cPerf, cDysk, cDyskB, cDyskQ, cGpu, cTz; double tzMnoznik = 1; int tempTick; double tempOst = -1;
 
         void InitPdh()
         {
             if (PdhOpenQuery(null, IntPtr.Zero, out pdhQ) != 0) { pdhQ = IntPtr.Zero; return; }
             PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\% Processor Performance", IntPtr.Zero, out cPerf);
             PdhAddEnglishCounter(pdhQ, @"\PhysicalDisk(_Total)\% Idle Time", IntPtr.Zero, out cDysk);
+            // 💽 dysk: prędkość i kolejka operacji („% zajętości” na dyskach NVMe bywa fałszywe - 100 % przy małym ruchu)
+            PdhAddEnglishCounter(pdhQ, @"\PhysicalDisk(_Total)\Disk Bytes/sec", IntPtr.Zero, out cDyskB);
+            PdhAddEnglishCounter(pdhQ, @"\PhysicalDisk(_Total)\Current Disk Queue Length", IntPtr.Zero, out cDyskQ);
             if (PdhAddEnglishCounter(pdhQ, @"\GPU Engine(*engtype_3D)\Utilization Percentage", IntPtr.Zero, out cGpu) != 0) cGpu = IntPtr.Zero;
             if (PdhAddEnglishCounter(pdhQ, @"\Thermal Zone Information(*)\High Precision Temperature", IntPtr.Zero, out cTz) != 0) { tzMnoznik = 10; if (PdhAddEnglishCounter(pdhQ, @"\Thermal Zone Information(*)\Temperature", IntPtr.Zero, out cTz) != 0) cTz = IntPtr.Zero; }   // strefy ACPI (dziesiąte części K) - bez uprawnień   // karta: suma silników 3D wszystkich programów
             PdhCollectQueryData(pdhQ);
@@ -110,11 +115,24 @@ namespace VelivoProcesor
             {
                 double perf = Licznik(cPerf); if (perf > 0 && BazaMhz > 0) p.Ghz = BazaMhz * perf / 100 / 1000;
                 double di2 = Licznik(cDysk); p.Dysk = di2 >= 0 ? Math.Max(0, 100 - di2) : 0;
+                p.DyskMBs = Math.Max(0, Licznik(cDyskB)) / 1e6; p.DyskKol = Math.Max(0, Licznik(cDyskQ));
                 p.Gpu = Gpu();
             }
             if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s (odczyt bywa kosztowny)
             p.Temp = tempOst;
-            try { GetWindowThreadProcessId(GetForegroundWindow(), out var pid); p.Pid = (int)pid; using (var pr = Process.GetProcessById((int)pid)) p.Program = pr.ProcessName; } catch (Exception) { }
+            try
+            {
+                var fw = GetForegroundWindow(); GetWindowThreadProcessId(fw, out var pid);
+                using (var pr = Process.GetProcessById((int)pid)) p.Program = pr.ProcessName;
+                if (p.Program == "ApplicationFrameHost")   // aplikacje ze Sklepu: ramka okna to inny proces niż sam program - szukam okna programu w środku
+                {
+                    uint host = pid, wl = 0;
+                    EnumChildWindows(fw, (h, l) => { GetWindowThreadProcessId(h, out var c); if (c != host) { wl = c; return false; } return true; }, IntPtr.Zero);
+                    if (wl != 0) { pid = wl; using (var pr = Process.GetProcessById((int)wl)) p.Program = pr.ProcessName; }
+                }
+                p.Pid = (int)pid;
+            }
+            catch (Exception) { }
             try { p.Bateria = GetSystemPowerStatus(out var ps) && ps.AC == 0; } catch (Exception) { }
             return p;
         }
@@ -222,7 +240,7 @@ namespace VelivoProcesor
             var w = new List<ProgInfo>();
             lock (programy) lock (Studio)
             {
-                var nazwy = new HashSet<string>(programy.Where(p => p.Value.N >= 30).Select(p => p.Key), StringComparer.OrdinalIgnoreCase);
+                var nazwy = new HashSet<string>(programy.Where(p => p.Value.N >= 10).Select(p => p.Key), StringComparer.OrdinalIgnoreCase);   // na liście po 10 s pracy (decyzje z nauki po 30 s)
                 nazwy.UnionWith(Reczne.Keys); nazwy.UnionWith(Priorytet.Keys); nazwy.UnionWith(Studio); nazwy.UnionWith(BezPb);
                 foreach (var n in nazwy)
                 {
@@ -255,6 +273,7 @@ namespace VelivoProcesor
         public Tryb Obecny = Tryb.Zrownowazony; public string Dlaczego = "";
         readonly Queue<double> tempHist = new Queue<double>(); DateTime ostZmiana = DateTime.MinValue; int wysokoN, niskoN, gpuWyjscieN; bool gpuBound;
         int przycieciaN, nadmiarN;   // do samodostrajania progów
+        int dyskN; DateTime dyskDo;
 
         public Tryb Decyduj(Pomiar p)
         {
@@ -265,14 +284,19 @@ namespace VelivoProcesor
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
             wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;
-            Tryb chce; string why; bool reczny = false;
+            Tryb chce; string why; bool reczny = false, goraco = false;
+            Procesy();
+            // 💽 dysk pracuje (kopiowanie, instalacja, wczytywanie): ponad 15 MB/s albo 2+ operacje w kolejce, dłużej niż 3 s; trzymane jeszcze 5 s po końcu
+            bool dyskRuch = p.DyskMBs > 15 || p.DyskKol >= 2; dyskN = dyskRuch ? dyskN + 1 : 0;
+            if (dyskN >= 3) dyskDo = DateTime.UtcNow.AddSeconds(5);
+            bool kopiuje = DateTime.UtcNow < dyskDo;
             // 1. temperatura - teraz albo za 10 s (przewidywanie ze wzrostu)
             if (p.Temp > 0 && (p.Temp >= TempLimit || p.Temp + trend * 10 >= TempLimit + 2))
-            { chce = Tryb.Cichy; why = "Procesor gorący (" + p.Temp.ToString("0") + " °C" + (trend > 0.3 ? ", rośnie" : "") + ") – zwalniam, zanim wentylator przyspieszy."; }
+            { chce = Tryb.Cichy; goraco = true; why = "Procesor gorący (" + p.Temp.ToString("0") + " °C" + (trend > 0.3 ? ", rośnie" : "") + ") – zwalniam, zanim wentylator przyspieszy."; }
             // 2. „zawsze ten tryb”: program działa (na wierzchu albo w tle - np. Studio One gra, a Ty jesteś w innym oknie) - jego tryb, bez względu na obciążenie i baterię
             else if (ZawszeDla(p, out var rr, out var rn)) { gpuBound = false; reczny = true; chce = rr; why = rn + " działa – ustawiony na stałe: " + Nazwa(rr) + "."; }
             // 3. wczytywanie (dysk pracuje, procesor też) - krótko pełna moc
-            else if (p.Dysk > 80 && p.Cpu > 30) { chce = Tryb.Turbo; why = "Wczytywanie (dysk " + p.Dysk.ToString("0") + " %) – pełna moc, żeby szybciej skończyć."; }
+            else if (kopiuje && p.Cpu > 30) { chce = Tryb.Turbo; why = "Wczytywanie (dysk " + p.DyskMBs.ToString("0") + " MB/s, procesor " + p.Cpu.ToString("0") + " %) – pełna moc, żeby szybciej skończyć."; }
             // 3. gra obciąża kartę, procesor nie: procesor mniej mocy, karta chłodniej i wyższy zegar (wyjście po 3 s - stabilnie)
             else if (p.Gpu > 75 && p.Cpu < 50 || gpuBound && p.Gpu > 60 && (gpuWyjscieN = p.Cpu > 50 ? gpuWyjscieN + 1 : 0) < 3)
             { gpuBound = true; chce = Tryb.Zrownowazony; why = "Program obciąża kartę graficzną (" + p.Gpu.ToString("0") + " %), procesor tylko " + p.Cpu.ToString("0") + " % – procesor nie potrzebuje więcej mocy, karta ma chłodniej."; }
@@ -283,6 +307,9 @@ namespace VelivoProcesor
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas
             else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
             else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
+            // kopiowanie i instalacja: nie zwalniam do Cichego (małe pliki i skanowanie antywirusa potrzebują procesora), ale bez Turbo - mało ciepła
+            if (!goraco && !reczny && chce == Tryb.Cichy && (kopiuje || instalator != null))
+            { chce = Tryb.Zrownowazony; why = instalator != null ? "Instalacja (" + instalator + ") – nie zwalniam do Cichego, żeby nie szarpała." : "Kopiowanie (dysk " + p.DyskMBs.ToString("0") + " MB/s) – nie zwalniam do Cichego."; }
             if (!reczny && p.Bateria && chce == Tryb.Turbo && !(p.Temp < 0 && wysokoN > 3)) { chce = Tryb.Zrownowazony; why += " Na baterii bez Turbo."; }
 
             // w dół powoli: Turbo → Zrównoważony po 3 s, Zrównoważony → Cichy po 8 s; w górę od razu
@@ -299,16 +326,29 @@ namespace VelivoProcesor
         }
         // program z „zawsze ten tryb”: najpierw ten na wierzchu, inaczej działający w tle (kilka - najwyższy tryb); lista procesów co 3 s
         HashSet<string> dzialajace = new HashSet<string>(StringComparer.OrdinalIgnoreCase); DateTime dzialajaceT;
+        // lista działających programów co 3 s (zawsze ten tryb, Studio, instalatory)
+        string instalator;   // działający instalator albo null
+        void Procesy()
+        {
+            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds < 3) return;
+            dzialajaceT = DateTime.UtcNow; var d = new HashSet<string>(StringComparer.OrdinalIgnoreCase); int msi = 0; string ins = null;
+            foreach (var pr in Process.GetProcesses())
+                using (pr)
+                    try
+                    {
+                        var n = pr.ProcessName; d.Add(n);
+                        if (n.Equals("msiexec", StringComparison.OrdinalIgnoreCase)) msi++;   // usługa Instalatora Windows zostaje chwilę po instalacji - instalacja trwa, gdy są dwa
+                        else if (ins == null && (n.IndexOf("setup", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("install", StringComparison.OrdinalIgnoreCase) >= 0 || n.StartsWith("unins", StringComparison.OrdinalIgnoreCase))
+                            && !n.Equals("TrustedInstaller", StringComparison.OrdinalIgnoreCase) && !n.StartsWith("Velivo", StringComparison.OrdinalIgnoreCase)) ins = n;
+                    }
+                    catch (Exception) { }
+            dzialajace = d; instalator = ins ?? (msi >= 2 ? "Instalator Windows" : null);
+        }
         bool ZawszeDla(Pomiar p, out Tryb t, out string nazwa)
         {
             t = Tryb.Zrownowazony; nazwa = null;
             lock (Studio) if (Reczne.TryGetValue(p.Program ?? "", out t)) { nazwa = p.Program; return true; }
-            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds >= 3 && (Reczne.Count > 0 || Studio.Count > 0))
-            {
-                dzialajaceT = DateTime.UtcNow; var d = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var pr in Process.GetProcesses()) using (pr) try { d.Add(pr.ProcessName); } catch (Exception) { }
-                dzialajace = d;
-            }
+            Procesy();
             bool jest = false;
             KeyValuePair<string, Tryb>[] lista; lock (Studio) lista = Reczne.ToArray();
             foreach (var r in lista) if (dzialajace.Contains(r.Key) && (!jest || r.Value > t)) { t = r.Value; nazwa = r.Key; jest = true; }
@@ -320,7 +360,7 @@ namespace VelivoProcesor
         {
             string[] st; lock (Studio) st = Studio.ToArray();
             if (st.Length == 0) { StudioProg = null; return; }
-            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds >= 3) { ZawszeDla(new Pomiar(), out _, out _); }
+            Procesy();
             StudioProg = st.FirstOrDefault(n => string.Equals(n, p.Program, StringComparison.OrdinalIgnoreCase)) ?? st.FirstOrDefault(n => dzialajace.Contains(n));
         }
         bool ZnanyProgram(string n, out (double Cpu, double Gpu, int N, double Szczyt) v) { lock (programy) return programy.TryGetValue(n ?? "", out v); }

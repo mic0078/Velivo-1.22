@@ -383,7 +383,7 @@ namespace VelivoProcesor
             wszSzukaj.TextChanged += (a, e) => WszystkieOdswiez(); top.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { T("🔍 ", 13, Fg), wszSzukaj } });
             DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
             var gv = new GridView { ColumnHeaderContainerStyle = NaglowekStyl() };
-            foreach (var (n, prop, sort, wid) in new[] { ("Program", "Prog", "Prog", 200.0), ("Tryb", "TrybOpis", "TrybOpis", 160), ("Średnio", "SrT", "Sr", 70), ("Szczyt", "SzczytT", "Szczyt", 70), ("Karta", "KartaT", "Karta", 60), ("Czas pracy", "CzasT", "N", 85), ("Priorytet", "PrioT", "Prio", 85), ("Studio", "StudioT", "StudioOn", 65), ("ProBalance", "PbT", "BezPbOn", 85) })
+            foreach (var (n, prop, sort, wid) in new[] { ("Program", "Prog", "Prog", 180.0), ("Tryb", "TrybOpis", "TrybOpis", 150), ("Średnio", "SrT", "Sr", 70), ("Szczyt", "SzczytT", "Szczyt", 70), ("Karta", "KartaT", "Karta", 60), ("Czas pracy", "CzasT", "N", 85), ("Priorytet", "PrioT", "Prio", 85), ("Studio", "StudioT", "StudioOn", 65), ("ProBalance", "PbT", "BezPbOn", 85) })
             {
                 var hd = new GridViewColumnHeader { Content = n, Tag = sort }; hd.Click += (a, e) => Sortuj((string)hd.Tag);
                 gv.Columns.Add(new GridViewColumn { Header = hd, DisplayMemberBinding = new System.Windows.Data.Binding(prop), Width = wid });

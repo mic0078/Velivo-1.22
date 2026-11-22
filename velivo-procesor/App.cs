@@ -349,10 +349,10 @@ namespace VelivoProcesor
             }
             var ml = new MenuItem { Header = "Ucz się sam", IsChecked = !z, IsEnabled = !stp, ToolTip = stp ? "W trybie Studio tryb jest stały – najpierw wyłącz Studio" : null }; ml.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne.Remove(prog); }); mt.Items.Add(ml);
             cm.Items.Add(mt);
-            int pr; lock (s.Studio) pr = s.Priorytet.TryGetValue(prog, out var q) ? q : 0;
+            int pr = s.PriorytetDla(prog);   // obowiązujący (w Studio bez wyboru - Wysoki)
             var mp = new MenuItem { Header = "Priorytet" };
             foreach (var (v, n) in new[] { (1, "⬆ Wysoki"), (0, "Normalny (bez zmian)"), (-1, "⬇ Niski") })
-            { var mi = new MenuItem { Header = n, IsChecked = pr == v }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (v == 0) s.Priorytet.Remove(prog); else s.Priorytet[prog] = v; } }); mp.Items.Add(mi); }
+            { var mi = new MenuItem { Header = n + (v == 1 && stp && !s.Priorytet.ContainsKey(prog) ? " (Studio)" : ""), IsChecked = pr == v }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (v == 0 && !s.Studio.Contains(prog)) s.Priorytet.Remove(prog); else s.Priorytet[prog] = v; } }); mp.Items.Add(mi); }   // Normalny w Studio zapisany wprost (inaczej Studio daje Wysoki)
             cm.Items.Add(mp);
             cm.Items.Add(new Separator());
             bool st; lock (s.Studio) st = s.Studio.Contains(prog);
@@ -383,12 +383,13 @@ namespace VelivoProcesor
             wszSzukaj.TextChanged += (a, e) => WszystkieOdswiez(); top.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { T("🔍 ", 13, Fg), wszSzukaj } });
             DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
             var gv = new GridView { ColumnHeaderContainerStyle = NaglowekStyl() };
-            foreach (var (n, prop, sort, wid) in new[] { ("Program", "Prog", "Prog", 180.0), ("Tryb", "TrybOpis", "TrybOpis", 150), ("Średnio", "SrT", "Sr", 70), ("Szczyt", "SzczytT", "Szczyt", 70), ("Karta", "KartaT", "Karta", 60), ("Czas pracy", "CzasT", "N", 85), ("Priorytet", "PrioT", "Prio", 85), ("Studio", "StudioT", "StudioOn", 65), ("ProBalance", "PbT", "BezPbOn", 85) })
+            foreach (var (n, prop, sort, wid) in new[] { ("Program", "Prog", "Prog", 170.0), ("Tryb", "TrybOpis", "TrybOpis", 150), ("Średnio", "SrT", "Sr", 65), ("Szczyt", "SzczytT", "Szczyt", 65), ("Karta", "KartaT", "Karta", 55), ("Czas pracy", "CzasT", "N", 80), ("Priorytet", "PrioT", "Prio", 85), ("Studio", "StudioT", "StudioOn", 60), ("ProBalance", "PbT", "BezPbOn", 80) })
             {
                 var hd = new GridViewColumnHeader { Content = n, Tag = sort }; hd.Click += (a, e) => Sortuj((string)hd.Tag);
                 gv.Columns.Add(new GridViewColumn { Header = hd, DisplayMemberBinding = new System.Windows.Data.Binding(prop), Width = wid });
             }
             wszLv = new ListView { View = gv, Background = Card, Foreground = Fg, BorderBrush = Line, ItemContainerStyle = WierszStyl() };
+            ScrollViewer.SetHorizontalScrollBarVisibility(wszLv, ScrollBarVisibility.Disabled);   // kolumny mieszczą się w oknie - bez białego paska w bok
             wszLv.PreviewMouseRightButtonDown += (a, e) =>
             {
                 var it = ItemsControl.ContainerFromElement(wszLv, e.OriginalSource as DependencyObject) as ListViewItem;

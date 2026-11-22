@@ -1321,6 +1321,7 @@ namespace Velivo
                 _libVlc.Log += (s, e) =>
                 {
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
+                    else if (e.Module != null && e.Module.Contains("wasapi") && e.Message != null && e.Message.StartsWith("buffer size")) _aoutFailed = false;   // chwilowy błąd przy starcie (wyjście Windows przełączane przez Audio Balance), a zaraz potem WASAPI ruszyło - bez przechodzenia na DirectSound (vlc.log 2026-11-22: DirectSound z kablem dawał ciągłe „playback too early … playing silence” - głos jak robot i ucinany)
                     if (e.Message != null && VlcDriftRx.Match(e.Message) is var dm && dm.Success && long.TryParse(dm.Groups[1].Value, out var dus)) { _vlcDriftUs = dus; _vlcDriftAt = DateTime.Now; }
                     bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
                     if (e.Message != null && e.Message.StartsWith("buffer too late") && e.Message.EndsWith("dropped")) { var nw = DateTime.Now; if ((nw - _vlcDropAt).TotalSeconds > 2) _vlcDropN = 0; _vlcDropN++; _vlcDropAt = nw; }

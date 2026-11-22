@@ -76,11 +76,11 @@ Name: "monitor"; Description: "{cm:CMon}"; Types: pelny typowy
 Name: "kursory"; Description: "{cm:CKur}"; Types: pelny
 Name: "centrum"; Description: "{cm:CCen}"; Types: pelny typowy
 Name: "osobne"; Description: "{cm:CSep}"
-Name: "osobne\odtwarzacz"; Description: "{cm:COdt}"
-Name: "osobne\przegladarka"; Description: "{cm:CPrz}"
-Name: "osobne\klawiatura"; Description: "{cm:CKla}"
-Name: "osobne\komunikator"; Description: "{cm:CKom}"
-Name: "osobne\serwer"; Description: "{cm:CSrv}"
+Name: "osobne\odtwarzacz"; Description: "{cm:COdt}"; Flags: dontinheritcheck
+Name: "osobne\przegladarka"; Description: "{cm:CPrz}"; Flags: dontinheritcheck
+Name: "osobne\klawiatura"; Description: "{cm:CKla}"; Flags: dontinheritcheck
+Name: "osobne\komunikator"; Description: "{cm:CKom}"; Flags: dontinheritcheck
+Name: "osobne\serwer"; Description: "{cm:CSrv}"; Flags: dontinheritcheck
 
 [Files]
 Source: "{#Src}Velivo-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: velivo; Flags: deleteafterinstall

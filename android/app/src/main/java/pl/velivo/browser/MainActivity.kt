@@ -221,6 +221,7 @@ class MainActivity : Activity() {
         dropPrivateProfile() // resztki po poprzedniej sesji
         if (intent?.action == Intent.ACTION_SEND || intent?.action == Intent.ACTION_SEND_MULTIPLE) sendSharedFile(intent)
         val link = intent?.dataString?.takeIf { intent?.action != Intent.ACTION_SEND }
+        if (BuildConfig.ODTWARZACZ) { playerHome(); return }   // 🎬 Velivo Odtwarzacz: zamiast kart strona startowa z filmami i TV
         if (!restoreTabs() && link == null) newTab(false, home)
         if (link != null) newTab(false, link)
     }
@@ -1530,7 +1531,14 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
     }
 
-    private fun showMenu(@Suppress("UNUSED_PARAMETER") anchor: View) {
+    // 🎬 Velivo Odtwarzacz: ekran startowy = kafelki Filmy i TV (to samo menu co w przeglądarce, bez kart i stron)
+    private fun playerHome() {
+        chrome.forEach { it.visibility = View.GONE }; progress.visibility = View.GONE
+        pipBars = emptyList()
+        showMenu(frame, frame)
+    }
+
+    private fun showMenu(@Suppress("UNUSED_PARAMETER") anchor: View, embed: FrameLayout? = null) {
         val dlg = android.app.Dialog(this)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1547,13 +1555,13 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(dp(40), dp(40)))
         head.addView(TextView(this).apply {
-            text = android.text.SpannableString("Velivo\nBy MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.45f), 7, length, 0) }; textSize = 24f;   // autor pod nazwą setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
+            text = android.text.SpannableString(if (BuildConfig.ODTWARZACZ) "Velivo\n" + getString(R.string.app_name).removePrefix("Velivo ") else "Velivo\nBy MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.45f), 7, length, 0) }; textSize = 24f;   // autor pod nazwą setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
             // napis w gradiencie Velivo (fiolet -> turkus), jak pod ikona
             val w = paint.measureText("Velivo")
             if (contrast) setTextColor(Color.WHITE)
             else paint.shader = android.graphics.LinearGradient(dp(10).toFloat(), 0f, dp(10) + w, 0f, BRAND1, BRAND2, android.graphics.Shader.TileMode.CLAMP)
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        head.addView(TextView(this).apply {
+        if (!BuildConfig.ODTWARZACZ) head.addView(TextView(this).apply {
             text = "🛡 " + getString(R.string.blocked, blockedCount)
             textSize = 13f; setTextColor(GREEN); background = round(GREEN_BG); setPadding(dp(10), dp(5), dp(10), dp(5))
             // stuknięcie: panel prywatności tej strony
@@ -1604,6 +1612,17 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 ).apply { width = 0; height = dp(96); setMargins(dp(4), dp(4), dp(4), dp(4)) })
             }
             box.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        }
+        if (BuildConfig.ODTWARZACZ) {   // 🎬 tylko filmy i telewizja
+            section(R.string.menu_media, listOf(
+                Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🎞", R.string.my_films, 32),
+                Triple("🎮", R.string.pilot, 44), Triple("🌙", R.string.sleep_title, 35), Triple("📱", R.string.phone_videos, 38)))
+            section(R.string.menu_settings, listOf(
+                Triple("💻", R.string.lan_sync, 13), Triple("🌓", R.string.theme, 11), Triple("🌐", R.string.language, 22), Triple("▶", R.string.default_player, 37)))
+            val sv = ScrollView(this).apply { addView(box) }
+            embed?.removeAllViews(); embed?.addView(sv, FrameLayout.LayoutParams(-1, -1))
+            if (embed == null) { dlg.setContentView(PinchFrame(sv) { dlg.dismiss() }); dlg.window?.apply { setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)); setLayout(-1, -2); setGravity(Gravity.BOTTOM) }; dlg.show() }
+            return
         }
         // po 3 w rzędzie, pełne rzędy: karty, ta strona, moje, ustawienia
         section(R.string.menu_tabs, listOf(
@@ -3115,7 +3134,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
     private val komOkno: KomunikatorOkno by lazy { KomunikatorOkno(this, kom) { pickP2pFiles() } }
     // 💬 w telefonie jest aplikacja Komunikator Velivo - jedyny komunikator; przeglądarka ją tylko otwiera (rozmowy oddała jej sama)
-    private val komApp by lazy { Komunikator.owner(this) != packageName }
+    private val komApp by lazy { BuildConfig.ODTWARZACZ || Komunikator.owner(this) != packageName }   // 🎬 Odtwarzacz nigdy nie prowadzi komunikatora
     private fun openKomApp(action: String, id: String? = null) = runCatching {
         startActivity(Intent(action).setPackage(Komunikator.APP).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.isSuccess

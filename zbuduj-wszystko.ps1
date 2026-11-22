@@ -8,8 +8,8 @@
 #   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
 #   -Tylko Odtwarzacz,Velivo - tylko wybrane programy Windows (Velivo, Odtwarzacz, Przegladarka, Klawiatura, Serwer, Komunikator)
-param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows, [switch]$Podstawowa, [string[]]$Tylko)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
-$tylkoApk = $Przegladarka -or $Klawiatura -or $Komunikator
+param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$OdtwarzaczAndroid, [switch]$TylkoWindows, [switch]$Podstawowa, [string[]]$Tylko)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
+$tylkoApk = $Przegladarka -or $Klawiatura -or $Komunikator -or $OdtwarzaczAndroid
 if ($tylkoApk) { $Wszystko = $true; if (-not $TylkoWindows) { $TylkoAndroid = $true } }   # -TylkoWindows -Komunikator = Windows + ten APK
 $ErrorActionPreference = 'Stop'
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
@@ -141,9 +141,9 @@ try {
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.store.password} = $ksPass
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.alias} = $alias
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.password} = $keyPass
-    $zadania = @('assemblePelnaRelease', ':klawiatura:assembleRelease', ':komunikator:assembleRelease')
+    $zadania = @('assemblePelnaRelease', 'assembleOdtwarzaczRelease', ':klawiatura:assembleRelease', ':komunikator:assembleRelease')
     if ($Sklep) { $zadania = @('assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease', ':klawiatura:assembleRelease', ':komunikator:assembleRelease') }
-    if ($tylkoApk) { $zadania = @(); if ($Przegladarka) { $zadania += 'assemblePelnaRelease' }; if ($Klawiatura) { $zadania += ':klawiatura:assembleRelease' }; if ($Komunikator) { $zadania += ':komunikator:assembleRelease' } }
+    if ($tylkoApk) { $zadania = @(); if ($Przegladarka) { $zadania += 'assemblePelnaRelease' }; if ($Klawiatura) { $zadania += ':klawiatura:assembleRelease' }; if ($Komunikator) { $zadania += ':komunikator:assembleRelease' }; if ($OdtwarzaczAndroid) { $zadania += 'assembleOdtwarzaczRelease' } }
     & .\gradlew.bat --console=plain @zadania
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa Androida nie powiodla sie (zle haslo? brak SDK?)." -ForegroundColor Red; exit 1 }
 } finally {
@@ -156,6 +156,7 @@ if (-not $tylkoApk) { Remove-Item -Recurse -Force $out -ErrorAction SilentlyCont
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $o = Join-Path $PSScriptRoot 'android\app\build\outputs'
 if (-not $tylkoApk -or $Przegladarka) { Copy-Item "$o\apk\pelna\release\*.apk" (Join-Path $out 'Velivo-pelna.apk') }
+if (-not $tylkoApk -or $OdtwarzaczAndroid) { Copy-Item "$o\apk\odtwarzacz\release\*.apk" (Join-Path $out 'Velivo-odtwarzacz.apk') }
 if (-not $tylkoApk -or $Klawiatura) { Copy-Item (Join-Path $PSScriptRoot 'android\klawiatura\build\outputs\apk\release\*.apk') (Join-Path $out 'Velivo-klawiatura.apk') }
 if (-not $tylkoApk -or $Komunikator) { Copy-Item (Join-Path $PSScriptRoot 'android\komunikator\build\outputs\apk\release\*.apk') (Join-Path $out 'Velivo-komunikator.apk') }
 if ($Sklep) {
@@ -166,6 +167,7 @@ if (-not $tylkoApk) { Set-Content (Join-Path $cfgDir 'ostatnio-android.txt') $he
 Write-Host "Gotowe:" -ForegroundColor Green
 if ($needWin) { Write-Host "  build\instalator\Velivo-Setup-1.22.exe - Windows" }
 Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp)"
+Write-Host "  build\android\Velivo-odtwarzacz.apk - Velivo Odtwarzacz: filmy i TV (osobna aplikacja)"
 Write-Host "  build\android\Velivo-klawiatura.apk - klawiatura Velivo (osobna aplikacja)"
 Write-Host "  build\android\Velivo-komunikator.apk - Komunikator Velivo (osobna aplikacja, sam wystarczy)"
 if ($Sklep) { Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"

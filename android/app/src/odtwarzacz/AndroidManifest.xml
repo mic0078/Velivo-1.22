@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🎬 Velivo Odtwarzacz: ta sama aplikacja co przeglądarka, ale bez przeglądarki stron, komunikatora i widżetu.
+     Usunięte elementy kolidowałyby z zainstalowaną przeglądarką Velivo (ten sam dostawca danych) albo dublowały ikony. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <application>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize"
+            tools:node="replace">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity-alias android:name=".KomunikatorStart" tools:node="remove" />
+        <receiver android:name=".Widzet" tools:node="remove" />
+        <provider android:name=".KomunikatorDane" tools:node="remove" />
+        <receiver android:name="pl.velivo.komunikator.KomunikatorAkcja" tools:node="remove" />
+        <receiver android:name="pl.velivo.komunikator.KomunikatorSchowek" tools:node="remove" />
+        <service android:name="pl.velivo.komunikator.SterowanieUsluga" tools:node="remove" />
+        <service android:name="pl.velivo.komunikator.EkranUsluga" tools:node="remove" />
+        <service android:name="pl.velivo.komunikator.KomunikatorUsluga" tools:node="remove" />
+    </application>
+</manifest>

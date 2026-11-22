@@ -29,18 +29,29 @@ android {
             applicationId = "pl.velivo.browser"
             buildConfigField("boolean", "PELNA", "true")
             buildConfigField("boolean", "YOUTUBE", "true")
+            buildConfigField("boolean", "ODTWARZACZ", "false")
+        }
+        // 🎬 Velivo Odtwarzacz - osobna aplikacja: filmy, telewizja, Jellyfin, filmy w telefonie i Pilot (ten sam kod co przeglądarka, bez kart i komunikatora)
+        create("odtwarzacz") {
+            dimension = "wersja"
+            applicationId = "pl.velivo.odtwarzacz"
+            buildConfigField("boolean", "PELNA", "true")
+            buildConfigField("boolean", "YOUTUBE", "false")
+            buildConfigField("boolean", "ODTWARZACZ", "true")
         }
         create("sklep") {
             dimension = "wersja"
             applicationId = "pl.velivo"
             buildConfigField("boolean", "PELNA", "false")
             buildConfigField("boolean", "YOUTUBE", "false")
+            buildConfigField("boolean", "ODTWARZACZ", "false")
         }
         create("sklepyt") {
             dimension = "wersja"
             applicationId = "pl.velivo"   // ten sam co "sklep" - do sklepu wysyłasz jedną z nich
             buildConfigField("boolean", "PELNA", "false")
             buildConfigField("boolean", "YOUTUBE", "true")
+            buildConfigField("boolean", "ODTWARZACZ", "false")
         }
     }
     buildFeatures { buildConfig = true }

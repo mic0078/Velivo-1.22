@@ -167,8 +167,8 @@ Name: "autostart"; Description: "{cm:SerwerAuto}"; GroupDescription: "{cm:Shortc
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
 Name: "videoplayer\iptv"; Description: "{cm:Iptv}"
 #elif !defined(NieFilmy)
-; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
-Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
+; odtwarzacz filmow (libvlc) - w pelnym Velivo zaznaczony od razu (pelna wersja = filmy i Pilot); mozna odznaczyc
+Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
 ; telewizja IPTV - osobny modul na odtwarzaczu filmow (bez wlasnego pobierania)
 Name: "videoplayer\iptv"; Description: "{cm:Iptv}"; Flags: unchecked
 #endif

@@ -90,7 +90,7 @@ namespace Velivo
             double t = thr, r = Math.Max(1, p.Ratio), w = Math.Max(0, p.KneeDb), d = x - t, g = 0;
             if (w > 0 && Math.Abs(d) <= w / 2) g = (1 / r - 1) * (d + w / 2) * (d + w / 2) / (2 * w);   // miękkie kolano - płynne wejście kompresji
             else if (d > 0) g = (1 / r - 1) * d;
-            if (x < expThr && p.ExpanderRatio > 1) g += Math.Max(-40, (x - expThr) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół, nie w górę
+            if (x < expThr && x > -100 && p.ExpanderRatio > 1) g += Math.Max(-12, (x - expThr) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół (najwyżej 12 dB; było 40 - w filmach z lektorem bramkował cichy głos między słowami: „głos jak robot”, wskaźnik -40 dB na nagraniu właściciela 2026-11-22)
             return g;
         }
 
@@ -151,7 +151,7 @@ namespace Velivo
             }
             double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
             // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)
-            double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progDb - 20);
+            double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progDb - 30);   // 30 dB pod typowym poziomem filmu - cichy lektor / szept to nie szum
             EffThresholdDb = (float)thr; EffExpanderDb = (float)expThr;
             double want = GainComputer(xDb, p, thr, expThr);
             grDb = want < grDb ? want + ca * (grDb - want) : want + cr * (grDb - want);   // mocniej - czas ataku, słabiej - czas powrotu

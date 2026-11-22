@@ -553,4 +553,12 @@
     <string name="pc_confirm_msg">Otwarte programy zostaną zamknięte.</string>
     <string name="pc_st_mouse">sterowanie myszą</string>
     <string name="pc_st_kb">pisanie</string>
+    <string name="pc_apps">Ulubione aplikacje</string>
+    <string name="pc_app_add">Dodaj aplikację</string>
+    <string name="pc_app_add_title">Aplikacja na %1$s</string>
+    <string name="pc_app_search">Szukaj aplikacji…</string>
+    <string name="pc_app_count">Aplikacje z menu Start: %1$d</string>
+    <string name="pc_app_none">Komputer nie przysłał listy – zaktualizuj Velivo na komputerze.</string>
+    <string name="pc_app_remove">Usuń</string>
+    <string name="pc_app_remove_q">Usunąć tę aplikację z ulubionych? (Na komputerze zostaje.)</string>
 </resources>

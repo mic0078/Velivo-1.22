@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace Velivo
@@ -126,12 +129,42 @@ namespace Velivo
                         if (to > 0) c.SetMute(false, ref g);
                     });
                     break;
+                case "pc-run":   // ⭐ ulubiona aplikacja - tylko skrót z menu Start (telefon nie może uruchomić dowolnego pliku)
+                    var app = PcApps().FirstOrDefault(x => string.Equals(x.Path, v, StringComparison.OrdinalIgnoreCase));
+                    if (app.Path != null)
+                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(app.Path) { UseShellExecute = true }); App.LogInfo("Pilot: uruchomiono z telefonu - " + app.Name); }
+                        catch (Exception ex) { App.LogError(ex); }
+                    break;
                 case "pc-screen": ScreenPower(v == "on"); break;
                 case "pc-lock": LockWorkStation(); break;
                 case "pc-logoff": PcPower("/l"); break;
                 case "pc-restart": PcPower("/r /t 0"); break;
                 case "pc-shutdown": PcPower("/s /t 0"); break;
             }
+        }
+
+        // aplikacje z menu Start (użytkownika i wspólne) - nazwa skrótu i pełna ścieżka; bez odinstalowywania i pomocy
+        static List<(string Name, string Path)> PcApps()
+        {
+            var res = new List<(string Name, string Path)>();
+            foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu) })
+            {
+                try
+                {
+                    if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
+                    foreach (var f in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
+                    {
+                        var ext = System.IO.Path.GetExtension(f).ToLowerInvariant();
+                        if (ext != ".lnk" && ext != ".url" && ext != ".appref-ms") continue;
+                        var n = System.IO.Path.GetFileNameWithoutExtension(f);
+                        var low = n.ToLowerInvariant();
+                        if (low.Contains("uninstall") || low.Contains("odinstaluj") || low.Contains("readme") || low.Contains("help") || low.Contains("pomoc")) continue;
+                        res.Add((n, f));
+                    }
+                }
+                catch (Exception) { }
+            }
+            return res.GroupBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Select(g => g.First()).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
 
         static void PcPower(string args)

@@ -664,6 +664,62 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         return box
     }
 
+    // ⭐ ulubione aplikacje - osobno dla każdego komputera: [nazwa, ścieżka skrótu z menu Start] × 6
+    private fun pcApps(): List<Pair<String, String>?> = runCatching {
+        val a = org.json.JSONArray(prefs.getString("pilot-apps-$cur", "[]"))
+        (0 until 6).map { i -> a.optJSONArray(i)?.let { if (it.length() == 2 && it.optString(1).isNotEmpty()) it.optString(0) to it.optString(1) else null } }
+    }.getOrDefault(List(6) { null })
+    private fun pcAppsSet(i: Int, name: String?, path: String?) {
+        val l = pcApps().toMutableList(); l[i] = if (path == null) null else (name ?: "") to path
+        val a = org.json.JSONArray(); l.forEach { a.put(if (it == null) org.json.JSONArray() else org.json.JSONArray().put(it.first).put(it.second)) }
+        prefs.edit().putString("pilot-apps-$cur", a.toString()).apply()
+    }
+    // wybór aplikacji: lista z menu Start komputera, szukanie po nazwie
+    private fun pickApp(done: (String, String) -> Unit) {
+        val c = cur ?: return; val addr = pcs[c]?.addr
+        if (addr == null || !reachable(pcs[c])) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_SHORT).show(); return }
+        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(bg) }
+        val head = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(Button(act).apply { text = "✕"; textSize = 20f; setTextColor(Color.WHITE); background = null; setOnClickListener { d.dismiss() } }, LinearLayout.LayoutParams(dp(52), dp(52)))
+        head.addView(TextView(act).apply { text = "⭐ " + s(R.string.pc_app_add_title, curName); textSize = 18f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+        box.addView(head)
+        val q = android.widget.EditText(act).apply { hint = "🔎 " + s(R.string.pc_app_search); setHintTextColor(dim); setTextColor(Color.WHITE); setSingleLine()
+            background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }; setPadding(dp(14), dp(10), dp(14), dp(10)) }
+        box.addView(q, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        val info = TextView(act).apply { text = s(R.string.pilot_loading); textSize = 14f; setTextColor(dim); setPadding(dp(6), dp(4), 0, dp(6)) }
+        box.addView(info)
+        val list = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(ScrollView(act).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        var all = listOf<Pair<String, String>>()
+        fun fill() {
+            list.removeAllViews()
+            val t = q.text.toString().trim()
+            val sel = all.filter { t.isEmpty() || it.first.contains(t, ignoreCase = true) }
+            info.text = s(R.string.pc_app_count, sel.size)
+            sel.take(300).forEach { (n, p) -> list.addView(TextView(act).apply {
+                text = "🗔  $n"; textSize = 16f; setTextColor(Color.WHITE); setPadding(dp(14), dp(14), dp(14), dp(14)); isClickable = true
+                background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
+                setOnClickListener { d.dismiss(); done(n, p) }
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }) }
+        }
+        q.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(e: android.text.Editable?) = fill()
+            override fun beforeTextChanged(a: CharSequence?, b: Int, c2: Int, d2: Int) {}
+            override fun onTextChanged(a: CharSequence?, b: Int, c2: Int, d2: Int) {}
+        })
+        d.setContentView(box); d.show()
+        Thread {
+            val r = lan.pilotTcp(c, addr, "pc-apps")
+            val items = r?.firstOrNull { it.optString("kind") == "pc-apps" }?.optJSONArray("items")
+            act.runOnUiThread {
+                if (items == null) { info.text = s(R.string.pc_app_none); return@runOnUiThread }
+                all = (0 until items.length()).mapNotNull { items.optJSONArray(it)?.let { x -> x.optString(0) to x.optString(1) } }.filter { it.second.isNotEmpty() }
+                fill()
+            }
+        }.start()
+    }
+
     private fun pcPanel() {
         if (cur == null) { choosePc(); return }
         val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
@@ -715,6 +771,25 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         pc.addView(pcRow(dp(76), pcKey("🌙", s(R.string.pc_screen_off)) { pcSend("pc-screen", "off") }, pcKey("☀️", s(R.string.pilot_screen_on)) { pcSend("pc-screen", "on") }))
         pc.addView(pcRow(dp(76), pcKey("🔒", s(R.string.pc_lock)) { pcSend("pc-lock") }, sure("🚪", s(R.string.pc_logoff), "pc-logoff", Color.parseColor("#2E2768"))))
         pc.addView(pcRow(dp(76), sure("🔄", s(R.string.pc_restart), "pc-restart", Color.parseColor("#14532D")), sure("⏻", s(R.string.pc_shutdown), "pc-shutdown", Color.parseColor("#7F1D1D"))))
+        // ⭐ ulubione aplikacje Windows: 6 kafelków (puste = dodaj z menu Start komputera, przytrzymanie = usuń)
+        pc.addView(TextView(act).apply { text = "⭐ " + s(R.string.pc_apps); textSize = 15f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setPadding(dp(6), dp(14), 0, dp(4)) })
+        val appsGrid = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        pc.addView(appsGrid)
+        fun drawApps() {
+            appsGrid.removeAllViews()
+            val a = pcApps()
+            (0 until 6).chunked(3).forEach { r -> appsGrid.addView(pcRow(dp(76), *r.map { i ->
+                val e = a[i]
+                if (e == null) pcKey("➕", s(R.string.pc_app_add), Color.parseColor("#1F1A3A")) { pickApp { n, p -> pcAppsSet(i, n, p); drawApps() } }
+                else pcKey("🗔", e.first) { pcSend("pc-run", e.second) }.apply {
+                    maxLines = 3; ellipsize = TextUtils.TruncateAt.END
+                    setOnLongClickListener {
+                        AlertDialog.Builder(act).setTitle("⭐ " + e.first).setMessage(R.string.pc_app_remove_q)
+                            .setPositiveButton(R.string.pc_app_remove) { _, _ -> pcAppsSet(i, null, null); drawApps() }.setNegativeButton(R.string.pilot_cancel, null).show(); true }
+                }
+            }.toTypedArray())) }
+        }
+        drawApps()
         val pages = listOf(mouse, kb, ScrollView(act).apply { addView(pc) })
         pages.forEach { body.addView(it, android.widget.FrameLayout.LayoutParams(-1, -1)) }
         val names = listOf("🖱 " + s(R.string.pc_mouse), "⌨ " + s(R.string.pc_kb), "⚙ " + s(R.string.pc_pc))

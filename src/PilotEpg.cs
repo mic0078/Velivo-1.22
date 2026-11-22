@@ -233,7 +233,8 @@ namespace Velivo
                     if (cmd == null || cmd.to != _lanId) return;
                     cmd.op = cmd.op ?? "";
                     var replies = new List<Dictionary<string, object>>();
-                    if (cmd.op != "img" && cmd.op != "list" && cmd.op != "bib" && cmd.op != "info" && !cmd.op.StartsWith("play-") && !cmd.op.StartsWith("fav-") && cmd.op != "epg" && cmd.op != "epg-act" && cmd.op != "plans" && cmd.op != "plan-del" && cmd.op != "rand")
+                    if (cmd.op == "pc-apps") replies.Add(new Dictionary<string, object> { ["kind"] = "pc-apps", ["items"] = PcApps().Select(x => new[] { x.Name, x.Path }).ToList() });   // ⭐ aplikacje z menu Start - do ulubionych kafelków w telefonie
+                    else if (cmd.op != "img" && cmd.op != "list" && cmd.op != "bib" && cmd.op != "info" && !cmd.op.StartsWith("play-") && !cmd.op.StartsWith("fav-") && cmd.op != "epg" && cmd.op != "epg-act" && cmd.op != "plans" && cmd.op != "plan-del" && cmd.op != "rand")
                     {
                         var cep = c.Client.RemoteEndPoint as System.Net.IPEndPoint;
                         await Dispatcher.InvokeAsync(() => { var ep0 = _pilotClients.TryGetValue(pkt.id, out var known) ? known.Item1 : cep == null ? null : new System.Net.IPEndPoint(cep.Address, LanPort); if (ep0 != null) ReceivePilot(pkt, cmd, ep0); });   // sterowanie (pauza, głośność…) - ta sama obsługa co UDP

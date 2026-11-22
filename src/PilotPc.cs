@@ -132,7 +132,12 @@ namespace Velivo
                 case "pc-run":   // ⭐ ulubiona aplikacja - tylko skrót z menu Start (telefon nie może uruchomić dowolnego pliku)
                     var app = PcApps().FirstOrDefault(x => string.Equals(x.Path, v, StringComparison.OrdinalIgnoreCase));
                     if (app.Path != null)
-                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(app.Path) { UseShellExecute = true }); App.LogInfo("Pilot: uruchomiono z telefonu - " + app.Name); }
+                        try
+                        {
+                            bool file = System.IO.Path.IsPathRooted(app.Path) && File.Exists(app.Path);   // skrót / program - wprost; aplikacja ze Sklepu i inne - przez shell:AppsFolder\{id}
+                            System.Diagnostics.Process.Start(file ? new System.Diagnostics.ProcessStartInfo(app.Path) { UseShellExecute = true } : new System.Diagnostics.ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + app.Path) { UseShellExecute = true });
+                            App.LogInfo("Pilot: uruchomiono z telefonu - " + app.Name);
+                        }
                         catch (Exception ex) { App.LogError(ex); }
                     break;
                 case "pc-screen": ScreenPower(v == "on"); break;
@@ -144,27 +149,44 @@ namespace Velivo
         }
 
         // aplikacje z menu Start (użytkownika i wspólne) - nazwa skrótu i pełna ścieżka; bez odinstalowywania i pomocy
+        // aplikacje jak w menu Start → „Wszystkie aplikacje” (shell:AppsFolder - także ze Sklepu Microsoft); zapasowo skróty z folderów menu Start.
+        // Path = identyfikator aplikacji Windows (AUMID) albo pełna ścieżka skrótu. Liczone raz na minutę (lista bywa długa).
+        static List<(string Name, string Path)> _pcApps; static DateTime _pcAppsAt;
         static List<(string Name, string Path)> PcApps()
         {
+            if (_pcApps != null && DateTime.UtcNow - _pcAppsAt < TimeSpan.FromMinutes(1)) return _pcApps;
             var res = new List<(string Name, string Path)>();
+            var th = new System.Threading.Thread(() =>   // Shell.Application wymaga wątku STA
+            {
+                try
+                {
+                    dynamic sh = Activator.CreateInstance(Type.GetTypeFromProgID("Shell.Application"));
+                    dynamic folder = sh.NameSpace("shell:AppsFolder");
+                    foreach (dynamic it in folder.Items())
+                    {
+                        string n = it.Name, p = it.Path;
+                        if (!string.IsNullOrWhiteSpace(n) && !string.IsNullOrWhiteSpace(p)) res.Add((n, p));
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            }) { IsBackground = true };
+            th.SetApartmentState(System.Threading.ApartmentState.STA); th.Start(); th.Join(15000);
+            var opt = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };   // folder bez dostępu nie przerywa całej listy (było: 0 aplikacji)
             foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu) })
             {
                 try
                 {
                     if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
-                    foreach (var f in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
-                    {
-                        var ext = System.IO.Path.GetExtension(f).ToLowerInvariant();
-                        if (ext != ".lnk" && ext != ".url" && ext != ".appref-ms") continue;
-                        var n = System.IO.Path.GetFileNameWithoutExtension(f);
-                        var low = n.ToLowerInvariant();
-                        if (low.Contains("uninstall") || low.Contains("odinstaluj") || low.Contains("readme") || low.Contains("help") || low.Contains("pomoc")) continue;
-                        res.Add((n, f));
-                    }
+                    foreach (var f in Directory.EnumerateFiles(root, "*.lnk", opt)) res.Add((System.IO.Path.GetFileNameWithoutExtension(f), f));
                 }
-                catch (Exception) { }
+                catch (Exception ex) { App.LogError(ex); }
             }
-            return res.GroupBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Select(g => g.First()).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            bool Skip(string n) { var low = n.ToLowerInvariant(); return low.Contains("uninstall") || low.Contains("odinstaluj") || low.Contains("readme"); }
+            lock (res)
+                _pcApps = res.Where(x => !Skip(x.Name)).GroupBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).Select(g => g.First()).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            _pcAppsAt = DateTime.UtcNow;
+            App.LogInfo("Pilot: aplikacji dla telefonu: " + _pcApps.Count);
+            return _pcApps;
         }
 
         static void PcPower(string args)

@@ -1,5 +1,8 @@
 ﻿; Instalator Velivo - kompilacja: ISCC.exe installer.iss (po dotnet publish do ..\build\velivo)
-#define AppVer "1.22"
+#ifndef AppVer
+  #define AppVer "1.22"
+#endif
+; 1.23 = wersja testowa ze wspolnym .NET (zbuduj.ps1 -WspolnyNet)
 ; 🧩 jeden instalator, kilka programów: ISCC /DOdtwarzacz albo /DPrzegladarka (bez = pełne Velivo Premium)
 #ifdef Odtwarzacz
   #define Wariant
@@ -174,6 +177,15 @@ Name: "videoplayer\iptv"; Description: "{cm:Iptv}"; Flags: unchecked
 #endif
 
 [InstallDelete]
+#ifndef Pelny
+; wspolny .NET (1.23): WSZYSTKIE biblioteki i pliki uruchomieniowe poprzedniej wersji z wbudowanym .NET (~400 plikow System.*, WPF, hostfxr) -
+; stare kopie obok programu wygrywaly ze wspolnym .NET i program nie startowal (2026-11-18). Program kopiuje swoje pliki od nowa;
+; podfoldery (vlc, VST3, Dane) zostaja.
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.json"
+Type: files; Name: "{app}\*.pdb"
+Type: files; Name: "{app}\createdump.exe"
+#endif
 ; pozostalosci po poprzednich nazwach programu ("Przegladarka", "Tarcza") - tylko pliki programu i skroty,
 ; folder z danymi uzytkownika (%LOCALAPPDATA%\Programs\Velivo\Dane, dawniej %LOCALAPPDATA%\Przegladarka) zostaje nietkniety
 Type: filesandordirs; Name: "{localappdata}\Programs\Przegladarka"

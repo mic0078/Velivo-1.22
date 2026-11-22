@@ -2,10 +2,12 @@
 # Uzycie: PowerShell w folderze repozytorium ->  .\zbuduj.ps1        (z testami)
 #                                              .\zbuduj.ps1 -BezTestow
 # Wymagane raz: winget install Git.Git Microsoft.DotNet.SDK.10 JRSoftware.InnoSetup
-param([switch]$BezTestow, [switch]$Podstawowa, [string[]]$Tylko)   # -Podstawowa: Velivo bezpłatne (bez Audio Balance, VST3, Supertonic i XTTS)
+param([switch]$BezTestow, [switch]$Podstawowa, [string[]]$Tylko, [switch]$WspolnyNet)   # -WspolnyNet: wersja testowa 1.23 - programy bez wbudowanego .NET (wspólny .NET 10 od Microsoftu, raz)   # -Podstawowa: Velivo bezpłatne (bez Audio Balance, VST3, Supertonic i XTTS)
 $ErrorActionPreference = 'Stop'
 # -Tylko Velivo,Odtwarzacz,Przegladarka,Klawiatura,Serwer,Komunikator - buduje tylko wybrane programy (bez -Tylko: wszystkie)
 $Tylko = @($Tylko | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$wer = if ($WspolnyNet) { '1.23' } else { '1.22' }
+if ($WspolnyNet -and $Tylko.Count -eq 0) { $Tylko = @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') }   # Komunikator ma własny instalator z wbudowanym .NET - zostaje 1.22
 function Buduj($n) { return $Tylko.Count -eq 0 -or ($Tylko -contains $n) }
 if ($Tylko.Count -gt 0) { Write-Host ("Tylko: " + ($Tylko -join ', ')) -ForegroundColor Cyan }
 Set-Location $PSScriptRoot
@@ -34,8 +36,9 @@ foreach ($w in @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer',
     Remove-Item -Recurse -Force $d -ErrorAction SilentlyContinue
     $proj = if ($w -eq 'Komunikator') { 'komunikator-windows\VelivoKomunikator.csproj' } else { 'src\Velivo.csproj' }
     $ob = (Join-Path $PSScriptRoot "build\obj\$w") + '/'   # poza folderem projektu - kompilacje naraz sobie nie przeszkadzają (ukośnik na końcu: bez \" w cudzysłowie)
-    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
+    $a = @('publish', $proj, '-c', 'Release', '-r', 'win-x64', '--self-contained', $(if ($WspolnyNet) { 'false' } else { 'true' }), '-o', $d, $edycja, "-p:BaseIntermediateOutputPath=$ob", "-p:MSBuildProjectExtensionsPath=$ob", "-p:OutputPath=$($ob)bin/")
     if ($w -ne 'Velivo' -and $w -ne 'Komunikator') { $a += "-p:Wariant=$w" }
+    if ($WspolnyNet) { $a += '-p:TargetLatestRuntimePatch=false' }
     $log = Join-Path $PSScriptRoot "build\log-$w.txt"
     $arg = ($a | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '   # ścieżka repozytorium ze spacjami („Velivo 1.22 z github”)
     $p = Start-Process dotnet -ArgumentList $arg -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError ($log + '.err')
@@ -64,14 +67,14 @@ if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSet
 $outDir = Join-Path $PSScriptRoot 'build\instalator'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 if (Buduj 'Velivo') {
-$nazwa = if ($Podstawowa) { 'Velivo-Podstawowa-Setup-1.22' } else { 'Velivo-Setup-1.22' }   # 💎 Premium: dotychczasowa nazwa; bezpłatne: osobny plik
+$nazwa = if ($Podstawowa) { "Velivo-Podstawowa-Setup-$wer" } else { "Velivo-Setup-$wer" }   # 💎 Premium: dotychczasowa nazwa; bezpłatne: osobny plik
 $old = Join-Path $outDir ($nazwa + '.exe')
 for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Force -ErrorAction Stop } catch { Start-Sleep 2 } }   # stary instalator (otwarty / sprawdzany przez antywirus) - kilka prob
 # nadal otwarty (instalator w tle / antywirus) - usunac sie nie da, ale zmienic nazwe tak: odkladamy go na bok
 if (Test-Path $old) { try { Rename-Item $old ("Velivo-Setup-stary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".exe") -ErrorAction Stop } catch { } }
 if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno instalacji Velivo i uruchom skrypt ponownie." -ForegroundColor Red; exit 1 }
 # antywirus skanuje nowy plik w chwili wstawiania ikony (EndUpdateResource failed) - do 6 prob, coraz dluzsza przerwa (dziala bez wykluczen w antywirusie)
-for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny $(if ($Podstawowa) { "/DBezplatna" } else { "/DPremium" }) "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+for ($i = 1; $i -le 6; $i++) { & $iscc $(if ($WspolnyNet) { "/DAppVer=$wer" } else { "/DPelny" }) $(if ($Podstawowa) { "/DBezplatna" } else { "/DPremium" }) "/DOutName=$nazwa" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 if (Buduj 'Komunikator') {
@@ -81,16 +84,16 @@ for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-Object { Buduj $_ }) {
-    $oldW = Join-Path $outDir ("Velivo-$w-Setup-1.22.exe")
+    $oldW = Join-Path $outDir ("Velivo-$w-Setup-$wer.exe")
     for ($i = 0; $i -lt 10 -and (Test-Path $oldW); $i++) { try { Remove-Item $oldW -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
-    for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/D$w" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora $w ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+    for ($i = 1; $i -le 6; $i++) { & $iscc $(if ($WspolnyNet) { "/DAppVer=$wer" } else { "/DPelny" }) "/D$w" "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora $w ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Velivo $w nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 
 if (Buduj 'Velivo') { Write-Host ("Gotowe: build\instalator\" + $nazwa + ".exe (" + $(if ($Podstawowa) { "Velivo bezplatne" } else { "Velivo Premium" }) + "; zamknij Velivo calkowicie przed instalacja)") -ForegroundColor Green }
 if (Buduj 'Komunikator') { Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-1.22.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green }
-if (Buduj 'Odtwarzacz') { Write-Host "Gotowe: build\instalator\Velivo-Odtwarzacz-Setup-1.22.exe (filmy, TV, Kanapa, Pilot, lektor - bez przegladarki)" -ForegroundColor Green }
-if (Buduj 'Klawiatura') { Write-Host "Gotowe: build\instalator\Velivo-Klawiatura-Setup-1.22.exe (sama klawiatura ekranowa i poprawianie pisania - w kazdym programie Windows)" -ForegroundColor Green }
-if (Buduj 'Przegladarka') { Write-Host "Gotowe: build\instalator\Velivo-Przegladarka-Setup-1.22.exe (sama przegladarka - filmy otwiera Velivo Odtwarzacz)" -ForegroundColor Green }
-if (Buduj 'Serwer') { Write-Host "Gotowe: build\instalator\Velivo-Serwer-Setup-1.22.exe (serwer filmow - biblioteka dla Twoich komputerow, w tle)" -ForegroundColor Green }
+if (Buduj 'Odtwarzacz') { Write-Host "Gotowe: build\instalator\Velivo-Odtwarzacz-Setup-$wer.exe (filmy, TV, Kanapa, Pilot, lektor - bez przegladarki)" -ForegroundColor Green }
+if (Buduj 'Klawiatura') { Write-Host "Gotowe: build\instalator\Velivo-Klawiatura-Setup-$wer.exe (sama klawiatura ekranowa i poprawianie pisania - w kazdym programie Windows)" -ForegroundColor Green }
+if (Buduj 'Przegladarka') { Write-Host "Gotowe: build\instalator\Velivo-Przegladarka-Setup-$wer.exe (sama przegladarka - filmy otwiera Velivo Odtwarzacz)" -ForegroundColor Green }
+if (Buduj 'Serwer') { Write-Host "Gotowe: build\instalator\Velivo-Serwer-Setup-$wer.exe (serwer filmow - biblioteka dla Twoich komputerow, w tle)" -ForegroundColor Green }
 Start-Process $outDir

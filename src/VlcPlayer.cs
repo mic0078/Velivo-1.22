@@ -4125,38 +4125,10 @@ namespace Velivo
                     // stan od razu widac (ptaszek) i jednym kliknieciem wl./wyl. - ten sam przelacznik co ⏻ w widzecie
                     // 🎚 INTELIGENTNA NORMALIZACJA: włącz/wyłącz, tryb, intensywność i stan na żywo (wszystko działa od razu na dźwięk)
                     cm.Items.Add(new MenuItem { Header = L.T("INTELIGENTNA NORMALIZACJA"), IsEnabled = false, FontWeight = FontWeights.Bold });
-                    if (AbWinActive)
-                    {   // 🧩 dźwięk przetwarza Velivo Audio Balance for Windows - ustawienia są w jego oknie (tu nic by nie zmieniły)
-                        cm.Items.Add(new MenuItem { Header = L.T("Przetwarza Velivo Audio Balance for Windows"), IsEnabled = false });
+                    {   // 🎚 dźwięk poprawia Velivo Audio Balance for Windows (stary polepszacz w odtwarzaczu usunięty)
                         var abw = new MenuItem { Header = L.T("🎚 Otwórz Audio Balance for Windows…") };
                         abw.Click += (a, b) => ShowAudioMonitor();
                         cm.Items.Add(abw);
-                    }
-                    else
-                    {
-                    {
-                        bool live = AbProc.Active && !AbBypass && AbWanted;
-                        string F(double v) => double.IsNaN(v) || double.IsInfinity(v) || v < -70 ? "–" : v.ToString("0.0");
-                        cm.Items.Add(new MenuItem { Header = live ? L.T("Teraz: ") + F(AbProc.Out.ShortTerm) + L.T(" LUFS · zmiana ") + (AbProc.GainDb >= 0 ? "+" : "") + F(AbProc.GainDb) + L.T(" dB · procesor: pracuje") : L.T("Procesor: nie pracuje (wyłączony albo nic nie gra)"), IsEnabled = false });
-                    }
-                    var abOn = new MenuItem { Header = L.T("Włączona"), IsCheckable = true, IsChecked = AbWanted && AbProfileName != "off" };
-                    abOn.Click += (a, b) => { if (!abOn.IsChecked) AbSetProfile("off"); else { if (AbBypass) AbSetBypass(false); if (AbProfileName == "off") AbSetProfile("auto"); } };
-                    cm.Items.Add(abOn);
-                    foreach (var pm in new[] { "auto", "limit" })
-                    {
-                        var mi = new MenuItem { Header = L.T("Tryb: ") + AbProfileLabel(pm), IsCheckable = true, IsChecked = !AbBypass && AbProfileName == pm, ToolTip = AbProfileTip(pm) };
-                        mi.Click += (a, b) => { if (AbBypass) AbSetBypass(false); AbSetProfile(pm); };
-                        cm.Items.Add(mi);
-                    }
-                    foreach (var sl in AbSilas)
-                    {
-                        var mi = new MenuItem { Header = L.T("Intensywność: ") + AbSilaLabel(sl), IsCheckable = true, IsChecked = AbSilaName == sl, ToolTip = AbSilaTip(sl), IsEnabled = AbProfileName != "off" };   // przy Wył. nieaktywna
-                        mi.Click += (a, b) => AbSetSila(sl);
-                        cm.Items.Add(mi);
-                    }
-                    var abm = new MenuItem { Header = L.T("🎚 Audio Monitor i korektor…") };
-                    abm.Click += (a, b) => ShowAudioMonitor();
-                    cm.Items.Add(abm);
                     }
                     // 🎛 wtyczki VST3 (efekty) - rozwijana lista: całość wł./wył., włączone (każda osobno + okno producenta), dostępne do dodania
                     VstLoad();

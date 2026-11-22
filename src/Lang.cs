@@ -3410,6 +3410,8 @@ namespace Velivo
             { "Pobieram listę filmów…", "Downloading the film list…" },
             { "Filmy: ", "Films: " },
             { " · nowe plakaty: ", " · new posters: " },
+            { "Dźwięk – wyrównywanie głośności, korektor i wyraźne dialogi robi Velivo Audio Balance for Windows (osobny program z pakietu Velivo).", "Sound – volume levelling, equalizer and clear dialogue are done by Velivo Audio Balance for Windows (a separate program in the Velivo package)." },
+            { "🎚 Zainstaluj Velivo Audio Balance for Windows (pakiet Velivo) – on poprawia dźwięk filmów", "🎚 Install Velivo Audio Balance for Windows (Velivo package) – it improves film sound" },
             { "🗣 Lektor: pobieram dodatek FFmpeg do napisów wbudowanych w film (raz, ok. 140 MB)…", "🗣 Reader: downloading the FFmpeg add-on for subtitles embedded in the film (once, about 140 MB)…" },
             { "🗣 Lektor: FFmpeg gotowy – czytam napisy wbudowane w film", "🗣 Reader: FFmpeg ready – reading subtitles embedded in the film" },
             { "🗣 Lektor: nie udało się pobrać FFmpeg – sprawdź internet", "🗣 Reader: could not download FFmpeg – check the internet connection" },

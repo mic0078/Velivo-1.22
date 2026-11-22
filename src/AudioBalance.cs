@@ -318,7 +318,7 @@ namespace Velivo
             try { _lekEv ??= new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, @"Local\Velivo.Lektor.Czyta"); if (czyta) _lekEv.Set(); else _lekEv.Reset(); } catch (Exception) { }
         }
         internal static readonly bool AbPreNoSrc = false, AbPreApps = false;   // panel kompresora wspólny z programem samodzielnym: w Velivo ustawienia są dla filmów i kanałów
-        internal static bool AbWanted => Edycja.Premium && !AbBypass && (AbProfileName != "off" || AbEqOn || AbDialog > 0 || Vst3.Active || AbPreAnyOn);
+        internal static bool AbWanted => false;   // 🎚 stary polepszacz w odtwarzaczu usunięty (właściciel 2026-11-22): film gra prosto do Windows, dźwięk poprawia Velivo Audio Balance for Windows
 
         static void AbLoadSettings()
         {
@@ -399,7 +399,6 @@ namespace Velivo
         // 🧩 dźwięk przetwarza Velivo Audio Balance for Windows (program samodzielny) - jego okno zamiast Audio Monitora Velivo (to on teraz przetwarza dźwięk); programy równe
         static bool AbWinOkno()
         {
-            if (!AbWinActive) return false;   // program samodzielny nie przetwarza (nie działa albo Windows gra prosto na głośniki) - aktywny jest Audio Balance Velivo
             try { using var ev = System.Threading.EventWaitHandle.OpenExisting("VelivoAudioBalance.Pokaz"); ev.Set(); return true; }
             catch (Exception) { }
             try { var exe = VelivoData.ProgramZeSpisu("VelivoAudioBalance"); if (exe != null && System.IO.File.Exists(exe)) { System.Diagnostics.Process.Start(exe); return true; } } catch (Exception ex) { App.LogError(ex); }   // starsza wersja: drugie uruchomienie pokazuje okno
@@ -408,6 +407,7 @@ namespace Velivo
         internal void ShowAudioMonitor()
         {
             if (AbWinOkno()) return;
+            ShowToast(L.T("🎚 Zainstaluj Velivo Audio Balance for Windows (pakiet Velivo) – on poprawia dźwięk filmów"), null); return;
             if (!Edycja.Premium) { ShowToast(L.T("💎 Audio Balance i Audio Monitor są w Velivo Premium"), null); return; }
             if (_abWin != null) { _abWin.Show(); if (_abWin.WindowState == WindowState.Minimized) _abWin.WindowState = WindowState.Normal; _abWin.Activate(); _abTimer?.Start(); return; }
             AbLoadSettings();
@@ -883,7 +883,7 @@ namespace Velivo
         static bool AbWindowsZainstalowany() { try { var exe = VelivoData.ProgramZeSpisu("VelivoAudioBalance"); return exe != null && System.IO.File.Exists(exe); } catch (Exception) { return false; } }
         internal void ShowAbDesk(bool onlyV = false)
         {
-            if (Wariant.Odtwarzacz) return;   // 🧩 Odtwarzacz: widżety na pulpicie ma samodzielny Audio Balance (stare ustawienie nie otwiera ich przy starcie)
+            return;   // 🎚 stary widżet usunięty - widżet ma Velivo Audio Balance for Windows (stare ustawienie nie otwiera ich przy starcie)
             if (!Edycja.Premium) return;   // 💎 widżety Audio Balance - Premium
             if (AbWindowsZainstalowany()) { _abDesk?.Close(); _abDeskV?.Close(); return; }   // jest Velivo Audio Balance for Windows - na pulpicie tylko jego nowy widżet (bez starego „V” obok)
             var cur0 = onlyV ? _abDeskV : _abDesk;

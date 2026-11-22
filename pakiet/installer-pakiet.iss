@@ -73,7 +73,7 @@ Name: "wlasny"; Description: "{cm:TOwn}"; Flags: iscustom
 
 [Components]
 Name: "velivo"; Description: "{cm:CVelivo}"; Types: pelny typowy
-Name: "velivo\player"; Description: "{cm:CPlayer}"; Types: pelny typowy
+Name: "velivo\player"; Description: "{cm:CPlayer}"; Types: pelny typowy wlasny; Flags: fixed
 Name: "velivo\player\iptv"; Description: "{cm:CIptv}"; Types: pelny; Flags: dontinheritcheck
 Name: "ab"; Description: "{cm:CAb}"; Types: pelny typowy
 Name: "monitor"; Description: "{cm:CMon}"; Types: pelny typowy
@@ -98,6 +98,10 @@ Source: "{#Src}Velivo-Klawiatura-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Compone
 Source: "{#Src}Velivo-Komunikator-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\komunikator; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Serwer-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\serwer; Flags: deleteafterinstall
 
+; 🎞 FFmpeg (kodery i dekodery: napisy wbudowane dla lektora, pobieranie filmów, MP3) - obowiązkowo z każdym programem z filmami;
+; do folderu narzędzi Velivo (ten sam, do którego program pobierał go sam); istniejący zostaje
+Source: "..\build\dodatki\ffmpeg.exe"; DestDir: "{code:NarzDir}"; Components: velivo osobne\odtwarzacz osobne\serwer; Flags: onlyifdoesntexist
+
 [Run]
 ; każdy po kolei, po cichu; zadania jak domyślnie w jego własnym instalatorze (zapora, skróty, start z Windows)
 Filename: "{tmp}\Velivo-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""{code:VelivoTasks}"""; StatusMsg: "{cm:Inst,Velivo}"; Components: velivo
@@ -114,12 +118,16 @@ Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /S
 [Code]
 function VelivoTasks(P: String): String;
 begin
-  Result := 'desktopicon,komunikatoricon,kanapaicon,klawiaturaicon,firewall';
-  if WizardIsComponentSelected('velivo\player') then
-  begin
-    Result := Result + ',videoplayer';
-    if WizardIsComponentSelected('velivo\player\iptv') then Result := Result + ',videoplayer\iptv' else Result := Result + ',!videoplayer\iptv';
-  end;
+  Result := 'desktopicon,komunikatoricon,kanapaicon,klawiaturaicon,firewall,videoplayer';   // odtwarzacz filmów (kodeki VLC) zawsze
+  if WizardIsComponentSelected('velivo\player\iptv') then Result := Result + ',videoplayer\iptv' else Result := Result + ',!videoplayer\iptv';
+end;
+
+// folder narzędzi Velivo (ffmpeg, yt-dlp): folder danych ze spisu Velivo (HKCU\Software\Velivo „Dane”), zapasowo domyślny
+function NarzDir(P: String): String;
+var D: String;
+begin
+  if not (RegQueryStringValue(HKCU, 'Software\Velivo', 'Dane', D) and DirExists(D)) then D := ExpandConstant('{localappdata}\Velivo\Dane');
+  Result := AddBackslash(D) + 'narzedzia';
 end;
 
 function Installed(Id: String): Boolean;

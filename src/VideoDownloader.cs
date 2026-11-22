@@ -151,10 +151,10 @@ namespace Velivo
             return await DownloadToolAsync(YtDlpUrl, YtDlpPath, "yt-dlp", YtDlpSumsUrl);
         }
 
-        async Task<bool> EnsureFfmpegAsync()
+        async Task<bool> EnsureFfmpegAsync(bool ask = true)   // ask = false: lektor potrzebuje FFmpeg do napisów w MKV - pobiera sam, bez pytania
         {
             if (File.Exists(FfmpegPath)) return true;
-            if (MessageBox.Show(this, L.T("Najlepsza jakość i MP3 wymagają darmowego dodatku FFmpeg (ok. 140 MB do pobrania, po rozpakowaniu ok. 130 MB).\n\nPobrać go teraz? To jednorazowe."), L.T("Pobierz film"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+            if (ask && MessageBox.Show(this, L.T("Najlepsza jakość i MP3 wymagają darmowego dodatku FFmpeg (ok. 140 MB do pobrania, po rozpakowaniu ok. 130 MB).\n\nPobrać go teraz? To jednorazowe."), L.T("Pobierz film"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
             var zip = Path.Combine(ToolsDir, "ffmpeg.zip");
             if (!await DownloadToolAsync(FfmpegZipUrl, zip, "FFmpeg", FfmpegSumsUrl)) return false;
             try

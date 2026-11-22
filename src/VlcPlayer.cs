@@ -42,6 +42,7 @@ namespace Velivo
         static string LibraryFile { get { return Path.Combine(DataDir, "filmy.json"); } }
 
         // dodatek zainstalowany (i nie czeka na usuniecie)
+        static bool _ffLektorDl;   // FFmpeg dla lektora już się pobiera
         internal static bool VlcInstalled { get { return File.Exists(Path.Combine(VlcDir, "libvlc.dll")) && !File.Exists(VlcRemoveFlag); } }
 
         // 🎵 pliki dźwiękowe („Otwórz za pomocą → Velivo Odtwarzacz” na .wav) - grają jak w VLC, ale nie trafiają do biblioteki filmów
@@ -2463,7 +2464,18 @@ namespace Velivo
                             var txt = t.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? t.Result : null;
                             loadSubsText(txt, txt != null ? n0 : null); lc.EmbPath = p0; lc.EmbName = n0; lc.EmbSpu = s0;
                             if (lc.Cues.Count > 0) showOsd(L.T("🗣 Lektor: czytam napisy wbudowane w film (") + lc.Cues.Count + ")");
-                            else if (!p0.Contains("://") && !System.IO.File.Exists(FfmpegPath)) showOsd(L.T("🗣 Lektor: do napisów wbudowanych w plik MKV potrzebny jest dodatek FFmpeg (Pobierz film → najlepsza jakość)"));
+                            else if (!p0.Contains("://") && !System.IO.File.Exists(FfmpegPath))
+                            {   // 🗣 napisy wbudowane w MKV czyta FFmpeg - pobierany sam raz (ok. 140 MB), potem lektor zaczyna czytać
+                                if (_ffLektorDl) return;
+                                _ffLektorDl = true; showOsd(L.T("🗣 Lektor: pobieram dodatek FFmpeg do napisów wbudowanych w film (raz, ok. 140 MB)…"));
+                                _ = EnsureFfmpegAsync(false).ContinueWith(d => Dispatcher.BeginInvoke(new Action(() =>
+                                {
+                                    _ffLektorDl = false;
+                                    if (d.Status == System.Threading.Tasks.TaskStatus.RanToCompletion && d.Result) { lc.EmbSpu = int.MinValue; showOsd(L.T("🗣 Lektor: FFmpeg gotowy – czytam napisy wbudowane w film")); }   // inna „ścieżka” = napisy wyciągane od nowa przy następnym sprawdzeniu
+                                    else showOsd(L.T("🗣 Lektor: nie udało się pobrać FFmpeg – sprawdź internet"));
+                                })));
+                                return;
+                            }
                             else showOsd(L.T("🗣 Lektor: wybrana ścieżka napisów to obraz, nie tekst – wybierz inną w menu Napisy"));
                             lc.NoCuesSaid = true;
                         })));

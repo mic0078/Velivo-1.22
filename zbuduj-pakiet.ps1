@@ -26,6 +26,22 @@ foreach ($p in @(@('Velivo-Monitor', 'zbuduj-monitor.ps1'), @('Velivo-Kursory', 
         if (-not (Jest $p[0] '1.22')) { Write-Host ("Brak " + $p[0] + "-Setup-1.22.exe - pakiet nie powstal.") -ForegroundColor Red; exit 1 }
     }
 }
+# 🎞 FFmpeg do pakietu (raz): ten sam plik co pobierany przez Velivo, sprawdzony sumą SHA-256 z listy wydawcy
+$ffDir = Join-Path $repo 'build\dodatki'; $ff = Join-Path $ffDir 'ffmpeg.exe'
+if (-not (Test-Path $ff)) {
+    Write-Host "Pobieram FFmpeg (kodery i dekodery, ok. 140 MB)..." -ForegroundColor Cyan
+    New-Item -ItemType Directory -Force -Path $ffDir | Out-Null
+    $zip = Join-Path $ffDir 'ffmpeg.zip'
+    Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile $zip -UseBasicParsing
+    $sums = (Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256' -UseBasicParsing).Content
+    $want = ($sums -split "`n" | Where-Object { $_ -match 'ffmpeg-master-latest-win64-gpl\.zip' } | Select-Object -First 1) -split '\s+' | Select-Object -First 1
+    $have = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+    if (-not $want -or $have -ne $want.ToLower()) { Remove-Item $zip -Force; Write-Host "FFmpeg: suma kontrolna sie nie zgadza - pakiet nie powstal." -ForegroundColor Red; exit 1 }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $a = [System.IO.Compression.ZipFile]::OpenRead($zip)
+    try { $e = $a.Entries | Where-Object { $_.FullName -like '*/bin/ffmpeg.exe' } | Select-Object -First 1; [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, $ff, $true) } finally { $a.Dispose() }
+    Remove-Item $zip -Force
+}
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; exit 1 }
 Write-Host "Pakiet..." -ForegroundColor Cyan

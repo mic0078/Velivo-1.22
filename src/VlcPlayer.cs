@@ -1306,6 +1306,7 @@ namespace Velivo
         {
             var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
+            args.Add("--codec=avcodec,any");   // 🔊 dekoder FFmpeg najpierw (jak Jellyfin): AC3 5.1 przez starszy dekoder a52 przy zamianie na stereo dla Audio Balance brzmiał jak robot (film 1408, 2026-11-22; inne filmy i Jellyfin czysto)
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
             if (_libVlc != null) { var old = _libVlc; _libVlc = null; System.Threading.Tasks.Task.Run(async () => { await System.Threading.Tasks.Task.Delay(15000); try { old.Dispose(); } catch (Exception) { } }); }

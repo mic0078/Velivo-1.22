@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Velivo Procesor 2</title>
+<style>
+:root{--bg:#0b0e14;--card:#141821;--line:#2A3240;--fg:#E8EBF0;--dim:#8A93A3;--acc:#A78BFA;--tq:#22B8D8;--ok:#4ADE80;--warn:#F5B544;--hot:#F87171;--on:#2E1A4D}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1100px;margin:0 0 14px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.win{width:780px;background:#11141c;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tb{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.tb b{font-size:17px}.st{margin-left:auto;color:var(--ok)}
+.sub{color:var(--dim);font-size:11px;padding:0 14px 6px}
+.bd{padding:0 10px 10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.card h3{margin:0 0 7px;font-size:13px}
+.k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;grid-column:1/3}
+.k div{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+.k small{color:var(--dim);font-size:10px;display:block}.k span{font-size:20px;font-weight:600}.k em{font-style:normal;color:var(--dim);font-size:10px;display:block}
+.modes{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;grid-column:1/3}
+.m{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;background:var(--card)}
+.m.on{border:2px solid var(--acc);background:var(--on)}.m.now{border:2px solid var(--tq)}
+.m i{font-style:normal;font-size:18px;display:block}.m small{color:var(--dim);display:block;font-size:11px}
+.why{grid-column:1/3;background:#0E2140;border:1px solid #1E3A66;border-radius:9px;padding:7px 11px;color:#CFE3FF}
+svg{display:block;width:100%;height:110px}
+table{width:100%;border-collapse:collapse;font-size:12px}td{padding:3px 2px}td.r{text-align:right;color:var(--dim)}
+.b{display:inline-block;padding:0 6px;border-radius:7px;font-size:10px;margin-left:4px}
+.b.s{background:#3B1F5E;color:#E9D5FF}.b.p{background:#3A2A0A;color:#FCD34D}.b.x{background:#1F2937;color:#9CA3AF}
+.new{outline:2px dashed #F5B544;outline-offset:2px;border-radius:9px}
+.chk{margin:4px 0}.chk small{display:block;color:var(--dim);margin-left:20px;font-size:11px}
+.sl{display:grid;grid-template-columns:260px 1fr 70px;align-items:center;margin:4px 0}.sl i{display:block;height:3px;background:#ddd;border-radius:2px;position:relative}.sl i:after{content:"";position:absolute;left:var(--x);top:-6px;width:9px;height:15px;background:#eee;border-radius:2px}
+.btn{display:inline-block;border:1px solid var(--line);border-radius:7px;padding:4px 10px;margin-top:6px}
+.menu{width:300px;background:#1b1f27;border:1px solid #3a4250;border-radius:8px;padding:4px 0;font-size:13px}
+.menu div{padding:5px 14px}.menu .h{color:var(--dim);font-size:11px}.menu hr{border:0;border-top:1px solid #3a4250;margin:4px 0}.menu .c:before{content:"✓ ";color:var(--ok)}
+.menu .sm{display:flex;justify-content:space-between}
+.cap{color:#ECE8FF;margin-top:6px;font-weight:600;max-width:780px}
+.note{color:var(--warn);font-size:12px}
+</style></head><body>
+<h1>Velivo Procesor – rozszerzenia 1–5 (propozycja do zatwierdzenia)</h1>
+<p class="o">Żółta przerywana ramka = nowe miejsce. Reszta okna bez zmian. 3 (szybsza reakcja) nie ma własnego przycisku – działa sama w trybach i jest opisana w „💡”.</p>
+<div class="row">
+
+<div><div class="win">
+ <div class="tb"><b>⚙ Velivo Procesor</b><span class="st">● Auto · Turbo · 🎚 Studio</span></div>
+ <div class="sub">Intel(R) Core(TM) i7-10750H · zegar bazowy 2,6 GHz · temperatura: z procesora ✓</div>
+ <div class="bd">
+  <div class="k"><div><small>PROCESOR</small><span>38 %</span></div><div><small>KARTA GRAFICZNA</small><span>7 %</span></div><div class="new"><small>TEMPERATURA</small><span>62 °C</span><em>wprost z procesora</em></div><div><small>ZEGAR</small><span>4,32 GHz</span></div></div>
+  <div class="modes">
+   <div class="m on"><i>🧠</i>Auto<small>sam wybiera</small></div><div class="m"><i>🌙</i>Cichy<small>do 1,4 GHz</small></div><div class="m"><i>⚖</i>Zrównoważony<small>zwykła praca</small></div><div class="m now"><i>🚀</i>Turbo<small>pełna moc</small></div><div class="m"><i>↺</i>Windows<small>ustawienia domyślne</small></div>
+  </div>
+  <div class="why new">💡 Studio Pro działa – ustawiony na stałe: <b>Turbo + 🎚 Studio</b>: wszystkie rdzenie czuwają (bez usypiania), zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca.</div>
+  <div class="card"><h3>📈 Ostatnie 2 minuty</h3>
+   <svg viewBox="0 0 300 110"><line x1="96" x2="96" y1="0" y2="110" stroke="#4ADE80" stroke-width="1"/><line x1="210" x2="210" y1="0" y2="110" stroke="#4ADE80" stroke-width="1"/><polyline fill="none" stroke="#22B8D8" stroke-width="1.5" points="0,85 30,80 60,70 90,40 120,45 150,60 180,50 210,35 240,55 270,60 300,58"/><polyline fill="none" stroke="#A78BFA" stroke-width="1.5" points="0,58 60,58 60,8 300,8"/><polyline fill="none" stroke="#F5B544" stroke-width="1" stroke-dasharray="3 2" points="0,60 100,50 200,45 300,46"/></svg>
+   <small style="color:var(--dim)">turkus – procesor · fiolet – tryb · żółty – temperatura · zielona linia – ProBalance uspokoił program w tle</small></div>
+  <div class="card"><h3>🎮 Programy (zapamiętane)</h3>
+   <table>
+    <tr><td>Studio Pro <span class="b s new">🎚 Studio</span> <span class="b p new">⬆ Wysoki</span></td><td class="r">Turbo (zawsze)</td></tr>
+    <tr><td>VelivoPrzegladarka</td><td class="r">Zrównoważony · śr. 13 %, szczyt 24 %</td></tr>
+    <tr><td>EchoSync <span class="b x new">⚖ bez ProBalance</span></td><td class="r">Cichy · śr. 11 %, szczyt 20 %</td></tr>
+    <tr><td>claude</td><td class="r">Cichy · śr. 11 %, szczyt 22 %</td></tr>
+   </table>
+   <small style="color:var(--dim)">prawy przycisk: tryb, priorytet, Studio, ProBalance</small></div>
+  <div class="card" style="grid-column:1/3"><h3>⚙ Ustawienia</h3>
+   <div class="chk">☑ Start z Windows (w zasobniku)</div>
+   <div class="chk new">☑ ⚖ ProBalance – programy w tle nie przycinają tego, z czym pracujesz
+     <small>ProBalance: w tle uspokojone: OneDrive (tryb wydajności Windows 11 + niższy priorytet)</small></div>
+   <div class="sl"><span>🌙 Najniższy zegar w trybie Cichym</span><i style="--x:45%"></i><span>1,4 GHz</span></div>
+   <div class="sl"><span>🌡 Temperatura graniczna (wtedy Cichy)</span><i style="--x:72%"></i><span>90 °C</span></div>
+   <div class="new" style="padding:4px"><span class="btn">🔑 Włącz odczyt temperatury z procesora (jedno „Tak” administratora)</span>
+     <div style="color:var(--dim);font-size:11px;margin-top:3px">Widoczne tylko, gdy temperatury brak. Program startuje potem z Windows z uprawnieniami (zadanie) – jak przy AMD; na AMD ten sam przycisk włącza też sterowanie mocą.</div></div>
+  </div>
+ </div></div>
+ <div class="cap">1. Okno – temperatura z procesora, „💡” mówi o trybie Studio, znaczki przy programach, ProBalance z trybem wydajności</div></div>
+
+<div>
+ <div class="menu new">
+  <div class="h">Studio Pro</div><hr>
+  <div class="sm"><span>Tryb</span><span>▸</span></div>
+  <div style="padding-left:28px" class="c">Zawsze: Turbo</div>
+  <div style="padding-left:28px">Zawsze: Zrównoważony</div>
+  <div style="padding-left:28px">Zawsze: Cichy</div>
+  <div style="padding-left:28px">Ucz się sam</div>
+  <hr>
+  <div class="sm"><span>Priorytet</span><span>▸</span></div>
+  <div style="padding-left:28px" class="c">⬆ Wysoki</div>
+  <div style="padding-left:28px">Normalny (bez zmian)</div>
+  <div style="padding-left:28px">⬇ Niski</div>
+  <hr>
+  <div class="c">🎚 Tryb Studio (muzyka, nagrywanie, bez trzasków)</div>
+  <div>⚖ Nie uspokajaj w ProBalance</div>
+  <hr>
+  <div>🗑 Zapomnij program</div>
+ </div>
+ <div class="cap" style="max-width:300px">2. Prawy przycisk na programie w liście</div>
+ <p class="note" style="max-width:300px;margin-top:14px">„Tryb Studio” dostępny dla każdego programu. Włączenie go dla programu bez „zawsze” ustawia też „zawsze Turbo” (bez Turbo nie ma sensu).</p>
+</div>
+</div>
+
+<p class="o" style="margin-top:16px"><b>Co robi każdy punkt:</b><br>
+1. 🎚 Studio – gdy program działa: parkowanie rdzeni wyłączone, zegar podnoszony od razu, priorytet Wysoki, blokada uśpienia komputera i ekranu. Po zamknięciu – wraca.<br>
+2. ProBalance – program w tle dostaje też tryb wydajności Windows 11 (EcoQoS: niższy zegar, mniej ciepła); Windows 10 – sam priorytet. Wraca jak dziś.<br>
+3. Szybsza reakcja – Turbo i Zrównoważony: Windows podnosi zegar przy niższym obciążeniu i szybciej; Cichy: wolniej (ciszej). Ustawienia planu Windows – ↺ Windows i zamknięcie programu je przywracają.<br>
+4. Temperatura – wbudowany odczyt z procesora (biblioteka LibreHardwareMonitor, ok. 1 MB), wymaga uprawnień – jedno „Tak”, potem start z Windows przez zadanie.<br>
+5. Priorytet programu i „nie uspokajaj w ProBalance” – w menu programu, znaczki w liście.</p>
+</body></html>

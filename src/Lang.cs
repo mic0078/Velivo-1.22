@@ -3411,6 +3411,7 @@ namespace Velivo
             { "Pobieram listę filmów…", "Downloading the film list…" },
             { "Filmy: ", "Films: " },
             { " · nowe plakaty: ", " · new posters: " },
+            { " na tym komputerze nie ma odtwarzacza filmów. Zainstaluj Velivo Odtwarzacz albo pełne Velivo (albo odtwarzacz filmów w instalatorze Przeglądarki) i spróbuj ponownie.", " on this computer has no video player. Install Velivo Player or full Velivo (or the video player in the Browser installer) and try again." },
             { "✅ Filmów z Jellyfin: ", "✅ Films from Jellyfin: " },
             { " · dopasowanych w bibliotece: ", " · matched in the library: " },
             { "Plakaty: ", "Posters: " },

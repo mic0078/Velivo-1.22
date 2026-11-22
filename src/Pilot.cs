@@ -83,6 +83,11 @@ namespace Velivo
                 var hit = LoadLibrary().FirstOrDefault(v => !string.IsNullOrEmpty(v.Path) && ShownTitle(v, MetaFor(v.Path)) == want);
                 if (hit != null) { _pilotFilms = new List<LibraryVideo> { hit }; cmd.n = 0; _pilotFilmsKey = null; }
             }
+            if ((cmd.op == "play-tv" || cmd.op == "play-film") && !VlcInstalled)   // ten program nie ma odtwarzacza filmów (Klawiatura, Przeglądarka bez VLC) - telefon dostaje powód zamiast ciszy
+            {
+                PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "info", ["title"] = "🎬 " + _lanDeviceName, ["text"] = Wariant.Nazwa + L.T(" na tym komputerze nie ma odtwarzacza filmów. Zainstaluj Velivo Odtwarzacz albo pełne Velivo (albo odtwarzacz filmów w instalatorze Przeglądarki) i spróbuj ponownie.") });
+                return;
+            }
             if (cmd.op == "play-tv")
             {
                 int i = (int)cmd.n;

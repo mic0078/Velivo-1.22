@@ -280,7 +280,7 @@ namespace VelivoProcesor
             tGhz.Text = p.Ghz > 0 ? p.Ghz.ToString("0.00") + " GHz" : "–";
             bool studio = s.StudioProg != null && tryb != "windows";
             tStan.Text = tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
-            tWhy.Text = "💡 " + s.Dlaczego + (studio ? " 🎚 Studio (" + s.StudioProg + "): wszystkie rdzenie czuwają, zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
+            tWhy.Text = "💡 " + s.Dlaczego + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
             tSub.Text = "  " + s.ProcesorNazwa + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
                 + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak");
             bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;
@@ -340,8 +340,14 @@ namespace VelivoProcesor
             cm.Items.Add(new Separator());
             bool z = s.Reczne.TryGetValue(prog, out var rt);
             var mt = new MenuItem { Header = "Tryb" };
-            foreach (Tryb t in Enum.GetValues(typeof(Tryb))) { var tt = t; var mi = new MenuItem { Header = "Zawsze: " + Silnik.Nazwa(t), IsChecked = z && rt == t }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne[prog] = tt; }); mt.Items.Add(mi); }
-            var ml = new MenuItem { Header = "Ucz się sam", IsChecked = !z }; ml.Click += (a, e) => Zmien(() => { lock (s.Studio) { s.Reczne.Remove(prog); s.Studio.Remove(prog); } }); mt.Items.Add(ml);
+            bool stp; lock (s.Studio) stp = s.Studio.Contains(prog);
+            foreach (Tryb t in Enum.GetValues(typeof(Tryb)))
+            {
+                var tt = t; var mi = new MenuItem { Header = "Zawsze: " + Silnik.Nazwa(t) + (stp && t == Tryb.Turbo ? " – miks, dużo wtyczek" : stp && t == Tryb.Zrownowazony ? " – nagrywanie, ciszej" : ""), IsChecked = z && rt == t };
+                if (stp && t == Tryb.Cichy) { mi.IsEnabled = false; mi.Header = "Zawsze: Cichy – niedostępny w trybie Studio (trzaski)"; }
+                mi.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne[prog] = tt; }); mt.Items.Add(mi);
+            }
+            var ml = new MenuItem { Header = "Ucz się sam", IsChecked = !z, IsEnabled = !stp, ToolTip = stp ? "W trybie Studio tryb jest stały – najpierw wyłącz Studio" : null }; ml.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne.Remove(prog); }); mt.Items.Add(ml);
             cm.Items.Add(mt);
             int pr; lock (s.Studio) pr = s.Priorytet.TryGetValue(prog, out var q) ? q : 0;
             var mp = new MenuItem { Header = "Priorytet" };
@@ -350,8 +356,8 @@ namespace VelivoProcesor
             cm.Items.Add(mp);
             cm.Items.Add(new Separator());
             bool st; lock (s.Studio) st = s.Studio.Contains(prog);
-            var ms = new MenuItem { Header = "🎚 Tryb Studio (muzyka, nagrywanie, bez trzasków)", IsChecked = st, ToolTip = "Gdy program działa: Turbo, wszystkie rdzenie czuwają, zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." };
-            ms.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (st) s.Studio.Remove(prog); else { s.Studio.Add(prog); s.Reczne[prog] = Tryb.Turbo; } } });   // Studio bez Turbo nie ma sensu
+            var ms = new MenuItem { Header = "🎚 Tryb Studio (muzyka, nagrywanie, bez trzasków)", IsChecked = st, ToolTip = "Gdy program działa: Turbo albo Zrównoważony (menu Tryb), wszystkie rdzenie czuwają, zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." };
+            ms.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (st) s.Studio.Remove(prog); else { s.Studio.Add(prog); if (!(s.Reczne.TryGetValue(prog, out var r0) && r0 == Tryb.Zrownowazony)) s.Reczne[prog] = Tryb.Turbo; } } });   // Studio: domyślnie Turbo, można zmienić na Zrównoważony
             cm.Items.Add(ms);
             bool bp = s.BezPbDla(prog);
             var mb = new MenuItem { Header = "⚖ Nie uspokajaj w ProBalance", IsChecked = bp }; mb.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (bp) s.BezPb.Remove(prog); else s.BezPb.Add(prog); } });

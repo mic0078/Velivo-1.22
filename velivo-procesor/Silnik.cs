@@ -325,7 +325,8 @@ namespace VelivoProcesor
         }
         bool ZnanyProgram(string n, out (double Cpu, double Gpu, int N, double Szczyt) v) { lock (programy) return programy.TryGetValue(n ?? "", out v); }
         bool studioZast;
-        Tryb Ustal(Tryb t) { bool st = StudioProg != null; if (t != Obecny || !zastosowany || st != studioZast) { if (t != Obecny) ostZmiana = DateTime.UtcNow; Obecny = t; studioZast = st; Zastosuj(t); } return t; }
+        Tryb Ustal(Tryb t) { bool st = StudioProg != null; if (st && t == Tryb.Cichy) t = Tryb.Zrownowazony;   // Studio: niski zegar przy dźwięku = trzaski
+            if (t != Obecny || !zastosowany || st != studioZast) { if (t != Obecny) ostZmiana = DateTime.UtcNow; Obecny = t; studioZast = st; Zastosuj(t); } return t; }
 
         // ---------- sterowanie ----------
         bool zastosowany;
@@ -414,7 +415,9 @@ namespace VelivoProcesor
                 // 🎚 Studio (muzyka): zegar w górę przy najmniejszym obciążeniu, w dół bardzo powoli, wszystkie rdzenie czuwają - bez opóźnień budzenia (trzaski)
                 bool st = StudioProg != null;
                 var (it, dt, iT, dT, ip) = st ? (10u, 5u, 1u, 10u, 2u) : t == Tryb.Turbo ? (30u, 15u, 1u, 4u, 2u) : t == Tryb.Cichy ? (80u, 50u, 4u, 1u, 1u) : (50u, 25u, 2u, 2u, 0u);
-                if (st) { boost = 2; epp = 0; min = 100; }
+                // Studio + Turbo: dodatkowo stały pełny zegar (miks z wieloma wtyczkami); Studio + Zrównoważony: bez stałego pełnego zegara - chłodniej i ciszej (nagrywanie mikrofonem)
+                if (st && t == Tryb.Turbo) { boost = 2; epp = 0; min = 100; }
+                else if (st) epp = 50;
                 var w = new List<(Guid, uint, uint)> { (Max, max, max), (Min, min, min), (Boost, boost, boost), (Epp, epp, epp), (Freq, freq, freq), (IncThr, it, it), (DecThr, dt, dt), (IncTime, iT, iT), (DecTime, dT, dT), (IncPol, ip, ip) };
                 if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows

@@ -101,7 +101,7 @@ Source: "{#Src}Velivo-Serwer-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components:
 [Run]
 ; każdy po kolei, po cichu; zadania jak domyślnie w jego własnym instalatorze (zapora, skróty, start z Windows)
 Filename: "{tmp}\Velivo-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""{code:VelivoTasks}"""; StatusMsg: "{cm:Inst,Velivo}"; Components: velivo
-Filename: "{tmp}\Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon"""; StatusMsg: "{cm:Inst,Audio Balance}"; Components: ab
+Filename: "{tmp}\Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,vbcable"""; StatusMsg: "{cm:Inst,Audio Balance}"; Components: ab
 Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Monitor}"; Components: monitor
 Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
 Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum

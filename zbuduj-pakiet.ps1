@@ -35,7 +35,7 @@ if (-not (Test-Path $ff)) {
     Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile $zip -UseBasicParsing
     $sumF = Join-Path $ffDir 'checksums.sha256'
     Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256' -OutFile $sumF -UseBasicParsing   # do pliku: Windows PowerShell 5.1 daje .Content jako bajty (porównanie zawsze „nie zgadza się”)
-    $line = Get-Content $sumF | Where-Object { $_ -match '\sffmpeg-master-latest-win64-gpl\.zip\s*$' } | Select-Object -First 1
+    $line = Get-Content $sumF | Where-Object { $_ -match '[\s\*]ffmpeg-master-latest-win64-gpl\.zip\s*$' } | Select-Object -First 1
     Remove-Item $sumF -Force
     $want = if ($line) { ($line.Trim() -split '\s+')[0] } else { $null }
     $have = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()

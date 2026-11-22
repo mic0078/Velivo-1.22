@@ -41,7 +41,7 @@ namespace Velivo
         readonly Queue<Chunk> _q = new Queue<Chunk>(); readonly object _lk = new object();
         Thread _th; volatile bool _run, _paused; volatile int _flushReq;
         public volatile string Source = "";
-        public long LateDrops, EarlyWaits;
+        public long LateDrops, EarlyWaits; long _diagAt, _diagEw, _diagLd;
         public volatile int AheadFrames;
         // start dopasowany do komputera (procesor i pamięć RAM): słabszy zaczyna od większych porcji, potem pomiar przestawia na bieżąco
         double _vstLoad = Environment.ProcessorCount <= 4 || GC.GetGCMemoryInfo().TotalAvailableMemoryBytes < 8L << 30 ? 0.3 : 0;   // obciążenie wtyczek VST3 na tym komputerze (0–1+): ile czasu porcji zajmuje ich liczenie - samo dopasowuje porcje i zapas   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
@@ -85,6 +85,7 @@ namespace Velivo
             uint id = 0xFFFFFFFF;   // domyslne urzadzenie Windows
             if (!string.IsNullOrEmpty(device)) { int k = Devices().IndexOf(device); if (k >= 0) id = (uint)k; }   // wybrane - gdy go nie ma (odlaczone), domyslne
             if (waveOutOpen(out _h, id, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0 && (id == 0xFFFFFFFF || waveOutOpen(out _h, 0xFFFFFFFF, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0)) { _h = IntPtr.Zero; return false; }
+            try { var all = Devices(); MainWindow.VlcLogLine("velivo", "Info", "Audio Balance gra przez: " + (id == 0xFFFFFFFF ? "domyślne urządzenie Windows" : all[(int)id]) + " · domyślne w Windows: " + (MainWindow.DefaultOutName() ?? "?")); } catch (Exception) { }   // 🔎 diagnostyka „głos jak robot”
             _run = true; _th = new Thread(Loop) { IsBackground = true, Name = "Velivo Audio Balance", Priority = ThreadPriority.AboveNormal }; _th.Start();
             return true;
         }
@@ -175,6 +176,11 @@ namespace Velivo
                         WriteFrames(c.Data, c.Frames, ref pcm);
                     }
                     int qf = QueuedFrames(); AheadFrames = qf;
+                    if (Environment.TickCount64 - _diagAt > 10000)
+                    {   // 🔎 co 10 s, tylko gdy coś się działo: ile razy wstawiona cisza (dźwięk przed czasem) i pominięty początek (spóźniony) - przy „głosie jak robot” rośnie
+                        _diagAt = Environment.TickCount64; long ew = Interlocked.Read(ref EarlyWaits), ld = Interlocked.Read(ref LateDrops);
+                        if (ew != _diagEw || ld != _diagLd) { MainWindow.VlcLogLine("velivo", "Warning", "Audio Balance: cisza wstawiona " + (ew - _diagEw) + "×, spóźnione pominięte " + (ld - _diagLd) + "× w 10 s (kolejka w karcie " + qf * 1000 / AbProcessor.Fs + " ms)"); _diagEw = ew; _diagLd = ld; }
+                    }
                     lock (_segs) { _posNow = _written - qf; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
                     Proc.Active = true;
                 }

@@ -106,6 +106,7 @@ namespace Velivo
             catch (Exception) { return null; }
         }
 
+        internal static string DefaultOutName() { try { var id = DefaultAudioOutputId(); return id == null ? null : ListAudioOutputs().FirstOrDefault(d => d.Id == id)?.Name; } catch (Exception) { return null; } }   // nazwa domyślnego wyjścia (dziennik)
         static string DefaultAudioOutputId()
         {
             try

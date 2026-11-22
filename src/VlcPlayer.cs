@@ -636,7 +636,7 @@ namespace Velivo
         // czysty dziennik: ten sam komunikat seriami (różnią się tylko liczby) - jeden wiersz z liczbą powtórzeń zamiast setek
         static readonly object _vlcRepLock = new object(); static string _vlcRepKey, _vlcRepLine; static int _vlcRepN;
         static readonly System.Text.RegularExpressions.Regex VlcNumRx = new System.Text.RegularExpressions.Regex(@"-?\d+", System.Text.RegularExpressions.RegexOptions.Compiled);
-        static void VlcLogLine(string mod, string lvl, string msg)
+        internal static void VlcLogLine(string mod, string lvl, string msg)
         {
             var key = mod + "|" + VlcNumRx.Replace(msg, "#"); string flush = null;
             lock (_vlcRepLock)

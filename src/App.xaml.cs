@@ -96,6 +96,7 @@ namespace Velivo
             int autoDelay = Velivo.MainWindow.TakeAutostartArg(args);
             bool kbdOnly = args.Remove("--klawiatura");   // skrot "Velivo Klawiatura" (do przypiecia na pasku zadan): sama klawiatura ekranowa
             bool chatOnly = args.Remove("--komunikator");
+            bool sofaOnly = args.Remove("--kanapa");   // skrót „Velivo Filmy i TV” na pulpicie: od razu Kanapa
             bool tidyOnly = args.Remove("--porzadki");   // Velivo Centrum: okno „Porządki i kopia bezpieczeństwa”
             bool zabezp = args.Remove("--kopia-zabezpiecz");   // Velivo Centrum: hasło i klucze sprzętowe przeniesienia
             string przywroc = null; int pi = args.IndexOf("--przywroc"); if (pi >= 0 && pi + 1 < args.Count) { przywroc = args[pi + 1]; args.RemoveRange(pi, 2); }   // Velivo Centrum: przywróć tę kopię
@@ -143,7 +144,7 @@ namespace Velivo
             // (pierwsze przyjmuje adresy dopiero po wczytaniu kart; dawniej nieudane przekazanie w tym czasie otwieralo drugie okno: dwa serwery, dwie synchronizacje)
             if (!Velivo.MainWindow.TryBecomePrimary())
             {
-                var fwd = kbdOnly ? new[] { "--klawiatura" } : chatOnly ? new[] { "--komunikator" } : tidyOnly ? new[] { "--porzadki" } : kopia != null ? new[] { "--kopia", kopia } : zabezp ? new[] { "--kopia-zabezpiecz" } : przywroc != null ? new[] { "--przywroc", przywroc } : urls;
+                var fwd = kbdOnly ? new[] { "--klawiatura" } : chatOnly ? new[] { "--komunikator" } : sofaOnly ? new[] { "--kanapa" } : tidyOnly ? new[] { "--porzadki" } : kopia != null ? new[] { "--kopia", kopia } : zabezp ? new[] { "--kopia-zabezpiecz" } : przywroc != null ? new[] { "--przywroc", przywroc } : urls;
                 for (int i = 0; i < 20 && !Velivo.MainWindow.SendToPrimary(fwd); i++) System.Threading.Thread.Sleep(1000);   // do ~80 s (3 s na probe + 1 s)
                 Shutdown();
                 return;
@@ -151,10 +152,11 @@ namespace Velivo
             WatchUncleanExit();
             var main = new Velivo.MainWindow(urls);
             if (Velivo.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
-            else if ((autoDelay >= 0 || kbdOnly || chatOnly || tidyOnly || kopia != null || zabezp || przywroc != null || !Wariant.MaKarty) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
+            else if ((autoDelay >= 0 || kbdOnly || chatOnly || sofaOnly || tidyOnly || kopia != null || zabezp || przywroc != null || !Wariant.MaKarty) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
             main.Show();
             if (kbdOnly) main.Dispatcher.BeginInvoke(new Action(Velivo.MainWindow.ShowScreenKeyboard), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (chatOnly) main.Dispatcher.BeginInvoke(new Action(() => main.ShowMessenger()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (sofaOnly && Wariant.MaFilmy) main.Dispatcher.BeginInvoke(new Action(() => main.ShowKanapa()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (tidyOnly) main.Dispatcher.BeginInvoke(new Action(() => main.ShowTidy()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (zabezp) main.Dispatcher.BeginInvoke(new Action(() => main.KopiaZabezpiecz()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (przywroc != null) main.Dispatcher.BeginInvoke(new Action(() => main.PrzywrocKopie(przywroc, null)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);

@@ -114,7 +114,7 @@ Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /S
 [Code]
 function VelivoTasks(P: String): String;
 begin
-  Result := 'desktopicon,komunikatoricon,firewall';
+  Result := 'desktopicon,komunikatoricon,kanapaicon,klawiaturaicon,firewall';
   if WizardIsComponentSelected('velivo\player') then
   begin
     Result := Result + ',videoplayer';

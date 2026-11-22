@@ -857,10 +857,12 @@ namespace Velivo
         // dwuklik = pelny Audio Monitor, prawy przycisk = menu; miejsce zapamietane
         Window _abDesk, _abDeskV;
         // onlyV = drugi, najmniejszy widzet: samo „V” (bez napisow) - te same mozliwosci (menu, na wierzchu, przezroczystosc, przeciaganie)
+        static bool AbWindowsZainstalowany() { try { var exe = VelivoData.ProgramZeSpisu("VelivoAudioBalance"); return exe != null && System.IO.File.Exists(exe); } catch (Exception) { return false; } }
         internal void ShowAbDesk(bool onlyV = false)
         {
             if (Wariant.Odtwarzacz) return;   // 🧩 Odtwarzacz: widżety na pulpicie ma samodzielny Audio Balance (stare ustawienie nie otwiera ich przy starcie)
             if (!Edycja.Premium) return;   // 💎 widżety Audio Balance - Premium
+            if (AbWindowsZainstalowany()) { _abDesk?.Close(); _abDeskV?.Close(); return; }   // jest Velivo Audio Balance for Windows - na pulpicie tylko jego nowy widżet (bez starego „V” obok)
             var cur0 = onlyV ? _abDeskV : _abDesk;
             if (cur0 != null) { cur0.Show(); cur0.Activate(); return; }
             // na pulpicie zawsze jeden widżet: pokazanie jednego zamienia drugi (miejsce przechodzi na nowy, jeśli nie ma własnego)

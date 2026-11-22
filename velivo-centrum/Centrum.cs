@@ -32,8 +32,9 @@ namespace VelivoCentrum
 
     sealed class Prog
     {
-        public string Pid, Name, Desc, Proc, DefDir, Exe;
-        public Prog(string pid, string name, string desc, string proc, string dir) { Pid = pid; Name = name; Desc = desc; Proc = proc; DefDir = dir; }
+        public string Pid, Name, Desc, Proc, DefDir, Exe, Args, Same;   // Args/Same: moduł pełnego Velivo (ten sam program, inny start); Same = osobny program o tej roli - gdy jest, modułu nie pokazujemy
+        public Prog(string pid, string name, string desc, string proc, string dir, string args = null, string same = null) { Pid = pid; Name = name; Desc = desc; Proc = proc; DefDir = dir; Args = args; Same = same; }
+        public bool Modul => Args != null;
     }
 
     sealed partial class Centrum
@@ -42,6 +43,10 @@ namespace VelivoCentrum
         {
             new Prog("VelivoOdtwarzacz", "Velivo Odtwarzacz", "filmy, TV, Kanapa", "VelivoOdtwarzacz", "Velivo Odtwarzacz"),
             new Prog("Velivo", "Velivo", "przeglądarka, filmy, komunikator", "Velivo", "Velivo"),
+            // 🧩 moduły pełnego Velivo - każdy widoczny osobno jak dawniej osobne programy (start prosto w moduł)
+            new Prog("Velivo", "Velivo Filmy i TV", "filmy, TV, Kanapa – w Velivo", "Velivo", "Velivo", "--kanapa", "VelivoOdtwarzacz"),
+            new Prog("Velivo", "Komunikator Velivo", "wiadomości i rozmowy – w Velivo", "Velivo", "Velivo", "--komunikator", "VelivoKomunikator"),
+            new Prog("Velivo", "Velivo Klawiatura", "klawiatura ekranowa – w Velivo", "Velivo", "Velivo", "--klawiatura", "VelivoKlawiatura"),
             new Prog("VelivoPrzegladarka", "Velivo Przeglądarka", "strony internetowe", "VelivoPrzegladarka", "Velivo Przeglądarka"),
             new Prog("VelivoSerwer", "Velivo Serwer filmów", "biblioteka filmów dla Twoich komputerów", "VelivoSerwer", "Velivo Serwer filmów"),
             new Prog("VelivoKomunikator", "Velivo Komunikator", "wiadomości i rozmowy", "VelivoKomunikator", "Velivo Komunikator"),
@@ -123,6 +128,13 @@ namespace VelivoCentrum
             if (icons.TryGetValue(exe, out var c)) return c;
             return icons[exe] = IconLoad(exe);
         }
+        // ikona modułu Velivo: jego plik .ico obok Velivo (te same co skróty na pulpicie)
+        static string ModIco(Prog p)
+        {
+            if (!p.Modul) return null;
+            var f = Path.Combine(Path.GetDirectoryName(p.Exe) ?? "", p.Args == "--kanapa" ? "odtwarzacz.ico" : p.Args == "--komunikator" ? "komunikator.ico" : "klawiatura.ico");
+            return File.Exists(f) ? f : null;
+        }
         static ImageSource IconLoad(string exe)
         {
             try { using (var ic = System.Drawing.Icon.ExtractAssociatedIcon(exe)) return System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(ic.Handle, Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions()); } catch (Exception) { return null; }
@@ -134,12 +146,13 @@ namespace VelivoCentrum
             foreach (var p in All)
             {
                 p.Exe = FindExe(p); if (p.Exe == null) continue;   // tylko zainstalowane
-                n++; bool run = Running(p); if (run) on++;
+                if (p.Modul && All.Any(o => o.Pid == p.Same && FindExe(o) != null)) continue;   // jest osobny program tej roli - bez podwójnego wpisu
+                bool run = Running(p); if (!p.Modul) { n++; if (run) on++; }
                 var row = new DockPanel { Margin = new Thickness(0, 1, 0, 1), Background = Brushes.Transparent, Cursor = Cursors.Hand };
                 var bd = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(6), Child = row, Background = Brushes.Transparent,
                     ToolTip = run ? "Kliknij – otwórz · prawy przycisk – menu" : "Kliknij – uruchom" };
                 bd.MouseEnter += (s, e) => bd.Background = Hover; bd.MouseLeave += (s, e) => bd.Background = Brushes.Transparent;
-                var img = new Image { Width = 30, Height = 30, Source = IconOf(p.Exe), Margin = new Thickness(0, 0, 10, 0) };
+                var img = new Image { Width = 30, Height = 30, Source = IconOf(ModIco(p) ?? p.Exe), Margin = new Thickness(0, 0, 10, 0) };
                 var st = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(7, 2, 7, 2), VerticalAlignment = VerticalAlignment.Center, Background = run ? OnBg : Line,
                     Child = new TextBlock { Text = run ? "działa" : "wyłączony", FontSize = 11, Foreground = run ? OnFg : Dim } };
                 var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -160,15 +173,16 @@ namespace VelivoCentrum
                     if (!run) Mi("✔ Włącz kursory Velivo", () => { KursoryRun(pp, "--zastosuj"); Fill(); });
                     else Mi("↺ Przywróć kursory Windows", () => { KursoryRun(pp, "--przywroc"); Fill(); });
                 }
-                else if (run) Mi("✕ Zamknij " + p.Name, () => Close(pp));
+                else if (run) Mi("✕ Zamknij " + (p.Modul ? "Velivo" : p.Name), () => Close(pp));
                 // prawy przycisk: oryginalne menu programu (to samo co przy jego ikonie przy zegarze); starsza wersja programu bez tej możliwości - menu powyżej
-                bd.MouseRightButtonUp += (s, e) => { if (run && pp.Pid != "VelivoKursory" && ProgMenu(pp)) { e.Handled = true; win.Hide(); } else { cm.PlacementTarget = bd; cm.IsOpen = true; e.Handled = true; } };
+                bd.MouseRightButtonUp += (s, e) => { if (run && !pp.Modul && pp.Pid != "VelivoKursory" && ProgMenu(pp)) { e.Handled = true; win.Hide(); } else { cm.PlacementTarget = bd; cm.IsOpen = true; e.Handled = true; } };
                 // 📌 pokazywać też przy zegarze (obok Centrum) - zapamiętane dla programu
                 bool pin = Pinned(pp);
                 var pinB = new TextBlock { Text = pin ? "\uE718" : "\uE77A", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 14, Foreground = pin ? new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)) : Dim, Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Background = Brushes.Transparent,   // pinezka: żółta = też przy zegarze, szara przekreślona = tylko w Centrum
                     ToolTip = pin ? "Pokazywany też przy zegarze – kliknij, aby tylko w Centrum" : "Tylko w Centrum – kliknij, aby pokazywać też przy zegarze" };
                 pinB.MouseLeftButtonUp += (s, e) => { SetPinned(pp, !Pinned(pp)); e.Handled = true; Fill(); };
-                DockPanel.SetDock(pinB, Dock.Right); row.Children.Insert(2, pinB); bd.Tag = cm;
+                if (!p.Modul) { DockPanel.SetDock(pinB, Dock.Right); row.Children.Insert(2, pinB); }   // moduł ma ikonę przy zegarze razem z Velivo
+                bd.Tag = cm;
                 list.Children.Add(bd);
             }
             if (n == 0) list.Children.Add(new TextBlock { Text = "Nie znaleziono zainstalowanych programów Velivo.", Foreground = Dim, Margin = new Thickness(6), TextWrapping = TextWrapping.Wrap });
@@ -182,7 +196,7 @@ namespace VelivoCentrum
         static bool ProgMenu(Prog p) { try { using (var ev = System.Threading.EventWaitHandle.OpenExisting(@"Local\Velivo.Menu." + p.Proc)) return ev.Set(); } catch (Exception) { return false; } }
 
         // uruchomienie działającego programu = jego okno (każdy program Velivo oddaje drugie uruchomienie pierwszemu)
-        static void Open(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
+        static void Open(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Args ?? "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
         static void Close(Prog p)
         {
             if (MessageBox.Show("Zamknąć " + p.Name + "?", "Velivo Centrum", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
@@ -197,7 +211,7 @@ namespace VelivoCentrum
             }
             catch (Exception) { }
         }
-        void StartAll() { foreach (var p in All) if (p.Exe != null && p.Pid != "VelivoKursory" && !Running(p)) Uruchom(p); win.Hide(); }   // Kursory nie działa w tle - nie otwieramy jego okna
+        void StartAll() { foreach (var p in All) if (p.Exe != null && !p.Modul && p.Pid != "VelivoKursory" && !Running(p)) Uruchom(p); win.Hide(); }   // Kursory nie działa w tle - nie otwieramy jego okna
         static void Uruchom(Prog p) { try { Process.Start(new ProcessStartInfo(p.Exe, p.Pid == "Velivo" || p.Pid == "VelivoOdtwarzacz" || p.Pid == "VelivoPrzegladarka" || p.Pid == "VelivoKlawiatura" || p.Pid == "VelivoSerwer" ? "--autostart 0" : "") { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(p.Exe) }); } catch (Exception) { } }
 
         void ShowList()

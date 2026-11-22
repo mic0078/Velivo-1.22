@@ -104,6 +104,8 @@ pl.VelivoRunning=Velivo nadal działa (prawdopodobnie uruchomione jako administr
 en.VelivoRunning=Velivo is still running (probably started as administrator) and the installer cannot close it. Close Velivo: tray icon → Exit (or Task Manager → Velivo → End task), then run the installation again.
 pl.DesktopIcon=Skrót na pulpicie
 pl.MessengerIcon=Skrót Komunikatora Velivo na pulpicie
+pl.SofaIcon=Skrót Velivo Filmy i TV na pulpicie
+pl.KbdIcon=Skrót Velivo Klawiatura na pulpicie
 pl.Addons=Dodatki (opcjonalne):
 en.Addons=Add-ons (optional):
 pl.VideoPlayer=Odtwarzacz filmów jak VLC – AVI, MKV, WMV i inne formaty, biblioteka filmów (pobiera ok. 145 MB z oficjalnej paczki VideoLAN; można go później odinstalować w Velivo)
@@ -116,6 +118,8 @@ pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo 
 en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
 en.MessengerIcon=Velivo Messenger desktop shortcut
+en.SofaIcon=Velivo Movies and TV desktop shortcut
+en.KbdIcon=Velivo Keyboard desktop shortcut
 pl.Network=Sieć:
 en.Network=Network:
 pl.Firewall=Otwórz porty Velivo w zaporze Windows (polecane) – bez tego rozmowy, pliki i serwer nie działają przez internet ani między komputerami. Windows zapyta raz – kliknij „Tak”.
@@ -157,6 +161,8 @@ en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included i
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
 #ifndef Wariant
 Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{cm:Shortcuts}"
+Name: "kanapaicon"; Description: "{cm:SofaIcon}"; GroupDescription: "{cm:Shortcuts}"
+Name: "klawiaturaicon"; Description: "{cm:KbdIcon}"; GroupDescription: "{cm:Shortcuts}"
 #endif
 #ifdef Klawiatura
 Name: "autostart"; Description: "{cm:KlawAuto}"; GroupDescription: "{cm:Shortcuts}"
@@ -220,10 +226,14 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#Exe}"; IconFilename: "{app
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#Exe}"; IconFilename: "{app}\ikona-programu.ico"; Tasks: desktopicon
 #ifndef Wariant
 ; sama klawiatura ekranowa - osobny identyfikator, wiec po przypieciu ma wlasna ikone na pasku zadan
-Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Parameters: "--klawiatura"; AppUserModelID: "Velivo.Klawiatura"
+Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Parameters: "--klawiatura"; IconFilename: "{app}\klawiatura.ico"; AppUserModelID: "Velivo.Klawiatura"
 ; 💬 sam komunikator - wlasna ikona i osobny identyfikator (po przypieciu wlasna ikona na pasku zadan)
 Name: "{autoprograms}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"
 Name: "{autodesktop}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"; Tasks: komunikatoricon
+; 🎬 moduły pełnego Velivo na pulpicie: Filmy i TV (Kanapa) i Klawiatura - każdy z własną ikoną
+Name: "{autodesktop}\{#AppName} Filmy i TV"; Filename: "{app}\{#Exe}"; Parameters: "--kanapa"; IconFilename: "{app}\odtwarzacz.ico"; Tasks: kanapaicon
+Name: "{autoprograms}\{#AppName} Filmy i TV"; Filename: "{app}\{#Exe}"; Parameters: "--kanapa"; IconFilename: "{app}\odtwarzacz.ico"
+Name: "{autodesktop}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Parameters: "--klawiatura"; IconFilename: "{app}\klawiatura.ico"; AppUserModelID: "Velivo.Klawiatura"; Tasks: klawiaturaicon
 #endif
 
 [Registry]

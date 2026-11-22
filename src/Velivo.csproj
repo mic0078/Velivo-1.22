@@ -51,6 +51,8 @@
     <Resource Include="komunikator.ico" />
     <Resource Include="serwer.ico" />
     <Content Include="komunikator.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="odtwarzacz.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="klawiatura.ico" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="slowa-pl.txt" />
     <EmbeddedResource Include="slowa-pl-dodatek.txt" />
     <EmbeddedResource Include="slowa-en.txt" />

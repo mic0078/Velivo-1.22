@@ -72,7 +72,7 @@ namespace VelivoProcesor
 
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
-        TextBlock tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
+        TextBlock tCichy, tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
         readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
@@ -220,7 +220,7 @@ namespace VelivoProcesor
                 var (key, ic, n, o) = opisy[i]; var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
                 sp.Children.Add(new TextBlock { Text = ic, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Fg });
                 sp.Children.Add(new TextBlock { Text = n, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Fg, FontWeight = FontWeights.SemiBold });
-                sp.Children.Add(new TextBlock { Text = o, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Dim });
+                var to = new TextBlock { Text = o, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Dim }; sp.Children.Add(to); if (key == "cichy") tCichy = to;
                 var b = Box(sp); b.Cursor = Cursors.Hand; b.Padding = new Thickness(6, 10, 6, 10); kafle[i] = b;
                 b.ToolTip = key == "auto" ? "Program sam wybiera tryb: temperatura, wczytywanie, obciążenie, gry na karcie graficznej, zapamiętane programy, spoczynek" : key == "windows" ? "Przywraca plan zasilania Windows do ustawień domyślnych; program przestaje sterować" : "Zawsze ten tryb";
                 b.MouseLeftButtonUp += (a, e) => { if (key == "windows") Domyslne(); else Wybierz(key); };
@@ -266,7 +266,7 @@ namespace VelivoProcesor
             var val = T(fmt(s.GetD(key, def)), 12, Fg); val.Width = 70; DockPanel.SetDock(val, Dock.Right); d.Children.Add(val);
             var lab = T(n, 12, Fg); lab.Width = 260; DockPanel.SetDock(lab, Dock.Left); d.Children.Add(lab);
             var sl = new Slider { Minimum = min, Maximum = max, Value = Math.Max(min, Math.Min(max, s.GetD(key, def))), TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            sl.ValueChanged += (a, e) => { val.Text = fmt(sl.Value); s.Put(key, sl.Value); };
+            sl.ValueChanged += (a, e) => { val.Text = fmt(sl.Value); s.Put(key, sl.Value); s.Ponow(); if (key == "cichy-ghz" && tCichy != null) tCichy.Text = "do " + sl.Value.ToString("0.0") + " GHz"; };   // nowa wartość od razu (pętla stosuje w ciągu sekundy)
             d.Children.Add(sl); return d;
         }
 

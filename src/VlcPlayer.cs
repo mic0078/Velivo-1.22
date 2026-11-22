@@ -62,7 +62,7 @@ namespace Velivo
         Func<string, bool> _pipShowFilm;   // film w podgladzie PiP otwartego odtwarzacza (z biblioteki)   // podglad PiP w otwartym odtwarzaczu (gdy gra TV) - takze z okna telewizji   // przegladarka schowana do zasobnika przez przycisk odtwarzacza - wraca po zamknieciu odtwarzacza
 
         // sam odtwarzacz (jak typowy program do filmow): czarny ekran, przegladarka do zasobnika
-        void OpenEmptyPlayer()
+        internal void OpenEmptyPlayer()
         {
             if (!EnsureLibVlc()) return;
             if (_vlcWin == null) { _playlist = new List<string>(); _playIndex = 0; BuildVlcWindow(); }

@@ -54,6 +54,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\VelivoMonitor.exe"; Description: "{cm:RunApp}"; Flags: nowait postinstall skipifsilent
+; instalacja cicha (pakiet Velivo): program startuje od razu, gdy ma startować z Windows - bez czekania na ponowne uruchomienie komputera
+Filename: "{app}\VelivoMonitor.exe"; Flags: nowait; Tasks: autostart; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoMonitor.exe"; Flags: runhidden; RunOnceId: "ZamknijMonitor"

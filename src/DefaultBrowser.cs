@@ -99,7 +99,7 @@ namespace Velivo
         {
             if (urls.Length == 1 && urls[0] == "--klawiatura") { ShowScreenKeyboard(); return; }   // skrot "Velivo Klawiatura" - przegladarka zostaje, gdzie byla
             if (urls.Length == 1 && urls[0] == "--komunikator") { ShowMessenger(); return; }
-            if (urls.Length == 1 && urls[0] == "--kanapa") { if (Wariant.MaFilmy) ShowKanapa(); return; }   // skrót „Velivo Filmy i TV”
+            if (urls.Length == 1 && urls[0] == "--odtwarzacz") { if (Wariant.MaFilmy) OpenEmptyPlayer(); return; }   // skrót „Velivo Odtwarzacz” - okno główne odtwarzacza
             if (urls.Length == 1 && urls[0] == "--porzadki") { ShowTidy(); return; }   // Velivo Centrum: porządki i kopia
             if (urls.Length == 1 && urls[0] == "--kopia-zabezpiecz") { KopiaZabezpiecz(); return; }   // Velivo Centrum: hasło i klucze przeniesienia
             if (urls.Length == 2 && urls[0] == "--przywroc") { PrzywrocKopie(urls[1], null); return; }   // Velivo Centrum: przywróć kopię

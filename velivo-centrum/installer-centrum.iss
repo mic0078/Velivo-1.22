@@ -54,6 +54,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\VelivoCentrum.exe"; Description: "{cm:RunApp}"; Flags: nowait postinstall skipifsilent
+; instalacja cicha (pakiet Velivo): program startuje od razu, gdy ma startować z Windows - bez czekania na ponowne uruchomienie komputera
+Filename: "{app}\VelivoCentrum.exe"; Flags: nowait; Tasks: autostart; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoCentrum.exe"; Flags: runhidden; RunOnceId: "ZamknijCentrum"

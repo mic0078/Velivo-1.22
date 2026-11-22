@@ -44,7 +44,7 @@ namespace VelivoCentrum
             new Prog("VelivoOdtwarzacz", "Velivo Odtwarzacz", "filmy, TV, Kanapa", "VelivoOdtwarzacz", "Velivo Odtwarzacz"),
             new Prog("Velivo", "Velivo", "przeglądarka, filmy, komunikator", "Velivo", "Velivo"),
             // 🧩 moduły pełnego Velivo - każdy widoczny osobno jak dawniej osobne programy (start prosto w moduł)
-            new Prog("Velivo", "Velivo Filmy i TV", "filmy, TV, Kanapa – w Velivo", "Velivo", "Velivo", "--kanapa", "VelivoOdtwarzacz"),
+            new Prog("Velivo", "Velivo Odtwarzacz", "filmy i TV – w Velivo", "Velivo", "Velivo", "--odtwarzacz", "VelivoOdtwarzacz"),
             new Prog("Velivo", "Komunikator Velivo", "wiadomości i rozmowy – w Velivo", "Velivo", "Velivo", "--komunikator", "VelivoKomunikator"),
             new Prog("Velivo", "Velivo Klawiatura", "klawiatura ekranowa – w Velivo", "Velivo", "Velivo", "--klawiatura", "VelivoKlawiatura"),
             new Prog("VelivoPrzegladarka", "Velivo Przeglądarka", "strony internetowe", "VelivoPrzegladarka", "Velivo Przeglądarka"),
@@ -132,7 +132,7 @@ namespace VelivoCentrum
         static string ModIco(Prog p)
         {
             if (!p.Modul) return null;
-            var f = Path.Combine(Path.GetDirectoryName(p.Exe) ?? "", p.Args == "--kanapa" ? "odtwarzacz.ico" : p.Args == "--komunikator" ? "komunikator.ico" : "klawiatura.ico");
+            var f = Path.Combine(Path.GetDirectoryName(p.Exe) ?? "", p.Args == "--odtwarzacz" ? "odtwarzacz.ico" : p.Args == "--komunikator" ? "komunikator.ico" : "klawiatura.ico");
             return File.Exists(f) ? f : null;
         }
         static ImageSource IconLoad(string exe)

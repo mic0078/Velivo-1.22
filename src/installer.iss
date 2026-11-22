@@ -104,7 +104,7 @@ pl.VelivoRunning=Velivo nadal działa (prawdopodobnie uruchomione jako administr
 en.VelivoRunning=Velivo is still running (probably started as administrator) and the installer cannot close it. Close Velivo: tray icon → Exit (or Task Manager → Velivo → End task), then run the installation again.
 pl.DesktopIcon=Skrót na pulpicie
 pl.MessengerIcon=Skrót Komunikatora Velivo na pulpicie
-pl.SofaIcon=Skrót Velivo Filmy i TV na pulpicie
+pl.SofaIcon=Skrót Velivo Odtwarzacz na pulpicie
 pl.KbdIcon=Skrót Velivo Klawiatura na pulpicie
 pl.Addons=Dodatki (opcjonalne):
 en.Addons=Add-ons (optional):
@@ -118,7 +118,7 @@ pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo 
 en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
 en.MessengerIcon=Velivo Messenger desktop shortcut
-en.SofaIcon=Velivo Movies and TV desktop shortcut
+en.SofaIcon=Velivo Player desktop shortcut
 en.KbdIcon=Velivo Keyboard desktop shortcut
 pl.Network=Sieć:
 en.Network=Network:
@@ -230,9 +230,9 @@ Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Paramete
 ; 💬 sam komunikator - wlasna ikona i osobny identyfikator (po przypieciu wlasna ikona na pasku zadan)
 Name: "{autoprograms}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"
 Name: "{autodesktop}\Komunikator {#AppName}"; Filename: "{app}\{#Exe}"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"; Tasks: komunikatoricon
-; 🎬 moduły pełnego Velivo na pulpicie: Filmy i TV (Kanapa) i Klawiatura - każdy z własną ikoną
-Name: "{autodesktop}\{#AppName} Filmy i TV"; Filename: "{app}\{#Exe}"; Parameters: "--kanapa"; IconFilename: "{app}\odtwarzacz.ico"; Tasks: kanapaicon
-Name: "{autoprograms}\{#AppName} Filmy i TV"; Filename: "{app}\{#Exe}"; Parameters: "--kanapa"; IconFilename: "{app}\odtwarzacz.ico"
+; 🎬 moduły pełnego Velivo na pulpicie: Odtwarzacz (okno główne) i Klawiatura - każdy z własną ikoną
+Name: "{autodesktop}\{#AppName} Odtwarzacz"; Filename: "{app}\{#Exe}"; Parameters: "--odtwarzacz"; IconFilename: "{app}\odtwarzacz.ico"; Tasks: kanapaicon
+Name: "{autoprograms}\{#AppName} Odtwarzacz"; Filename: "{app}\{#Exe}"; Parameters: "--odtwarzacz"; IconFilename: "{app}\odtwarzacz.ico"
 Name: "{autodesktop}\{#AppName} Klawiatura"; Filename: "{app}\{#Exe}"; Parameters: "--klawiatura"; IconFilename: "{app}\klawiatura.ico"; AppUserModelID: "Velivo.Klawiatura"; Tasks: klawiaturaicon
 #endif
 

@@ -189,6 +189,37 @@ namespace Velivo
             return _pcApps;
         }
 
+        // 🖼 ikona aplikacji dla kafelka w telefonie (PNG 96 px, base64) - ta sama, którą pokazuje menu Start
+        [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        interface IShellItemImageFactory { [PreserveSig] int GetImage(PcSize size, int flags, out IntPtr hbmp); }
+        [StructLayout(LayoutKind.Sequential)] struct PcSize { public int cx, cy; }
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)] static extern int SHCreateItemFromParsingName(string path, IntPtr pbc, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out IShellItemImageFactory item);
+        [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr h);
+        static string PcAppIcon(string path)
+        {
+            if (PcApps().All(x => !string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) return null;   // tylko aplikacje z listy
+            string res = null;
+            var th = new System.Threading.Thread(() =>
+            {
+                IntPtr hb = IntPtr.Zero;
+                try
+                {
+                    var iid = typeof(IShellItemImageFactory).GUID;
+                    var name = System.IO.Path.IsPathRooted(path) && File.Exists(path) ? path : "shell:AppsFolder\\" + path;
+                    if (SHCreateItemFromParsingName(name, IntPtr.Zero, ref iid, out var f) != 0 || f == null) return;
+                    if (f.GetImage(new PcSize { cx = 96, cy = 96 }, 0x1 /* SIIGBF_BIGGERSIZEOK */, out hb) != 0 || hb == IntPtr.Zero) return;
+                    var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(hb, IntPtr.Zero, System.Windows.Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                    var bgra = new System.Windows.Media.Imaging.FormatConvertedBitmap(src, System.Windows.Media.PixelFormats.Bgra32, null, 0);   // przezroczystość z ikony (inaczej czarne tło)
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder(); enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bgra));
+                    using (var ms = new MemoryStream()) { enc.Save(ms); res = Convert.ToBase64String(ms.ToArray()); }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                finally { if (hb != IntPtr.Zero) DeleteObject(hb); }
+            }) { IsBackground = true };
+            th.SetApartmentState(System.Threading.ApartmentState.STA); th.Start(); th.Join(8000);
+            return res;
+        }
+
         static void PcPower(string args)
         {
             App.LogInfo("Pilot: polecenie z telefonu - shutdown " + args);

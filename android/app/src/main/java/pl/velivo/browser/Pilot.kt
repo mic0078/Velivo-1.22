@@ -674,6 +674,48 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         val a = org.json.JSONArray(); l.forEach { a.put(if (it == null) org.json.JSONArray() else org.json.JSONArray().put(it.first).put(it.second)) }
         prefs.edit().putString("pilot-apps-$cur", a.toString()).apply()
     }
+    // kafelek ulubionej aplikacji: ikona z komputera; stuknięcie = uruchom, drugie stuknięcie = zamknij (Alt+F4 - okno na wierzchu), przytrzymanie = zmień / usuń
+    private val appOpen = HashMap<String, Boolean>()
+    private fun appTile(i: Int, e: Pair<String, String>, redraw: () -> Unit): View {
+        val key = "$cur|$i"
+        val open = appOpen[key] == true
+        val t = LinearLayout(act).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; isClickable = true; setPadding(dp(4), dp(6), dp(4), dp(6))
+            contentDescription = e.first; tooltipText = e.first
+            background = GradientDrawable().apply { setColor(Color.parseColor("#2E2768")); cornerRadius = dp(12).toFloat(); if (open) setStroke(dp(3), Color.parseColor("#4ADE80")) }
+            foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), null, GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(12).toFloat() })
+        }
+        val img = ImageView(act).apply { setImageBitmap(appIcon(e.second) { b -> setImageBitmap(b) }) }
+        t.addView(img, LinearLayout.LayoutParams(dp(34), dp(34)))
+        t.addView(TextView(act).apply { text = if (open) "✕ " + e.first else e.first; textSize = 13f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
+        t.setOnClickListener {
+            if (open) pcSend("pc-key", "altf4") else pcSend("pc-run", e.second)
+            appOpen[key] = !open; redraw()
+        }
+        t.setOnLongClickListener {
+            AlertDialog.Builder(act).setTitle("⭐ " + e.first).setItems(arrayOf("🔁 " + s(R.string.pc_app_change), "🗑 " + s(R.string.pc_app_remove))) { _, w ->
+                if (w == 0) pickApp { n, p -> pcAppsSet(i, n, p); appOpen.remove(key); redraw() }
+                else { pcAppsSet(i, null, null); appOpen.remove(key); redraw() }
+            }.setNegativeButton(R.string.pilot_cancel, null).show(); true
+        }
+        return t
+    }
+    // ikony aplikacji: z komputera raz, potem z pamięci telefonu (pliki w cache)
+    private fun appIcon(path: String, got: (android.graphics.Bitmap) -> Unit): android.graphics.Bitmap? {
+        val f = java.io.File(act.cacheDir, "pc-ikona-" + Integer.toHexString(("$cur|$path").hashCode()) + ".png")
+        if (f.exists()) return android.graphics.BitmapFactory.decodeFile(f.path)
+        val c = cur ?: return null; val addr = pcs[c]?.addr ?: return null
+        Thread {
+            val png = lan.pilotTcp(c, addr, "pc-icon", path)?.firstOrNull { it.optString("kind") == "pc-icon" }?.optString("png").orEmpty()
+            if (png.isEmpty()) return@Thread
+            val b = runCatching { android.util.Base64.decode(png, android.util.Base64.DEFAULT) }.getOrNull() ?: return@Thread
+            runCatching { f.writeBytes(b) }
+            val bmp = android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size) ?: return@Thread
+            act.runOnUiThread { got(bmp) }
+        }.start()
+        return null
+    }
+
     // wybór aplikacji: lista z menu Start komputera, szukanie po nazwie
     private fun pickApp(done: (String, String) -> Unit) {
         val c = cur ?: return; val addr = pcs[c]?.addr
@@ -698,7 +740,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             val sel = all.filter { t.isEmpty() || it.first.contains(t, ignoreCase = true) }
             info.text = s(R.string.pc_app_count, sel.size)
             sel.take(300).forEach { (n, p) -> list.addView(TextView(act).apply {
-                text = "🗔  $n"; textSize = 16f; setTextColor(Color.WHITE); setPadding(dp(14), dp(14), dp(14), dp(14)); isClickable = true
+                text = "🖥  $n"; textSize = 16f; setTextColor(Color.WHITE); setPadding(dp(14), dp(14), dp(14), dp(14)); isClickable = true
                 background = GradientDrawable().apply { setColor(card); cornerRadius = dp(12).toFloat() }
                 setOnClickListener { d.dismiss(); done(n, p) }
             }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }) }
@@ -770,7 +812,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         }
         pc.addView(pcRow(dp(76), pcKey("🌙", s(R.string.pc_screen_off)) { pcSend("pc-screen", "off") }, pcKey("☀️", s(R.string.pilot_screen_on)) { pcSend("pc-screen", "on") }))
         pc.addView(pcRow(dp(76), pcKey("🔒", s(R.string.pc_lock)) { pcSend("pc-lock") }, sure("🚪", s(R.string.pc_logoff), "pc-logoff", Color.parseColor("#2E2768"))))
-        pc.addView(pcRow(dp(76), sure("🔄", s(R.string.pc_restart), "pc-restart", Color.parseColor("#14532D")), sure("⏻", s(R.string.pc_shutdown), "pc-shutdown", Color.parseColor("#7F1D1D"))))
+        pc.addView(pcRow(dp(76), sure("🔄", s(R.string.pc_restart), "pc-restart", Color.parseColor("#14532D")), sure("🔌", s(R.string.pc_shutdown), "pc-shutdown", Color.parseColor("#7F1D1D"))))
         // ⭐ ulubione aplikacje Windows: 6 kafelków (puste = dodaj z menu Start komputera, przytrzymanie = usuń)
         pc.addView(TextView(act).apply { text = "⭐ " + s(R.string.pc_apps); textSize = 15f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD); setPadding(dp(6), dp(14), 0, dp(4)) })
         val appsGrid = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
@@ -781,12 +823,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             (0 until 6).chunked(3).forEach { r -> appsGrid.addView(pcRow(dp(76), *r.map { i ->
                 val e = a[i]
                 if (e == null) pcKey("➕", s(R.string.pc_app_add), Color.parseColor("#1F1A3A")) { pickApp { n, p -> pcAppsSet(i, n, p); drawApps() } }
-                else pcKey("🗔", e.first) { pcSend("pc-run", e.second) }.apply {
-                    maxLines = 3; ellipsize = TextUtils.TruncateAt.END
-                    setOnLongClickListener {
-                        AlertDialog.Builder(act).setTitle("⭐ " + e.first).setMessage(R.string.pc_app_remove_q)
-                            .setPositiveButton(R.string.pc_app_remove) { _, _ -> pcAppsSet(i, null, null); drawApps() }.setNegativeButton(R.string.pilot_cancel, null).show(); true }
-                }
+                else appTile(i, e) { drawApps() }
             }.toTypedArray())) }
         }
         drawApps()

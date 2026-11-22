@@ -233,7 +233,8 @@ namespace Velivo
                     if (cmd == null || cmd.to != _lanId) return;
                     cmd.op = cmd.op ?? "";
                     var replies = new List<Dictionary<string, object>>();
-                    if (cmd.op == "pc-apps") replies.Add(new Dictionary<string, object> { ["kind"] = "pc-apps", ["items"] = PcApps().Select(x => new[] { x.Name, x.Path }).ToList() });   // ⭐ aplikacje z menu Start - do ulubionych kafelków w telefonie
+                    if (cmd.op == "pc-icon") replies.Add(new Dictionary<string, object> { ["kind"] = "pc-icon", ["v"] = cmd.v ?? "", ["png"] = PcAppIcon(cmd.v ?? "") ?? "" });   // 🖼 ikona ulubionej aplikacji
+                    else if (cmd.op == "pc-apps") replies.Add(new Dictionary<string, object> { ["kind"] = "pc-apps", ["items"] = PcApps().Select(x => new[] { x.Name, x.Path }).ToList() });   // ⭐ aplikacje z menu Start - do ulubionych kafelków w telefonie
                     else if (cmd.op != "img" && cmd.op != "list" && cmd.op != "bib" && cmd.op != "info" && !cmd.op.StartsWith("play-") && !cmd.op.StartsWith("fav-") && cmd.op != "epg" && cmd.op != "epg-act" && cmd.op != "plans" && cmd.op != "plan-del" && cmd.op != "rand")
                     {
                         var cep = c.Client.RemoteEndPoint as System.Net.IPEndPoint;

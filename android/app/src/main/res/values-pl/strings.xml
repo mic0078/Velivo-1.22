@@ -560,5 +560,5 @@
     <string name="pc_app_count">Aplikacje z menu Start: %1$d</string>
     <string name="pc_app_none">Komputer nie przysłał listy – zaktualizuj Velivo na komputerze.</string>
     <string name="pc_app_remove">Usuń</string>
-    <string name="pc_app_remove_q">Usunąć tę aplikację z ulubionych? (Na komputerze zostaje.)</string>
+    <string name="pc_app_change">Zmień aplikację</string>
 </resources>

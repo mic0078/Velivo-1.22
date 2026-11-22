@@ -139,7 +139,17 @@ namespace Velivo
                     // kiedy zabrzmi pierwsza probka tego kawalka: po tym, co juz czeka w karcie, i po opoznieniu limitera (ok. 5 ms)
                     long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + (AbProcessor.LatencyFrames + Vst3.Latency) * 1_000_000L / AbProcessor.Fs;   // + opóźnienie wtyczek VST3 (obraz równo z dźwiękiem)
                     long gap = (c.Pts - Now) - playAt;   // > 0: VLC dal dzwiek wczesniej (zwykle) - cisza do jego chwili; < 0: spozniony
-                    if (gap > 40000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs * 2L, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
+                    // 🔧 zepsute znaczniki czasu (AVI OpenDML: pierwszy kawałek „-1277 s”) dawały 2 s ciszy w karcie na stałe - potem każdy kawałek był
+                    // na zmianę „za wcześnie” (cisza) i „za późno” (ucięty początek): głos jak robot (vlc.log 2026-11-22: kolejka w karcie 2000 ms).
+                    // Teraz: niemożliwa różnica (ponad 3 s) = bez czekania i ucinania; cisza najwyżej 0,25 s; spóźnienie przy przepełnionej karcie = karta od nowa.
+                    if (gap > 3_000_000 || gap < -3_000_000) gap = 0;
+                    if (gap < -80000 && QueuedFrames() > AbProcessor.Fs / 2)
+                    {   // w karcie ponad 0,5 s, a dźwięk i tak spóźniony - zapas jest zbędny: karta od nowa (jedno krótkie przerwanie zamiast ciągłego ucinania)
+                        waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); lock (_segs) { _segI = 0; _posNow = 0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
+                        if (_paused) waveOutPause(_h);
+                        gap = (c.Pts - Now) - (AbProcessor.LatencyFrames + Vst3.Latency) * 1_000_000L / AbProcessor.Fs;
+                    }
+                    if (gap > 40000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs / 4, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
                     else if (gap < -80000)
                     {   // spozniony o ponad 60 ms - pomijamy poczatek kawalka (obraz jest wazniejszy)
                         int skip = (int)Math.Min(c.Frames, -gap * AbProcessor.Fs / 1_000_000L); Interlocked.Increment(ref LateDrops);

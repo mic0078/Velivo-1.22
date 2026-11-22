@@ -33,10 +33,13 @@ if (-not (Test-Path $ff)) {
     New-Item -ItemType Directory -Force -Path $ffDir | Out-Null
     $zip = Join-Path $ffDir 'ffmpeg.zip'
     Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile $zip -UseBasicParsing
-    $sums = (Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256' -UseBasicParsing).Content
-    $want = ($sums -split "`n" | Where-Object { $_ -match 'ffmpeg-master-latest-win64-gpl\.zip' } | Select-Object -First 1) -split '\s+' | Select-Object -First 1
+    $sumF = Join-Path $ffDir 'checksums.sha256'
+    Invoke-WebRequest 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256' -OutFile $sumF -UseBasicParsing   # do pliku: Windows PowerShell 5.1 daje .Content jako bajty (porównanie zawsze „nie zgadza się”)
+    $line = Get-Content $sumF | Where-Object { $_ -match '\sffmpeg-master-latest-win64-gpl\.zip\s*$' } | Select-Object -First 1
+    Remove-Item $sumF -Force
+    $want = if ($line) { ($line.Trim() -split '\s+')[0] } else { $null }
     $have = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-    if (-not $want -or $have -ne $want.ToLower()) { Remove-Item $zip -Force; Write-Host "FFmpeg: suma kontrolna sie nie zgadza - pakiet nie powstal." -ForegroundColor Red; exit 1 }
+    if (-not $want -or $have -ne $want.ToLower()) { Remove-Item $zip -Force; Write-Host ("FFmpeg: suma kontrolna sie nie zgadza (oczekiwana: " + $want + ", pobrany plik: " + $have + ") - pakiet nie powstal. Uruchom ponownie (wydawca mogl wlasnie podmienic plik).") -ForegroundColor Red; exit 1 }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $a = [System.IO.Compression.ZipFile]::OpenRead($zip)
     try { $e = $a.Entries | Where-Object { $_.FullName -like '*/bin/ffmpeg.exe' } | Select-Object -First 1; [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, $ff, $true) } finally { $a.Dispose() }

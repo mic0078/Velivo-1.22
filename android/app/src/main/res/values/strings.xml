@@ -529,4 +529,28 @@
     <string name="pilot_sleep_end">After this film ends</string>
     <string name="pilot_cancel">Cancel</string>
     <string name="pilot_screen_off_short">No screen</string>
+    <string name="pc_title">Control computer</string>
+    <string name="pc_title_sub">mouse, typing, volume, shut down</string>
+    <string name="pc_mouse">Mouse</string>
+    <string name="pc_kb">Keyboard</string>
+    <string name="pc_pc">Computer</string>
+    <string name="pc_pad_hint">Move your finger like on a touchpad\n\ntap = click · two fingers = scroll\nhold = right click</string>
+    <string name="pc_pad_small">small touchpad – mouse at hand</string>
+    <string name="pc_left">Left</string>
+    <string name="pc_scroll">Scroll</string>
+    <string name="pc_right">Right</string>
+    <string name="pc_type_hint">Type on the computer…</string>
+    <string name="pc_send">Send</string>
+    <string name="pc_type_help">The text goes to the window that is active on the computer</string>
+    <string name="pc_vol">Computer volume</string>
+    <string name="pc_vol_unknown">Computer volume – unknown</string>
+    <string name="pc_screen_off">Screen off</string>
+    <string name="pc_lock">Lock</string>
+    <string name="pc_logoff">Sign out</string>
+    <string name="pc_restart">Restart</string>
+    <string name="pc_shutdown">Shut down</string>
+    <string name="pc_confirm">%1$s – %2$s?</string>
+    <string name="pc_confirm_msg">Open programs will be closed.</string>
+    <string name="pc_st_mouse">mouse control</string>
+    <string name="pc_st_kb">typing</string>
 </resources>

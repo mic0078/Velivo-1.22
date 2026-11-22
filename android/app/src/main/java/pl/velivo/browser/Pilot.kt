@@ -225,6 +225,7 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
             addView(tile("📅", s(R.string.pilot_guide), s(R.string.pilot_guide_sub)) { guide() }, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = dp(5) })
             addView(tile("🎲", s(R.string.pilot_rand), s(R.string.pilot_rand_sub)) { randomPick() }, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(5) })
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        root.addView(tile("🖱", s(R.string.pc_title), s(R.string.pc_title_sub)) { pcPanel() }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })   // 🖱 sterowanie komputerem (makieta-pilot-komputer.html)
         plansTxt = TextView(act).apply { textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; setPadding(dp(8), dp(12), dp(8), dp(12)); visibility = View.GONE; isClickable = true
             background = GradientDrawable().apply { setColor(card); cornerRadius = dp(16).toFloat() }; setOnClickListener { plans() } }
         root.addView(plansTxt, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
@@ -585,6 +586,161 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         setPadding(dp(14), dp(9), dp(14), dp(9)); background = GradientDrawable().apply { setColor(if (on) accent else card); cornerRadius = dp(20).toFloat() }
         setOnClickListener { f() }
     }
+    // 🖱 Sterowanie komputerem (dokumentacja/makieta-pilot-komputer.html): Mysz / Klawiatura / Komputer. Polecenia "pc-…" przez TCP (jak włączanie),
+    // komputer wykonuje je także bez otwartego odtwarzacza. Ruchy myszy zbierane i wysyłane co 40 ms jednym wątkiem (kolejność zachowana).
+    private val pcSender by lazy { android.os.HandlerThread("velivo-pc").apply { start() }.let { android.os.Handler(it.looper) } }
+    private var pcDx = 0f; private var pcDy = 0f; private var pcMovePosted = false
+    private fun pcSend(op: String, v: String? = null, n: Double = 0.0) {
+        val c = cur ?: run { choosePc(); return }
+        val p = pcs[c]
+        if (!reachable(p)) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_SHORT).show(); return }
+        val a = p?.addr
+        pcSender.post {
+            if (a == null || (tcpFail[c] ?: 0L) > System.currentTimeMillis() - 300_000L || lan.pilotTcp(c, a, op, v, n) == null) { if (a != null) tcpFail[c] = System.currentTimeMillis(); lan.sendPilot(c, op, v, n, a) }
+        }
+    }
+    private fun pcMove(dx: Float, dy: Float) {
+        synchronized(this) { pcDx += dx; pcDy += dy; if (pcMovePosted) return; pcMovePosted = true }
+        h.postDelayed({
+            val x: Int; val y: Int
+            synchronized(this) { x = pcDx.toInt(); y = pcDy.toInt(); pcDx -= x; pcDy -= y; pcMovePosted = false }
+            if (x != 0 || y != 0) pcSend("pc-move", "$x,$y")
+        }, 40)
+    }
+
+    // touchpad: jeden palec = ruch (przyspieszony), stuknięcie = klik, przytrzymanie = prawy klik, dwa palce = przewijanie
+    private fun touchpad(hint: String) = TextView(act).apply {
+        text = hint; textSize = 13f; setTextColor(Color.parseColor("#6E6A8F")); gravity = Gravity.CENTER
+        background = GradientDrawable().apply { setColor(Color.parseColor("#120F24")); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.parseColor("#3E3570"), dp(6).toFloat(), dp(4).toFloat()) }
+        var lx = 0f; var ly = 0f; var downAt = 0L; var moved = 0f; var two = false; var scrollAcc = 0f; var longDone = false
+        val long = Runnable { if (moved < dp(10) && !two) { longDone = true; pcSend("pc-click", "right"); performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS) } }
+        setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { lx = e.x; ly = e.y; downAt = e.eventTime; moved = 0f; two = false; scrollAcc = 0f; longDone = false; v.postDelayed(long, 550) }
+                android.view.MotionEvent.ACTION_POINTER_DOWN -> { two = true; ly = (e.getY(0) + e.getY(1)) / 2; v.removeCallbacks(long) }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (two && e.pointerCount >= 2) {
+                        val y = (e.getY(0) + e.getY(1)) / 2; scrollAcc += y - ly; ly = y
+                        val step = dp(30).toFloat()
+                        while (scrollAcc >= step) { scrollAcc -= step; pcSend("pc-scroll", n = 1.0) }
+                        while (scrollAcc <= -step) { scrollAcc += step; pcSend("pc-scroll", n = -1.0) }
+                    } else if (!two) {
+                        val dx = e.x - lx; val dy = e.y - ly; lx = e.x; ly = e.y; moved += Math.abs(dx) + Math.abs(dy)
+                        val sp = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat(); val k = 1.2f + (sp / dp(12)).coerceAtMost(2.5f)   // szybki ruch = dalej (jak touchpad laptopa)
+                        pcMove(dx * k / act.resources.displayMetrics.density * 1.4f, dy * k / act.resources.displayMetrics.density * 1.4f)
+                        if (moved > dp(10)) v.removeCallbacks(long)
+                    }
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    v.removeCallbacks(long)
+                    if (!two && !longDone && moved < dp(10) && e.eventTime - downAt < 300) pcSend("pc-click", "left")
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> v.removeCallbacks(long)
+            }
+            true
+        }
+    }
+
+    private fun pcKey(icon: String, label: String, color: Int = Color.parseColor("#2E2768"), f: () -> Unit) = TextView(act).apply {
+        text = if (icon.isEmpty()) label else "$icon\n$label"; textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; isClickable = true
+        contentDescription = label; tooltipText = label
+        background = GradientDrawable().apply { setColor(color); cornerRadius = dp(12).toFloat() }
+        foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), null, GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(12).toFloat() })
+        setOnClickListener { f() }
+    }
+    private fun pcRow(h0: Int, vararg v: View) = LinearLayout(act).apply { for (x in v) addView(x, LinearLayout.LayoutParams(0, h0, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }) }
+
+    private fun pcTypeBar(withHelp: Boolean): LinearLayout {
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        val row = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(4), dp(6), dp(4)); background = GradientDrawable().apply { setColor(Color.parseColor("#120F24")); cornerRadius = dp(12).toFloat() } }
+        val ed = android.widget.EditText(act).apply { hint = "⌨ " + s(R.string.pc_type_hint); setHintTextColor(Color.parseColor("#6E6A8F")); setTextColor(Color.WHITE); background = null; textSize = 15f; maxLines = 4 }
+        val go = { val t = ed.text.toString(); if (t.isNotEmpty()) { pcSend("pc-text", t); ed.setText("") } }
+        ed.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND; ed.setSingleLine(false)
+        ed.setOnEditorActionListener { _, _, _ -> go(); true }
+        row.addView(ed, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(pcKey("", "➤ " + s(R.string.pc_send), accent) { go() }, LinearLayout.LayoutParams(-2, dp(44)).apply { marginStart = dp(6) })
+        box.addView(row)
+        if (withHelp) box.addView(TextView(act).apply { text = s(R.string.pc_type_help); textSize = 12f; setTextColor(dim); setPadding(dp(4), dp(6), dp(4), dp(4)) })
+        return box
+    }
+
+    private fun pcPanel() {
+        if (cur == null) { choosePc(); return }
+        val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val root = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(bg) }
+        val head = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(Button(act).apply { text = "✕"; textSize = 20f; setTextColor(Color.WHITE); background = null; setOnClickListener { d.dismiss() } }, LinearLayout.LayoutParams(dp(52), dp(52)))
+        head.addView(TextView(act).apply { text = "💻 " + curName; textSize = 19f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD) })
+        root.addView(head)
+        val st = TextView(act).apply { textSize = 13f; setTextColor(dim); setPadding(dp(6), 0, 0, dp(8)) }
+        root.addView(st)
+        val tabs = LinearLayout(act).apply { setPadding(dp(3), dp(3), dp(3), dp(3)); background = GradientDrawable().apply { setColor(Color.parseColor("#120F24")); cornerRadius = dp(12).toFloat() } }
+        root.addView(tabs, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(8) })
+        val body = android.widget.FrameLayout(act)
+        root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
+        val stName = listOf(s(R.string.pc_st_mouse), s(R.string.pc_st_kb), "")
+        val volTxt = TextView(act).apply { textSize = 15f; setTextColor(Color.WHITE) }
+        val volBar = SeekBar(act).apply { max = 100 }
+        var volDrag = false
+        fun avail() = s(if (reachable(pcs[cur])) R.string.pilot_online else R.string.pilot_offline)
+
+        // 1. Mysz
+        val mouse = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        mouse.addView(touchpad(s(R.string.pc_pad_hint)), LinearLayout.LayoutParams(-1, 0, 1f))
+        mouse.addView(pcRow(dp(64), pcKey("◧", s(R.string.pc_left)) { pcSend("pc-click", "left") }, pcKey("⇕", s(R.string.pc_scroll)) { pcSend("pc-scroll", n = -3.0) }, pcKey("◨", s(R.string.pc_right)) { pcSend("pc-click", "right") }))
+        mouse.addView(pcTypeBar(false))
+        // 2. Klawiatura
+        val kb = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        kb.addView(pcTypeBar(true))
+        val keys = listOf("Enter ⏎" to "enter", "⌫" to "back", "Tab" to "tab", "Esc" to "esc", "◀" to "left", "▲" to "up", "▼" to "down", "▶" to "right",
+            "Ctrl+C" to "copy", "Ctrl+V" to "paste", "Ctrl+Z" to "undo", "Alt+Tab" to "alttab", "⊞ Win" to "win", "Alt+F4" to "altf4", "F5" to "f5", "F11" to "f11")
+        keys.chunked(4).forEach { r -> kb.addView(pcRow(dp(46), *r.map { (t, k) -> pcKey("", t) { pcSend("pc-key", k) } }.toTypedArray())) }
+        kb.addView(touchpad(s(R.string.pc_pad_small)), LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        // 3. Komputer
+        val pc = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        val volBox = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(8)); background = GradientDrawable().apply { setColor(Color.parseColor("#120F24")); cornerRadius = dp(12).toFloat() } }
+        volBox.addView(volTxt)
+        volBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(b: SeekBar?, p: Int, user: Boolean) { if (user) volTxt.text = "🔊 " + s(R.string.pc_vol) + " $p%" }
+            override fun onStartTrackingTouch(b: SeekBar?) { volDrag = true }
+            override fun onStopTrackingTouch(b: SeekBar?) { volDrag = false; pcSend("pc-vol", n = volBar.progress.toDouble()) }
+        })
+        volBox.addView(volBar, LinearLayout.LayoutParams(-1, dp(44)))
+        volBox.addView(pcRow(dp(50), pcKey("", "🔉 −") { pcSend("pc-vol", "down") }, pcKey("", "🔇 " + s(R.string.pilot_mute)) { pcSend("pc-vol", "mute") }, pcKey("", "🔊 +") { pcSend("pc-vol", "up") }))
+        pc.addView(volBox, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        fun sure(icon: String, label: String, op: String, color: Int) = pcKey(icon, label, color) {
+            AlertDialog.Builder(act).setTitle(s(R.string.pc_confirm, icon + " " + label, curName)).setMessage(R.string.pc_confirm_msg)
+                .setPositiveButton(label) { _, _ -> pcSend(op) }.setNegativeButton(R.string.pilot_cancel, null).show()
+        }
+        pc.addView(pcRow(dp(76), pcKey("🌙", s(R.string.pc_screen_off)) { pcSend("pc-screen", "off") }, pcKey("☀️", s(R.string.pilot_screen_on)) { pcSend("pc-screen", "on") }))
+        pc.addView(pcRow(dp(76), pcKey("🔒", s(R.string.pc_lock)) { pcSend("pc-lock") }, sure("🚪", s(R.string.pc_logoff), "pc-logoff", Color.parseColor("#2E2768"))))
+        pc.addView(pcRow(dp(76), sure("🔄", s(R.string.pc_restart), "pc-restart", Color.parseColor("#14532D")), sure("⏻", s(R.string.pc_shutdown), "pc-shutdown", Color.parseColor("#7F1D1D"))))
+        val pages = listOf(mouse, kb, ScrollView(act).apply { addView(pc) })
+        pages.forEach { body.addView(it, android.widget.FrameLayout.LayoutParams(-1, -1)) }
+        val names = listOf("🖱 " + s(R.string.pc_mouse), "⌨ " + s(R.string.pc_kb), "⚙ " + s(R.string.pc_pc))
+        val tabViews = ArrayList<TextView>()
+        fun pick(i: Int) {
+            prefs.edit().putInt("pilot-pc-tab", i).apply()
+            pages.forEachIndexed { j, v -> v.visibility = if (j == i) View.VISIBLE else View.GONE }
+            tabViews.forEachIndexed { j, t -> t.setTextColor(if (j == i) Color.WHITE else dim)
+                t.background = if (j == i) GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.parseColor("#6D3FDB"), Color.parseColor("#2BA9D8"))).apply { cornerRadius = dp(9).toFloat() } else null }
+            st.text = avail() + (if (stName[i].isNotEmpty()) " · " + stName[i] else "")
+        }
+        names.forEachIndexed { i, n -> tabViews += TextView(act).apply { text = n; textSize = 14f; gravity = Gravity.CENTER; isClickable = true; setOnClickListener { pick(i) } }.also { tabs.addView(it, LinearLayout.LayoutParams(0, -1, 1f)) } }
+        pick(prefs.getInt("pilot-pc-tab", 0).coerceIn(0, 2))
+        volTxt.text = "🔊 " + s(R.string.pc_vol_unknown)
+        val prev = lan.onPilotPc
+        lan.onPilotPc = { id, v, m -> act.runOnUiThread {
+            if (id != cur || volDrag) return@runOnUiThread
+            if (v < 0) volTxt.text = "🔊 " + s(R.string.pc_vol_unknown)
+            else { volBar.progress = v; volTxt.text = (if (m) "🔇 " else "🔊 ") + s(R.string.pc_vol) + " $v%" + (if (m) " · " + s(R.string.pilot_mute) else "") }
+        } }
+        d.setContentView(root); d.setOnKeyListener { _, k, e -> volKey(k, e) }
+        d.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        d.setOnDismissListener { lan.onPilotPc = prev }
+        d.show()
+    }
+
     private fun screen(title: String): Triple<Dialog, LinearLayout, LinearLayout> {
         imgGen++   // nowy ekran - stara kolejka obrazków pomijana
         val d = Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen)

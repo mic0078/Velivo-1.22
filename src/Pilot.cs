@@ -32,6 +32,10 @@ namespace Velivo
             {
                 try { PilotGuide(pkt.id, cmd); } catch (Exception ex) { App.LogError(ex); }
             }
+            else if (cmd.to == _lanId && (cmd.op ?? "").StartsWith("pc-"))   // 🖱 sterowanie komputerem (mysz, pisanie, głośność, wyłącz…) - odtwarzacz nie musi być otwarty
+            {
+                try { PilotPc(cmd); } catch (Exception ex) { App.LogError(ex); }
+            }
             else if (cmd.op != "ping" && cmd.to == _lanId)   // polecenie tylko do jednego, wybranego komputera
             {
                 try { _vlcPilotCmd?.Invoke(cmd.op ?? "", cmd.v, cmd.n); } catch (Exception ex) { App.LogError(ex); }
@@ -255,7 +259,8 @@ namespace Velivo
             if (_lanTx == null || _lanEncryptionKey == null || !_pilotClients.TryGetValue(phoneId, out var c)) return;
             object st = null;
             try { st = _vlcPilotState?.Invoke(); } catch (Exception) { }
-            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["st"] = st };
+            var pv = PcVolume();
+            var payload = new Dictionary<string, object> { ["to"] = phoneId, ["st"] = st, ["pcv"] = pv.Vol, ["pcm"] = pv.Mute };   // 🔊 głośność główna komputera dla zakładki Komputer
             var pkt = new LanStatePacket { t = "pilot-st", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
             try
             {

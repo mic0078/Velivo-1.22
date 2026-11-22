@@ -529,4 +529,28 @@
     <string name="pilot_sleep_end">Po końcu filmu</string>
     <string name="pilot_cancel">Anuluj</string>
     <string name="pilot_screen_off_short">Bez ekranu</string>
+    <string name="pc_title">Sterowanie komputerem</string>
+    <string name="pc_title_sub">mysz, pisanie, głośność, wyłączanie</string>
+    <string name="pc_mouse">Mysz</string>
+    <string name="pc_kb">Klawiatura</string>
+    <string name="pc_pc">Komputer</string>
+    <string name="pc_pad_hint">Przesuwaj palcem jak po touchpadzie\n\nstuknięcie = klik · dwa palce = przewijanie\nprzytrzymanie = prawy klik</string>
+    <string name="pc_pad_small">mały touchpad – mysz pod ręką</string>
+    <string name="pc_left">Lewy</string>
+    <string name="pc_scroll">Przewiń</string>
+    <string name="pc_right">Prawy</string>
+    <string name="pc_type_hint">Napisz na komputerze…</string>
+    <string name="pc_send">Wyślij</string>
+    <string name="pc_type_help">Tekst trafia do okna, które jest aktywne na komputerze</string>
+    <string name="pc_vol">Głośność komputera</string>
+    <string name="pc_vol_unknown">Głośność komputera – nieznana</string>
+    <string name="pc_screen_off">Wyłącz ekran</string>
+    <string name="pc_lock">Zablokuj</string>
+    <string name="pc_logoff">Wyloguj</string>
+    <string name="pc_restart">Uruchom ponownie</string>
+    <string name="pc_shutdown">Wyłącz</string>
+    <string name="pc_confirm">%1$s – %2$s?</string>
+    <string name="pc_confirm_msg">Otwarte programy zostaną zamknięte.</string>
+    <string name="pc_st_mouse">sterowanie myszą</string>
+    <string name="pc_st_kb">pisanie</string>
 </resources>

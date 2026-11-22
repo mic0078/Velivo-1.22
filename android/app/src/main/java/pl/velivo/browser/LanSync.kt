@@ -733,6 +733,7 @@ class LanSync(
     // 🎮 Velivo Pilot (Pilot.kt ↔ Pilot.cs na Windows): polecenie albo „ping” zaszyfrowane kluczem z parowania,
     // komputer odpowiada stanem odtwarzacza („pilot-st”) na adres telefonu
     @Volatile var onPilot: ((pc: String, device: String, st: JSONObject?, from: InetAddress?) -> Unit)? = null
+    @Volatile var onPilotPc: ((pc: String, vol: Int, mute: Boolean) -> Unit)? = null   // 🖱 sterowanie komputerem: głośność główna
     @Volatile var onPilotList: ((pc: String, list: JSONObject) -> Unit)? = null   // 📺🎬 lista kanałów / filmów z komputera
     val hasKey get() = encKey != null
 
@@ -772,6 +773,7 @@ class LanSync(
         val o = openBlob(p) ?: return
         if (o.optString("to") != id) return
         onPilot?.invoke(p.optString("id"), p.optString("device").filter { !it.isISOControl() }.take(64), o.optJSONObject("st"), sender)
+        if (o.has("pcv")) onPilotPc?.invoke(p.optString("id"), o.optInt("pcv", -1), o.optBoolean("pcm"))   // 🔊 głośność główna komputera
     }
 
     val computer get() = pcAddress

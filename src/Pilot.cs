@@ -34,7 +34,7 @@ namespace Velivo
             }
             else if (cmd.to == _lanId && (cmd.op ?? "").StartsWith("pc-"))   // 🖱 sterowanie komputerem (mysz, pisanie, głośność, wyłącz…) - odtwarzacz nie musi być otwarty
             {
-                try { PilotPc(cmd); } catch (Exception ex) { App.LogError(ex); }
+                try { PilotPc(cmd, pkt.id); } catch (Exception ex) { App.LogError(ex); }
             }
             else if (cmd.op != "ping" && cmd.to == _lanId)   // polecenie tylko do jednego, wybranego komputera
             {

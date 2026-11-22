@@ -596,7 +596,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
         if (!reachable(p)) { android.widget.Toast.makeText(act, s(R.string.pilot_unavailable, curName), android.widget.Toast.LENGTH_SHORT).show(); return }
         val a = p?.addr
         pcSender.post {
-            if (a == null || (tcpFail[c] ?: 0L) > System.currentTimeMillis() - 300_000L || lan.pilotTcp(c, a, op, v, n) == null) { if (a != null) tcpFail[c] = System.currentTimeMillis(); lan.sendPilot(c, op, v, n, a) }
+            // zawsze najpierw TCP (jedna chwilowa przerwa nie przełącza na 5 min na UDP - UDP na wspólny port gubił potem mysz i pisanie); UDP tylko zapasowo dla tego jednego polecenia
+            if (a == null || lan.pilotTcp(c, a, op, v, n) == null) lan.sendPilot(c, op, v, n, a)
         }
     }
     private fun pcMove(dx: Float, dy: Float) {

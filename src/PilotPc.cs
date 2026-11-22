@@ -56,7 +56,16 @@ namespace Velivo
             catch (Exception) { return (-1, false); }
         }
 
-        static void PcIn(PcInput i) => PcSendInput(1, new[] { i }, Marshal.SizeOf<PcInput>());
+        // Windows nie wpuszcza ruchów do okna uruchomionego jako administrator (UIPI) - wtedy SendInput zwraca 0; telefon dostaje powód
+        static Action<string> _pcBlocked; static DateTime _pcBlockedAt;
+        static void PcIn(PcInput i)
+        {
+            if (PcSendInput(1, new[] { i }, Marshal.SizeOf<PcInput>()) != 0 || DateTime.UtcNow - _pcBlockedAt < TimeSpan.FromSeconds(10)) return;
+            _pcBlockedAt = DateTime.UtcNow;
+            var t = new System.Text.StringBuilder(200); try { GetWindowText(GetForegroundWindow(), t, 200); } catch (Exception) { }
+            App.LogInfo("Pilot: Windows zablokował mysz/klawiaturę z telefonu, okno na wierzchu: " + t);
+            _pcBlocked?.Invoke(t.ToString());
+        }
         static void PcMouseEv(uint flags, int dx = 0, int dy = 0, int data = 0) => PcIn(new PcInput { type = 0, u = new PcUnion { m = new PcMouse { dx = dx, dy = dy, flags = flags, data = unchecked((uint)data) } } });
         static void PcKeyEv(ushort vk, bool up, ushort scan = 0, bool unicode = false)
         {
@@ -78,8 +87,10 @@ namespace Velivo
         }
 
         // polecenie z telefonu: op = "pc-…"; v - tekst / nazwa, n - liczba
-        void PilotPc(LanPilotCmd cmd)
+        void PilotPc(LanPilotCmd cmd, string phoneId)
         {
+            _pcBlocked = w => Dispatcher.BeginInvoke(new Action(() => PilotSend(phoneId, new Dictionary<string, object> { ["kind"] = "info", ["title"] = "🖱 " + _lanDeviceName,
+                ["text"] = L.T("Windows blokuje sterowanie z telefonu, bo okno na wierzchu działa jako administrator: ") + w + L.T(". Przełącz na inne okno (Alt+Tab) albo zamknij to okno.") })));
             string v = cmd.v ?? ""; double n = cmd.n;
             switch (cmd.op)
             {
@@ -129,16 +140,19 @@ namespace Velivo
                         if (to > 0) c.SetMute(false, ref g);
                     });
                     break;
-                case "pc-run":   // ⭐ ulubiona aplikacja - tylko skrót z menu Start (telefon nie może uruchomić dowolnego pliku)
-                    var app = PcApps().FirstOrDefault(x => string.Equals(x.Path, v, StringComparison.OrdinalIgnoreCase));
-                    if (app.Path != null)
+                case "pc-run":   // ⭐ ulubiona aplikacja - tylko z listy menu Start (telefon nie może uruchomić dowolnego pliku); w tle - okno Velivo i odbiór poleceń się nie zatrzymują
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        var app = PcApps().FirstOrDefault(x => string.Equals(x.Path, v, StringComparison.OrdinalIgnoreCase));
+                        if (app.Path == null) return;
                         try
                         {
-                            bool file = System.IO.Path.IsPathRooted(app.Path) && File.Exists(app.Path);   // skrót / program - wprost; aplikacja ze Sklepu i inne - przez shell:AppsFolder\{id}
+                            bool file = System.IO.Path.IsPathRooted(app.Path) && File.Exists(app.Path);   // skrót / program - wprost; aplikacja ze Sklepu - przez shell:AppsFolder
                             System.Diagnostics.Process.Start(file ? new System.Diagnostics.ProcessStartInfo(app.Path) { UseShellExecute = true } : new System.Diagnostics.ProcessStartInfo("explorer.exe", "shell:AppsFolder\\" + app.Path) { UseShellExecute = true });
                             App.LogInfo("Pilot: uruchomiono z telefonu - " + app.Name);
                         }
                         catch (Exception ex) { App.LogError(ex); }
+                    });
                     break;
                 case "pc-screen": ScreenPower(v == "on"); break;
                 case "pc-lock": LockWorkStation(); break;

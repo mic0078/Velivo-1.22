@@ -295,6 +295,7 @@ namespace Velivo
         internal static void StartPhysBackground()
         {
             if (_kbdKoniec) return;
+            LoadSwipeDictionary();   // słownik od razu przy starcie z Windows - bez niego poprawianie w tle nic nie robiło, dopóki nie otwarto okna klawiatury (rolka)
             if (_physApplyS == null)
             {
                 _noFixBg = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0 && !SwipeTyping.IsMisspelling(x)));

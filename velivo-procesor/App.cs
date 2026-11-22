@@ -227,7 +227,7 @@ namespace VelivoProcesor
             // wykres i programy
             var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
             var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 120, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
-            gw.Children.Add(T("turkus – procesor · fiolet – tryb · żółty – temperatura · zielony pasek – ProBalance uspokaja programy w tle", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
+            gw.Children.Add(T("turkus – procesor · fiolet – tryb · żółty – temperatura · zielona linia – ProBalance uspokoił program w tle", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
             var gp = new StackPanel(); gp.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             gp.Children.Add(new ScrollViewer { Content = lista, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             gp.Children.Add(T("prawy przycisk: zawsze ten tryb / ucz się sam", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
@@ -300,12 +300,12 @@ namespace VelivoProcesor
         {
             wykres.Children.Clear(); double w = Math.Max(10, wykres.ActualWidth), h = wykres.Height; int n = hCpu.Length;
             Polyline L(Brush c, double th) { var pl = new Polyline { Stroke = c, StrokeThickness = th }; wykres.Children.Add(pl); return pl; }
-            // ⚖ ProBalance: zielony pasek u dołu tam, gdzie uspokajał programy w tle (wyższy = więcej programów)
-            for (int i = 0; i < n; i++)
+            // ⚖ ProBalance: pionowa linia w chwili, gdy uspokoił program w tle (jak Process Lasso)
+            for (int i = 1; i < n; i++)
             {
-                int c = hPb[(hPos + i) % n]; if (c <= 0) continue;
-                var r = new Rectangle { Width = Math.Max(1.5, w / (n - 1)), Height = Math.Min(14, 4 + c * 3), Fill = Ok, Opacity = 0.75, ToolTip = "ProBalance: uspokojone programy w tle – " + c };
-                Canvas.SetLeft(r, w * i / (n - 1)); Canvas.SetTop(r, h - r.Height); wykres.Children.Add(r);
+                int c = hPb[(hPos + i) % n], c0 = hPb[(hPos + i - 1) % n]; if (c <= c0) continue;
+                double x = w * i / (n - 1);
+                wykres.Children.Add(new Line { X1 = x, X2 = x, Y1 = 0, Y2 = h, Stroke = Ok, StrokeThickness = 1, Opacity = 0.8, ToolTip = "ProBalance uspokoił program w tle (" + c + ")" });
             }
             var lc = L(Tq, 1.5); var lt = L(Warn, 1); var lm = L(Vi, 1.5); lt.StrokeDashArray = new DoubleCollection { 3, 2 };
             for (int i = 0; i < n; i++)

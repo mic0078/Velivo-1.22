@@ -41,7 +41,7 @@ namespace Velivo
         readonly Queue<Chunk> _q = new Queue<Chunk>(); readonly object _lk = new object();
         Thread _th; volatile bool _run, _paused; volatile int _flushReq;
         public volatile string Source = "";
-        public long LateDrops, EarlyWaits; long _diagAt, _diagEw, _diagLd;
+        public long LateDrops, EarlyWaits; long _diagAt, _diagEw, _diagLd; int _driftN; bool _started;
         public volatile int AheadFrames;
         // start dopasowany do komputera (procesor i pamięć RAM): słabszy zaczyna od większych porcji, potem pomiar przestawia na bieżąco
         double _vstLoad = Environment.ProcessorCount <= 4 || GC.GetGCMemoryInfo().TotalAvailableMemoryBytes < 8L << 30 ? 0.3 : 0;   // obciążenie wtyczek VST3 na tym komputerze (0–1+): ile czasu porcji zajmuje ich liczenie - samo dopasowuje porcje i zapas   // ile próbek czeka w karcie (przetworzone, jeszcze nie słychać)
@@ -130,7 +130,7 @@ namespace Velivo
                 {
                     if (_flushReq != flushSeen)
                     {   // przewiniecie / zmiana kanalu: karta od nowa, procesor bez starych okien (zintegrowany zostaje dla filmu)
-                        flushSeen = _flushReq; waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); Proc.Reset(); lock (_segs) { _segI = 0; _posNow = 0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
+                        flushSeen = _flushReq; _started = false; _driftN = 0; waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); Proc.Reset(); lock (_segs) { _segI = 0; _posNow = 0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
                         if (_paused) waveOutPause(_h);
                     }
                     Chunk c = null;
@@ -139,20 +139,18 @@ namespace Velivo
                     // kiedy zabrzmi pierwsza probka tego kawalka: po tym, co juz czeka w karcie, i po opoznieniu limitera (ok. 5 ms)
                     long playAt = QueuedFrames() * 1_000_000L / AbProcessor.Fs + (AbProcessor.LatencyFrames + Vst3.Latency) * 1_000_000L / AbProcessor.Fs;   // + opóźnienie wtyczek VST3 (obraz równo z dźwiękiem)
                     long gap = (c.Pts - Now) - playAt;   // > 0: VLC dal dzwiek wczesniej (zwykle) - cisza do jego chwili; < 0: spozniony
-                    // 🔧 zepsute znaczniki czasu (AVI OpenDML: pierwszy kawałek „-1277 s”) dawały 2 s ciszy w karcie na stałe - potem każdy kawałek był
-                    // na zmianę „za wcześnie” (cisza) i „za późno” (ucięty początek): głos jak robot (vlc.log 2026-11-22: kolejka w karcie 2000 ms).
-                    // Teraz: niemożliwa różnica (ponad 3 s) = bez czekania i ucinania; cisza najwyżej 0,25 s; spóźnienie przy przepełnionej karcie = karta od nowa.
+                    // 🔧 głos „jak robot” (vlc.log 2026-11-22): co kilka sekund różnica > 40 ms wstawiała ciszę w środek dźwięku albo ucinała początek kawałka -
+                    // każda taka poprawka to słyszalna dziura. Teraz poprawka tylko przy prawdziwym rozjechaniu (ponad 150 ms przez 3 kawałki z rzędu),
+                    // niemożliwa różnica (zepsute znaczniki czasu AVI, „-1277 s”) jest pomijana, a cisza najwyżej 0,25 s.
                     if (gap > 3_000_000 || gap < -3_000_000) gap = 0;
-                    if (gap < -80000 && QueuedFrames() > AbProcessor.Fs / 2)
-                    {   // w karcie ponad 0,5 s, a dźwięk i tak spóźniony - zapas jest zbędny: karta od nowa (jedno krótkie przerwanie zamiast ciągłego ucinania)
-                        waveOutReset(_h); _written = 0; _lastPos = 0; _posWraps = 0; QueuedFrames(); lock (_segs) { _segI = 0; _posNow = 0; _posAt = System.Diagnostics.Stopwatch.GetTimestamp(); }
-                        if (_paused) waveOutPause(_h);
-                        gap = (c.Pts - Now) - (AbProcessor.LatencyFrames + Vst3.Latency) * 1_000_000L / AbProcessor.Fs;
-                    }
-                    if (gap > 40000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(AbProcessor.Fs / 4, gap * AbProcessor.Fs / 1_000_000L), ref pcm); }
+                    _driftN = gap > 150000 || gap < -150000 ? _driftN + 1 : 0;
+                    if (_driftN < 3 && _started) gap = 0;
+                    long cap = _started ? AbProcessor.Fs / 4 : AbProcessor.Fs * 2L;   // start / po przewinięciu - pełne wyrównanie do obrazu, potem małe poprawki
+                    _started = true;
+                    if (gap > 40000) { Interlocked.Increment(ref EarlyWaits); WriteFrames(null, (int)Math.Min(cap, gap * AbProcessor.Fs / 1_000_000L), ref pcm); _driftN = 0; }
                     else if (gap < -80000)
                     {   // spozniony o ponad 60 ms - pomijamy poczatek kawalka (obraz jest wazniejszy)
-                        int skip = (int)Math.Min(c.Frames, -gap * AbProcessor.Fs / 1_000_000L); Interlocked.Increment(ref LateDrops);
+                        _driftN = 0; int skip = (int)Math.Min(c.Frames, -gap * AbProcessor.Fs / 1_000_000L); Interlocked.Increment(ref LateDrops);
                         if (skip >= c.Frames) continue;
                         var rest = new float[(c.Frames - skip) * 2]; Array.Copy(c.Data, skip * 2, rest, 0, rest.Length); c.Data = rest; c.Frames -= skip;
                     }

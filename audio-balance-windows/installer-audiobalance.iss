@@ -58,11 +58,14 @@ pl.WhyRun=Powód: instalator VB-Cable nie uruchomił się (odmowa w oknie Kontro
 en.WhyRun=Reason: the VB-Cable installer did not start (refused in the User Account Control window?).
 pl.WhySetup=Powód: instalator VB-Cable zakończył się kodem
 en.WhySetup=Reason: the VB-Cable installer ended with code
+pl.Auto=Uruchamiaj razem z Windows (w zasobniku)
+en.Auto=Start with Windows (in the tray)
 en.RunApp=Launch Velivo Audio Balance for Windows
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"
 Name: "vbcable"; Description: "{cm:Cable}"; GroupDescription: "{cm:CableGroup}"; Check: not CableInstalled
+Name: "autostart"; Description: "{cm:Auto}"
 
 #ifdef WspolnyNet
 [InstallDelete]
@@ -82,6 +85,8 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\VelivoAudioBalance.exe"; AppU
 
 [Run]
 Filename: "{app}\VelivoAudioBalance.exe"; Description: "{cm:RunApp}"; Flags: nowait postinstall skipifsilent
+; instalacja cicha (pakiet Velivo): start od razu w zasobniku - dźwięk Windows od razu przez Audio Balance
+Filename: "{app}\VelivoAudioBalance.exe"; Parameters: "--zasobnik"; Flags: nowait; Tasks: autostart; Check: WizardSilent
 
 [UninstallRun]
 ; najpierw Windows wraca do Twoich głośników (gdy CABLE Input był domyślny - bez programu nie byłoby dźwięku)
@@ -99,6 +104,7 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoAudioBalance"; ValueType: st
 Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoAudioBalance"; ValueType: string; ValueName: "Wersja"; ValueData: "{#AppVer}"
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; wpis startu z Windows tworzy sam program (pole w oknie) - przy odinstalowaniu usuwany
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VelivoAudioBalance"; ValueData: """{app}\VelivoAudioBalance.exe"" --zasobnik"; Tasks: autostart; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoAudioBalance"; Flags: uninsdeletevalue
 
 #ifdef WspolnyNet

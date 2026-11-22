@@ -17,7 +17,10 @@ namespace Velivo
         static readonly string SetFile = Path.Combine(App.DataDir, "ustawienia.json");
         Dictionary<string, string> set = new Dictionary<string, string>();
         internal AbEngine Eng => eng;
-        internal string Get(string k) => set.TryGetValue(k, out var v) ? v : null;
+        // 🎚 ustawienia na start (właściciel 2026-11-22, zrzut okna): cały dźwięk Windows przez Audio Balance; korektor płaski (bez zmian);
+        // reszta (Auto, Normalnie, dialogi wył., 0,2 s, cel Auto, kompresor „Film / kino”) to dotychczasowe wartości domyślne
+        static readonly Dictionary<string, string> Domyslne = new Dictionary<string, string> { ["kieruj"] = "1" };
+        internal string Get(string k) => set.TryGetValue(k, out var v) ? v : Domyslne.TryGetValue(k, out var d) ? d : null;
         internal void Put(string k, string v) { set[k] = v; try { Directory.CreateDirectory(App.DataDir); File.WriteAllText(SetFile, JsonSerializer.Serialize(set)); } catch (Exception ex) { App.LogError(ex); } }
 
         readonly AbEngine eng = new AbEngine();

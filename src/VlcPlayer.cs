@@ -652,8 +652,10 @@ namespace Velivo
         // plik AVI po zawartosci (bywa z inna koncowka, np. .ts)
         internal static bool IsAviFile(string path)
         {
-            try { using (var f = File.OpenRead(path)) { var b = new byte[12]; return f.Read(b, 0, 12) == 12 && System.Text.Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && System.Text.Encoding.ASCII.GetString(b, 8, 4) == "AVI "; } }
-            catch (Exception) { return false; }
+            // plik otwarty przez inny program / inne konto (Jellyfin, Velivo na drugim koncie) - czytanie z pełnym współdzieleniem; nie dało się zajrzeć - decyduje rozszerzenie
+            // (2026-11-22: na koncie Testowe nieudane zajrzenie = czytnik AVI VLC zamiast FFmpeg - AC3 porwany na kawałki, głos jak robot)
+            try { using (var f = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) { var b = new byte[12]; return f.Read(b, 0, 12) == 12 && System.Text.Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && System.Text.Encoding.ASCII.GetString(b, 8, 4) == "AVI "; } }
+            catch (Exception) { return path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".divx", StringComparison.OrdinalIgnoreCase); }
         }
 
         // otwarte menu (kontekstowe, z paska) - klik w obraz, ktory je zamyka, nie moze zatrzymac filmu ani TV
@@ -1306,7 +1308,6 @@ namespace Velivo
         {
             var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
-            args.Add("--codec=avcodec,any");   // 🔊 dekoder FFmpeg najpierw (jak Jellyfin): AC3 5.1 przez starszy dekoder a52 przy zamianie na stereo dla Audio Balance brzmiał jak robot (film 1408, 2026-11-22; inne filmy i Jellyfin czysto)
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
             if (_libVlc != null) { var old = _libVlc; _libVlc = null; System.Threading.Tasks.Task.Run(async () => { await System.Threading.Tasks.Task.Delay(15000); try { old.Dispose(); } catch (Exception) { } }); }
@@ -3127,7 +3128,7 @@ namespace Velivo
                     if (tv != null && curRecFile == null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
                     if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
-                    if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
+                    if (tv == null && !stream && IsAviFile(path)) { media.AddOption(":demux=avformat,any"); VlcLogLine("velivo", "Info", "AVI - czytnik FFmpeg (avformat)"); }
                     _aoutFailed = false;
                     // poprzedni strumień zatrzymany w tle; w międzyczasie kolejny kanał albo zamknięte okno - gra tylko ostatnio wybrany
                     // zawsze przez tę samą kolejkę: wcześniejsze ⏹ (np. tuż po końcu filmu) nie zatrzyma nowego materiału

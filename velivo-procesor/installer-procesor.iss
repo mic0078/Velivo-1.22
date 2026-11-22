@@ -51,6 +51,10 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\VelivoProcesor.exe"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\VelivoProcesor.exe"
 
 [Registry]
+; spis programów Velivo - Velivo Centrum znajduje program po tym wpisie
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoProcesor"; ValueType: string; ValueName: "Exe"; ValueData: "{app}\VelivoProcesor.exe"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoProcesor"; ValueType: string; ValueName: "Nazwa"; ValueData: "{#AppName}"
+Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoProcesor"; ValueType: string; ValueName: "Wersja"; ValueData: "{#AppVer}"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VelivoProcesor"; ValueData: """{app}\VelivoProcesor.exe"" --zasobnik"; Tasks: autostart; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoProcesor"; Flags: uninsdeletevalue
 

@@ -101,7 +101,7 @@ namespace Velivo
             var m = await PobierzFilm(w, v.Path, null);
             var key = MetaKey(v.Path); var man = LoadManual(); man[key] = m;
             Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
-            Meta[key] = m;
+            Meta[key] = m; MetaObokFilmu(v.Path, true);   // 📁 też obok filmu
             return true;
         }
 

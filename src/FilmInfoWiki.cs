@@ -66,7 +66,7 @@ namespace Velivo
                     var m = await PobierzFilm(found[i], path, LookupMeta(Meta, path));
                     var key = MetaKey(path); var man = LoadManual(); man[key] = m;
                     Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
-                    Meta[key] = m; win.Close(); done?.Invoke();
+                    Meta[key] = m; MetaObokFilmu(path, true); win.Close(); done?.Invoke();   // 📁 też obok filmu
                 }
                 catch (Exception ex) { status.Text = L.T("⚠ Nie udało się pobrać: ") + ex.Message; }
             });

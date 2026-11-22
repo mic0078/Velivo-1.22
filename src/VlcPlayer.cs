@@ -1347,6 +1347,7 @@ namespace Velivo
             var lib = LoadLibrary();
             if (library && AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f) && !IsAudioFile(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
             if (_vlcWin == null) BuildVlcWindow();
+            MetaObokFilmu(_playlist[_playIndex]);   // 📁 opis i plakat do folderu filmu, z którego gra
             _vlcLoad(_playIndex);
             if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal;
             _vlcWin.Activate();

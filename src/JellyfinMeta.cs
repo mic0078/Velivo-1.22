@@ -164,7 +164,7 @@ namespace Velivo
                     catch (Exception ex) { InfoBox(win, L.T("Nie udało się skopiować plakatu: ") + ex.Message); return; }
                 var man = LoadManual(); man[key] = m;
                 Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
-                Meta[key] = m; win.Close(); done?.Invoke();
+                Meta[key] = m; MetaObokFilmu(path, true); win.Close(); done?.Invoke();   // 📁 poprawione dane też obok filmu
             });
             var del = SmallButton(L.T("↺ Przywróć dane z Jellyfin"), () =>
             {
@@ -330,7 +330,7 @@ namespace Velivo
             var ct = CleanTitle(MetaKey(path));
             var c = System.Text.RegularExpressions.Regex.Match(ct, @"^(.+) \((\d{4})\)$");   // "alien (1979)"
             var k = c.Success ? TitleYearKey(c.Groups[1].Value, int.Parse(c.Groups[2].Value)) : TitleYearKey(ct, 0);   // bez roku w nazwie - sam tytul, gdy jednoznaczny
-            return k != null && meta.TryGetValue(k, out m) && m != Ambiguous ? m : null;
+            return (k != null && meta.TryGetValue(k, out m) && m != Ambiguous ? m : null) ?? MetaZFolderu(path);   // 📁 opis i plakat z folderu filmu (przekopiowany z innego komputera)
         }
 
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
@@ -614,6 +614,7 @@ namespace Velivo
                 foreach (var m in meta.Values.Distinct().ToList()) AddTitleKeys(meta, m);
                 foreach (var kv in LoadManual()) meta[kv.Key] = kv.Value;   // reczne informacje zostaja po pobraniu z Jellyfin
                 _meta = meta;
+                MetaObokWszystkich();   // 📁 opisy i plakaty obok filmów (folder gotowy do przekopiowania)
                 c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var lib = LoadLibrary(); int matched = lib.Count(v => LookupMeta(meta, v.Path) != null);
                 // raport: filmy biblioteki bez danych i filmy Jellyfin bez pliku w bibliotece - widac, czemu sie nie lacza

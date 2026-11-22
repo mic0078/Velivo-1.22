@@ -79,11 +79,20 @@ namespace Velivo
             return l;
         }
 
+        static bool AbWinRuns() { try { var ps = System.Diagnostics.Process.GetProcessesByName("VelivoAudioBalance"); foreach (var p in ps) p.Dispose(); return ps.Length > 0; } catch (Exception) { return false; } }
         public bool Open(string device)
         {
             var f = new WaveFormat { Tag = 1, Channels = 2, Rate = AbProcessor.Fs, Bits = 16, Align = 4, BytesPerSec = AbProcessor.Fs * 4 };
             uint id = 0xFFFFFFFF;   // domyslne urzadzenie Windows
             if (!string.IsNullOrEmpty(device)) { int k = Devices().IndexOf(device); if (k >= 0) id = (uint)k; }   // wybrane - gdy go nie ma (odlaczone), domyslne
+            // 🔈 wirtualny kabel (VB-CABLE) słychać tylko przez Audio Balance for Windows - gdy ten nie działa, film nie może tam iść (cisza, 2026-11-22):
+            // wybrany kabel albo kabel jako domyślne urządzenie Windows → pierwsze prawdziwe wyjście (głośniki / słuchawki)
+            if (!AbWinRuns())
+            {
+                var all0 = Devices(); bool Cable(string n) => n.IndexOf("CABLE", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool viaCable = id != 0xFFFFFFFF ? Cable(all0[(int)id]) : Cable(MainWindow.DefaultOutName() ?? "");
+                if (viaCable) { int r = all0.FindIndex(n => !Cable(n)); if (r >= 0) { id = (uint)r; MainWindow.VlcLogLine("velivo", "Info", "Audio Balance for Windows nie działa - zamiast kabla: " + all0[r]); } }
+            }
             if (waveOutOpen(out _h, id, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0 && (id == 0xFFFFFFFF || waveOutOpen(out _h, 0xFFFFFFFF, ref f, IntPtr.Zero, IntPtr.Zero, 0) != 0)) { _h = IntPtr.Zero; return false; }
             try { var all = Devices(); MainWindow.VlcLogLine("velivo", "Info", "Audio Balance gra przez: " + (id == 0xFFFFFFFF ? "domyślne urządzenie Windows" : all[(int)id]) + " · domyślne w Windows: " + (MainWindow.DefaultOutName() ?? "?")); } catch (Exception) { }   // 🔎 diagnostyka „głos jak robot”
             _run = true; _th = new Thread(Loop) { IsBackground = true, Name = "Velivo Audio Balance", Priority = ThreadPriority.AboveNormal }; _th.Start();

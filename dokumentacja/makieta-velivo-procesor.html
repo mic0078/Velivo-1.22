@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Velivo Procesor</title>
+<style>
+:root{--bg:#0b0e14;--card:#141821;--line:#2A3240;--fg:#E8EBF0;--dim:#8A93A3;--acc:#7C3AED;--tq:#22B8D8;--ok:#4ADE80;--warn:#F5B544;--hot:#F87171}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1000px;margin:0 0 14px}
+.row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.win{width:760px;background:#11141c;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tb{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--acc),var(--tq));display:flex;align-items:center;justify-content:center;font-weight:700}
+.tb b{font-size:15px}.pill{padding:2px 9px;border-radius:9px;background:#14532D;color:var(--ok);font-size:11px}
+.bd{padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.card h3{margin:0 0 8px;font-size:13px}
+.k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;grid-column:1/3}
+.k div{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+.k small{color:var(--dim);font-size:10px;display:block}.k span{font-size:20px;font-weight:600}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;grid-column:1/3}
+.m{border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;background:var(--card)}
+.m.on{border-color:var(--tq);background:linear-gradient(135deg,#2E1A4D,#0B3C48)}
+.m i{font-style:normal;font-size:20px;display:block}.m small{color:var(--dim);display:block;font-size:11px;margin-top:2px}
+.why{grid-column:1/3;background:#0E2140;border:1px solid #1E3A66;border-radius:9px;padding:8px 12px;color:#CFE3FF}
+svg{display:block;width:100%;height:110px}
+table{width:100%;border-collapse:collapse;font-size:12px}td{padding:4px 2px;border-bottom:1px solid var(--line)}td.r{text-align:right;color:var(--dim)}
+.tray{width:230px;background:#11141c;border:1px solid var(--line);border-radius:10px;padding:6px 0}
+.tray div{padding:6px 14px}.tray div.h{color:var(--dim);font-size:11px}.tray hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.cap{color:#ECE8FF;margin-top:6px;font-weight:600}
+</style></head><body>
+<h1>Velivo Procesor (propozycja) – CPU Manager w rodzinie Velivo</h1>
+<p class="o">Jeden mały program C# (bez PowerShella, bez okien konsoli): pracuje w zasobniku, co 1 s czyta obciążenie procesora, karty graficznej, temperaturę i dysk, i sam wybiera tryb. Ustawia go wprost przez Windows (plan zasilania: max/min stan procesora, boost, EPP – bez wywoływania powercfg) i na AMD przez RyzenAdj (TDP). Ta sama hierarchia decyzji co CPU Manager v40, z opóźnieniem przełączania (bez skakania trybów). Okno w wyglądzie Velivo, kafelek w Centrum, instalator w pakiecie.</p>
+<div class="row">
+<div><div class="win">
+ <div class="tb"><div class="logo">V</div><b>Velivo Procesor</b><span class="pill">● Auto · działa</span><span style="margin-left:auto;color:var(--dim)">AMD Ryzen 7 7840HS · RyzenAdj ✓ · temperatura z LibreHardwareMonitor ✓</span></div>
+ <div class="bd">
+  <div class="k"><div><small>PROCESOR</small><span>23 %</span></div><div><small>KARTA GRAFICZNA</small><span>81 %</span></div><div><small>TEMPERATURA</small><span style="color:var(--warn)">74 °C</span></div><div><small>MOC (TDP)</small><span>15 W</span></div></div>
+  <div class="modes">
+   <div class="m"><i>🌙</i>Cichy<small>12 W · max 70 %</small></div>
+   <div class="m on"><i>⚖</i>Zrównoważony<small>15 W · max 99 %</small></div>
+   <div class="m"><i>🚀</i>Turbo<small>25 W · boost</small></div>
+   <div class="m on" style="border-color:var(--acc)"><i>🧠</i>Auto<small>sam wybiera</small></div>
+  </div>
+  <div class="why">💡 Teraz: <b>Zrównoważony</b> – gra obciąża kartę (81 %), procesor tylko 23 % → procesor nie potrzebuje więcej mocy, karta ma chłodniej i wyższy zegar. Zmiana najwcześniej za 3 s (bez skakania).</div>
+  <div class="card"><h3>📈 Ostatnie 2 minuty</h3>
+   <svg viewBox="0 0 300 110"><polyline fill="none" stroke="#22B8D8" stroke-width="1.5" points="0,80 20,75 40,82 60,40 80,35 100,60 120,78 140,80 160,70 180,30 200,28 220,65 240,79 260,77 280,74 300,76"/><polyline fill="none" stroke="#A78BFA" stroke-width="1.5" points="0,95 20,95 40,95 60,30 80,30 100,30 120,30 140,30 160,30 180,30 200,30 220,30 240,30 260,30 280,30 300,30"/><polyline fill="none" stroke="#F5B544" stroke-width="1" stroke-dasharray="3 2" points="0,60 50,58 100,45 150,40 200,38 250,39 300,40"/></svg>
+   <small style="color:var(--dim)">turkus – procesor · fiolet – tryb · żółty – temperatura</small></div>
+  <div class="card"><h3>🎮 Programy (zapamiętane)</h3>
+   <table><tr><td>Velivo Odtwarzacz</td><td class="r">Cichy</td></tr><tr><td>Cyberpunk 2077</td><td class="r">Auto (karta)</td></tr><tr><td>Visual Studio – kompilacja</td><td class="r">Turbo</td></tr><tr><td>Chrome</td><td class="r">Auto</td></tr></table>
+   <small style="color:var(--dim)">prawy przycisk: zawsze ten tryb / ucz się / usuń</small></div>
+  <div class="card" style="grid-column:1/3"><h3>⚙ Ustawienia</h3>
+   Start z Windows ✓ · Na baterii zawsze ciszej ✓ · Temperatura graniczna 90 °C → Cichy · Opóźnienie zmiany 3 s · Profile mocy AMD (W): Cichy 12/28/15 · Zrównoważony 15/28/22 · Turbo 25/35/30 <span style="color:var(--dim)">(STAPM / szybki / wolny)</span></div>
+ </div></div><div class="cap">1. Okno główne – stan, tryby, „dlaczego”, programy, ustawienia</div></div>
+
+<div><div class="tray"><div class="h">Velivo Procesor · Auto · Zrównoważony · 74 °C</div><hr><div>🧠 Auto ✓</div><div>🌙 Cichy</div><div>⚖ Zrównoważony</div><div>🚀 Turbo</div><hr><div>🪟 Otwórz okno</div><div>⏻ Przywróć ustawienia Windows i zakończ</div></div><div class="cap">2. Ikona przy zegarze (V z kolorem trybu)</div></div>
+</div>
+<p class="o" style="margin-top:16px"><b>Hierarchia Auto (jak v40):</b> 1. temperatura &gt; 90 °C → Cichy · 2. wczytywanie (dysk &gt; 80 %) → Turbo · 3. procesor &gt; 70 % → Turbo, chyba że gra obciąża kartę (procesor &lt; 50 %, karta &gt; 75 %) → Zrównoważony · 4. trzymanie Turbo (opóźnienie) · 5. znany program → jego tryb · 6. procesor &lt; 20 % → Cichy · 7. inaczej Zrównoważony. Zamknięcie programu przywraca ustawienia Windows. Bez 18 „silników AI” – jedna przejrzysta reguła z pamięcią programów (to one w praktyce decydowały).</p>
+</body></html>

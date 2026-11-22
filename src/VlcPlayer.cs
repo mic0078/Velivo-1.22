@@ -1323,7 +1323,8 @@ namespace Velivo
                 {
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
                     if (e.Message != null && VlcDriftRx.Match(e.Message) is var dm && dm.Success && long.TryParse(dm.Groups[1].Value, out var dus)) { _vlcDriftUs = dus; _vlcDriftAt = DateTime.Now; }
-                    bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
+                    bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output")
+                        || (e.Message ?? "").StartsWith("using ") && ((e.Message ?? "").Contains("demux") || (e.Message ?? "").Contains("decoder") || (e.Message ?? "").Contains("packetizer")));   // 🔎 który czytnik pliku i dekoder dźwięku wybrał VLC („głos jak robot” w AVI z AC3)
                     if (e.Message != null && e.Message.StartsWith("buffer too late") && e.Message.EndsWith("dropped")) { var nw = DateTime.Now; if ((nw - _vlcDropAt).TotalSeconds > 2) _vlcDropN = 0; _vlcDropN++; _vlcDropAt = nw; }
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
                     if (e.Message != null && (e.Message.Contains("SetThumbNailClip") || e.Message.StartsWith("unsupported control query"))) return;   // bez znaczenia dla odtwarzania (miniatura na pasku zadań, zapytanie okna) - nie zaśmieca dziennika

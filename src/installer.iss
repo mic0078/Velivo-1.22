@@ -103,6 +103,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 pl.VelivoRunning=Velivo nadal działa (prawdopodobnie uruchomione jako administrator) i instalator nie może go zamknąć. Zamknij Velivo: ikona przy zegarze → Zakończ (albo Menedżer zadań → Velivo → Zakończ zadanie), potem uruchom instalację ponownie.
 en.VelivoRunning=Velivo is still running (probably started as administrator) and the installer cannot close it. Close Velivo: tray icon → Exit (or Task Manager → Velivo → End task), then run the installation again.
 pl.DesktopIcon=Skrót na pulpicie
+pl.ObceKonto=Uruchomiono jako administrator – programy Velivo zainstalują się dla konta: %1 (nie dla konta, na którym pracujesz, jeśli wpisano hasło innego konta).%n%nKażde konto ma własne Velivo. Uruchom instalator zwykłym dwuklikiem, bez „Uruchom jako administrator”.%n%nInstalować mimo to dla konta %1?
 pl.MessengerIcon=Skrót Komunikatora Velivo na pulpicie
 pl.SofaIcon=Skrót Velivo Odtwarzacz na pulpicie
 pl.KbdIcon=Skrót Velivo Klawiatura na pulpicie
@@ -117,6 +118,7 @@ en.VideoPlayerFailed=Could not download the video player:%n%1%n%nVelivo will be 
 pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo działa bez niego. Uruchom instalator ponownie, aby spróbować jeszcze raz.
 en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
+en.ObceKonto=Started as administrator – Velivo will be installed for the account: %1 (not for the account you are working on, if another account’s password was entered).%n%nEach account has its own Velivo. Start the installer with a normal double-click, without “Run as administrator”.%n%nInstall anyway for the account %1?
 en.MessengerIcon=Velivo Messenger desktop shortcut
 en.SofaIcon=Velivo Player desktop shortcut
 en.KbdIcon=Velivo Keyboard desktop shortcut
@@ -651,9 +653,18 @@ begin
 end;
 #endif
 
+
+// 🛡 instalacja per konto: „Uruchom jako administrator” (albo hasło innego konta) instalowało Velivo na CUDZYM koncie (2026-11-22: Testowe → andro) - pytamy, domyślnie Nie
+function KontoOk: Boolean;
+begin
+  Result := True;
+  if IsAdmin and not WizardSilent then
+    Result := MsgBox(FmtMessage(CustomMessage('ObceKonto'), [GetUserNameString]), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+end;
+
 function InitializeSetup: Boolean;
 var Err: Integer;
 begin
   // .NET i WebView2 doinstalowujemy sami w PrepareToInstall (pobranie z Microsoft, bez pytan)
-  Result := True;
+  Result := KontoOk;
 end;

@@ -63,7 +63,9 @@ pl.CKom=Velivo Komunikator (sam komunikator)
 en.CKom=Velivo Messenger (messenger only)
 pl.CSrv=Velivo Serwer filmów (biblioteka dla moich komputerów)
 en.CSrv=Velivo Movie Server (library for my computers)
+pl.ObceKonto=Uruchomiono jako administrator – programy Velivo zainstalują się dla konta: %1 (nie dla konta, na którym pracujesz, jeśli wpisano hasło innego konta).%n%nKażde konto ma własne Velivo. Uruchom instalator zwykłym dwuklikiem, bez „Uruchom jako administrator”.%n%nInstalować mimo to dla konta %1?
 pl.Inst=Instaluję: %1…
+en.ObceKonto=Started as administrator – Velivo will be installed for the account: %1 (not for the account you are working on, if another account’s password was entered).%n%nEach account has its own Velivo. Start the installer with a normal double-click, without “Run as administrator”.%n%nInstall anyway for the account %1?
 en.Inst=Installing: %1…
 
 [Types]
@@ -116,6 +118,19 @@ Filename: "{tmp}\Velivo-Komunikator-Setup-{#AppVer}.exe"; Parameters: "/VERYSILE
 Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Serwer}"; Components: osobne\serwer
 
 [Code]
+
+// 🛡 instalacja per konto: „Uruchom jako administrator” (albo hasło innego konta) instalowało Velivo na CUDZYM koncie (2026-11-22: Testowe → andro) - pytamy, domyślnie Nie
+function KontoOk: Boolean;
+begin
+  Result := True;
+  if IsAdmin and not WizardSilent then
+    Result := MsgBox(FmtMessage(CustomMessage('ObceKonto'), [GetUserNameString]), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+end;
+
+function InitializeSetup: Boolean;
+begin
+  Result := KontoOk;
+end;
 function VelivoTasks(P: String): String;
 begin
   Result := 'desktopicon,komunikatoricon,kanapaicon,klawiaturaicon,firewall,videoplayer';   // odtwarzacz filmów (kodeki VLC) zawsze

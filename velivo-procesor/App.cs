@@ -72,7 +72,7 @@ namespace VelivoProcesor
 
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
-        TextBlock tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
+        TextBlock tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
         readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
@@ -102,7 +102,10 @@ namespace VelivoProcesor
                 try
                 {
                     var p = s.Zmierz(); var t = s.Decyduj(p); ost = p;
-                    if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid);
+                    if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid, s.PriorytetDla, s.BezPbDla);
+                    // 🎚 Studio: komputer i ekran nie zasną, dopóki działa program w trybie Studio (wołane z tego samego, stałego wątku)
+                    bool st = s.StudioProg != null && s.Get("tryb") != "windows";
+                    if (st != uspienieBlok) { uspienieBlok = st; SetThreadExecutionState(st ? 0x80000003u : 0x80000000u); }
                     Centrum(p);
                     hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hPb[hPos] = pb.Liczba; hPos = (hPos + 1) % hCpu.Length;
                     win.Dispatcher.BeginInvoke(new Action(Odswiez));
@@ -113,6 +116,8 @@ namespace VelivoProcesor
         }
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern ulong GetTickCount64();
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint f);
+        bool uspienieBlok;
         int petlaN; readonly ProBalance pb = new ProBalance();
         System.IO.MemoryMappedFiles.MemoryMappedFile mmf;
         // 🧩 stan dla Velivo Centrum (jak poziom Audio Balance): czas + tekst „Auto · Cichy · 54 °C”
@@ -203,7 +208,7 @@ namespace VelivoProcesor
             tStan = T("", 13, Ok); DockPanel.SetDock(tStan, Dock.Right); head.Children.Add(tStan);
             head.Children.Add(T("⚙ Velivo Procesor", 18, Fg, FontWeights.SemiBold));
             root.Children.Add(head);
-            root.Children.Add(T("  " + s.ProcesorNazwa + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : ""), 11, Dim));
+            tSub = T("", 11, Dim); root.Children.Add(tSub);
             // kafelki pomiarów
             var k = new UniformGrid4(); root.Children.Add(k.Panel);
             tCpu = k.Add("PROCESOR"); tGpu = k.Add("KARTA GRAFICZNA"); tTemp = k.Add("TEMPERATURA"); tGhz = k.Add("ZEGAR");
@@ -228,9 +233,13 @@ namespace VelivoProcesor
             var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
             var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 120, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
             gw.Children.Add(T("turkus – procesor · fiolet – tryb · żółty – temperatura · zielona linia – ProBalance uspokoił program w tle", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
-            var gp = new StackPanel(); gp.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-            gp.Children.Add(new ScrollViewer { Content = lista, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-            gp.Children.Add(T("prawy przycisk: zawsze ten tryb / ucz się sam", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
+            var gp = new StackPanel(); var gh = new DockPanel();
+            tAll = T("⤢ Wszystkie", 12, Tq); tAll.Cursor = Cursors.Hand; tAll.ToolTip = "Pełna lista programów – sortowanie i szukanie"; tAll.MouseLeftButtonUp += (a, e) => Wszystkie();
+            DockPanel.SetDock(tAll, Dock.Right); gh.Children.Add(tAll); gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
+            lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var sv = new ScrollViewer { Content = new Border { BorderBrush = Sep, BorderThickness = new Thickness(0, 1, 0, 0), Child = lista }, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            sv.MouseDoubleClick += (a, e) => Wszystkie(); gp.Children.Add(sv);
+            gp.Children.Add(T("śr. / szczyt procesora · 🎚 Studio · ⬆⬇ priorytet · ⚖̸ bez ProBalance · prawy przycisk – ustawienia", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
             root.Children.Add(g);
             // ustawienia
             var us = new StackPanel(); us.Children.Add(T("⚙ Ustawienia", 13, Fg, FontWeights.SemiBold));
@@ -242,8 +251,9 @@ namespace VelivoProcesor
             tPb = T("", 11, Dim); tPb.Margin = new Thickness(22, 0, 0, 0); us.Children.Add(tPb);
             us.Children.Add(Suwak("🌙 Najniższy zegar w trybie Cichym", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
             us.Children.Add(Suwak("🌡 Temperatura graniczna (wtedy Cichy)", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", "Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
-            if (s.Amd && s.Ryzen != null && !s.RyzenDziala)
-                us.Children.Add(Btn("🔑 Włącz sterowanie mocą AMD (jedno „Tak” administratora)", Program.ZadanieUtworz, "RyzenAdj zmienia moc procesora (W) – wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami."));
+            bAdmin = Btn(s.Amd && s.Ryzen != null ? "🔑 Włącz sterowanie mocą AMD i odczyt temperatury (jedno „Tak” administratora)" : "🔑 Włącz odczyt temperatury (jedno „Tak” administratora)", Program.ZadanieUtworz,
+                "Odczyt czujników (i moc AMD przez RyzenAdj) wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami – bez pytania przy każdym starcie.");
+            bAdmin.HorizontalAlignment = HorizontalAlignment.Left; bAdmin.Visibility = Visibility.Collapsed; us.Children.Add(bAdmin);
             tInfo = T("", 12, Warn); us.Children.Add(tInfo);
             root.Children.Add(Box(us));
             win.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -266,10 +276,14 @@ namespace VelivoProcesor
             var p = ost; string tryb = s.Get("tryb", "auto");
             tCpu.Text = p.Cpu.ToString("0") + " %"; tGpu.Text = p.Gpu >= 0 ? p.Gpu.ToString("0") + " %" : "–";
             tTemp.Text = p.Temp > 0 ? p.Temp.ToString("0") + " °C" : "–"; tTemp.Foreground = p.Temp >= s.TempLimit ? Hot : p.Temp >= s.TempLimit - 15 ? Warn : Fg;
-            tTemp.ToolTip = p.Temp > 0 ? null : "Temperatura nieznana – na Intelu uruchom LibreHardwareMonitor (odczyt przez WMI); na AMD włącz sterowanie mocą";
+            tTemp.ToolTip = p.Temp > 0 ? "Źródło: " + s.TempZrodlo : "Temperatura nieznana – w Ustawieniach „🔑 Włącz odczyt temperatury” (czujniki wymagają uprawnień administratora) albo uruchom LibreHardwareMonitor";
             tGhz.Text = p.Ghz > 0 ? p.Ghz.ToString("0.00") + " GHz" : "–";
-            tStan.Text = tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (p.Bateria ? " · bateria" : "");
-            tWhy.Text = "💡 " + s.Dlaczego + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
+            bool studio = s.StudioProg != null && tryb != "windows";
+            tStan.Text = tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
+            tWhy.Text = "💡 " + s.Dlaczego + (studio ? " 🎚 Studio (" + s.StudioProg + "): wszystkie rdzenie czuwają, zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
+            tSub.Text = "  " + s.ProcesorNazwa + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
+                + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak");
+            bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;
             var keys = new[] { "auto", "cichy", "zrownowazony", "turbo", "windows" };
             for (int i = 0; i < 5; i++)
             {
@@ -280,20 +294,140 @@ namespace VelivoProcesor
             if (tray != null) tray.Text = ("Velivo Procesor · " + (tryb == "windows" ? "Windows" : Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %");
             if (!win.IsVisible) return;   // schowane okno nie rysuje (bez pracy w tle)
             RysujWykres();
-            var pr = s.ProgramyOpis(); var sig = string.Join("|", pr.Select(x => x.Prog + x.Opis));
-            if (sig != listaSig)
+            var pr = s.ProgramyDane().OrderByDescending(x => x.Zawsze || x.StudioOn || x.Prio != 0).ThenByDescending(x => x.N).ToList();
+            tAll.Text = "⤢ Wszystkie (" + pr.Count + ")";
+            var sig = string.Join("|", pr.Take(30).Select(x => x.Prog + x.TrybOpis + x.Sr.ToString("0") + x.Szczyt.ToString("0") + x.Prio + x.StudioOn + x.BezPbOn));
+            if (sig != listaSig && !menuOtwarte)
             {
                 listaSig = sig; lista.Children.Clear();
                 if (pr.Count == 0) lista.Children.Add(T("Program uczy się – po kilku minutach pracy pojawią się tu Twoje programy.", 12, Dim));
-                foreach (var (prog, opis) in pr)
-                {
-                    var d = new DockPanel { Margin = new Thickness(0, 2, 0, 2), Background = Brushes.Transparent }; var o = T(opis, 12, Dim); DockPanel.SetDock(o, Dock.Right); d.Children.Add(o); d.Children.Add(T(prog, 12));
-                    var cm = new ContextMenu();
-                    foreach (Tryb t in Enum.GetValues(typeof(Tryb))) { var tt = t; var mi = new MenuItem { Header = "Zawsze: " + Silnik.Nazwa(t) }; mi.Click += (a, e) => { s.Reczne[prog] = tt; s.ZapiszNauke(); listaSig = ""; Odswiez(); }; cm.Items.Add(mi); }
-                    var ml = new MenuItem { Header = "Ucz się sam" }; ml.Click += (a, e) => { s.Reczne.Remove(prog); s.ZapiszNauke(); listaSig = ""; Odswiez(); }; cm.Items.Add(ml);
-                    d.ContextMenu = cm; lista.Children.Add(d);
-                }
+                foreach (var x in pr.Take(30)) lista.Children.Add(Wiersz(x));
             }
+            if (wszWin != null && wszWin.IsVisible && !wszWin.IsMouseOver && !menuOtwarte && petlaN % 5 == 0) WszystkieOdswiez();
+        }
+
+        // ---------- programy: wiersz listy, menu, pełna lista ----------
+        static readonly Brush Sep = B(0x22, 0x2A, 0x36), Hov = B(0x1E, 0x25, 0x32), Sel = B(0x2A, 0x1F, 0x44);
+        string wybrany; bool menuOtwarte;   // program z otwartym menu (podświetlony); lista nie przebudowuje się pod otwartym menu
+        UIElement Wiersz(Silnik.ProgInfo x)
+        {
+            var d = new DockPanel { Background = x.Prog == wybrany ? Sel : Brushes.Transparent, LastChildFill = true };
+            var pas = new Border { Width = 3, Background = x.Prog == wybrany ? Vi : Brushes.Transparent }; DockPanel.SetDock(pas, Dock.Left); d.Children.Add(pas);
+            var opis = x.Zawsze ? x.TrybOpis.Replace(" (zawsze)", "") + " · zawsze" : x.TrybOpis + (x.N > 0 ? " · " + x.Sr.ToString("0") + " % / " + x.Szczyt.ToString("0") + " %" : "");
+            var o = new TextBlock { Text = opis, FontSize = 12, Foreground = Dim, Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(o, Dock.Right); d.Children.Add(o);
+            var nz = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0) };
+            nz.Children.Add(new TextBlock { Text = x.Prog, FontSize = 12, Foreground = Fg, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 170, VerticalAlignment = VerticalAlignment.Center });
+            void Ik(string t, string tip) => nz.Children.Add(new TextBlock { Text = t, FontSize = 12, Foreground = Fg, Margin = new Thickness(5, 0, 0, 0), ToolTip = tip, VerticalAlignment = VerticalAlignment.Center });
+            if (x.StudioOn) Ik("🎚", "Tryb Studio – muzyka i nagrywanie bez trzasków");
+            if (x.Prio > 0) Ik("⬆", "Priorytet Wysoki"); else if (x.Prio < 0) Ik("⬇", "Priorytet Niski");
+            if (x.BezPbOn) Ik("⚖̸", "ProBalance nie uspokaja tego programu");
+            d.Children.Add(nz);
+            var b = new Border { Child = d, BorderBrush = Sep, BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 4, 0, 4), CornerRadius = new CornerRadius(4) };
+            b.MouseEnter += (a, e) => { if (x.Prog != wybrany) d.Background = Hov; };
+            b.MouseLeave += (a, e) => { if (x.Prog != wybrany) d.Background = Brushes.Transparent; };
+            b.ContextMenu = MenuProgramu(x.Prog);
+            b.ContextMenuOpening += (a, e) => { wybrany = x.Prog; d.Background = Sel; pas.Background = Vi; };   // podświetlony, póki menu otwarte
+            return b;
+        }
+
+        ContextMenu MenuProgramu(string prog)
+        {
+            var cm = new ContextMenu();
+            cm.Opened += (a, e) => menuOtwarte = true;
+            cm.Closed += (a, e) => { menuOtwarte = false; wybrany = null; listaSig = ""; Odswiez(); };
+            void Zmien(Action a) { a(); s.ZapiszNauke(); listaSig = ""; Odswiez(); WszystkieOdswiez(); }
+            cm.Items.Add(new MenuItem { Header = prog, IsEnabled = false });
+            cm.Items.Add(new Separator());
+            bool z = s.Reczne.TryGetValue(prog, out var rt);
+            var mt = new MenuItem { Header = "Tryb" };
+            foreach (Tryb t in Enum.GetValues(typeof(Tryb))) { var tt = t; var mi = new MenuItem { Header = "Zawsze: " + Silnik.Nazwa(t), IsChecked = z && rt == t }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne[prog] = tt; }); mt.Items.Add(mi); }
+            var ml = new MenuItem { Header = "Ucz się sam", IsChecked = !z }; ml.Click += (a, e) => Zmien(() => { lock (s.Studio) { s.Reczne.Remove(prog); s.Studio.Remove(prog); } }); mt.Items.Add(ml);
+            cm.Items.Add(mt);
+            int pr; lock (s.Studio) pr = s.Priorytet.TryGetValue(prog, out var q) ? q : 0;
+            var mp = new MenuItem { Header = "Priorytet" };
+            foreach (var (v, n) in new[] { (1, "⬆ Wysoki"), (0, "Normalny (bez zmian)"), (-1, "⬇ Niski") })
+            { var mi = new MenuItem { Header = n, IsChecked = pr == v }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (v == 0) s.Priorytet.Remove(prog); else s.Priorytet[prog] = v; } }); mp.Items.Add(mi); }
+            cm.Items.Add(mp);
+            cm.Items.Add(new Separator());
+            bool st; lock (s.Studio) st = s.Studio.Contains(prog);
+            var ms = new MenuItem { Header = "🎚 Tryb Studio (muzyka, nagrywanie, bez trzasków)", IsChecked = st, ToolTip = "Gdy program działa: Turbo, wszystkie rdzenie czuwają, zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." };
+            ms.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (st) s.Studio.Remove(prog); else { s.Studio.Add(prog); s.Reczne[prog] = Tryb.Turbo; } } });   // Studio bez Turbo nie ma sensu
+            cm.Items.Add(ms);
+            bool bp = s.BezPbDla(prog);
+            var mb = new MenuItem { Header = "⚖ Nie uspokajaj w ProBalance", IsChecked = bp }; mb.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (bp) s.BezPb.Remove(prog); else s.BezPb.Add(prog); } });
+            cm.Items.Add(mb);
+            cm.Items.Add(new Separator());
+            var mz = new MenuItem { Header = "🗑 Zapomnij program", ToolTip = "Usuwa to, czego program się nauczył, i wszystkie ustawienia tego programu" };
+            mz.Click += (a, e) => { s.Zapomnij(prog); listaSig = ""; Odswiez(); WszystkieOdswiez(); };
+            cm.Items.Add(mz);
+            return cm;
+        }
+
+        // ⤢ pełna lista programów: kolumny z sortowaniem (klik w nagłówek, zapamiętane), szukanie, poszerzanie kolumn, to samo menu
+        Window wszWin; ListView wszLv; TextBox wszSzukaj;
+        void Wszystkie()
+        {
+            if (wszWin != null) { wszWin.Show(); wszWin.Activate(); WszystkieOdswiez(); return; }
+            wszWin = new Window { Title = "Velivo Procesor – programy", Width = 900, Height = 560, Background = Bg, Owner = win, WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = win.Icon };
+            wszWin.Closing += (a, e) => { e.Cancel = true; wszWin.Hide(); };
+            var root = new DockPanel { Margin = new Thickness(10) };
+            var top = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+            var h = T("klik w nagłówek – sortowanie · prawy przycisk – ustawienia programu", 11, Dim); h.VerticalAlignment = VerticalAlignment.Center; DockPanel.SetDock(h, Dock.Right); top.Children.Add(h);
+            wszSzukaj = new TextBox { Width = 260, Background = Card, Foreground = Fg, BorderBrush = Line, CaretBrush = Fg, Padding = new Thickness(6, 3, 6, 3), ToolTip = "🔍 Szukaj programu" };
+            wszSzukaj.TextChanged += (a, e) => WszystkieOdswiez(); top.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { T("🔍 ", 13, Fg), wszSzukaj } });
+            DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
+            var gv = new GridView { ColumnHeaderContainerStyle = NaglowekStyl() };
+            foreach (var (n, prop, sort, wid) in new[] { ("Program", "Prog", "Prog", 200.0), ("Tryb", "TrybOpis", "TrybOpis", 160), ("Średnio", "SrT", "Sr", 70), ("Szczyt", "SzczytT", "Szczyt", 70), ("Karta", "KartaT", "Karta", 60), ("Czas pracy", "CzasT", "N", 85), ("Priorytet", "PrioT", "Prio", 85), ("Studio", "StudioT", "StudioOn", 65), ("ProBalance", "PbT", "BezPbOn", 85) })
+            {
+                var hd = new GridViewColumnHeader { Content = n, Tag = sort }; hd.Click += (a, e) => Sortuj((string)hd.Tag);
+                gv.Columns.Add(new GridViewColumn { Header = hd, DisplayMemberBinding = new System.Windows.Data.Binding(prop), Width = wid });
+            }
+            wszLv = new ListView { View = gv, Background = Card, Foreground = Fg, BorderBrush = Line, ItemContainerStyle = WierszStyl() };
+            wszLv.PreviewMouseRightButtonDown += (a, e) =>
+            {
+                var it = ItemsControl.ContainerFromElement(wszLv, e.OriginalSource as DependencyObject) as ListViewItem;
+                if (it?.DataContext is Silnik.ProgInfo x) { it.IsSelected = true; wszLv.ContextMenu = MenuProgramu(x.Prog); } else wszLv.ContextMenu = null;
+            };
+            root.Children.Add(wszLv);
+            wszWin.Content = root; WszystkieOdswiez(); wszWin.Show();
+        }
+        void Sortuj(string kol)
+        {
+            var (k, malej) = SortTeraz(); malej = k == kol ? !malej : kol != "Prog" && kol != "TrybOpis";   // liczby od największej, nazwy od A
+            s.Put("lista-sort", kol + (malej ? ":d" : ":a")); WszystkieOdswiez();
+        }
+        (string, bool) SortTeraz() { var a = (s.Get("lista-sort") ?? "N:d").Split(':'); return (a[0], a.Length > 1 && a[1] == "d"); }
+        void WszystkieOdswiez()
+        {
+            if (wszLv == null) return;
+            var q = wszSzukaj.Text.Trim(); var (k, malej) = SortTeraz();
+            var dane = s.ProgramyDane().Where(x => q.Length == 0 || x.Prog.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
+            var pi = typeof(Silnik.ProgInfo).GetProperty(k) ?? typeof(Silnik.ProgInfo).GetProperty("N");
+            dane = malej ? dane.OrderByDescending(x => pi.GetValue(x)) : dane.OrderBy(x => pi.GetValue(x));
+            string zazn = (wszLv.SelectedItem as Silnik.ProgInfo)?.Prog;
+            var l = dane.ToList(); wszLv.ItemsSource = l; wszLv.SelectedItem = l.FirstOrDefault(x => x.Prog == zazn);
+            wszWin.Title = "Velivo Procesor – programy (" + l.Count + ")";
+            foreach (var c in ((GridView)wszLv.View).Columns) { var hd = (GridViewColumnHeader)c.Header; var n = ((string)hd.Content).TrimEnd(' ', '▲', '▼'); hd.Content = n + ((string)hd.Tag == k ? (malej ? " ▼" : " ▲") : ""); }
+        }
+        // wiersz tabeli: własny wygląd (zwykły Windows - jasnoniebieskie zaznaczenie z białym tekstem), zaznaczony fioletem, pod myszą jaśniej, cienka linia
+        static Style WierszStyl()
+        {
+            var t = new ControlTemplate(typeof(ListViewItem)); var bd = new FrameworkElementFactory(typeof(Border), "bd");
+            bd.SetValue(Border.BorderBrushProperty, Sep); bd.SetValue(Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1)); bd.SetValue(Border.PaddingProperty, new Thickness(0, 4, 0, 4)); bd.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            bd.AppendChild(new FrameworkElementFactory(typeof(GridViewRowPresenter))); t.VisualTree = bd;
+            var hov = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; hov.Setters.Add(new Setter(Border.BackgroundProperty, Hov, "bd")); t.Triggers.Add(hov);
+            var sel = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true }; sel.Setters.Add(new Setter(Border.BackgroundProperty, Sel, "bd")); t.Triggers.Add(sel);
+            var st = new Style(typeof(ListViewItem)); st.Setters.Add(new Setter(Control.TemplateProperty, t)); st.Setters.Add(new Setter(Control.ForegroundProperty, Fg)); return st;
+        }
+        // nagłówek kolumny: ciemny, z uchwytem PART_HeaderGripper (bez niego kolumn nie da się poszerzać)
+        static Style NaglowekStyl()
+        {
+            var t = new ControlTemplate(typeof(GridViewColumnHeader)); var g = new FrameworkElementFactory(typeof(Grid));
+            var bd = new FrameworkElementFactory(typeof(Border)); bd.SetValue(Border.BackgroundProperty, Bg); bd.SetValue(Border.BorderBrushProperty, Line); bd.SetValue(Border.BorderThicknessProperty, new Thickness(0, 0, 1, 1)); bd.SetValue(Border.PaddingProperty, new Thickness(8, 5, 8, 5));
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter)); bd.AppendChild(cp); g.AppendChild(bd);
+            var th = new FrameworkElementFactory(typeof(System.Windows.Controls.Primitives.Thumb), "PART_HeaderGripper"); th.SetValue(FrameworkElement.WidthProperty, 6.0); th.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right);
+            th.SetValue(FrameworkElement.CursorProperty, Cursors.SizeWE); th.SetValue(UIElement.OpacityProperty, 0.0); g.AppendChild(th); t.VisualTree = g;
+            var st = new Style(typeof(GridViewColumnHeader)); st.Setters.Add(new Setter(Control.TemplateProperty, t)); st.Setters.Add(new Setter(Control.ForegroundProperty, Dim)); st.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left)); st.Setters.Add(new Setter(FrameworkElement.CursorProperty, Cursors.Hand)); return st;
         }
 
         void RysujWykres()

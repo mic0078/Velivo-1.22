@@ -66,29 +66,32 @@ namespace VelivoProcesor
         [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhGetFormattedCounterArray(IntPtr c, uint fmt, ref int size, out int count, IntPtr buf);
         [StructLayout(LayoutKind.Sequential)] struct PdhValue { public uint Status; public uint Pad; public double Value; }
 
-        long lIdle, lKer, lUsr; IntPtr pdhQ, cPerf, cDysk, cGpu; int tempTick; double tempOst = -1;
+        long lIdle, lKer, lUsr; IntPtr pdhQ, cPerf, cDysk, cGpu, cTz; double tzMnoznik = 1; int tempTick; double tempOst = -1;
 
         void InitPdh()
         {
             if (PdhOpenQuery(null, IntPtr.Zero, out pdhQ) != 0) { pdhQ = IntPtr.Zero; return; }
             PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\% Processor Performance", IntPtr.Zero, out cPerf);
             PdhAddEnglishCounter(pdhQ, @"\PhysicalDisk(_Total)\% Idle Time", IntPtr.Zero, out cDysk);
-            if (PdhAddEnglishCounter(pdhQ, @"\GPU Engine(*engtype_3D)\Utilization Percentage", IntPtr.Zero, out cGpu) != 0) cGpu = IntPtr.Zero;   // karta: suma silników 3D wszystkich programów
+            if (PdhAddEnglishCounter(pdhQ, @"\GPU Engine(*engtype_3D)\Utilization Percentage", IntPtr.Zero, out cGpu) != 0) cGpu = IntPtr.Zero;
+            if (PdhAddEnglishCounter(pdhQ, @"\Thermal Zone Information(*)\High Precision Temperature", IntPtr.Zero, out cTz) != 0) { tzMnoznik = 10; if (PdhAddEnglishCounter(pdhQ, @"\Thermal Zone Information(*)\Temperature", IntPtr.Zero, out cTz) != 0) cTz = IntPtr.Zero; }   // strefy ACPI (dziesiąte części K) - bez uprawnień   // karta: suma silników 3D wszystkich programów
             PdhCollectQueryData(pdhQ);
         }
         double Licznik(IntPtr c) => c != IntPtr.Zero && PdhGetFormattedCounterValue(c, 0x200, IntPtr.Zero, out var v) == 0 ? v.Value : -1;
-        double Gpu()
+        double Gpu() => Tablica(cGpu, true);
+        // licznik z wieloma wystąpieniami: suma (karta - silniki 3D) albo największa wartość (strefy temperatury)
+        double Tablica(IntPtr c, bool suma)
         {
-            if (cGpu == IntPtr.Zero) return -1;
-            int size = 0; PdhGetFormattedCounterArray(cGpu, 0x200, ref size, out var n, IntPtr.Zero);
+            if (c == IntPtr.Zero) return -1;
+            int size = 0; PdhGetFormattedCounterArray(c, 0x200, ref size, out var n, IntPtr.Zero);
             if (size <= 0) return -1;
             var buf = Marshal.AllocHGlobal(size);
             try
             {
-                if (PdhGetFormattedCounterArray(cGpu, 0x200, ref size, out n, buf) != 0) return -1;
-                double sum = 0; int step = IntPtr.Size + 16;   // PDH_FMT_COUNTERVALUE_ITEM: wskaźnik nazwy + {status, (wyrównanie), double}
-                for (int i = 0; i < n; i++) sum += BitConverter.Int64BitsToDouble(Marshal.ReadInt64(buf, i * step + IntPtr.Size + 8));
-                return Math.Min(100, sum);
+                if (PdhGetFormattedCounterArray(c, 0x200, ref size, out n, buf) != 0) return -1;
+                double sum = 0, mx = -1; int step = IntPtr.Size + 16;   // PDH_FMT_COUNTERVALUE_ITEM: wskaźnik nazwy + {status, (wyrównanie), double}
+                for (int i = 0; i < n; i++) { double v = BitConverter.Int64BitsToDouble(Marshal.ReadInt64(buf, i * step + IntPtr.Size + 8)); sum += v; mx = Math.Max(mx, v); }
+                return suma ? Math.Min(100, sum) : mx;
             }
             finally { Marshal.FreeHGlobal(buf); }
         }
@@ -117,13 +120,15 @@ namespace VelivoProcesor
         }
 
         // temperatura: AMD - RyzenAdj (Tctl), inaczej LibreHardwareMonitor / OpenHardwareMonitor (gdy działa), zapasowo strefa ACPI; -1 = nieznana
+        public string TempZrodlo = "";   // skąd temperatura (słowami do okna)
         double Temperatura()
         {
+            TempZrodlo = "";
             if (RyzenDziala)
                 foreach (var l in RyzenWywolaj("--info"))
                 {
                     var m = System.Text.RegularExpressions.Regex.Match(l, @"THM VALUE( CORE)?\s*\|\s*([\d.]+)");
-                    if (m.Success && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float, Inv, out var t) && t > 0) return t;
+                    if (m.Success && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float, Inv, out var t) && t > 0) { TempZrodlo = "z procesora (RyzenAdj)"; return t; }
                 }
             foreach (var ns in new[] { @"root\LibreHardwareMonitor", @"root\OpenHardwareMonitor" })
                 try
@@ -136,16 +141,18 @@ namespace VelivoProcesor
                             var n = o["Name"] as string ?? ""; var v = Convert.ToDouble(o["Value"]);
                             if (n.IndexOf("Package", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("Tctl", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("CPU", StringComparison.OrdinalIgnoreCase) >= 0) best = Math.Max(best, v);
                         }
-                        if (best > 0) return best;
+                        if (best > 0) { TempZrodlo = "z procesora (LibreHardwareMonitor)"; return best; }
                     }
                 }
                 catch (Exception) { }
             try
             {
                 using (var s = new System.Management.ManagementObjectSearcher(@"root\WMI", "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"))
-                    foreach (System.Management.ManagementObject o in s.Get()) { double t = Convert.ToDouble(o["CurrentTemperature"]) / 10 - 273.15; if (t > 0 && t < 120) return t; }
+                    foreach (System.Management.ManagementObject o in s.Get()) { double t = Convert.ToDouble(o["CurrentTemperature"]) / 10 - 273.15; if (t > 0 && t < 120) { TempZrodlo = "czujnik płyty (ACPI)"; return t; } }
             }
             catch (Exception) { }
+            double tz = Tablica(cTz, false) * tzMnoznik / 10 - 273.15;   // bez uprawnień: strefy ACPI z liczników Windows
+            if (tz > 10 && tz < 120) { TempZrodlo = "czujnik płyty (ACPI)"; return tz; }
             return -1;
         }
 
@@ -156,6 +163,12 @@ namespace VelivoProcesor
         static readonly HashSet<string> Powloka = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Idle", "explorer", "ShellExperienceHost", "StartMenuExperienceHost", "SearchHost", "SearchApp", "LockApp", "TextInputHost", "ApplicationFrameHost", "VelivoProcesor", "VelivoCentrum", "dwm", "csrss" };
         readonly double[] godziny = new double[24]; readonly int[] godzN = new int[24];
         public readonly Dictionary<string, Tryb> Reczne = new Dictionary<string, Tryb>(StringComparer.OrdinalIgnoreCase);   // „zawsze ten tryb” dla programu
+        public readonly Dictionary<string, int> Priorytet = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);   // 1 Wysoki, -1 Niski (brak wpisu = bez zmian)
+        public readonly HashSet<string> Studio = new HashSet<string>(StringComparer.OrdinalIgnoreCase), BezPb = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // priorytet, który program dostaje: wybrany, a w trybie Studio domyślnie Wysoki
+        public int PriorytetDla(string n) { lock (Studio) return Priorytet.TryGetValue(n, out var v) ? v : Studio.Contains(n) ? 1 : 0; }
+        public bool BezPbDla(string n) { lock (Studio) return BezPb.Contains(n); }
+        public void Zapomnij(string n) { lock (programy) programy.Remove(n); lock (Studio) { Reczne.Remove(n); Priorytet.Remove(n); Studio.Remove(n); BezPb.Remove(n); } ZapiszNauke(); }
         public double ProgWysoki = 70, ProgNiski = 20;   // samodostrajane
         DateTime naukaZapis = DateTime.UtcNow;
 
@@ -169,6 +182,9 @@ namespace VelivoProcesor
                     if (a[0] == "P" && a.Length >= 5 && !Powloka.Contains(a[1])) programy[a[1]] = (double.Parse(a[2], Inv), double.Parse(a[3], Inv), int.Parse(a[4]), a.Length >= 6 ? double.Parse(a[5], Inv) : double.Parse(a[2], Inv));
                     else if (a[0] == "H" && a.Length >= 4) { int h = int.Parse(a[1]); godziny[h] = double.Parse(a[2], Inv); godzN[h] = int.Parse(a[3]); }
                     else if (a[0] == "R" && a.Length >= 3) Reczne[a[1]] = (Tryb)int.Parse(a[2]);
+                    else if (a[0] == "Q" && a.Length >= 3) Priorytet[a[1]] = int.Parse(a[2]);
+                    else if (a[0] == "S" && a.Length >= 2) Studio.Add(a[1]);
+                    else if (a[0] == "B" && a.Length >= 2) BezPb.Add(a[1]);
                     else if (a[0] == "T" && a.Length >= 3) { ProgWysoki = double.Parse(a[1], Inv); ProgNiski = double.Parse(a[2], Inv); }
                 }
             }
@@ -181,17 +197,41 @@ namespace VelivoProcesor
                 var l = new List<string>();
                 lock (programy) foreach (var p in programy) l.Add("P\t" + p.Key + "\t" + p.Value.Cpu.ToString("0.0", Inv) + "\t" + p.Value.Gpu.ToString("0.0", Inv) + "\t" + p.Value.N + "\t" + p.Value.Szczyt.ToString("0.0", Inv));
                 for (int h = 0; h < 24; h++) if (godzN[h] > 0) l.Add("H\t" + h + "\t" + godziny[h].ToString("0.0", Inv) + "\t" + godzN[h]);
-                foreach (var r in Reczne) l.Add("R\t" + r.Key + "\t" + (int)r.Value);
+                lock (Studio)
+                {
+                    foreach (var r in Reczne) l.Add("R\t" + r.Key + "\t" + (int)r.Value);
+                    foreach (var r in Priorytet) l.Add("Q\t" + r.Key + "\t" + r.Value);
+                    foreach (var r in Studio) l.Add("S\t" + r);
+                    foreach (var r in BezPb) l.Add("B\t" + r);
+                }
                 l.Add("T\t" + ProgWysoki.ToString("0.0", Inv) + "\t" + ProgNiski.ToString("0.0", Inv));
                 Directory.CreateDirectory(Dir); File.WriteAllLines(NaukaFile + ".tmp", l); if (File.Exists(NaukaFile)) File.Replace(NaukaFile + ".tmp", NaukaFile, null); else File.Move(NaukaFile + ".tmp", NaukaFile);
             }
             catch (Exception) { }
         }
-        public List<(string Prog, string Opis)> ProgramyOpis()
+        // lista programów do okna: wyuczone (po ok. 30 s pracy) i wszystkie z własnym ustawieniem
+        public sealed class ProgInfo
         {
-            lock (programy)
-                return programy.Where(p => p.Value.N >= 30 || Reczne.ContainsKey(p.Key)).OrderByDescending(p => p.Value.N).Take(30)
-                    .Select(p => (p.Key, Reczne.TryGetValue(p.Key, out var r) ? Nazwa(r) + " (zawsze)" : Nazwa(Wyuczony(p.Value)) + " · śr. " + p.Value.Cpu.ToString("0") + " %, szczyt " + p.Value.Szczyt.ToString("0") + " %" + (p.Value.Gpu > 50 ? " · karta " + p.Value.Gpu.ToString("0") + " %" : "") + " · " + Czas(p.Value.N))).ToList();
+            public string Prog { get; set; } public string TrybOpis { get; set; } public double Sr { get; set; } public double Szczyt { get; set; } public double Karta { get; set; } public int N { get; set; }
+            public int Prio { get; set; } public bool StudioOn { get; set; } public bool BezPbOn { get; set; } public bool Zawsze;
+            public string SrT => Sr.ToString("0") + " %"; public string SzczytT => Szczyt.ToString("0") + " %"; public string KartaT => Karta.ToString("0") + " %"; public string CzasT => Czas(N);
+            public string PrioT => Prio > 0 ? "⬆ Wysoki" : Prio < 0 ? "⬇ Niski" : "–"; public string StudioT => StudioOn ? "🎚 tak" : "–"; public string PbT => BezPbOn ? "nie" : "tak";
+        }
+        public List<ProgInfo> ProgramyDane()
+        {
+            var w = new List<ProgInfo>();
+            lock (programy) lock (Studio)
+            {
+                var nazwy = new HashSet<string>(programy.Where(p => p.Value.N >= 30).Select(p => p.Key), StringComparer.OrdinalIgnoreCase);
+                nazwy.UnionWith(Reczne.Keys); nazwy.UnionWith(Priorytet.Keys); nazwy.UnionWith(Studio); nazwy.UnionWith(BezPb);
+                foreach (var n in nazwy)
+                {
+                    programy.TryGetValue(n, out var v); bool z = Reczne.TryGetValue(n, out var rt);
+                    w.Add(new ProgInfo { Prog = n, Zawsze = z, TrybOpis = z ? Nazwa(rt) + " (zawsze)" : v.N > 0 ? Nazwa(Wyuczony(v)) + (v.Gpu > 70 && v.Cpu < 50 ? " (karta)" : "") : "–",
+                        Sr = v.Cpu, Szczyt = v.Szczyt, Karta = v.Gpu, N = v.N, Prio = Priorytet.TryGetValue(n, out var q) ? q : Studio.Contains(n) ? 1 : 0, StudioOn = Studio.Contains(n), BezPbOn = BezPb.Contains(n) });
+                }
+            }
+            return w;
         }
         // wymagania programu: średnia i szczyt (program, który często skacze do pełnej mocy - kompilacja, eksport - dostaje Turbo zawczasu, bez przycięć)
         static Tryb Wyuczony((double Cpu, double Gpu, int N, double Szczyt) v) => v.Gpu > 70 && v.Cpu < 50 ? Tryb.Zrownowazony : v.Cpu > 55 || v.Szczyt > 85 && v.Cpu > 30 ? Tryb.Turbo : v.Cpu < 12 && v.Szczyt < 40 ? Tryb.Cichy : Tryb.Zrownowazony;
@@ -219,6 +259,7 @@ namespace VelivoProcesor
         public Tryb Decyduj(Pomiar p)
         {
             Ucz(p);
+            StudioCzynne(p);
             if (Get("tryb") == "windows") { Dlaczego = "Steruje Windows (ustawienia domyślne) – Velivo Procesor tylko pokazuje pomiary."; return Obecny; }
             if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; Dlaczego = "Wybrany ręcznie."; return Ustal(r); }
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
@@ -261,26 +302,40 @@ namespace VelivoProcesor
         bool ZawszeDla(Pomiar p, out Tryb t, out string nazwa)
         {
             t = Tryb.Zrownowazony; nazwa = null;
-            if (Reczne.Count == 0) return false;
-            if (Reczne.TryGetValue(p.Program ?? "", out t)) { nazwa = p.Program; return true; }
-            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds >= 3)
+            lock (Studio) if (Reczne.TryGetValue(p.Program ?? "", out t)) { nazwa = p.Program; return true; }
+            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds >= 3 && (Reczne.Count > 0 || Studio.Count > 0))
             {
                 dzialajaceT = DateTime.UtcNow; var d = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var pr in Process.GetProcesses()) using (pr) try { d.Add(pr.ProcessName); } catch (Exception) { }
                 dzialajace = d;
             }
             bool jest = false;
-            foreach (var r in Reczne.ToArray()) if (dzialajace.Contains(r.Key) && (!jest || r.Value > t)) { t = r.Value; nazwa = r.Key; jest = true; }
+            KeyValuePair<string, Tryb>[] lista; lock (Studio) lista = Reczne.ToArray();
+            foreach (var r in lista) if (dzialajace.Contains(r.Key) && (!jest || r.Value > t)) { t = r.Value; nazwa = r.Key; jest = true; }
             return jest;
         }
+        // 🎚 tryb Studio: działa program z trybem Studio (lista procesów jak wyżej, co 3 s)
+        public string StudioProg;   // nazwa działającego programu Studio albo null
+        void StudioCzynne(Pomiar p)
+        {
+            string[] st; lock (Studio) st = Studio.ToArray();
+            if (st.Length == 0) { StudioProg = null; return; }
+            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds >= 3) { ZawszeDla(new Pomiar(), out _, out _); }
+            StudioProg = st.FirstOrDefault(n => string.Equals(n, p.Program, StringComparison.OrdinalIgnoreCase)) ?? st.FirstOrDefault(n => dzialajace.Contains(n));
+        }
         bool ZnanyProgram(string n, out (double Cpu, double Gpu, int N, double Szczyt) v) { lock (programy) return programy.TryGetValue(n ?? "", out v); }
-        Tryb Ustal(Tryb t) { if (t != Obecny || !zastosowany) { Obecny = t; ostZmiana = DateTime.UtcNow; Zastosuj(t); } return t; }
+        bool studioZast;
+        Tryb Ustal(Tryb t) { bool st = StudioProg != null; if (t != Obecny || !zastosowany || st != studioZast) { if (t != Obecny) ostZmiana = DateTime.UtcNow; Obecny = t; studioZast = st; Zastosuj(t); } return t; }
 
         // ---------- sterowanie ----------
         bool zastosowany;
         static readonly Guid Sub = new Guid("54533251-82be-4824-96c1-47b60b740d00");
         static readonly Guid Max = new Guid("bc5038f7-23e0-4960-96da-33abaf5935ec"), Min = new Guid("893dee8e-2bef-41e0-89c6-b55d0929964c"),
             Boost = new Guid("be337238-0d82-4146-a960-4f3749d470c7"), Epp = new Guid("36687f9e-e3a5-4dbf-b1dc-15eb381c6863"), Freq = new Guid("75b0ae3f-bce0-45a7-8c89-c9611c25e100");
+        // ⚡ szybkość reakcji Windows na obciążenie (próg i czas podnoszenia / obniżania zegara, sposób podnoszenia) i 🎚 parkowanie rdzeni (najmniej czuwających rdzeni, %)
+        static readonly Guid IncThr = new Guid("06cadf0e-64ed-448a-8927-ce7bf90eb35d"), DecThr = new Guid("12a0ab44-fe28-4fa9-b3bd-4b64f44960a6"),
+            IncTime = new Guid("984cf492-3bed-4488-a8f9-4286c97bf5aa"), DecTime = new Guid("d8edeb9b-95cf-4f95-a73c-b061973693c8"),
+            IncPol = new Guid("465e1f50-b610-473a-ab58-00d1077dc418"), MinCores = new Guid("0cc5b647-c1df-4637-891a-dec35c318583");
         [DllImport("powrprof.dll")] static extern uint PowerGetActiveScheme(IntPtr root, out IntPtr guid);
         [DllImport("powrprof.dll")] static extern uint PowerSetActiveScheme(IntPtr root, ref Guid guid);
         [DllImport("powrprof.dll")] static extern uint PowerWriteACValueIndex(IntPtr root, ref Guid s, ref Guid sub, ref Guid set, uint v);
@@ -291,16 +346,24 @@ namespace VelivoProcesor
         public string Blad = "";
 
         static Guid Aktywny() { PowerGetActiveScheme(IntPtr.Zero, out var p); try { return (Guid)Marshal.PtrToStructure(p, typeof(Guid)); } finally { LocalFree(p); } }
-        static readonly Guid[] Ustawienia = { Max, Min, Boost, Epp, Freq };
+        static readonly Guid[] Ustawienia = { Max, Min, Boost, Epp, Freq, IncThr, DecThr, IncTime, DecTime, IncPol, MinCores };
+        readonly Dictionary<Guid, (uint Ac, uint Dc)> oryg = new Dictionary<Guid, (uint, uint)>();   // wartości Windows sprzed programu
         static readonly string KopiaFile = Path.Combine(Dir, "windows-przed.txt");
 
         // ustawienia Windows sprzed pierwszego uruchomienia - przywracane przy zamknięciu programu
         void ZapamietajWindows(Guid s)
-        {
-            if (File.Exists(KopiaFile)) return;
-            var l = new List<string> { s.ToString() };
-            foreach (var g in Ustawienia) { var gg = g; var sub = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, out var a) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, out var d) == 0) l.Add(g + "\t" + a + "\t" + d); }
-            try { Directory.CreateDirectory(Dir); File.WriteAllLines(KopiaFile, l); } catch (Exception) { }
+        {   // zapis raz; ustawienie dopisane w nowszej wersji programu dochodzi do zapisu przy pierwszym uruchomieniu tej wersji (jeszcze nieruszone)
+            var l = new List<string>(); try { if (File.Exists(KopiaFile)) l.AddRange(File.ReadAllLines(KopiaFile)); } catch (Exception) { }
+            if (l.Count == 0 || l[0] != s.ToString()) { if (l.Count > 0) return; l.Add(s.ToString()); }
+            bool nowe = false;
+            foreach (var x in l.Skip(1)) { var a = x.Split('\t'); if (a.Length >= 3) oryg[new Guid(a[0])] = (uint.Parse(a[1]), uint.Parse(a[2])); }
+            foreach (var g in Ustawienia)
+            {
+                if (oryg.ContainsKey(g)) continue;
+                var gg = g; var sub = Sub;
+                if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, out var a) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, out var d) == 0) { oryg[g] = (a, d); l.Add(g + "\t" + a + "\t" + d); nowe = true; }
+            }
+            if (nowe) try { Directory.CreateDirectory(Dir); File.WriteAllLines(KopiaFile, l); } catch (Exception) { }
         }
         public void PrzywrocWindows()
         {
@@ -308,7 +371,7 @@ namespace VelivoProcesor
             {
                 var l = File.ReadAllLines(KopiaFile); var s = new Guid(l[0]); var sub = Sub;
                 foreach (var x in l.Skip(1)) { var a = x.Split('\t'); var g = new Guid(a[0]); PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref g, uint.Parse(a[1])); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref g, uint.Parse(a[2])); }
-                PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile);
+                PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear();
             }
             catch (Exception) { }
             if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }   // AMD: limity fabryczne wracają same po restarcie; do tego czasu pełna moc
@@ -322,7 +385,7 @@ namespace VelivoProcesor
         {
             Put("tryb", "windows");
             uint e = 1;
-            try { var s = Aktywny(); e = PowerRestoreIndividualDefaultPowerScheme(ref s); PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); } catch (Exception) { }
+            try { var s = Aktywny(); e = PowerRestoreIndividualDefaultPowerScheme(ref s); PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear(); } catch (Exception) { }
             if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }
             zastosowany = false;
             return e == 0 ? "Plan zasilania Windows przywrócony do ustawień domyślnych. Velivo Procesor nie steruje (wybierz tryb, aby znów sterował)." + (RyzenDziala ? " Moc AMD: fabryczne limity wrócą po ponownym uruchomieniu komputera." : "")
@@ -347,9 +410,16 @@ namespace VelivoProcesor
                 uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 200u : t == Tryb.Turbo ? 0u : 100u;
                 uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
                 uint min = t == Tryb.Turbo ? 30u : 5u;
-                var w = new[] { (Max, max), (Min, min), (Boost, boost), (Epp, epp), (Freq, freq) };
+                // ⚡ reakcja (próg w %, czas w okresach sprawdzania ~30 ms, podnoszenie: 0 stopniowo, 1 o krok, 2 od razu do pełna): Cichy leniwie (ciszej), Turbo od razu;
+                // 🎚 Studio (muzyka): zegar w górę przy najmniejszym obciążeniu, w dół bardzo powoli, wszystkie rdzenie czuwają - bez opóźnień budzenia (trzaski)
+                bool st = StudioProg != null;
+                var (it, dt, iT, dT, ip) = st ? (10u, 5u, 1u, 10u, 2u) : t == Tryb.Turbo ? (30u, 15u, 1u, 4u, 2u) : t == Tryb.Cichy ? (80u, 50u, 4u, 1u, 1u) : (50u, 25u, 2u, 2u, 0u);
+                if (st) { boost = 2; epp = 0; min = 100; }
+                var w = new List<(Guid, uint, uint)> { (Max, max, max), (Min, min, min), (Boost, boost, boost), (Epp, epp, epp), (Freq, freq, freq), (IncThr, it, it), (DecThr, dt, dt), (IncTime, iT, iT), (DecTime, dT, dT), (IncPol, ip, ip) };
+                if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
+                if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
                 uint err = 0;
-                foreach (var (g, v) in w) { var gg = g; var sub = Sub; err |= PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, v); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, v); }
+                foreach (var (g, va, vd) in w) { var gg = g; var sub = Sub; uint e = PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, va); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, vd); if (g == Max || g == Min || g == Boost) err |= e; }
                 PowerSetActiveScheme(IntPtr.Zero, ref s);
                 if (err != 0) Blad = "Windows nie przyjął części ustawień zasilania (kod " + err + ").";
             }

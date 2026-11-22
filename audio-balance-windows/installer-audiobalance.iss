@@ -2,7 +2,9 @@
 ; Potrzebny VB-Audio Virtual Cable (osobno, ze strony producenta - licencja nie pozwala dołączyć go do instalatora); program prowadzi przez instalację.
 ; Kompilacja: ISCC.exe installer-audiobalance.iss (po dotnet publish do ..\build\audiobalance)
 #define AppName "Velivo Audio Balance for Windows"
-#define AppVer "1.22"
+#ifndef AppVer
+  #define AppVer "1.22"
+#endif
 #ifndef SrcDir
   #define SrcDir "..\build\audiobalance"
 #endif
@@ -62,6 +64,15 @@ en.RunApp=Launch Velivo Audio Balance for Windows
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"
 Name: "vbcable"; Description: "{cm:Cable}"; GroupDescription: "{cm:CableGroup}"; Check: not CableInstalled
 
+#ifdef WspolnyNet
+[InstallDelete]
+; wspolny .NET (1.23): wszystkie biblioteki poprzedniej wersji z wbudowanym .NET - stare kopie obok programu blokowaly start
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.json"
+Type: files; Name: "{app}\*.pdb"
+Type: files; Name: "{app}\createdump.exe"
+#endif
+
 [Files]
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -89,6 +100,10 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoAudioBalance"; ValueType: st
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; wpis startu z Windows tworzy sam program (pole w oknie) - przy odinstalowaniu usuwany
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VelivoAudioBalance"; Flags: uninsdeletevalue
+
+#ifdef WspolnyNet
+#include "..\src\dotnet10.iss"
+#endif
 
 [Code]
 // plik deinstalatora (unins000.dat) trzymany przez antywirusa (Bitdefender) albo indeksowanie - „Proces nie może uzyskać dostępu”;
@@ -124,6 +139,10 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code: Integer; Exe: String;
 begin
   Result := '';
+#ifdef WspolnyNet
+  Result := InstallDotnet10;   // wspolny .NET 10 (1.23)
+  if Result <> '' then exit;
+#endif
   // aktualizacja: działający program kieruje cały dźwięk na kabel - najpierw Windows wraca do głośników (muzyka gra dalej, bez ciszy),
   // potem program jest zamykany; nowa wersja po uruchomieniu sama kieruje dźwięk z powrotem przez Audio Balance
   Exe := ExpandConstant('{app}\VelivoAudioBalance.exe');

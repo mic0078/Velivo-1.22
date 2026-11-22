@@ -1,7 +1,11 @@
 ﻿; 📦 Velivo – pakiet: jeden instalator, wybór programów (Pełny / Typowy / Własny) - dokumentacja/makieta-instalator-pakiet.html.
 ; W środku gotowe instalatory programów z build\instalator (budowane wcześniej przez zbuduj.ps1 i zbuduj-*.ps1); każdy instaluje się
 ; po cichu jak osobno (własna ikona, własne odinstalowanie, wspólne dane). Już zainstalowane programy zaznaczone same (aktualizacja).
-#define AppVer "1.22"
+#ifndef AppVer
+  #define AppVer "1.22"
+#endif
+; Monitor, Kursory i Centrum - .NET Framework z Windows (bez .NET 10), zawsze 1.22
+#define Fw "1.22"
 #define Src "..\build\instalator\"
 
 [Setup]
@@ -85,9 +89,9 @@ Name: "osobne\serwer"; Description: "{cm:CSrv}"; Flags: dontinheritcheck
 [Files]
 Source: "{#Src}Velivo-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: velivo; Flags: deleteafterinstall
 Source: "{#Src}Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: ab; Flags: deleteafterinstall
-Source: "{#Src}Velivo-Monitor-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: monitor; Flags: deleteafterinstall
-Source: "{#Src}Velivo-Kursory-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: kursory; Flags: deleteafterinstall
-Source: "{#Src}Velivo-Centrum-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: centrum; Flags: deleteafterinstall
+Source: "{#Src}Velivo-Monitor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: monitor; Flags: deleteafterinstall
+Source: "{#Src}Velivo-Kursory-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: kursory; Flags: deleteafterinstall
+Source: "{#Src}Velivo-Centrum-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: centrum; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\odtwarzacz; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Przegladarka-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\przegladarka; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Klawiatura-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\klawiatura; Flags: deleteafterinstall
@@ -98,9 +102,9 @@ Source: "{#Src}Velivo-Serwer-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components:
 ; każdy po kolei, po cichu; zadania jak domyślnie w jego własnym instalatorze (zapora, skróty, start z Windows)
 Filename: "{tmp}\Velivo-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""{code:VelivoTasks}"""; StatusMsg: "{cm:Inst,Velivo}"; Components: velivo
 Filename: "{tmp}\Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon"""; StatusMsg: "{cm:Inst,Audio Balance}"; Components: ab
-Filename: "{tmp}\Velivo-Monitor-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Monitor}"; Components: monitor
-Filename: "{tmp}\Velivo-Kursory-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
-Filename: "{tmp}\Velivo-Centrum-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
+Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Monitor}"; Components: monitor
+Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
+Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
 Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
 Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
 Filename: "{tmp}\Velivo-Klawiatura-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,autostart"""; StatusMsg: "{cm:Inst,Klawiatura}"; Components: osobne\klawiatura

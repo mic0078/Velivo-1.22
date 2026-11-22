@@ -1,7 +1,9 @@
 ﻿; Instalator „Velivo Komunikator” (Windows) - samodzielny program: rozmowy, pliki, rozmowy wideo i serwer (pośrednik), bez przeglądarki Velivo.
 ; Kompilacja: ISCC.exe installer-komunikator.iss (po dotnet publish do ..\build\komunikator)
 #define AppName "Velivo Komunikator"
-#define AppVer "1.22"
+#ifndef AppVer
+  #define AppVer "1.22"
+#endif
 #ifndef SrcDir
   #define SrcDir "..\build\komunikator"
 #endif
@@ -51,6 +53,15 @@ en.StillRunning=Velivo Komunikator is still running and the installer cannot clo
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"
 Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
 
+#ifdef WspolnyNet
+[InstallDelete]
+; wspolny .NET (1.23): wszystkie biblioteki poprzedniej wersji z wbudowanym .NET - stare kopie obok programu blokowaly start
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.json"
+Type: files; Name: "{app}\*.pdb"
+Type: files; Name: "{app}\createdump.exe"
+#endif
+
 [Files]
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -76,6 +87,10 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoKomunikator.exe"; Flag
 
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"
+
+#ifdef WspolnyNet
+#include "..\src\dotnet10.iss"
+#endif
 
 [Code]
 function HasWebView2: Boolean;
@@ -126,6 +141,10 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code, I: Integer;
 begin
   Result := '';
+#ifdef WspolnyNet
+  Result := InstallDotnet10;   // wspolny .NET 10 (1.23)
+  if Result <> '' then exit;
+#endif
   if not HasWebView2 then
   begin
     WizardForm.StatusLabel.Caption := CustomMessage('GetWebView');

@@ -7,7 +7,6 @@ $ErrorActionPreference = 'Stop'
 # -Tylko Velivo,Odtwarzacz,Przegladarka,Klawiatura,Serwer,Komunikator - buduje tylko wybrane programy (bez -Tylko: wszystkie)
 $Tylko = @($Tylko | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $wer = if ($WspolnyNet) { '1.23' } else { '1.22' }
-if ($WspolnyNet -and $Tylko.Count -eq 0) { $Tylko = @('Velivo', 'Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') }   # Komunikator ma własny instalator z wbudowanym .NET - zostaje 1.22
 function Buduj($n) { return $Tylko.Count -eq 0 -or ($Tylko -contains $n) }
 if ($Tylko.Count -gt 0) { Write-Host ("Tylko: " + ($Tylko -join ', ')) -ForegroundColor Cyan }
 Set-Location $PSScriptRoot
@@ -78,9 +77,9 @@ for ($i = 1; $i -le 6; $i++) { & $iscc $(if ($WspolnyNet) { "/DAppVer=$wer" } el
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 if (Buduj 'Komunikator') {
-$oldK = Join-Path $outDir 'Velivo-Komunikator-Setup-1.22.exe'
+$oldK = Join-Path $outDir "Velivo-Komunikator-Setup-$wer.exe"
 for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
-for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+for ($i = 1; $i -le 6; $i++) { & $iscc $(if ($WspolnyNet) { @("/DWspolnyNet", "/DAppVer=$wer") } else { @() }) "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 }
 foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-Object { Buduj $_ }) {
@@ -91,7 +90,7 @@ foreach ($w in @('Odtwarzacz', 'Przegladarka', 'Klawiatura', 'Serwer') | Where-O
 }
 
 if (Buduj 'Velivo') { Write-Host ("Gotowe: build\instalator\" + $nazwa + ".exe (" + $(if ($Podstawowa) { "Velivo bezplatne" } else { "Velivo Premium" }) + "; zamknij Velivo calkowicie przed instalacja)") -ForegroundColor Green }
-if (Buduj 'Komunikator') { Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-1.22.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green }
+if (Buduj 'Komunikator') { Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-$wer.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green }
 if (Buduj 'Odtwarzacz') { Write-Host "Gotowe: build\instalator\Velivo-Odtwarzacz-Setup-$wer.exe (filmy, TV, Kanapa, Pilot, lektor - bez przegladarki)" -ForegroundColor Green }
 if (Buduj 'Klawiatura') { Write-Host "Gotowe: build\instalator\Velivo-Klawiatura-Setup-$wer.exe (sama klawiatura ekranowa i poprawianie pisania - w kazdym programie Windows)" -ForegroundColor Green }
 if (Buduj 'Przegladarka') { Write-Host "Gotowe: build\instalator\Velivo-Przegladarka-Setup-$wer.exe (sama przegladarka - filmy otwiera Velivo Odtwarzacz)" -ForegroundColor Green }

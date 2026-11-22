@@ -2,7 +2,9 @@
 # Użycie: PowerShell w folderze repozytorium ->  .\zbuduj-audiobalance.ps1
 # Wymagane raz: winget install Git.Git Microsoft.DotNet.SDK.10 JRSoftware.InnoSetup
 # VB-Audio Virtual Cable pobiera instalator (podczas instalacji) albo program (przycisk „Zainstaluj VB-Cable automatycznie”).
+param([switch]$WspolnyNet)   # -WspolnyNet: wersja 1.23 bez wbudowanego .NET (wspolny .NET 10)
 $ErrorActionPreference = 'Stop'
+$wer = if ($WspolnyNet) { '1.23' } else { '1.22' }
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 $repo = $PSScriptRoot
 Set-Location $repo
@@ -19,7 +21,7 @@ if ($ab) { try { Start-Process $ab.Path -ArgumentList '--aktualizacja' -Wait } c
 
 Write-Host "2/4 Kompilacja Velivo Audio Balance for Windows..." -ForegroundColor Cyan
 Remove-Item -Recurse -Force build\audiobalance -ErrorAction SilentlyContinue
-dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win-x64 --self-contained true -o build\audiobalance
+dotnet publish audio-balance-windows\VelivoAudioBalance.csproj -c Release -r win-x64 --self-contained $(if ($WspolnyNet) { 'false' } else { 'true' }) -o build\audiobalance
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Audio Balance for Windows nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 
 Write-Host "3/4 VB-Audio Virtual Cable..." -ForegroundColor Cyan
@@ -30,14 +32,14 @@ if (Test-Path (Join-Path $vb 'VBCABLE_Setup_x64.exe')) { Copy-Item -Recurse -For
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 # otwarty instalator z poprzedniej próby trzyma plik - budowa nie może go nadpisać (to nie antywirus)
-while (Get-Process -Name "Velivo-AudioBalance-for-Windows-Setup-1.22", "Velivo-AudioBalance-for-Windows-Setup-1.22.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-AudioBalance-for-Windows-Setup-1.22 z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }
+while (Get-Process -Name "Velivo-AudioBalance-for-Windows-Setup-$wer", "Velivo-AudioBalance-for-Windows-Setup-$wer.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-AudioBalance-for-Windows-Setup-$wer z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 $outDir = Join-Path $repo 'build\instalator'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$old = Join-Path $outDir 'Velivo-AudioBalance-for-Windows-Setup-1.22.exe'
+$old = Join-Path $outDir "Velivo-AudioBalance-for-Windows-Setup-$wer.exe"
 for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
-for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" audio-balance-windows\installer-audiobalance.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam ($i/6)..." -ForegroundColor Yellow; Start-Sleep ($i * 3) } }
+for ($i = 1; $i -le 6; $i++) { & $iscc $(if ($WspolnyNet) { @("/DWspolnyNet", "/DAppVer=$wer") } else { @() }) "/O$outDir" audio-balance-windows\installer-audiobalance.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam ($i/6)..." -ForegroundColor Yellow; Start-Sleep ($i * 3) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Velivo Audio Balance nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
-Write-Host "Gotowe: build\instalator\Velivo-AudioBalance-for-Windows-Setup-1.22.exe" -ForegroundColor Green
+Write-Host "Gotowe: build\instalator\Velivo-AudioBalance-for-Windows-Setup-$wer.exe" -ForegroundColor Green
 Start-Process $outDir

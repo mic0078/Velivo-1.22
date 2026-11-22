@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Velivo Procesor: CPU Manager w rodzinie Velivo - sam wybiera tryb procesora (cicho, wydajnie, z szybką reakcją), Intel i AMD (RyzenAdj). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <DebugType>none</DebugType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>VelivoProcesor</AssemblyName>
+    <Product>Velivo Procesor</Product>
+    <AssemblyTitle>Velivo Procesor</AssemblyTitle>
+    <RootNamespace>VelivoProcesor</RootNamespace>
+    <ApplicationIcon>procesor.ico</ApplicationIcon>
+    <Version>1.22</Version>
+    <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- .NET Framework 4.8 jest w każdym Windows 10/11 - program ma kilkadziesiąt KB -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Management" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\src\CentrumZasobnik.cs" Link="CentrumZasobnik.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="procesor.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -49,6 +49,8 @@ pl.CMon=Velivo Monitor (sieć, procesor na pasku)
 en.CMon=Velivo Monitor (network, CPU on the taskbar)
 pl.CKur=Velivo Kursory
 en.CKur=Velivo Cursors
+pl.CProc=Velivo Procesor (cicho, wydajnie – sam dobiera moc procesora)
+en.CProc=Velivo Processor (quiet, efficient – adjusts CPU power itself)
 pl.CCen=Velivo Centrum (wszystkie programy w jednym miejscu)
 en.CCen=Velivo Centre (all programs in one place)
 pl.CSep=Osobne wersje (zwykle niepotrzebne przy pełnym Velivo)
@@ -80,6 +82,7 @@ Name: "velivo\player\iptv"; Description: "{cm:CIptv}"; Types: pelny; Flags: dont
 Name: "ab"; Description: "{cm:CAb}"; Types: pelny typowy
 Name: "monitor"; Description: "{cm:CMon}"; Types: pelny typowy
 Name: "kursory"; Description: "{cm:CKur}"; Types: pelny
+Name: "procesor"; Description: "{cm:CProc}"; Types: pelny typowy
 Name: "centrum"; Description: "{cm:CCen}"; Types: pelny typowy
 Name: "osobne"; Description: "{cm:CSep}"
 Name: "osobne\odtwarzacz"; Description: "{cm:COdt}"; Flags: dontinheritcheck
@@ -93,6 +96,7 @@ Source: "{#Src}Velivo-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: velivo
 Source: "{#Src}Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: ab; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Monitor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: monitor; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Kursory-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: kursory; Flags: deleteafterinstall
+Source: "{#Src}Velivo-Procesor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: procesor; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Centrum-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: centrum; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\odtwarzacz; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Przegladarka-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\przegladarka; Flags: deleteafterinstall
@@ -110,6 +114,7 @@ Filename: "{tmp}\Velivo-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESS
 Filename: "{tmp}\Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,vbcable,autostart"""; StatusMsg: "{cm:Inst,Audio Balance}"; Components: ab
 Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Monitor}"; Components: monitor
 Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
+Filename: "{tmp}\Velivo-Procesor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Procesor}"; Components: procesor
 Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
 Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
 Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
@@ -163,6 +168,7 @@ begin
   if Installed('{4C2E8A1F-7B3D-4E9A-A6C5-VELIVOAUDBAL1}') then S := S + ',ab';
   if Installed('{7A3C1E52-9D4B-4F86-B1E2-VELIVOMONIT1}') then S := S + ',monitor';
   if Installed('{5B8E2F14-3C7A-4D91-A6E0-VELIVOKURSOR}') then S := S + ',kursory';
+  if Installed('{6D2B9F41-8C3A-4E75-A0D1-VELIVOPROCES}') then S := S + ',procesor';
   if Installed('{8B4D2F63-AE5C-4A97-C2F3-VELIVOCENTR1}') then S := S + ',centrum';
   if Installed('{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}') then S := S + ',osobne\odtwarzacz';
   if Installed('{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA02}') then S := S + ',osobne\przegladarka';

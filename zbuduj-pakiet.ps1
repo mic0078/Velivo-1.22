@@ -19,7 +19,7 @@ if ($Wszystko -or -not (Jest 'Velivo-AudioBalance-for-Windows')) {
     & (Join-Path $repo 'zbuduj-audiobalance.ps1') -WspolnyNet:$WspolnyNet
     if (-not (Jest 'Velivo-AudioBalance-for-Windows')) { Write-Host "Brak instalatora Audio Balance - pakiet nie powstal." -ForegroundColor Red; exit 1 }
 }
-foreach ($p in @(@('Velivo-Monitor', 'zbuduj-monitor.ps1'), @('Velivo-Kursory', 'zbuduj-kursory.ps1'), @('Velivo-Centrum', 'zbuduj-centrum.ps1'))) {   # .NET Framework z Windows - zawsze 1.22
+foreach ($p in @(@('Velivo-Monitor', 'zbuduj-monitor.ps1'), @('Velivo-Kursory', 'zbuduj-kursory.ps1'), @('Velivo-Centrum', 'zbuduj-centrum.ps1'), @('Velivo-Procesor', 'zbuduj-procesor.ps1'))) {   # .NET Framework z Windows - zawsze 1.22 (Monitor, Kursory, Centrum, Procesor)
     if ($Wszystko -or -not (Jest $p[0] '1.22')) {
         Write-Host ("Buduje " + $p[0] + "...") -ForegroundColor Cyan
         & (Join-Path $repo $p[1])

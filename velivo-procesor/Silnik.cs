@@ -1,0 +1,364 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+
+namespace VelivoProcesor
+{
+    // 🧠 Velivo Procesor - silnik: pomiar (procesor, karta graficzna, temperatura, dysk, program na wierzchu), decyzja z nauką i sterowanie.
+    // Ta sama hierarchia co CPU Manager v40 (temperatura → wczytywanie → obciążenie / gra na karcie → znany program → spoczynek),
+    // w jednym przejrzystym mechanizmie: szybko w górę (bez przycięć), powoli w dół (bez skakania trybów), nauka programów i pór dnia,
+    // przewidywanie temperatury z jej wzrostu, samodostrajanie progów. Sterowanie: plan zasilania Windows (Intel i AMD) + RyzenAdj (moc AMD).
+    enum Tryb { Cichy = 0, Zrownowazony = 1, Turbo = 2 }
+
+    sealed class Pomiar
+    {
+        public double Cpu, Gpu = -1, Temp = -1, Dysk, Ghz; public string Program = ""; public bool Bateria;
+    }
+
+    sealed class Silnik
+    {
+        // ---------- ustawienia ----------
+        internal static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Procesor");
+        static readonly string SetFile = Path.Combine(Dir, "ustawienia.txt"), NaukaFile = Path.Combine(Dir, "nauka.txt");
+        readonly Dictionary<string, string> set = new Dictionary<string, string>();
+        static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+        public string Get(string k, string d = null) { lock (set) return set.TryGetValue(k, out var v) ? v : d; }
+        public double GetD(string k, double d) => double.TryParse(Get(k), System.Globalization.NumberStyles.Float, Inv, out var v) ? v : d;
+        public void Put(string k, object v)
+        {
+            lock (set)
+            {
+                set[k] = Convert.ToString(v, Inv);
+                try { Directory.CreateDirectory(Dir); File.WriteAllLines(SetFile + ".tmp", set.Select(x => x.Key + "=" + x.Value)); if (File.Exists(SetFile)) File.Replace(SetFile + ".tmp", SetFile, null); else File.Move(SetFile + ".tmp", SetFile); } catch (Exception) { }
+            }
+        }
+        public bool Auto => Get("tryb", "auto") == "auto";
+        public double CichyGhz => GetD("cichy-ghz", 1.4);   // najniższy zegar w trybie Cichym (może być poniżej bazowego - jak v40)
+        public double TempLimit => GetD("temp-limit", 90);
+
+        public readonly string ProcesorNazwa; public readonly bool Amd; public readonly double BazaMhz;
+        public string Ryzen;   // ścieżka ryzenadj.exe (AMD) albo null
+        public bool RyzenDziala;   // RyzenAdj odpowiada (uprawnienia administratora i obsługiwany procesor)
+
+        public Silnik()
+        {
+            try { foreach (var l in File.ReadAllLines(SetFile)) { int i = l.IndexOf('='); if (i > 0) set[l.Substring(0, i)] = l.Substring(i + 1); } } catch (Exception) { }
+            try { using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0")) { ProcesorNazwa = (k?.GetValue("ProcessorNameString") as string ?? "").Trim(); BazaMhz = Convert.ToDouble(k?.GetValue("~MHz") ?? 0); } } catch (Exception) { ProcesorNazwa = "?"; }
+            Amd = ProcesorNazwa.IndexOf("AMD", StringComparison.OrdinalIgnoreCase) >= 0;
+            var rp = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RyzenAdj", "ryzenadj.exe");
+            if (Amd && File.Exists(rp)) Ryzen = rp;
+            WczytajNauke();
+        }
+
+        // ---------- pomiar ----------
+        [DllImport("kernel32.dll")] static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
+        [DllImport("kernel32.dll")] static extern bool GetSystemPowerStatus(out PowerStatus s);
+        [StructLayout(LayoutKind.Sequential)] struct PowerStatus { public byte AC, Battery, Percent, Saver; public int Life, Full; }
+        [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+        [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhOpenQuery(string src, IntPtr user, out IntPtr q);
+        [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhAddEnglishCounter(IntPtr q, string path, IntPtr user, out IntPtr c);
+        [DllImport("pdh.dll")] static extern int PdhCollectQueryData(IntPtr q);
+        [DllImport("pdh.dll")] static extern int PdhGetFormattedCounterValue(IntPtr c, uint fmt, IntPtr type, out PdhValue v);
+        [DllImport("pdh.dll", CharSet = CharSet.Unicode)] static extern int PdhGetFormattedCounterArray(IntPtr c, uint fmt, ref int size, out int count, IntPtr buf);
+        [StructLayout(LayoutKind.Sequential)] struct PdhValue { public uint Status; public uint Pad; public double Value; }
+
+        long lIdle, lKer, lUsr; IntPtr pdhQ, cPerf, cDysk, cGpu; int tempTick; double tempOst = -1;
+
+        void InitPdh()
+        {
+            if (PdhOpenQuery(null, IntPtr.Zero, out pdhQ) != 0) { pdhQ = IntPtr.Zero; return; }
+            PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\% Processor Performance", IntPtr.Zero, out cPerf);
+            PdhAddEnglishCounter(pdhQ, @"\PhysicalDisk(_Total)\% Idle Time", IntPtr.Zero, out cDysk);
+            if (PdhAddEnglishCounter(pdhQ, @"\GPU Engine(*engtype_3D)\Utilization Percentage", IntPtr.Zero, out cGpu) != 0) cGpu = IntPtr.Zero;   // karta: suma silników 3D wszystkich programów
+            PdhCollectQueryData(pdhQ);
+        }
+        double Licznik(IntPtr c) => c != IntPtr.Zero && PdhGetFormattedCounterValue(c, 0x200, IntPtr.Zero, out var v) == 0 ? v.Value : -1;
+        double Gpu()
+        {
+            if (cGpu == IntPtr.Zero) return -1;
+            int size = 0; PdhGetFormattedCounterArray(cGpu, 0x200, ref size, out var n, IntPtr.Zero);
+            if (size <= 0) return -1;
+            var buf = Marshal.AllocHGlobal(size);
+            try
+            {
+                if (PdhGetFormattedCounterArray(cGpu, 0x200, ref size, out n, buf) != 0) return -1;
+                double sum = 0; int step = IntPtr.Size + 16;   // PDH_FMT_COUNTERVALUE_ITEM: wskaźnik nazwy + {status, (wyrównanie), double}
+                for (int i = 0; i < n; i++) sum += BitConverter.Int64BitsToDouble(Marshal.ReadInt64(buf, i * step + IntPtr.Size + 8));
+                return Math.Min(100, sum);
+            }
+            finally { Marshal.FreeHGlobal(buf); }
+        }
+
+        public Pomiar Zmierz()
+        {
+            var p = new Pomiar();
+            if (pdhQ == IntPtr.Zero) InitPdh();
+            if (GetSystemTimes(out var idle, out var ker, out var usr))
+            {
+                long di = idle - lIdle, dt = (ker - lKer) + (usr - lUsr);
+                if (lKer != 0 && dt > 0) p.Cpu = Math.Max(0, Math.Min(100, 100.0 * (dt - di) / dt));
+                lIdle = idle; lKer = ker; lUsr = usr;
+            }
+            if (pdhQ != IntPtr.Zero && PdhCollectQueryData(pdhQ) == 0)
+            {
+                double perf = Licznik(cPerf); if (perf > 0 && BazaMhz > 0) p.Ghz = BazaMhz * perf / 100 / 1000;
+                double di2 = Licznik(cDysk); p.Dysk = di2 >= 0 ? Math.Max(0, 100 - di2) : 0;
+                p.Gpu = Gpu();
+            }
+            if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s (odczyt bywa kosztowny)
+            p.Temp = tempOst;
+            try { GetWindowThreadProcessId(GetForegroundWindow(), out var pid); using (var pr = Process.GetProcessById((int)pid)) p.Program = pr.ProcessName; } catch (Exception) { }
+            try { p.Bateria = GetSystemPowerStatus(out var ps) && ps.AC == 0; } catch (Exception) { }
+            return p;
+        }
+
+        // temperatura: AMD - RyzenAdj (Tctl), inaczej LibreHardwareMonitor / OpenHardwareMonitor (gdy działa), zapasowo strefa ACPI; -1 = nieznana
+        double Temperatura()
+        {
+            if (RyzenDziala)
+                foreach (var l in RyzenWywolaj("--info"))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(l, @"THM VALUE( CORE)?\s*\|\s*([\d.]+)");
+                    if (m.Success && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float, Inv, out var t) && t > 0) return t;
+                }
+            foreach (var ns in new[] { @"root\LibreHardwareMonitor", @"root\OpenHardwareMonitor" })
+                try
+                {
+                    using (var s = new System.Management.ManagementObjectSearcher(ns, "SELECT Name, Value FROM Sensor WHERE SensorType='Temperature'"))
+                    {
+                        double best = -1;
+                        foreach (System.Management.ManagementObject o in s.Get())
+                        {
+                            var n = o["Name"] as string ?? ""; var v = Convert.ToDouble(o["Value"]);
+                            if (n.IndexOf("Package", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("Tctl", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("CPU", StringComparison.OrdinalIgnoreCase) >= 0) best = Math.Max(best, v);
+                        }
+                        if (best > 0) return best;
+                    }
+                }
+                catch (Exception) { }
+            try
+            {
+                using (var s = new System.Management.ManagementObjectSearcher(@"root\WMI", "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"))
+                    foreach (System.Management.ManagementObject o in s.Get()) { double t = Convert.ToDouble(o["CurrentTemperature"]) / 10 - 273.15; if (t > 0 && t < 120) return t; }
+            }
+            catch (Exception) { }
+            return -1;
+        }
+
+        // ---------- nauka ----------
+        // program na wierzchu → średnie obciążenie, gdy był na wierzchu (próbki); pora dnia (0–23) → średnie obciążenie
+        readonly Dictionary<string, (double Cpu, double Gpu, int N)> programy = new Dictionary<string, (double, double, int)>(StringComparer.OrdinalIgnoreCase);
+        readonly double[] godziny = new double[24]; readonly int[] godzN = new int[24];
+        public readonly Dictionary<string, Tryb> Reczne = new Dictionary<string, Tryb>(StringComparer.OrdinalIgnoreCase);   // „zawsze ten tryb” dla programu
+        public double ProgWysoki = 70, ProgNiski = 20;   // samodostrajane
+        DateTime naukaZapis = DateTime.UtcNow;
+
+        void WczytajNauke()
+        {
+            try
+            {
+                foreach (var l in File.ReadAllLines(NaukaFile))
+                {
+                    var a = l.Split('\t');
+                    if (a[0] == "P" && a.Length >= 5) programy[a[1]] = (double.Parse(a[2], Inv), double.Parse(a[3], Inv), int.Parse(a[4]));
+                    else if (a[0] == "H" && a.Length >= 4) { int h = int.Parse(a[1]); godziny[h] = double.Parse(a[2], Inv); godzN[h] = int.Parse(a[3]); }
+                    else if (a[0] == "R" && a.Length >= 3) Reczne[a[1]] = (Tryb)int.Parse(a[2]);
+                    else if (a[0] == "T" && a.Length >= 3) { ProgWysoki = double.Parse(a[1], Inv); ProgNiski = double.Parse(a[2], Inv); }
+                }
+            }
+            catch (Exception) { }
+        }
+        public void ZapiszNauke()
+        {
+            try
+            {
+                var l = new List<string>();
+                lock (programy) foreach (var p in programy) l.Add("P\t" + p.Key + "\t" + p.Value.Cpu.ToString("0.0", Inv) + "\t" + p.Value.Gpu.ToString("0.0", Inv) + "\t" + p.Value.N);
+                for (int h = 0; h < 24; h++) if (godzN[h] > 0) l.Add("H\t" + h + "\t" + godziny[h].ToString("0.0", Inv) + "\t" + godzN[h]);
+                foreach (var r in Reczne) l.Add("R\t" + r.Key + "\t" + (int)r.Value);
+                l.Add("T\t" + ProgWysoki.ToString("0.0", Inv) + "\t" + ProgNiski.ToString("0.0", Inv));
+                Directory.CreateDirectory(Dir); File.WriteAllLines(NaukaFile + ".tmp", l); if (File.Exists(NaukaFile)) File.Replace(NaukaFile + ".tmp", NaukaFile, null); else File.Move(NaukaFile + ".tmp", NaukaFile);
+            }
+            catch (Exception) { }
+        }
+        public List<(string Prog, string Opis)> ProgramyOpis()
+        {
+            lock (programy)
+                return programy.Where(p => p.Value.N >= 30 || Reczne.ContainsKey(p.Key)).OrderByDescending(p => p.Value.N).Take(30)
+                    .Select(p => (p.Key, Reczne.TryGetValue(p.Key, out var r) ? Nazwa(r) + " (zawsze)" : Nazwa(Wyuczony(p.Value)) + " · śr. " + p.Value.Cpu.ToString("0") + " %" + (p.Value.Gpu > 50 ? " · karta " + p.Value.Gpu.ToString("0") + " %" : ""))).ToList();
+        }
+        Tryb Wyuczony((double Cpu, double Gpu, int N) v) => v.Gpu > 70 && v.Cpu < 50 ? Tryb.Zrownowazony : v.Cpu > 55 ? Tryb.Turbo : v.Cpu < 12 ? Tryb.Cichy : Tryb.Zrownowazony;
+        public static string Nazwa(Tryb t) => t == Tryb.Cichy ? "Cichy" : t == Tryb.Turbo ? "Turbo" : "Zrównoważony";
+
+        void Ucz(Pomiar p)
+        {
+            if (!string.IsNullOrEmpty(p.Program) && p.Program != "Idle")
+                lock (programy)
+                {
+                    programy.TryGetValue(p.Program, out var v); int n = Math.Min(v.N + 1, 600);   // średnia z ok. 10 min pracy (starsze wygasa)
+                    programy[p.Program] = (v.Cpu + (p.Cpu - v.Cpu) / n, v.Gpu + (Math.Max(0, p.Gpu) - v.Gpu) / n, v.N + 1);
+                }
+            int h = DateTime.Now.Hour; int hn = Math.Min(++godzN[h], 3600); godziny[h] += (p.Cpu - godziny[h]) / hn;
+            if ((DateTime.UtcNow - naukaZapis).TotalMinutes > 5) { naukaZapis = DateTime.UtcNow; ZapiszNauke(); }
+        }
+
+        // ---------- decyzja ----------
+        public Tryb Obecny = Tryb.Zrownowazony; public string Dlaczego = "";
+        readonly Queue<double> tempHist = new Queue<double>(); DateTime ostZmiana = DateTime.MinValue; int wysokoN, niskoN, gpuWyjscieN; bool gpuBound;
+        int przycieciaN, nadmiarN;   // do samodostrajania progów
+
+        public Tryb Decyduj(Pomiar p)
+        {
+            Ucz(p);
+            if (Get("tryb") == "windows") { Dlaczego = "Steruje Windows (ustawienia domyślne) – Velivo Procesor tylko pokazuje pomiary."; return Obecny; }
+            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; Dlaczego = "Wybrany ręcznie."; return Ustal(r); }
+            if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
+            double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
+            wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;
+            Tryb chce; string why;
+            // 1. temperatura - teraz albo za 10 s (przewidywanie ze wzrostu)
+            if (p.Temp > 0 && (p.Temp >= TempLimit || p.Temp + trend * 10 >= TempLimit + 2))
+            { chce = Tryb.Cichy; why = "Procesor gorący (" + p.Temp.ToString("0") + " °C" + (trend > 0.3 ? ", rośnie" : "") + ") – zwalniam, zanim wentylator przyspieszy."; }
+            // 2. wczytywanie (dysk pracuje, procesor też) - krótko pełna moc
+            else if (p.Dysk > 80 && p.Cpu > 30) { chce = Tryb.Turbo; why = "Wczytywanie (dysk " + p.Dysk.ToString("0") + " %) – pełna moc, żeby szybciej skończyć."; }
+            // 3. gra obciąża kartę, procesor nie: procesor mniej mocy, karta chłodniej i wyższy zegar (wyjście po 3 s - stabilnie)
+            else if (p.Gpu > 75 && p.Cpu < 50 || gpuBound && p.Gpu > 60 && (gpuWyjscieN = p.Cpu > 50 ? gpuWyjscieN + 1 : 0) < 3)
+            { gpuBound = true; chce = Tryb.Zrownowazony; why = "Program obciąża kartę graficzną (" + p.Gpu.ToString("0") + " %), procesor tylko " + p.Cpu.ToString("0") + " % – procesor nie potrzebuje więcej mocy, karta ma chłodniej."; }
+            // 4. duże obciążenie - od razu w górę (pół sekundy wystarczy, bez przycięć)
+            else if (wysokoN >= 1) { gpuBound = false; chce = Tryb.Turbo; why = "Duże obciążenie (" + p.Cpu.ToString("0") + " %) – pełna moc od razu."; }
+            // 5. ręcznie przypisany / wyuczony program
+            else if (Reczne.TryGetValue(p.Program, out var rr)) { gpuBound = false; chce = rr; why = p.Program + " – ustawiony na stałe: " + Nazwa(rr) + "."; }
+            else if (programy.TryGetValue(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
+            // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas
+            else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
+            else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
+            if (p.Bateria && chce == Tryb.Turbo && !(p.Temp < 0 && wysokoN > 3)) { chce = Tryb.Zrownowazony; why += " Na baterii bez Turbo."; }
+
+            // w dół powoli: Turbo → Zrównoważony po 3 s, Zrównoważony → Cichy po 8 s; w górę od razu
+            if (chce < Obecny && p.Temp < TempLimit)
+            {
+                double wait = Obecny == Tryb.Turbo ? 3 : 8;
+                if ((DateTime.UtcNow - ostZmiana).TotalSeconds < wait && !(p.Temp >= TempLimit)) { Dlaczego = why + " (zmiana za chwilę – bez skakania trybów)"; return Obecny; }
+            }
+            // samodostrajanie: w Cichym procesor ciągle pełny = za późno w górę (próg niżej); w Turbo ciągle mało = za łatwo (próg wyżej)
+            if (Obecny == Tryb.Cichy && p.Cpu > 95) { if (++przycieciaN > 20) { ProgWysoki = Math.Max(50, ProgWysoki - 2); przycieciaN = 0; } } else przycieciaN = 0;
+            if (Obecny == Tryb.Turbo && p.Cpu < 30 && !gpuBound) { if (++nadmiarN > 60) { ProgWysoki = Math.Min(85, ProgWysoki + 2); nadmiarN = 0; } } else nadmiarN = 0;
+            Dlaczego = why;
+            return Ustal(chce);
+        }
+        Tryb Ustal(Tryb t) { if (t != Obecny || !zastosowany) { Obecny = t; ostZmiana = DateTime.UtcNow; Zastosuj(t); } return t; }
+
+        // ---------- sterowanie ----------
+        bool zastosowany;
+        static readonly Guid Sub = new Guid("54533251-82be-4824-96c1-47b60b740d00");
+        static readonly Guid Max = new Guid("bc5038f7-23e0-4960-96da-33abaf5935ec"), Min = new Guid("893dee8e-2bef-41e0-89c6-b55d0929964c"),
+            Boost = new Guid("be337238-0d82-4146-a960-4f3749d470c7"), Epp = new Guid("36687f9e-e3a5-4dbf-b1dc-15eb381c6863"), Freq = new Guid("75b0ae3f-bce0-45a7-8c89-c9611c25e100");
+        [DllImport("powrprof.dll")] static extern uint PowerGetActiveScheme(IntPtr root, out IntPtr guid);
+        [DllImport("powrprof.dll")] static extern uint PowerSetActiveScheme(IntPtr root, ref Guid guid);
+        [DllImport("powrprof.dll")] static extern uint PowerWriteACValueIndex(IntPtr root, ref Guid s, ref Guid sub, ref Guid set, uint v);
+        [DllImport("powrprof.dll")] static extern uint PowerWriteDCValueIndex(IntPtr root, ref Guid s, ref Guid sub, ref Guid set, uint v);
+        [DllImport("powrprof.dll")] static extern uint PowerReadACValueIndex(IntPtr root, ref Guid s, ref Guid sub, ref Guid set, out uint v);
+        [DllImport("powrprof.dll")] static extern uint PowerReadDCValueIndex(IntPtr root, ref Guid s, ref Guid sub, ref Guid set, out uint v);
+        [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr p);
+        public string Blad = "";
+
+        static Guid Aktywny() { PowerGetActiveScheme(IntPtr.Zero, out var p); try { return (Guid)Marshal.PtrToStructure(p, typeof(Guid)); } finally { LocalFree(p); } }
+        static readonly Guid[] Ustawienia = { Max, Min, Boost, Epp, Freq };
+        static readonly string KopiaFile = Path.Combine(Dir, "windows-przed.txt");
+
+        // ustawienia Windows sprzed pierwszego uruchomienia - przywracane przy zamknięciu programu
+        void ZapamietajWindows(Guid s)
+        {
+            if (File.Exists(KopiaFile)) return;
+            var l = new List<string> { s.ToString() };
+            foreach (var g in Ustawienia) { var gg = g; var sub = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, out var a) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, out var d) == 0) l.Add(g + "\t" + a + "\t" + d); }
+            try { Directory.CreateDirectory(Dir); File.WriteAllLines(KopiaFile, l); } catch (Exception) { }
+        }
+        public void PrzywrocWindows()
+        {
+            try
+            {
+                var l = File.ReadAllLines(KopiaFile); var s = new Guid(l[0]); var sub = Sub;
+                foreach (var x in l.Skip(1)) { var a = x.Split('\t'); var g = new Guid(a[0]); PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref g, uint.Parse(a[1])); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref g, uint.Parse(a[2])); }
+                PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile);
+            }
+            catch (Exception) { }
+            if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }   // AMD: limity fabryczne wracają same po restarcie; do tego czasu pełna moc
+            zastosowany = false;
+        }
+
+        // ↺ ustawienia domyślne Windows: aktywny plan zasilania wraca do wartości fabrycznych Windows (tylko ten plan), program przestaje sterować;
+        // AMD: limity mocy RyzenAdj wracają do fabrycznych po ponownym uruchomieniu komputera (do tego czasu pełna moc)
+        [DllImport("powrprof.dll")] static extern uint PowerRestoreIndividualDefaultPowerScheme(ref Guid s);
+        public string DomyslneWindows()
+        {
+            Put("tryb", "windows");
+            uint e = 1;
+            try { var s = Aktywny(); e = PowerRestoreIndividualDefaultPowerScheme(ref s); PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); } catch (Exception) { }
+            if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }
+            zastosowany = false;
+            return e == 0 ? "Plan zasilania Windows przywrócony do ustawień domyślnych. Velivo Procesor nie steruje (wybierz tryb, aby znów sterował)." + (RyzenDziala ? " Moc AMD: fabryczne limity wrócą po ponownym uruchomieniu komputera." : "")
+                : "Nie udało się przywrócić planu zasilania (kod " + e + ").";
+        }
+
+        public (int Stapm, int Fast, int Slow, int Tctl) MocAmd(Tryb t)
+        {   // profile z CPU Manager v40 (W, °C); zmienialne w ustawieniach
+            var d = t == Tryb.Cichy ? "12,28,15,75" : t == Tryb.Turbo ? "25,35,30,88" : "15,28,22,80";
+            var a = (Get("amd-" + (int)t) ?? d).Split(','); int I(int i, int def) => a.Length > i && int.TryParse(a[i], out var v) ? v : def;
+            return (I(0, 15), I(1, 28), I(2, 22), I(3, 80));
+        }
+
+        void Zastosuj(Tryb t)
+        {
+            Blad = "";
+            try
+            {
+                var s = Aktywny(); ZapamietajWindows(s);
+                // Cichy: zegar do wybranej wartości (także poniżej bazowego), bez boostu, oszczędzanie; Zrównoważony: boost oszczędny; Turbo: boost agresywny, pełna wydajność
+                uint max = t == Tryb.Cichy ? (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100))) : 100;
+                uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 200u : t == Tryb.Turbo ? 0u : 100u;
+                uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
+                uint min = t == Tryb.Turbo ? 30u : 5u;
+                var w = new[] { (Max, max), (Min, min), (Boost, boost), (Epp, epp), (Freq, freq) };
+                uint err = 0;
+                foreach (var (g, v) in w) { var gg = g; var sub = Sub; err |= PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, v); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, v); }
+                PowerSetActiveScheme(IntPtr.Zero, ref s);
+                if (err != 0) Blad = "Windows nie przyjął części ustawień zasilania (kod " + err + ").";
+            }
+            catch (Exception ex) { Blad = ex.Message; }
+            if (RyzenDziala) { var m = MocAmd(t); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }
+            zastosowany = true;
+        }
+
+        public void SprawdzRyzen()
+        {
+            RyzenDziala = false;
+            if (Ryzen == null) return;
+            RyzenDziala = RyzenWywolaj("--info").Any(l => l.IndexOf("STAPM LIMIT", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+        List<string> RyzenWywolaj(string args)
+        {
+            var wynik = new List<string>();
+            try
+            {
+                using (var p = Process.Start(new ProcessStartInfo(Ryzen, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true }))
+                {
+                    var o = p.StandardOutput.ReadToEnd(); p.WaitForExit(3000);
+                    wynik.AddRange(o.Split('\n'));
+                }
+            }
+            catch (Exception) { }
+            return wynik;
+        }
+
+        public static bool Admin()
+        {
+            try { using (var id = System.Security.Principal.WindowsIdentity.GetCurrent()) return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator); }
+            catch (Exception) { return false; }
+        }
+    }
+}

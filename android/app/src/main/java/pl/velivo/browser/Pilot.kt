@@ -622,8 +622,8 @@ class Pilot(private val act: Activity, private val lan: LanSync, private val pre
                     if (two && e.pointerCount >= 2) {
                         val y = (e.getY(0) + e.getY(1)) / 2; scrollAcc += y - ly; ly = y
                         val step = dp(30).toFloat()
-                        while (scrollAcc >= step) { scrollAcc -= step; pcSend("pc-scroll", n = 1.0) }
-                        while (scrollAcc <= -step) { scrollAcc += step; pcSend("pc-scroll", n = -1.0) }
+                        while (scrollAcc >= step) { scrollAcc -= step; pcSend("pc-scroll", n = -1.0) }   // palce w dół = strona w dół (jak kółko myszy)
+                        while (scrollAcc <= -step) { scrollAcc += step; pcSend("pc-scroll", n = 1.0) }   // palce w górę = strona w górę
                     } else if (!two) {
                         val dx = e.x - lx; val dy = e.y - ly; lx = e.x; ly = e.y; moved += Math.abs(dx) + Math.abs(dy)
                         val sp = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat(); val k = 1.2f + (sp / dp(12)).coerceAtMost(2.5f)   // szybki ruch = dalej (jak touchpad laptopa)

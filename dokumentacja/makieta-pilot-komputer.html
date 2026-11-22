@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pilot – komputer</title>
+<style>
+body{margin:0;background:#0b0e14;color:#ECE8FF;font:14px "Segoe UI",Roboto,sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#A79FD0;max-width:900px;margin:0 0 14px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.ph{width:300px;height:620px;background:#1B1733;border-radius:30px;border:6px solid #2A2450;overflow:hidden;display:flex;flex-direction:column}
+.cap{width:300px;text-align:center;color:#A79FD0;margin-top:6px;font-size:13px}
+.top{padding:12px 14px 6px;font-weight:600;font-size:16px}
+.st{padding:0 14px 8px;color:#A79FD0;font-size:12px}
+.tabs{display:flex;margin:0 10px 8px;background:#120F24;border-radius:12px;padding:3px}
+.tabs div{flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:12px;color:#A79FD0}
+.tabs .on{background:linear-gradient(90deg,#6D3FDB,#2BA9D8);color:#fff;font-weight:600}
+.pad{margin:0 10px;flex:1;background:#120F24;border-radius:16px;border:1px dashed #3E3570;display:flex;align-items:center;justify-content:center;color:#5E558F;font-size:12px;text-align:center;position:relative}
+.dot{position:absolute;width:34px;height:34px;border-radius:50%;background:rgba(43,169,216,.35);left:150px;top:120px}
+.btns{display:flex;gap:6px;margin:8px 10px}
+.b{flex:1;background:#2E2768;border-radius:12px;padding:12px 4px;text-align:center;font-size:12px}
+.b i{display:block;font-style:normal;font-size:20px;margin-bottom:2px}
+.red{background:#7F1D1D}.grn{background:#14532D}
+.kb{margin:0 10px 10px;background:#120F24;border-radius:12px;padding:10px;color:#5E558F;font-size:13px;display:flex;gap:8px;align-items:center}
+.kb span{flex:1}.kb b{background:#6D3FDB;color:#fff;border-radius:9px;padding:6px 10px;font-size:12px}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 10px 10px}
+.keys div{background:#2E2768;border-radius:9px;padding:9px 0;text-align:center;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0 10px}
+.grid .b{padding:16px 4px}
+.vol{margin:10px;background:#120F24;border-radius:12px;padding:12px}
+.bar{height:8px;border-radius:4px;background:#2A2450;margin-top:8px;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:62%;border-radius:4px;background:linear-gradient(90deg,#6D3FDB,#2BA9D8)}
+.ask{margin:10px;background:#3B1D2E;border:1px solid #7A3A50;border-radius:12px;padding:12px;font-size:12px}
+.ask div{display:flex;gap:8px;margin-top:10px}.ask span{flex:1;text-align:center;padding:9px;border-radius:9px;background:#2E2768}.ask span.r{background:#B91C1C;color:#fff}
+</style></head><body>
+<h1>🎮 Pilot → 🖱 Sterowanie komputerem (propozycja)</h1>
+<p class="o">Nowa zakładka w Pilocie (Velivo Odtwarzacz i przeglądarka). Działa tylko ze sparowanym komputerem (ten sam klucz co Pilot, szyfrowane). Trzy zakładki u góry: <b>Mysz</b>, <b>Klawiatura</b>, <b>Komputer</b>. Wyłącz / uruchom ponownie / wyloguj zawsze z pytaniem „Na pewno?”.</p>
+<div class="row">
+ <div><div class="ph">
+  <div class="top">💻 RYZENMIC ▾</div><div class="st">dostępny · sterowanie myszą</div>
+  <div class="tabs"><div class="on">🖱 Mysz</div><div>⌨ Klawiatura</div><div>⚙ Komputer</div></div>
+  <div class="pad"><div class="dot"></div>Przesuwaj palcem jak po touchpadzie<br><br>stuknięcie = klik · dwa palce = przewijanie<br>przytrzymanie = prawy klik</div>
+  <div class="btns"><div class="b"><i>◧</i>Lewy</div><div class="b"><i>⇕</i>Przewiń</div><div class="b"><i>◨</i>Prawy</div></div>
+  <div class="kb"><span>⌨ Napisz na komputerze…</span><b>➤</b></div>
+ </div><div class="cap">1. Mysz – touchpad na cały ekran</div></div>
+
+ <div><div class="ph">
+  <div class="top">💻 RYZENMIC ▾</div><div class="st">dostępny · pisanie</div>
+  <div class="tabs"><div>🖱 Mysz</div><div class="on">⌨ Klawiatura</div><div>⚙ Komputer</div></div>
+  <div class="kb" style="padding:14px"><span style="color:#ECE8FF">Dzień dobry, mamo|</span><b>➤ Wyślij</b></div>
+  <div class="st" style="padding:0 14px 8px">litery idą od razu (na żywo) albo całym tekstem po ➤</div>
+  <div class="keys"><div>Enter ⏎</div><div>⌫</div><div>Tab</div><div>Esc</div>
+   <div>◀</div><div>▲</div><div>▼</div><div>▶</div>
+   <div>Ctrl+C</div><div>Ctrl+V</div><div>Ctrl+Z</div><div>Alt+Tab</div>
+   <div>⊞ Win</div><div>Alt+F4</div><div>F5</div><div>F11</div></div>
+  <div class="pad" style="flex:0 0 120px">mały touchpad – mysz pod ręką</div>
+  <div style="height:10px"></div>
+ </div><div class="cap">2. Klawiatura – tekst i skróty</div></div>
+
+ <div><div class="ph">
+  <div class="top">💻 RYZENMIC ▾</div><div class="st">dostępny · Windows 11</div>
+  <div class="tabs"><div>🖱 Mysz</div><div>⌨ Klawiatura</div><div class="on">⚙ Komputer</div></div>
+  <div class="vol">🔊 Głośność komputera 62%<div class="bar"><i></i></div>
+   <div class="btns" style="margin:10px 0 0"><div class="b">🔉 −</div><div class="b">🔇 Wycisz</div><div class="b">🔊 +</div></div></div>
+  <div class="grid">
+   <div class="b"><i>🌙</i>Wyłącz ekran</div><div class="b"><i>☀️</i>Włącz ekran</div>
+   <div class="b"><i>🔒</i>Zablokuj</div><div class="b"><i>🚪</i>Wyloguj</div>
+   <div class="b grn"><i>🔄</i>Uruchom ponownie</div><div class="b red"><i>⏻</i>Wyłącz</div>
+  </div>
+  <div class="ask">⏻ Wyłączyć RYZENMIC?<br>Otwarte programy zostaną zamknięte.<div><span>Anuluj</span><span class="r">Wyłącz</span></div></div>
+ </div><div class="cap">3. Komputer – polecenia (z potwierdzeniem)</div></div>
+</div>
+<p class="o" style="margin-top:16px">Na komputerze: ruch myszy i pisanie przez SendInput (jak w pomocy zdalnej), głośność główna przez Windows, ekran wył./wł. jak dziś w Pilocie, wyłącz/restart/wyloguj przez Windows (shutdown). Do wyboru: czy dodać „Zablokuj” i „Uśpij”, czy pisanie na żywo czy tylko po ➤.</p>
+</body></html>

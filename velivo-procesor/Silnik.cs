@@ -224,11 +224,13 @@ namespace VelivoProcesor
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
             wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;
-            Tryb chce; string why;
+            Tryb chce; string why; bool reczny = false;
             // 1. temperatura - teraz albo za 10 s (przewidywanie ze wzrostu)
             if (p.Temp > 0 && (p.Temp >= TempLimit || p.Temp + trend * 10 >= TempLimit + 2))
             { chce = Tryb.Cichy; why = "Procesor gorący (" + p.Temp.ToString("0") + " °C" + (trend > 0.3 ? ", rośnie" : "") + ") – zwalniam, zanim wentylator przyspieszy."; }
-            // 2. wczytywanie (dysk pracuje, procesor też) - krótko pełna moc
+            // 2. „zawsze ten tryb”: program działa (na wierzchu albo w tle - np. Studio One gra, a Ty jesteś w innym oknie) - jego tryb, bez względu na obciążenie i baterię
+            else if (ZawszeDla(p, out var rr, out var rn)) { gpuBound = false; reczny = true; chce = rr; why = rn + " działa – ustawiony na stałe: " + Nazwa(rr) + "."; }
+            // 3. wczytywanie (dysk pracuje, procesor też) - krótko pełna moc
             else if (p.Dysk > 80 && p.Cpu > 30) { chce = Tryb.Turbo; why = "Wczytywanie (dysk " + p.Dysk.ToString("0") + " %) – pełna moc, żeby szybciej skończyć."; }
             // 3. gra obciąża kartę, procesor nie: procesor mniej mocy, karta chłodniej i wyższy zegar (wyjście po 3 s - stabilnie)
             else if (p.Gpu > 75 && p.Cpu < 50 || gpuBound && p.Gpu > 60 && (gpuWyjscieN = p.Cpu > 50 ? gpuWyjscieN + 1 : 0) < 3)
@@ -236,12 +238,11 @@ namespace VelivoProcesor
             // 4. duże obciążenie - od razu w górę (pół sekundy wystarczy, bez przycięć)
             else if (wysokoN >= 1) { gpuBound = false; chce = Tryb.Turbo; why = "Duże obciążenie (" + p.Cpu.ToString("0") + " %) – pełna moc od razu."; }
             // 5. ręcznie przypisany / wyuczony program
-            else if (Reczne.TryGetValue(p.Program, out var rr)) { gpuBound = false; chce = rr; why = p.Program + " – ustawiony na stałe: " + Nazwa(rr) + "."; }
             else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas
             else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
             else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
-            if (p.Bateria && chce == Tryb.Turbo && !(p.Temp < 0 && wysokoN > 3)) { chce = Tryb.Zrownowazony; why += " Na baterii bez Turbo."; }
+            if (!reczny && p.Bateria && chce == Tryb.Turbo && !(p.Temp < 0 && wysokoN > 3)) { chce = Tryb.Zrownowazony; why += " Na baterii bez Turbo."; }
 
             // w dół powoli: Turbo → Zrównoważony po 3 s, Zrównoważony → Cichy po 8 s; w górę od razu
             if (chce < Obecny && p.Temp < TempLimit)
@@ -254,6 +255,23 @@ namespace VelivoProcesor
             if (Obecny == Tryb.Turbo && p.Cpu < 30 && !gpuBound) { if (++nadmiarN > 60) { ProgWysoki = Math.Min(85, ProgWysoki + 2); nadmiarN = 0; } } else nadmiarN = 0;
             Dlaczego = why;
             return Ustal(chce);
+        }
+        // program z „zawsze ten tryb”: najpierw ten na wierzchu, inaczej działający w tle (kilka - najwyższy tryb); lista procesów co 3 s
+        HashSet<string> dzialajace = new HashSet<string>(StringComparer.OrdinalIgnoreCase); DateTime dzialajaceT;
+        bool ZawszeDla(Pomiar p, out Tryb t, out string nazwa)
+        {
+            t = Tryb.Zrownowazony; nazwa = null;
+            if (Reczne.Count == 0) return false;
+            if (Reczne.TryGetValue(p.Program ?? "", out t)) { nazwa = p.Program; return true; }
+            if ((DateTime.UtcNow - dzialajaceT).TotalSeconds >= 3)
+            {
+                dzialajaceT = DateTime.UtcNow; var d = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pr in Process.GetProcesses()) using (pr) try { d.Add(pr.ProcessName); } catch (Exception) { }
+                dzialajace = d;
+            }
+            bool jest = false;
+            foreach (var r in Reczne.ToArray()) if (dzialajace.Contains(r.Key) && (!jest || r.Value > t)) { t = r.Value; nazwa = r.Key; jest = true; }
+            return jest;
         }
         bool ZnanyProgram(string n, out (double Cpu, double Gpu, int N, double Szczyt) v) { lock (programy) return programy.TryGetValue(n ?? "", out v); }
         Tryb Ustal(Tryb t) { if (t != Obecny || !zastosowany) { Obecny = t; ostZmiana = DateTime.UtcNow; Zastosuj(t); } return t; }

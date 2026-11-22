@@ -73,7 +73,7 @@ namespace VelivoProcesor
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
         TextBlock tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
-        readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120]; int hPos;
+        readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
 
@@ -104,7 +104,7 @@ namespace VelivoProcesor
                     var p = s.Zmierz(); var t = s.Decyduj(p); ost = p;
                     if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid);
                     Centrum(p);
-                    hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hPos = (hPos + 1) % hCpu.Length;
+                    hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hPb[hPos] = pb.Liczba; hPos = (hPos + 1) % hCpu.Length;
                     win.Dispatcher.BeginInvoke(new Action(Odswiez));
                 }
                 catch (Exception) { }
@@ -227,7 +227,7 @@ namespace VelivoProcesor
             // wykres i programy
             var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
             var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 120, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
-            gw.Children.Add(T("turkus – procesor · fiolet – tryb · żółty – temperatura", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
+            gw.Children.Add(T("turkus – procesor · fiolet – tryb · żółty – temperatura · zielony pasek – ProBalance uspokaja programy w tle", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
             var gp = new StackPanel(); gp.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             gp.Children.Add(new ScrollViewer { Content = lista, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             gp.Children.Add(T("prawy przycisk: zawsze ten tryb / ucz się sam", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
@@ -300,6 +300,13 @@ namespace VelivoProcesor
         {
             wykres.Children.Clear(); double w = Math.Max(10, wykres.ActualWidth), h = wykres.Height; int n = hCpu.Length;
             Polyline L(Brush c, double th) { var pl = new Polyline { Stroke = c, StrokeThickness = th }; wykres.Children.Add(pl); return pl; }
+            // ⚖ ProBalance: zielony pasek u dołu tam, gdzie uspokajał programy w tle (wyższy = więcej programów)
+            for (int i = 0; i < n; i++)
+            {
+                int c = hPb[(hPos + i) % n]; if (c <= 0) continue;
+                var r = new Rectangle { Width = Math.Max(1.5, w / (n - 1)), Height = Math.Min(14, 4 + c * 3), Fill = Ok, Opacity = 0.75, ToolTip = "ProBalance: uspokojone programy w tle – " + c };
+                Canvas.SetLeft(r, w * i / (n - 1)); Canvas.SetTop(r, h - r.Height); wykres.Children.Add(r);
+            }
             var lc = L(Tq, 1.5); var lt = L(Warn, 1); var lm = L(Vi, 1.5); lt.StrokeDashArray = new DoubleCollection { 3, 2 };
             for (int i = 0; i < n; i++)
             {

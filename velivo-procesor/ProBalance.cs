@@ -27,12 +27,12 @@ namespace VelivoProcesor
         sealed class Proc { public IntPtr H; public string Name; public long Czas; public int Wysoko, Spokoj; public bool Obnizony; }
         readonly Dictionary<int, Proc> procs = new Dictionary<int, Proc>();
         readonly int rdzenie = Environment.ProcessorCount; long ostTick; int spokojCalosc;
-        public string Opis = "";   // co teraz robi - słowami do okna
+        public string Opis = ""; public int Liczba;   // ile programów w tle uspokojonych (wykres)   // co teraz robi - słowami do okna
 
         // co 2 s: cpu = obciążenie całego procesora (%), fg = proces okna na wierzchu
         public void Krok(bool wlaczony, double cpu, int fg)
         {
-            if (!wlaczony) { if (procs.Values.Any(x => x.Obnizony)) PrzywrocWszystkie(); Opis = "wyłączony"; return; }
+            if (!wlaczony) { if (procs.Values.Any(x => x.Obnizony)) PrzywrocWszystkie(); Opis = "wyłączony"; Liczba = 0; return; }
             long now = Stopwatch.GetTimestamp(); double dt = ostTick == 0 ? 0 : (now - ostTick) / (double)Stopwatch.Frequency; ostTick = now;
             var zywe = new HashSet<int>();
             foreach (var p in Process.GetProcesses())
@@ -65,6 +65,7 @@ namespace VelivoProcesor
             spokojCalosc = cpu < 35 ? spokojCalosc + 1 : 0;
             foreach (var id in procs.Keys.Where(i => !zywe.Contains(i)).ToList()) { if (procs[id].H != IntPtr.Zero) CloseHandle(procs[id].H); procs.Remove(id); }
             var ob = procs.Values.Where(x => x.Obnizony).Select(x => x.Name).Distinct().ToList();
+            Liczba = ob.Count;
             Opis = ob.Count == 0 ? "czuwa – nic nie przeszkadza" : "w tle uspokojone: " + string.Join(", ", ob.Take(4)) + (ob.Count > 4 ? " i " + (ob.Count - 4) + " inne" : "");
         }
 

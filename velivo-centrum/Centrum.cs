@@ -77,6 +77,8 @@ namespace VelivoCentrum
             if (!on) return File.Exists(p.Exe ?? "") ? "kliknij, aby uruchomić" : p.Desc;
             if (p.Pid == "VelivoAudioBalance")
                 try { using (var m = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\Velivo.AudioBalance.Wynik")) using (var v = m.CreateViewAccessor()) { if ((long)GetTickCount64() - v.ReadInt64(8) < 3000) { float l = v.ReadSingle(0); if (l > -70 && l < 0) return l.ToString("0.0") + " LUFS · przetwarza"; } } } catch (Exception) { }
+            if (p.Pid == "VelivoProcesor")   // tryb, temperatura i obciążenie z Velivo Procesor (pamięć współdzielona)
+                try { using (var m = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\Velivo.Procesor.Stan")) using (var v = m.CreateViewAccessor()) { if ((long)GetTickCount64() - v.ReadInt64(8) < 3000) { int n = v.ReadInt32(0); if (n > 0 && n <= 400) { var b = new byte[n]; v.ReadArray(16, b, 0, n); return System.Text.Encoding.UTF8.GetString(b); } } } } catch (Exception) { }
             if (p.Pid == "VelivoMonitor" && cpu >= 0) return "procesor " + cpu.ToString("0") + " %";
             if (p.Pid == "VelivoKursory") return "włączone · " + KursoryPx() + " px";
             return p.Desc;

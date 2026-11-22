@@ -15,7 +15,7 @@ namespace VelivoProcesor
 
     sealed class Pomiar
     {
-        public double Cpu, Gpu = -1, Temp = -1, Dysk, Ghz; public string Program = ""; public bool Bateria;
+        public double Cpu, Gpu = -1, Temp = -1, Dysk, Ghz; public string Program = ""; public int Pid; public bool Bateria;
     }
 
     sealed class Silnik
@@ -111,7 +111,7 @@ namespace VelivoProcesor
             }
             if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s (odczyt bywa kosztowny)
             p.Temp = tempOst;
-            try { GetWindowThreadProcessId(GetForegroundWindow(), out var pid); using (var pr = Process.GetProcessById((int)pid)) p.Program = pr.ProcessName; } catch (Exception) { }
+            try { GetWindowThreadProcessId(GetForegroundWindow(), out var pid); p.Pid = (int)pid; using (var pr = Process.GetProcessById((int)pid)) p.Program = pr.ProcessName; } catch (Exception) { }
             try { p.Bateria = GetSystemPowerStatus(out var ps) && ps.AC == 0; } catch (Exception) { }
             return p;
         }
@@ -151,7 +151,9 @@ namespace VelivoProcesor
 
         // ---------- nauka ----------
         // program na wierzchu → średnie obciążenie, gdy był na wierzchu (próbki); pora dnia (0–23) → średnie obciążenie
-        readonly Dictionary<string, (double Cpu, double Gpu, int N)> programy = new Dictionary<string, (double, double, int)>(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, (double Cpu, double Gpu, int N, double Szczyt)> programy = new Dictionary<string, (double, double, int, double)>(StringComparer.OrdinalIgnoreCase);
+        // nie programy użytkownika: pulpit, pasek, menu Start, ekran blokady i sam Velivo Procesor (jego okno na wierzchu to nie praca)
+        static readonly HashSet<string> Powloka = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Idle", "explorer", "ShellExperienceHost", "StartMenuExperienceHost", "SearchHost", "SearchApp", "LockApp", "TextInputHost", "ApplicationFrameHost", "VelivoProcesor", "VelivoCentrum", "dwm", "csrss" };
         readonly double[] godziny = new double[24]; readonly int[] godzN = new int[24];
         public readonly Dictionary<string, Tryb> Reczne = new Dictionary<string, Tryb>(StringComparer.OrdinalIgnoreCase);   // „zawsze ten tryb” dla programu
         public double ProgWysoki = 70, ProgNiski = 20;   // samodostrajane
@@ -164,7 +166,7 @@ namespace VelivoProcesor
                 foreach (var l in File.ReadAllLines(NaukaFile))
                 {
                     var a = l.Split('\t');
-                    if (a[0] == "P" && a.Length >= 5) programy[a[1]] = (double.Parse(a[2], Inv), double.Parse(a[3], Inv), int.Parse(a[4]));
+                    if (a[0] == "P" && a.Length >= 5 && !Powloka.Contains(a[1])) programy[a[1]] = (double.Parse(a[2], Inv), double.Parse(a[3], Inv), int.Parse(a[4]), a.Length >= 6 ? double.Parse(a[5], Inv) : double.Parse(a[2], Inv));
                     else if (a[0] == "H" && a.Length >= 4) { int h = int.Parse(a[1]); godziny[h] = double.Parse(a[2], Inv); godzN[h] = int.Parse(a[3]); }
                     else if (a[0] == "R" && a.Length >= 3) Reczne[a[1]] = (Tryb)int.Parse(a[2]);
                     else if (a[0] == "T" && a.Length >= 3) { ProgWysoki = double.Parse(a[1], Inv); ProgNiski = double.Parse(a[2], Inv); }
@@ -177,7 +179,7 @@ namespace VelivoProcesor
             try
             {
                 var l = new List<string>();
-                lock (programy) foreach (var p in programy) l.Add("P\t" + p.Key + "\t" + p.Value.Cpu.ToString("0.0", Inv) + "\t" + p.Value.Gpu.ToString("0.0", Inv) + "\t" + p.Value.N);
+                lock (programy) foreach (var p in programy) l.Add("P\t" + p.Key + "\t" + p.Value.Cpu.ToString("0.0", Inv) + "\t" + p.Value.Gpu.ToString("0.0", Inv) + "\t" + p.Value.N + "\t" + p.Value.Szczyt.ToString("0.0", Inv));
                 for (int h = 0; h < 24; h++) if (godzN[h] > 0) l.Add("H\t" + h + "\t" + godziny[h].ToString("0.0", Inv) + "\t" + godzN[h]);
                 foreach (var r in Reczne) l.Add("R\t" + r.Key + "\t" + (int)r.Value);
                 l.Add("T\t" + ProgWysoki.ToString("0.0", Inv) + "\t" + ProgNiski.ToString("0.0", Inv));
@@ -189,18 +191,21 @@ namespace VelivoProcesor
         {
             lock (programy)
                 return programy.Where(p => p.Value.N >= 30 || Reczne.ContainsKey(p.Key)).OrderByDescending(p => p.Value.N).Take(30)
-                    .Select(p => (p.Key, Reczne.TryGetValue(p.Key, out var r) ? Nazwa(r) + " (zawsze)" : Nazwa(Wyuczony(p.Value)) + " · śr. " + p.Value.Cpu.ToString("0") + " %" + (p.Value.Gpu > 50 ? " · karta " + p.Value.Gpu.ToString("0") + " %" : ""))).ToList();
+                    .Select(p => (p.Key, Reczne.TryGetValue(p.Key, out var r) ? Nazwa(r) + " (zawsze)" : Nazwa(Wyuczony(p.Value)) + " · śr. " + p.Value.Cpu.ToString("0") + " %, szczyt " + p.Value.Szczyt.ToString("0") + " %" + (p.Value.Gpu > 50 ? " · karta " + p.Value.Gpu.ToString("0") + " %" : "") + " · " + Czas(p.Value.N))).ToList();
         }
-        Tryb Wyuczony((double Cpu, double Gpu, int N) v) => v.Gpu > 70 && v.Cpu < 50 ? Tryb.Zrownowazony : v.Cpu > 55 ? Tryb.Turbo : v.Cpu < 12 ? Tryb.Cichy : Tryb.Zrownowazony;
+        // wymagania programu: średnia i szczyt (program, który często skacze do pełnej mocy - kompilacja, eksport - dostaje Turbo zawczasu, bez przycięć)
+        static Tryb Wyuczony((double Cpu, double Gpu, int N, double Szczyt) v) => v.Gpu > 70 && v.Cpu < 50 ? Tryb.Zrownowazony : v.Cpu > 55 || v.Szczyt > 85 && v.Cpu > 30 ? Tryb.Turbo : v.Cpu < 12 && v.Szczyt < 40 ? Tryb.Cichy : Tryb.Zrownowazony;
+        static string Czas(int n) => n >= 3600 ? (n / 3600) + " h" : Math.Max(1, n / 60) + " min";
         public static string Nazwa(Tryb t) => t == Tryb.Cichy ? "Cichy" : t == Tryb.Turbo ? "Turbo" : "Zrównoważony";
 
         void Ucz(Pomiar p)
         {
-            if (!string.IsNullOrEmpty(p.Program) && p.Program != "Idle")
+            if (!string.IsNullOrEmpty(p.Program) && !Powloka.Contains(p.Program))
                 lock (programy)
                 {
                     programy.TryGetValue(p.Program, out var v); int n = Math.Min(v.N + 1, 600);   // średnia z ok. 10 min pracy (starsze wygasa)
-                    programy[p.Program] = (v.Cpu + (p.Cpu - v.Cpu) / n, v.Gpu + (Math.Max(0, p.Gpu) - v.Gpu) / n, v.N + 1);
+                    double sz = p.Cpu > v.Szczyt ? v.Szczyt + (p.Cpu - v.Szczyt) * 0.2 : v.Szczyt - (v.Szczyt - p.Cpu) / 300;   // szczyt: szybko w górę, powoli w dół (ok. 5 min)
+                    programy[p.Program] = (v.Cpu + (p.Cpu - v.Cpu) / n, v.Gpu + (Math.Max(0, p.Gpu) - v.Gpu) / n, v.N + 1, sz);
                 }
             int h = DateTime.Now.Hour; int hn = Math.Min(++godzN[h], 3600); godziny[h] += (p.Cpu - godziny[h]) / hn;
             if ((DateTime.UtcNow - naukaZapis).TotalMinutes > 5) { naukaZapis = DateTime.UtcNow; ZapiszNauke(); }
@@ -232,7 +237,7 @@ namespace VelivoProcesor
             else if (wysokoN >= 1) { gpuBound = false; chce = Tryb.Turbo; why = "Duże obciążenie (" + p.Cpu.ToString("0") + " %) – pełna moc od razu."; }
             // 5. ręcznie przypisany / wyuczony program
             else if (Reczne.TryGetValue(p.Program, out var rr)) { gpuBound = false; chce = rr; why = p.Program + " – ustawiony na stałe: " + Nazwa(rr) + "."; }
-            else if (programy.TryGetValue(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
+            else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas
             else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
             else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
@@ -250,6 +255,7 @@ namespace VelivoProcesor
             Dlaczego = why;
             return Ustal(chce);
         }
+        bool ZnanyProgram(string n, out (double Cpu, double Gpu, int N, double Szczyt) v) { lock (programy) return programy.TryGetValue(n ?? "", out v); }
         Tryb Ustal(Tryb t) { if (t != Obecny || !zastosowany) { Obecny = t; ostZmiana = DateTime.UtcNow; Zastosuj(t); } return t; }
 
         // ---------- sterowanie ----------

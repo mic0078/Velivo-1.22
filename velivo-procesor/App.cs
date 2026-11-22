@@ -72,19 +72,20 @@ namespace VelivoProcesor
 
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
-        TextBlock tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
+        TextBlock tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
         readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
 
         public void Start()
         {
+            if (s.Get("autostart-ustawiony") == null) { if (!Program.Autostart) Program.Autostart = true; s.Put("autostart-ustawiony", 1); }   // domyślnie start z Windows (wyłączenie w oknie zostaje)
             s.SprawdzRyzen();
             Zbuduj();
             tray = new System.Windows.Forms.NotifyIcon { Icon = Ikona(), Visible = true, Text = "Velivo Procesor" };
             tray.MouseClick += (a, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Pokaz(); };
             tray.ContextMenuStrip = MenuZasobnik();
-            Velivo.CentrumZasobnik.Podlacz(tray);
+            Velivo.CentrumZasobnik.Podlacz(tray, false);   // własna ikona przy zegarze zawsze (tryb i temperatura widać od razu), menu także z Centrum
             var ev = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\VelivoProcesor.Pokaz");
             new Thread(() => { while (ev.WaitOne()) win.Dispatcher.BeginInvoke(new Action(Pokaz)); }) { IsBackground = true }.Start();
             Microsoft.Win32.SystemEvents.SessionEnding += (a, e) => Koniec(false);
@@ -101,6 +102,8 @@ namespace VelivoProcesor
                 try
                 {
                     var p = s.Zmierz(); var t = s.Decyduj(p); ost = p;
+                    if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid);
+                    Centrum(p);
                     hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hPos = (hPos + 1) % hCpu.Length;
                     win.Dispatcher.BeginInvoke(new Action(Odswiez));
                 }
@@ -109,9 +112,26 @@ namespace VelivoProcesor
             }
         }
 
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern ulong GetTickCount64();
+        int petlaN; readonly ProBalance pb = new ProBalance();
+        System.IO.MemoryMappedFiles.MemoryMappedFile mmf;
+        // 🧩 stan dla Velivo Centrum (jak poziom Audio Balance): czas + tekst „Auto · Cichy · 54 °C”
+        void Centrum(Pomiar p)
+        {
+            try
+            {
+                if (mmf == null) mmf = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.Procesor.Stan", 512);
+                string tryb = s.Get("tryb", "auto");
+                string t = (tryb == "windows" ? "ustawienia Windows" : (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %";
+                var b = System.Text.Encoding.UTF8.GetBytes(t); if (b.Length > 400) Array.Resize(ref b, 400);
+                using (var v = mmf.CreateViewAccessor()) { v.Write(0, b.Length); v.WriteArray(16, b, 0, b.Length); v.Write(8, (long)GetTickCount64()); }
+            }
+            catch (Exception) { }
+        }
+
         System.Drawing.Icon Ikona()
         {
-            try { var f = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "procesor.ico"); if (File.Exists(f)) return new System.Drawing.Icon(f, 16, 16); } catch (Exception) { }
+            try { var f = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "procesor.ico"); if (File.Exists(f)) return new System.Drawing.Icon(f, System.Windows.Forms.SystemInformation.SmallIconSize); } catch (Exception) { }   // ten sam obraz co na pulpicie, w rozmiarze zasobnika (DPI)
             return System.Drawing.SystemIcons.Application;
         }
 
@@ -123,6 +143,8 @@ namespace VelivoProcesor
             foreach (var (k, n) in new[] { ("auto", "🧠 Auto – sam wybiera"), ("cichy", "🌙 Cichy"), ("zrownowazony", "⚖ Zrównoważony"), ("turbo", "🚀 Turbo") })
             { var it = new System.Windows.Forms.ToolStripMenuItem(n); it.Click += (a, e) => Wybierz(k); it.Tag = k; m.Items.Add(it); }
             m.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            var pbIt = new System.Windows.Forms.ToolStripMenuItem("⚖ ProBalance – programy w tle nie przycinają"); pbIt.Click += (a, e) => PbUstaw(s.Get("probalance", "1") != "1"); m.Items.Add(pbIt);
+            m.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             m.Items.Add("🪟 Otwórz okno", null, (a, e) => Pokaz());
             m.Items.Add("↺ Przywróć ustawienia domyślne Windows", null, (a, e) => Domyslne());
             m.Items.Add("⏻ Zakończ (ustawienia Windows wracają)", null, (a, e) => Koniec(true));
@@ -130,11 +152,14 @@ namespace VelivoProcesor
             {
                 stan.Text = "Velivo Procesor · " + (s.Get("tryb") == "windows" ? "ustawienia Windows" : (s.Auto ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (ost.Temp > 0 ? " · " + ost.Temp.ToString("0") + " °C" : "");
                 foreach (var it in m.Items.OfType<System.Windows.Forms.ToolStripMenuItem>()) if (it.Tag is string k) it.Checked = s.Get("tryb", "auto") == k;
+                pbIt.Checked = s.Get("probalance", "1") == "1";
             };
             return m;
         }
 
-        void Wybierz(string k) { s.Put("tryb", k); Odswiez(); }
+        void Wybierz(string k) { s.Put("tryb", k); tInfo.Text = ""; Odswiez(); }   // komunikat po ↺ Windows już nieaktualny
+        CheckBox pbBox;
+        void PbUstaw(bool on) { s.Put("probalance", on ? "1" : "0"); if (pbBox != null) pbBox.IsChecked = on; Odswiez(); }
         void Domyslne()
         {
             if (MessageBox.Show(win.IsVisible ? win : null, "Przywrócić plan zasilania Windows do ustawień domyślnych?\n\nVelivo Procesor przestanie sterować procesorem, dopóki nie wybierzesz trybu.", "Velivo Procesor", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
@@ -142,7 +167,7 @@ namespace VelivoProcesor
         }
         void Koniec(bool zamknij)
         {
-            try { s.PrzywrocWindows(); s.ZapiszNauke(); } catch (Exception) { }
+            try { pb.PrzywrocWszystkie(); s.PrzywrocWindows(); s.ZapiszNauke(); } catch (Exception) { }
             if (!zamknij) return;
             try { tray.Visible = false; tray.Dispose(); } catch (Exception) { }
             Application.Current.Shutdown();
@@ -211,6 +236,10 @@ namespace VelivoProcesor
             var us = new StackPanel(); us.Children.Add(T("⚙ Ustawienia", 13, Fg, FontWeights.SemiBold));
             var auto = new CheckBox { Content = "Start z Windows (w zasobniku)", Foreground = Fg, IsChecked = Program.Autostart, Margin = new Thickness(0, 6, 0, 0) };
             auto.Click += (a, e) => Program.Autostart = auto.IsChecked == true; us.Children.Add(auto);
+            pbBox = new CheckBox { Content = "⚖ ProBalance – programy w tle nie przycinają tego, z czym pracujesz", Foreground = Fg, IsChecked = s.Get("probalance", "1") == "1", Margin = new Thickness(0, 6, 0, 0),
+                ToolTip = "Gdy procesor jest mocno zajęty, program w tle, który zjada dużo procesora, dostaje na chwilę niższy priorytet. Wraca sam, gdy się uspokoi albo przejdziesz do niego. System, dźwięk i programy Velivo – nigdy." };
+            pbBox.Click += (a, e) => PbUstaw(pbBox.IsChecked == true); us.Children.Add(pbBox);
+            tPb = T("", 11, Dim); tPb.Margin = new Thickness(22, 0, 0, 0); us.Children.Add(tPb);
             us.Children.Add(Suwak("🌙 Najniższy zegar w trybie Cichym", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
             us.Children.Add(Suwak("🌡 Temperatura graniczna (wtedy Cichy)", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", "Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
             if (s.Amd && s.Ryzen != null && !s.RyzenDziala)
@@ -247,6 +276,7 @@ namespace VelivoProcesor
                 bool wyb = keys[i] == tryb, teraz = tryb == "auto" && i - 1 == (int)s.Obecny;
                 kafle[i].Background = wyb ? On : Card; kafle[i].BorderBrush = wyb ? Vi : teraz ? Tq : Line; kafle[i].BorderThickness = new Thickness(wyb || teraz ? 2 : 1);
             }
+            tPb.Text = s.Get("probalance", "1") == "1" ? "ProBalance: " + (pb.Opis.Length > 0 ? pb.Opis : "czuwa") : "ProBalance wyłączony";
             if (tray != null) tray.Text = ("Velivo Procesor · " + (tryb == "windows" ? "Windows" : Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %");
             if (!win.IsVisible) return;   // schowane okno nie rysuje (bez pracy w tle)
             RysujWykres();

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Klawiatura – AI pisowni</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px;color:#ECE8FF}p.o{color:#aab;max-width:980px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.win{width:620px;background:#11141c;border:1px solid #2A3240;border-radius:10px;padding:14px}
+.doc{background:#fff;color:#222;border-radius:6px;padding:14px;font:15px Calibri,sans-serif;line-height:1.9;position:relative}
+.wavy{text-decoration:underline wavy #7C3AED;text-underline-offset:4px}
+.wavyc{text-decoration:underline wavy #06B6D4;text-underline-offset:4px}
+.pop{position:absolute;background:#151a26;color:#E8EBF0;border:1px solid #44507a;border-radius:8px;padding:8px 10px;font:12.5px "Segoe UI";box-shadow:0 6px 18px #0008;width:250px}
+.pop b{color:#4ADE80}.pop .k{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:5px;padding:1px 7px;margin:5px 4px 0 0}
+.dim{color:#8A93A3;font-size:11.5px}.ok{color:#4ADE80}
+.phone{width:300px;height:600px;background:#0f1422;border:8px solid #222;border-radius:30px;padding:12px;box-sizing:border-box;font-size:12.5px;display:flex;flex-direction:column}
+.msg{background:#1b2133;border-radius:10px;padding:10px;font-size:14px;line-height:1.7}
+.bar{display:flex;gap:4px;margin-top:auto}.bar span{flex:1;text-align:center;background:#1b2133;border-radius:6px;padding:7px 2px;font-size:13px}
+.bar .best{background:linear-gradient(90deg,#7C3AED,#06B6D4);font-weight:600}
+.keys{height:150px;background:#151a26;border-radius:8px;margin-top:6px;display:flex;align-items:center;justify-content:center;color:#556}
+.sec{background:#1b2133;border:1px solid #2f3a56;border-radius:9px;padding:10px 12px;margin-top:10px}.sec>b{display:block;margin-bottom:6px}
+.btn{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:3px 10px;margin:4px 6px 0 0}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:620px}
+</style></head><body>
+<h1>Klawiatura Velivo – 🧠 AI pisowni (propozycja)</h1>
+<p class="o">Dwa poziomy, oba działają tylko na urządzeniu – tekst nigdy nie wychodzi do internetu. <b>1. Model języka (n-gramy, ok. 10 MB)</b> – telefon i Windows, w trakcie pisania: układa propozycje według tego, co pasuje do poprzednich słów. <b>2. Model zdania (HerBERT, ok. 500 MB, tylko Windows)</b> – po kropce sprawdza całe zdanie w tle i podkreśla wątpliwe miejsca. Zasada: AI samo poprawia tylko literówki; gdy dwa słowa są poprawne (pisze / piszę), tylko podkreśla i proponuje.</p>
+
+<h2>1. Windows – zdanie sprawdzone po kropce (poziom 2)</h2>
+<div class="row"><div><div class="win">
+ <div class="doc">Wczoraj siedząc na kanapie jadłem frytki i mama <span class="wavy">pisze</span> do mnie <span class="wavyc">że</span> jutro przyjedzie.
+  <div class="pop" style="left:250px;top:46px"><span class="dim">🧠 Pasuje lepiej do zdania:</span><br>pisze → <b>pisała</b> / <b>napisała</b><br><span class="dim">(„wczoraj” = czas przeszły)</span><br><span class="k">pisała</span><span class="k">napisała</span><span class="k">Zostaw</span></div>
+ </div>
+ <div class="dim" style="margin-top:8px">Fiolet = słowo poprawne, ale nie pasuje do zdania (tylko propozycja). Turkus = przecinek („, że”) – kliknięcie wstawia. Nic nie zmienia się samo.</div>
+</div><div class="cap">Podkreślenie pojawia się ok. 0,3 s po kropce/Enter; klik w podkreślenie = wybór; Zostaw = klawiatura zapamiętuje i więcej nie podkreśla</div></div></div>
+
+<h2>2. Telefon i Windows – propozycje w trakcie pisania (poziom 1)</h2>
+<div class="row"><div><div class="phone">
+ <div class="msg">siedząc na <u>kanap</u>|</div>
+ <div class="dim" style="margin:8px 2px">Bez AI: kanapa · kanapą · kanapie (kolejność ze słownika)<br>Z AI: „na” + miejsce → <b class="ok">kanapie</b> pierwsze</div>
+ <div class="bar"><span>kanapa</span><span class="best">kanapie</span><span>kanapę</span></div>
+ <div class="keys">klawiatura</div>
+</div><div class="cap" style="max-width:300px">Środek paska = to, co pasuje do kontekstu; spacja wstawia go tylko przy literówce</div></div>
+
+<div><div class="win">
+ <b style="font-size:15px">⚙ Klawiatura → 🧠 AI pisowni</b>
+ <div class="sec"><b>Model języka (telefon i komputer)</b>
+  ☑ Włączony · <span class="ok">pobrany, 11 MB</span><br><span class="dim">Uczy się też z Twojego pisania (zwroty) – tylko na tym urządzeniu.</span></div>
+ <div class="sec"><b>Sprawdzanie całego zdania (tylko komputer)</b>
+  ☐ Włączone · nie pobrano <span class="btn">⬇ Pobierz (ok. 500 MB)</span><br>
+  <span class="dim">Karta graficzna, a gdy jej brak – procesor. Na słabym komputerze (np. CHUWI) można wyłączyć.</span></div>
+ <div class="sec"><b>Zachowanie</b>
+  ◉ Podkreślaj i proponuj (zalecane) &nbsp; ○ Poprawiaj sam, gdy pewne na 95%</div>
+</div><div class="cap">Ustawienia: osobno model 1 i model 2, rozmiar i stan słowami</div></div></div>
+</body></html>

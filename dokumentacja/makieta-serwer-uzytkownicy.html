@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Serwer – użytkownicy</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px;color:#ECE8FF}p.o{color:#aab;max-width:1000px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.win{width:600px;background:#151a26;border:1px solid #2A3240;border-radius:10px;padding:14px}
+.sec{background:#1b2133;border:1px solid #2f3a56;border-radius:9px;padding:10px 12px;margin-top:10px}.sec>b{display:block;margin-bottom:6px}
+.btn{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:3px 10px;margin:3px 6px 0 0}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:5px 3px;border-bottom:1px solid #2a3350;text-align:left}th{color:#8A93A3;font-weight:normal}
+.dim{color:#8A93A3}.ok{color:#4ADE80}.new{outline:2px dashed #F5B544;outline-offset:2px}
+.phone{width:290px;height:560px;background:#0f1422;border:8px solid #222;border-radius:30px;padding:16px;box-sizing:border-box}
+.av{display:inline-flex;flex-direction:column;align-items:center;width:76px;margin:8px 4px}.av i{width:58px;height:58px;border-radius:29px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:24px;font-weight:700}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:600px}
+</style></head><body>
+<h1>Velivo Serwer filmów – użytkownicy jak w Jellyfin (propozycja)</h1>
+<p class="o">Każdy ma własne konto: swoje „Kontynuuj oglądanie”, ulubione i obejrzane. Właściciel decyduje, kto widzi które foldery. Jedno hasło serwera znika – każdy loguje się swoim imieniem i hasłem.</p>
+<h2>1. Okno serwera (NUCBOX) – nowa część „Użytkownicy”</h2>
+<div class="row"><div><div class="win">
+ <b style="font-size:15px">🎞 Velivo Serwer filmów – NUCBOX</b>
+ <div class="sec new"><b>👥 Użytkownicy</b>
+  <table><tr><th>Imię</th><th>Dostęp</th><th>Urządzenia</th><th>Ostatnio</th><th></th></tr>
+  <tr><td>👑 Michał</td><td>wszystkie foldery · administrator</td><td>3</td><td>dziś 22:40</td><td><span class="btn">Zmień</span></td></tr>
+  <tr><td>Brat</td><td>Filmy, Seriale</td><td>1</td><td>wczoraj</td><td><span class="btn">Zmień</span></td></tr>
+  <tr><td>Toskania</td><td>Bajki</td><td>2</td><td>pon. 19:10</td><td><span class="btn">Zmień</span></td></tr></table>
+  <span class="btn">➕ Dodaj użytkownika</span>
+ </div>
+ <div class="sec new"><b>✏ Brat – zmień</b>
+  Imię: <span class="btn" style="background:#0f131b">Brat</span> Hasło: <span class="btn" style="background:#0f131b">••••••</span> <span class="dim">(zmiana hasła wylogowuje jego urządzenia)</span><br>
+  Foldery: ☑ D:\Filmy ☑ E:\Seriale ☐ F:\Bajki ☐ Filmy z Jellyfin<br>
+  ☐ Administrator (zmienia użytkowników i ustawienia serwera)<br>
+  Urządzenia: Samsung (dziś) <span class="btn">Odłącz</span><br>
+  <span class="btn">💾 Zapisz</span><span class="btn">🗑 Usuń użytkownika</span> <span class="dim">(jego postęp i ulubione też)</span>
+ </div>
+</div><div class="cap">Serwer: lista osób, dostęp do folderów, urządzenia każdej osoby; pierwsza osoba (Ty) – administrator</div></div>
+
+<div><div class="phone">
+ <b style="font-size:16px">🗄 Mój serwer – kto ogląda?</b>
+ <div style="margin-top:10px"><span class="av"><i style="background:#7C3AED">M</i>Michał</span><span class="av"><i style="background:#0EA5E9">B</i>Brat</span><span class="av"><i style="background:#F59E0B">T</i>Toskania</span></div>
+ <div class="dim" style="margin-top:10px">Stuknij siebie i wpisz hasło (raz – telefon pamięta). Na komputerze tak samo w Kanapie.</div>
+ <div class="sec" style="margin-top:16px"><b>Kontynuuj oglądanie – Toskania</b><span class="dim">Kraina Lodu 2 · 40 % · Zwierzogród · 75 %</span></div>
+</div><div class="cap" style="max-width:290px">Telefon / Kanapa: wybór osoby jak w Jellyfin, potem tylko jej filmy i postęp</div></div>
+</div>
+<p class="o" style="margin-top:14px"><b>Przejście:</b> obecne hasło serwera staje się kontem „Michał” (administrator); urządzenia już zalogowane zostają przypisane do niego – nic nie trzeba logować od nowa. W domu (sieć domowa) komputery też wybierają osobę.</p>
+</body></html>

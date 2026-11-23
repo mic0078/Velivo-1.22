@@ -710,6 +710,10 @@ namespace Velivo
             if (word.Length < 2 && ze == null && !zeBack && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
             _physPrev = prevSpace ? prevW : null;   // kontekst: poprzednie slowo (to pewni -> to pewnie)
             var fix = word.Length >= 2 && word.ToLowerInvariant() != _pNoFix ? corr(word) : null;
+            // podświetlona podpowiedź przy kursorze = ta sama litera bez polskich znaków (trafiac → trafiać): spacja ją wstawia - to, co podświetlone, ma się stać
+            if (fix == null && sep == ' ' && word.ToLowerInvariant() != _pNoFix && _podSug is { Count: > 0 } ps && !_podDone && string.Equals(_podWord, word, StringComparison.OrdinalIgnoreCase)
+                && !ps[0].Equals(word, StringComparison.OrdinalIgnoreCase) && SwipeTyping.Fold(ps[0]) == SwipeTyping.Fold(word))
+                fix = char.IsUpper(word[0]) ? char.ToUpper(ps[0][0]) + ps[0].Substring(1) : ps[0];
             bool zeNow = false;
             if (fix == null && sep == ' ' && prevSpace) { fix = SwipeTyping.ZeNow(word, prevW); zeNow = fix != null; }   // myślę ze -> myślę, że
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }

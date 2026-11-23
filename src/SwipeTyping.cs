@@ -157,7 +157,7 @@ namespace Velivo
             int pr = 0; var p = Prev; if (!string.IsNullOrEmpty(p)) lock (_pairs) _pairs.TryGetValue(p.ToLowerInvariant() + " " + e.Word, out pr);
             return e.Rank / (1.0 + 3.0 * Math.Min(n, 50)) / (1.0 + 10.0 * Math.Min(pr, 20));
         }
-        static string Fold(string w) { return new string(w.ToLowerInvariant().Select(BaseKey).ToArray()); }
+        internal static string Fold(string w) { return new string(w.ToLowerInvariant().Select(BaseKey).ToArray()); }
         // sasiednie klawisze (QWERTY) - typowa pomylka palca
         static readonly string[] _rows = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
         static IEnumerable<char> Near(char c)

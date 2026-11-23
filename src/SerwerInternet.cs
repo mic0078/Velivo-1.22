@@ -25,7 +25,58 @@ namespace Velivo
         internal const int NetFilmPort = 41940;
 
         // ======================= SERWER =======================
-        sealed class NetDevice { public string Id { get; set; } public string Name { get; set; } public string Key { get; set; } public long Seen { get; set; } public bool Lan { get; set; } }
+        sealed class NetDevice { public string Id { get; set; } public string Name { get; set; } public string Key { get; set; } public long Seen { get; set; } public bool Lan { get; set; } public string UserId { get; set; } }
+        // 👥 użytkownicy jak w Jellyfin (makieta-serwer-uzytkownicy.html): imię + hasło, dostęp do folderów (puste = wszystkie), administrator.
+        // Administrator ogląda na bibliotece serwera (jak dotąd); pozostali mają własny postęp, obejrzane i ulubione (serwer-uzytkownicy-stan.json).
+        internal sealed class NetUser { public string Id { get; set; } public string Name { get; set; } public string Pass { get; set; } public List<string> Folders { get; set; } public bool Admin { get; set; } public long Seen { get; set; } }
+        sealed class UserFilm { public long P { get; set; } public long L { get; set; } public bool D { get; set; } public long W { get; set; } public bool F { get; set; } }
+        static string NetUsersFile => Path.Combine(DataDir, "serwer-uzytkownicy.bin");
+        static string NetStanFile => Path.Combine(DataDir, "serwer-uzytkownicy-stan.json");
+        List<NetUser> _netUsers; Dictionary<string, Dictionary<string, UserFilm>> _netStan;
+        internal List<NetUser> NetUsers()
+        {
+            if (_netUsers != null) return _netUsers;
+            try { _netUsers = File.Exists(NetUsersFile) ? JsonSerializer.Deserialize<List<NetUser>>(Dp(File.ReadAllBytes(NetUsersFile), false)) : null; } catch (Exception ex) { App.LogError(ex); }
+            _netUsers ??= new List<NetUser>();
+            // przejście z jednego hasła serwera: hasło = konto właściciela (administrator), zalogowane urządzenia - jego
+            if (_netUsers.Count == 0 && !string.IsNullOrEmpty(NetHaslo))
+            {
+                var u = new NetUser { Id = Convert.ToHexString(RandomNumberGenerator.GetBytes(6)), Name = Environment.UserName, Pass = NetHaslo, Admin = true };
+                _netUsers.Add(u); lock (NetDevs()) foreach (var d in _netDevs) d.UserId ??= u.Id; NetDevsSave(); NetUsersSave();
+            }
+            return _netUsers;
+        }
+        internal void NetUsersSave() { try { lock (NetUsers()) VelivoData.SafeWrite(NetUsersFile, Dp(JsonSerializer.SerializeToUtf8Bytes(_netUsers), true)); } catch (Exception ex) { App.LogError(ex); } }
+        Dictionary<string, Dictionary<string, UserFilm>> OsobyStan()
+        {
+            if (_netStan != null) return _netStan;
+            try { _netStan = File.Exists(NetStanFile) ? JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, UserFilm>>>(File.ReadAllBytes(NetStanFile)) : null; } catch (Exception ex) { App.LogError(ex); }
+            return _netStan ??= new Dictionary<string, Dictionary<string, UserFilm>>();
+        }
+        void NetStanSave() { try { lock (OsobyStan()) VelivoData.SafeWrite(NetStanFile, JsonSerializer.SerializeToUtf8Bytes(_netStan)); } catch (Exception ex) { App.LogError(ex); } }
+        internal NetUser NetUserByName(string n) { if (string.IsNullOrWhiteSpace(n)) return null; lock (NetUsers()) return _netUsers.FirstOrDefault(u => string.Equals(u.Name, n.Trim(), StringComparison.CurrentCultureIgnoreCase)); }
+        internal List<string> NetUserNames() { lock (NetUsers()) return _netUsers.Select(u => u.Name).ToList(); }
+        static bool UserWidzi(NetUser u, string path) => u == null || u.Folders == null || u.Folders.Count == 0 || u.Folders.Any(f => path.StartsWith(f.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+        // stan filmu dla osoby (nie-administrator); administrator - biblioteka serwera
+        UserFilm UserStan(NetUser u, string id) { lock (OsobyStan()) return _netStan.TryGetValue(u.Id, out var d) && d.TryGetValue(id, out var f) ? f : null; }
+        void UserZmien(NetUser u, string id, Action<UserFilm> zmiana)
+        {
+            lock (OsobyStan()) { if (!_netStan.TryGetValue(u.Id, out var d)) _netStan[u.Id] = d = new Dictionary<string, UserFilm>(); if (!d.TryGetValue(id, out var f)) d[id] = f = new UserFilm(); zmiana(f); f.W = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }
+            NetStanSave();
+        }
+        // postęp / obejrzany / ulubiony od osoby (internet i sieć domowa) - administrator albo brak osoby: biblioteka serwera jak dotąd
+        bool UserProg(NetUser u, string id, long pos, long len, bool done, bool unwatch)
+        {
+            if (u == null || u.Admin) return false;
+            UserZmien(u, id, f => { if (done) { f.D = true; f.P = 0; } else if (unwatch) { f.D = false; f.P = 0; } else { f.P = pos; if (len > 0 && pos > len - 60000) { f.D = true; f.P = 0; } } if (len > 0) f.L = len; });
+            return true;
+        }
+        bool UserFav(NetUser u, string id, bool on) { if (u == null || u.Admin) return false; UserZmien(u, id, f => f.F = on); return true; }
+        LanFilmItem UserItem(NetUser u, LanFilmItem x)
+        {
+            if (u == null || u.Admin) return x;
+            var f = UserStan(u, x.i); x.p = f == null || f.D ? 0 : f.P; x.d = f?.D == true; x.w = f?.W ?? 0; x.fv = f?.F == true; if (f?.L > 0) x.l = f.L; return x;
+        }
         static string NetDevFile => Path.Combine(DataDir, "serwer-urzadzenia.bin");
         static string NetCertFile => Path.Combine(DataDir, "serwer-certyfikat.bin");
         List<NetDevice> _netDevs; X509Certificate2 _netCert; TcpListener _netListener;
@@ -84,7 +135,8 @@ namespace Velivo
         static string NetPassFile => Path.Combine(DataDir, "serwer-haslo.bin");
         internal string NetHaslo { get { try { if (_netCode == null && File.Exists(NetPassFile)) _netCode = Encoding.UTF8.GetString(Dp(File.ReadAllBytes(NetPassFile), false)); } catch (Exception ex) { App.LogError(ex); } return _netCode; }
             set { _netCode = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); try { if (_netCode == null) File.Delete(NetPassFile); else VelivoData.SafeWrite(NetPassFile, Dp(Encoding.UTF8.GetBytes(_netCode), true)); } catch (Exception ex) { App.LogError(ex); } } }
-        internal List<(string Id, string Name, long Seen)> NetUrzadzenia() { lock (NetDevs()) return _netDevs.Select(d => (d.Id, d.Name, d.Seen)).ToList(); }
+        internal List<(string Id, string Name, long Seen, string UserId)> NetUrzadzenia() { lock (NetDevs()) return _netDevs.Select(d => (d.Id, d.Name, d.Seen, d.UserId)).ToList(); }
+        internal void NetOdlaczOsobe(string userId) { lock (NetDevs()) _netDevs.RemoveAll(d => d.UserId == userId); NetDevsSave(); }
         internal void NetOdlacz(string id) { lock (NetDevs()) _netDevs.RemoveAll(d => d.Id == id); NetDevsSave(); }
 
         static async Task<(string Method, string Path, Dictionary<string, string> H)> HttpHead(Stream s)
@@ -119,21 +171,32 @@ namespace Velivo
                     var q = Zapytanie(path); var route = path.Split('?')[0];
                     void Zle() { _netBad.AddOrUpdate(ip, (1, DateTime.UtcNow), (_, o) => (DateTime.UtcNow - o.At > TimeSpan.FromHours(1) ? 1 : o.N + 1, DateTime.UtcNow)); }
                     if (route == "/ping") { await HttpOdp(ssl, 200, "text/plain", Encoding.UTF8.GetBytes(Environment.MachineName)); return; }
+                    if (route == "/users") { await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(NetUserNames())); return; }   // „Kto ogląda?” - same imiona
                     if (route == "/pair")
-                    {   // hasło serwera + dowód, że klient widzi TEN certyfikat (hasło nie idzie siecią)
-                        var haslo = NetHaslo; var dowod = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(haslo ?? "-"), Encoding.UTF8.GetBytes(Odcisk(NetCert()))));
-                        if (haslo == null || !q.TryGetValue("proof", out var pr) || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(pr.ToUpperInvariant()), Encoding.ASCII.GetBytes(dowod))) { Zle(); await HttpOdp(ssl, 403, "text/plain", null); return; }
-                        var d = new NetDevice { Id = Convert.ToHexString(RandomNumberGenerator.GetBytes(8)), Name = (q.TryGetValue("name", out var nm) ? nm : "?").Substring(0, Math.Min(60, (q.TryGetValue("name", out var nm2) ? nm2 : "?").Length)), Key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)), Seen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+                    {   // osoba + jej hasło; dowód, że klient widzi TEN certyfikat (hasło nie idzie siecią); bez imienia (starsza wersja) - każda osoba po kolei
+                        var fpS = Odcisk(NetCert()); NetUser kto = null;
+                        List<NetUser> kandydaci; lock (NetUsers()) kandydaci = q.TryGetValue("user", out var un) && un.Length > 0 ? _netUsers.Where(u => string.Equals(u.Name, un.Trim(), StringComparison.CurrentCultureIgnoreCase)).ToList() : _netUsers.ToList();
+                        if (q.TryGetValue("proof", out var pr))
+                            foreach (var u in kandydaci)
+                            {
+                                var dowod = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(u.Pass ?? "-"), Encoding.UTF8.GetBytes(fpS)));
+                                if (!string.IsNullOrEmpty(u.Pass) && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(pr.ToUpperInvariant()), Encoding.ASCII.GetBytes(dowod))) { kto = u; break; }
+                            }
+                        if (kto == null) { Zle(); await HttpOdp(ssl, 403, "text/plain", null); return; }
+                        var nm = q.TryGetValue("name", out var nn) ? nn : "?"; if (nm.Length > 60) nm = nm.Substring(0, 60);
+                        var d = new NetDevice { Id = Convert.ToHexString(RandomNumberGenerator.GetBytes(8)), Name = nm, Key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)), Seen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), UserId = kto.Id };
                         lock (NetDevs()) _netDevs.Add(d); NetDevsSave();
-                        await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(new { id = d.Id, key = d.Key, name = Environment.MachineName })); return;
+                        await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(new { id = d.Id, key = d.Key, name = Environment.MachineName, user = kto.Name })); return;
                     }
                     // podpis urządzenia
                     NetDevice dev; lock (NetDevs()) dev = h.TryGetValue("X-Dev", out var di) ? _netDevs.FirstOrDefault(x => x.Id == di) : null;
                     if (dev == null || !h.TryGetValue("X-Ts", out var ts) || !long.TryParse(ts, out var tsv) || Math.Abs(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - tsv) > 600
                         || !h.TryGetValue("X-Sig", out var sig) || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(sig), Encoding.ASCII.GetBytes(Podpis(dev.Key, m, path, ts))))
                     { Zle(); await HttpOdp(ssl, 403, "text/plain", null); return; }
-                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - dev.Seen > 60000) { dev.Seen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); NetDevsSave(); }
-                    var lib = LoadLibrary().Where(v => File.Exists(v.Path) && SerwerUdostepnia(v)).GroupBy(v => FilmId(v.Path)).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();
+                    NetUser usr; lock (NetUsers()) usr = _netUsers.FirstOrDefault(u => u.Id == dev.UserId);
+                    if (usr == null) { Zle(); await HttpOdp(ssl, 403, "text/plain", null); return; }   // osoba usunięta - jej urządzenia odcięte
+                    if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - dev.Seen > 60000) { dev.Seen = usr.Seen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); NetDevsSave(); }
+                    var lib = LoadLibrary().Where(v => File.Exists(v.Path) && SerwerUdostepnia(v) && UserWidzi(usr, v.Path)).GroupBy(v => FilmId(v.Path)).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();
                     if (route == "/lib")
                     {
                         var items = lib.Select(v =>
@@ -141,13 +204,13 @@ namespace Velivo
                             var mi = LookupMeta(Meta, v.Path); MovieInfo info = null;
                             if (mi != null) { var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…"; info = new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList() }; }
                             bool pl = mi?.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster));
-                            return new LanFilmItem { i = FilmId(v.Path), fv = SrvUlub().Contains(FilmId(v.Path)), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null };
+                            return UserItem(usr, new LanFilmItem { i = FilmId(v.Path), fv = SrvUlub().Contains(FilmId(v.Path)), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null });
                         }).ToList();
                         await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(items)); return;
                     }
                     var id = route.Length > 3 ? route.Substring(3) : ""; var film = lib.FirstOrDefault(v => FilmId(v.Path) == (route == "/prog" || route == "/fav" ? (q.TryGetValue("id", out var qi) ? qi : "") : id));
                     if (film == null) { await HttpOdp(ssl, 404, "text/plain", null); return; }
-                    if (route == "/fav") { SrvUlubSet(FilmId(film.Path), q.TryGetValue("on", out var on) && on == "1"); await HttpOdp(ssl, 200, "text/plain", null); return; }
+                    if (route == "/fav") { bool on1 = q.TryGetValue("on", out var on) && on == "1"; if (!UserFav(usr, FilmId(film.Path), on1)) SrvUlubSet(FilmId(film.Path), on1); await HttpOdp(ssl, 200, "text/plain", null); return; }
                     if (route.StartsWith("/p/"))
                     {
                         var mi = LookupMeta(Meta, film.Path); var pf = mi?.Poster != null ? Path.Combine(PosterDir, mi.Poster) : null;
@@ -157,6 +220,7 @@ namespace Velivo
                     if (route == "/prog")
                     {   // postęp jak z komputera w domu („prog”)
                         long.TryParse(q.TryGetValue("pos", out var ps) ? ps : "0", out var pos); long.TryParse(q.TryGetValue("len", out var ls) ? ls : "0", out var len); bool done = q.TryGetValue("done", out var dn) && dn == "1";
+                        if (UserProg(usr, FilmId(film.Path), pos, len, done, q.ContainsKey("unwatch"))) { await HttpOdp(ssl, 200, "text/plain", null); return; }   // osoba - własny postęp
                         await Dispatcher.InvokeAsync(() =>
                         {
                             var l = LoadLibrary(); var v = l.FirstOrDefault(x => FilmId(x.Path) == FilmId(film.Path) && SerwerUdostepnia(x)); if (v == null) return;
@@ -204,7 +268,7 @@ namespace Velivo
         }) { Timeout = TimeSpan.FromSeconds(30) };
 
         // logowanie: adres (n5plus.ddns.net:41940) i hasło serwera; dowód = HMAC(hasło, odcisk widzianego certyfikatu)
-        internal async Task<string> NetSparuj(string adres, string kod)
+        internal async Task<string> NetSparuj(string adres, string kod, string osoba = "")
         {
             adres = (adres ?? "").Trim().Replace("https://", "").Replace("http://", "").TrimEnd('/'); kod = (kod ?? "").Trim();
             int port = NetFilmPort; var host = adres; int c = adres.LastIndexOf(':'); if (c > 0 && int.TryParse(adres.Substring(c + 1), out var pp)) { port = pp; host = adres.Substring(0, c); }
@@ -216,8 +280,8 @@ namespace Velivo
                 await http.GetAsync("https://" + host + ":" + port + "/ping");   // odcisk certyfikatu
                 if (fp == null) return L.T("Nie widać serwera pod tym adresem.");
                 var dowod = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(kod), Encoding.UTF8.GetBytes(fp)));
-                var r = await http.GetAsync("https://" + host + ":" + port + "/pair?proof=" + dowod + "&name=" + Uri.EscapeDataString(Environment.MachineName));
-                if (!r.IsSuccessStatusCode) return L.T("Złe hasło serwera.");
+                var r = await http.GetAsync("https://" + host + ":" + port + "/pair?proof=" + dowod + "&user=" + Uri.EscapeDataString((osoba ?? "").Trim()) + "&name=" + Uri.EscapeDataString(Environment.MachineName));
+                if (!r.IsSuccessStatusCode) return L.T("Złe imię albo hasło.");
                 var j = JsonDocument.Parse(await r.Content.ReadAsStringAsync()).RootElement;
                 var s = new NetSerwer { Name = j.GetProperty("name").GetString(), Host = host, Port = port, Id = j.GetProperty("id").GetString(), Key = j.GetProperty("key").GetString(), Fp = fp };
                 NetSerwery().RemoveAll(x => x.Name == s.Name); _netSrv.Add(s); NetSerweryZapisz();
@@ -305,14 +369,15 @@ namespace Velivo
                 var t = new System.Windows.Controls.TextBox { Text = tekst, Background = SField, Foreground = SFg, CaretBrush = SFg, BorderBrush = SLine, Padding = new System.Windows.Thickness(6, 4, 6, 4), FontSize = 14 }; sp.Children.Add(t); return t;
             }
             var adr = Pole(L.T("Adres serwera:"), NetSerwery().LastOrDefault() is NetSerwer o ? o.Host + ":" + o.Port : "");
-            var has = Pole(L.T("Hasło serwera:"), "");
+            var oso = Pole(L.T("Imię (osoba na serwerze):"), Environment.UserName); oso.ToolTip = L.T("Twoje imię na serwerze – jak w oknie serwera („Użytkownicy”)");
+            var has = Pole(L.T("Hasło:"), "");
             var wyn = STxt("", 13, SDim); wyn.TextWrapping = System.Windows.TextWrapping.Wrap; wyn.Margin = new System.Windows.Thickness(0, 10, 0, 0); sp.Children.Add(wyn);
             var row = new System.Windows.Controls.WrapPanel { Margin = new System.Windows.Thickness(0, 12, 0, 0) }; sp.Children.Add(row);
             System.Windows.Controls.Button ok = null;
             ok = SBtnMake(L.T("🔐 Połącz"), async () =>
             {
                 ok.IsEnabled = false; wyn.Text = L.T("Łączę…");
-                var blad = await NetSparuj(adr.Text, has.Text); ok.IsEnabled = true;
+                var blad = await NetSparuj(adr.Text, has.Text, oso.Text); ok.IsEnabled = true;
                 if (blad != null) { wyn.Text = blad; return; }
                 w.Close(); done?.Invoke();
             }, SAccent);

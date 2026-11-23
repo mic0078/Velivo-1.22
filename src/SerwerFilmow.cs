@@ -122,6 +122,53 @@ namespace Velivo
             sp.Children.Add(new TextBlock { Text = t, FontSize = size, Foreground = c, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center });
             return sp;
         }
+        // 👥 osoba na serwerze: imię, hasło (zmiana wylogowuje jej urządzenia), foldery, administrator, urządzenia, usunięcie
+        void NetOsobaOkno(Window owner, NetUser u, Action done)
+        {
+            bool nowa = u == null;
+            var w = new Window { Title = nowa ? L.T("Nowy użytkownik") : u.Name, Width = 480, SizeToContent = SizeToContent.Height, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = SBg, ResizeMode = ResizeMode.NoResize };
+            var sp = new StackPanel { Margin = new Thickness(18) }; w.Content = sp;
+            TextBox Pole(string et, string tx) { var l = STxt(et, 13); l.Margin = new Thickness(0, 8, 0, 3); sp.Children.Add(l); var t = new TextBox { Text = tx, Background = SField, Foreground = SFg, CaretBrush = SFg, BorderBrush = SLine, Padding = new Thickness(6, 4, 6, 4) }; sp.Children.Add(t); return t; }
+            var imie = Pole(L.T("Imię:"), nowa ? (NetUsers().Count == 0 ? Environment.UserName : "") : u.Name);
+            var nowe = nowa ? Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)).Replace("/", "x").Replace("+", "y") : "";
+            var has = Pole(nowa ? L.T("Hasło (zapisz je – wpisuje się na telefonie i komputerze):") : L.T("Nowe hasło (puste = bez zmian; zmiana wylogowuje urządzenia tej osoby):"), nowe);
+            var fl = STxt(L.T("Foldery, które widzi (nic nie zaznaczone = wszystkie):"), 13); fl.Margin = new Thickness(0, 10, 0, 3); sp.Children.Add(fl);
+            var boxy = new List<(CheckBox B, string F)>();
+            foreach (var f in SerwerFoldery()) { var cb = new CheckBox { Content = STxt(f, 12.5), Foreground = SFg, IsChecked = !nowa && u.Folders != null && u.Folders.Contains(f, StringComparer.OrdinalIgnoreCase), Margin = new Thickness(0, 2, 0, 0) }; boxy.Add((cb, f)); sp.Children.Add(cb); }
+            var adm = new CheckBox { Content = STxt(L.T("Administrator (zarządza użytkownikami; ogląda na bibliotece serwera)"), 12.5), Foreground = SFg, IsChecked = nowa ? NetUsers().Count == 0 : u.Admin, Margin = new Thickness(0, 10, 0, 0) }; sp.Children.Add(adm);
+            if (!nowa)
+            {
+                var ul = STxt(L.T("Urządzenia tej osoby:"), 13); ul.Margin = new Thickness(0, 10, 0, 3); sp.Children.Add(ul);
+                var dv = NetUrzadzenia().Where(d => d.UserId == u.Id).ToList();
+                if (dv.Count == 0) sp.Children.Add(STxt(L.T("Jeszcze żadne."), 12, SDim));
+                foreach (var d in dv) { var row = new DockPanel(); var id = d.Id; var od = SBtnMake(L.T("Odłącz"), () => { NetOdlacz(id); row.Visibility = Visibility.Collapsed; }); DockPanel.SetDock(od, Dock.Right); row.Children.Add(od); row.Children.Add(STxt(d.Name + " · " + DateTimeOffset.FromUnixTimeMilliseconds(d.Seen).LocalDateTime.ToString("d.MM HH:mm"), 12.5)); sp.Children.Add(row); }
+            }
+            var info = STxt("", 12.5, SDim); info.Margin = new Thickness(0, 8, 0, 0); sp.Children.Add(info);
+            var rz = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) }; sp.Children.Add(rz);
+            rz.Children.Add(SBtnMake(L.T("💾 Zapisz"), () =>
+            {
+                var n = imie.Text.Trim(); if (n.Length == 0) { info.Text = L.T("Wpisz imię."); return; }
+                var inna = NetUserByName(n); if (inna != null && inna != u) { info.Text = L.T("Ta osoba już jest."); return; }
+                if (nowa && has.Text.Trim().Length < 4) { info.Text = L.T("Hasło – co najmniej 4 znaki."); return; }
+                var lista = NetUsers();
+                if (!adm.IsChecked.Value && (nowa ? lista.Count == 0 : u.Admin && lista.Count(x => x.Admin) == 1)) { info.Text = L.T("Musi zostać co najmniej jeden administrator."); return; }
+                lock (lista)
+                {
+                    if (nowa) { u = new NetUser { Id = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)) }; lista.Add(u); }
+                    u.Name = n; u.Admin = adm.IsChecked == true;
+                    u.Folders = boxy.Where(x => x.B.IsChecked == true).Select(x => x.F).ToList();
+                    if (has.Text.Trim().Length > 0 && has.Text.Trim() != u.Pass) { if (!nowa) NetOdlaczOsobe(u.Id); u.Pass = has.Text.Trim(); }
+                }
+                NetUsersSave(); w.Close(); done?.Invoke();
+            }, SAccent));
+            if (!nowa) rz.Children.Add(SBtnMake(L.T("🗑 Usuń użytkownika"), () =>
+            {
+                var lista = NetUsers(); if (u.Admin && lista.Count(x => x.Admin) == 1) { info.Text = L.T("Musi zostać co najmniej jeden administrator."); return; }
+                if (MessageBox.Show(w, L.T("Usunąć ") + u.Name + L.T("? Jego urządzenia zostaną odłączone, a postęp i ulubione usunięte."), Wariant.Nazwa, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                lock (lista) lista.Remove(u); NetOdlaczOsobe(u.Id); NetUsersSave(); w.Close(); done?.Invoke();
+            }));
+            w.ShowDialog();
+        }
         static Button SBtnMake(string t, Action a, Brush bg = null)
         {
             var b = new Button { Content = SZIkona(t, 13, SFg, false), Template = KomBtnTemplate, Background = bg ?? SBtn, Foreground = SFg, BorderBrush = SLine, BorderThickness = new Thickness(0), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 6, 6), Cursor = System.Windows.Input.Cursors.Hand };
@@ -229,36 +276,39 @@ namespace Velivo
             left.Children.Add(auto); left.Children.Add(jf);
             // 🌍 dostęp przez internet - jak Jellyfin: adres domu + hasło serwera
             var net = STxt(L.T("🌍 Dostęp przez internet"), 14.5, null, true); net.Margin = new Thickness(0, 18, 0, 6); left.Children.Add(net);
-            left.Children.Add(STxt(L.T("Oglądaj swoje filmy poza domem (komputer, telefon): wpisz tam adres domu z portem ") + NetFilmPort + L.T(" i hasło serwera. Wszystko szyfrowane."), 12, SDim));
+            left.Children.Add(STxt(L.T("Oglądaj swoje filmy poza domem (komputer, telefon): wpisz tam adres domu z portem ") + NetFilmPort + L.T(", swoje imię i hasło. Każda osoba ma własny postęp, ulubione i dostęp do folderów. Wszystko szyfrowane."), 12, SDim));
             var netOn = new CheckBox { Content = STxt(L.T("Udostępniaj moje filmy przez internet"), 13), IsChecked = NetWlaczony, Foreground = SFg, Margin = new Thickness(0, 6, 0, 4) };
             var netSt = STxt("", 12, SDim); netSt.TextWrapping = TextWrapping.Wrap;
-            var hRow = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
-            var hLbl = STxt(L.T("Hasło serwera:"), 13); hLbl.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(hLbl, Dock.Left); hRow.Children.Add(hLbl);
-            var haslo = new TextBox { Text = NetHaslo ?? "", Background = SField, Foreground = SFg, CaretBrush = SFg, BorderBrush = SLine, Padding = new Thickness(6, 3, 6, 3), ToolTip = L.T("Hasło, które wpisujesz na telefonie lub komputerze poza domem") };
-            hRow.Children.Add(haslo);
-            haslo.LostFocus += (s, e) => NetHaslo = haslo.Text;
-            var devs = new StackPanel();
+            // 👥 użytkownicy (makieta-serwer-uzytkownicy.html)
+            var osoby = new StackPanel(); string osSig = null;
             Action netFill = null;
             netFill = () =>
             {
-                netSt.Text = (NetWlaczony ? "● " : "○ ") + (NetStan.Length > 0 ? NetStan : L.T("wyłączony")) + (NetWlaczony && string.IsNullOrEmpty(NetHaslo) ? L.T(" – ustaw hasło") : "");
-                devs.Children.Clear();
-                var lista = NetUrzadzenia();
-                if (lista.Count == 0) devs.Children.Add(STxt(L.T("Jeszcze nikt się nie zalogował."), 12, SDim));
-                foreach (var d in lista)
+                netSt.Text = (NetWlaczony ? "● " : "○ ") + (NetStan.Length > 0 ? NetStan : L.T("wyłączony"));
+                var us = NetUsers().ToList(); var dv = NetUrzadzenia();
+                var sigN = string.Join("|", us.Select(u => u.Id + u.Name + u.Admin + (u.Folders == null ? "" : string.Join(",", u.Folders)) + dv.Count(d => d.UserId == u.Id) + (u.Seen / 60000)));
+                if (sigN == osSig) return; osSig = sigN;
+                osoby.Children.Clear();
+                if (us.Count == 0) osoby.Children.Add(STxt(L.T("Brak osób – dodaj siebie (administrator), potem rodzinę i znajomych."), 12, SDim));
+                foreach (var u in us)
                 {
-                    var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
-                    var id = d.Id; var od = SBtnMake(L.T("Odłącz"), () => { NetOdlacz(id); netFill(); }); od.Margin = new Thickness(6, 0, 0, 0); od.ToolTip = L.T("Odetnij to urządzenie od razu (zaloguje się znowu tylko z hasłem)");
-                    DockPanel.SetDock(od, Dock.Right); row.Children.Add(od);
-                    row.Children.Add(STxt(d.Name + " · " + DateTimeOffset.FromUnixTimeMilliseconds(d.Seen).LocalDateTime.ToString("d.MM HH:mm"), 12.5));
-                    devs.Children.Add(row);
+                    var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) }; var uu = u;
+                    var zm = SBtnMake(L.T("Zmień"), () => NetOsobaOkno(w, uu, () => { osSig = null; netFill(); })); zm.Margin = new Thickness(6, 0, 0, 0); DockPanel.SetDock(zm, Dock.Right); row.Children.Add(zm);
+                    var dostep = u.Folders == null || u.Folders.Count == 0 ? L.T("wszystkie foldery") : string.Join(", ", u.Folders.Select(x => Path.GetFileName(x.TrimEnd('\\')) is string n && n.Length > 0 ? n : x));
+                    var t = STxt((u.Admin ? "👑 " : "👤 ") + u.Name + "  ·  " + dostep + (u.Admin ? " · " + L.T("administrator") : "") + "  ·  " + L.T("urządzenia: ") + dv.Count(d => d.UserId == u.Id) + (u.Seen > 0 ? "  ·  " + DateTimeOffset.FromUnixTimeMilliseconds(u.Seen).LocalDateTime.ToString("d.MM HH:mm") : ""), 12.5);
+                    t.TextWrapping = TextWrapping.Wrap; row.Children.Add(t); osoby.Children.Add(row);
                 }
             };
-            netOn.Click += (s, e) => { if (netOn.IsChecked == true && string.IsNullOrWhiteSpace(haslo.Text)) haslo.Text = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)).Replace("/", "x").Replace("+", "y"); NetHaslo = haslo.Text; SetPref("serwer-net", netOn.IsChecked == true ? "1" : "0"); NetSerwerStart(); netFill(); };
-            left.Children.Add(netOn); left.Children.Add(hRow); left.Children.Add(netSt);
-            var dl = STxt(L.T("📱 Zalogowane urządzenia"), 13, null, true); dl.Margin = new Thickness(0, 10, 0, 4); left.Children.Add(dl); left.Children.Add(devs);
+            netOn.Click += (s, e) =>
+            {
+                SetPref("serwer-net", netOn.IsChecked == true ? "1" : "0"); NetSerwerStart(); netFill();
+                if (netOn.IsChecked == true && NetUsers().Count == 0) NetOsobaOkno(w, null, () => { osSig = null; netFill(); });   // pierwsza osoba - Ty (administrator)
+            };
+            left.Children.Add(netOn); left.Children.Add(netSt);
+            var dl = STxt(L.T("👥 Użytkownicy"), 13, null, true); dl.Margin = new Thickness(0, 10, 0, 4); left.Children.Add(dl); left.Children.Add(osoby);
+            var dod = SBtnMake(L.T("➕ Dodaj użytkownika"), () => NetOsobaOkno(w, null, () => { osSig = null; netFill(); })); dod.HorizontalAlignment = HorizontalAlignment.Left; dod.Margin = new Thickness(0, 6, 0, 0); left.Children.Add(dod);
             netFill();
-            var netTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; netTm.Tick += (s, e) => netFill(); netTm.Start(); w.Closed += (s, e) => { netTm.Stop(); NetHaslo = haslo.Text; };
+            var netTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; netTm.Tick += (s, e) => netFill(); netTm.Start(); w.Closed += (s, e) => netTm.Stop();
             // prawa: filmy serwera
             var right = new DockPanel(); Grid.SetColumn(right, 2); grid.Children.Add(right);
             var rHead = STxt("", 14.5, null, true); DockPanel.SetDock(rHead, Dock.Top); right.Children.Add(rHead);

@@ -328,7 +328,22 @@ namespace Velivo
                 {   // 🎞 filmy z moich włączonych komputerów z Velivo (Serwer filmów, Odtwarzacz) - wykrywane same, jak wspólna biblioteka
                     var box = new StackPanel(); List<LanPeerInfo> peers = null; List<LanFilmItem>[] got = null;
                     var dodaj = SBtnMake(L.T("🌍 Mój serwer przez internet…"), () => NetDodajOkno(w, () => { got = null; odswiez?.Invoke(); })); dodaj.HorizontalAlignment = HorizontalAlignment.Left; dodaj.Margin = new Thickness(0, 0, 0, 14);
-                    dodaj.ToolTip = L.T("Oglądaj filmy z mojego serwera poza domem: adres domu i hasło serwera"); st.Children.Add(dodaj); st.Children.Add(box);
+                    dodaj.ToolTip = L.T("Oglądaj filmy z mojego serwera poza domem: adres domu, imię i hasło"); dodaj.Margin = new Thickness(0, 0, 8, 14);
+                    // 👥 „Kto ogląda?” (sieć domowa): osoba na każdym serwerze - jej postęp, ulubione i foldery
+                    var kto = SBtnMake("👤 " + L.T("Kto ogląda…"), () => { }); kto.Margin = new Thickness(0, 0, 0, 14); kto.ToolTip = L.T("Wybierz osobę na serwerze – każda ma swój „Kontynuuj”, ulubione i obejrzane");
+                    kto.Click += (o, e) =>
+                    {
+                        var cm = new ContextMenu();
+                        if (_peerOsoby.IsEmpty) cm.Items.Add(new MenuItem { Header = L.T("Serwer nie ma osób (albo ma starszą wersję)"), IsEnabled = false });
+                        foreach (var kv in _peerOsoby)
+                        {
+                            cm.Items.Add(new MenuItem { Header = "🎞 " + kv.Key, IsEnabled = false }); var dev = kv.Key; var teraz = GetPref("kanapa-osoba-" + dev) ?? "";
+                            foreach (var os in new[] { "" }.Concat(kv.Value))
+                            { var o2 = os; var mi = new MenuItem { Header = o2.Length == 0 ? L.T("Właściciel (biblioteka serwera)") : o2, IsChecked = teraz == o2 }; mi.Click += (a, b) => { SetPref("kanapa-osoba-" + dev, o2); got = null; odswiez?.Invoke(); }; cm.Items.Add(mi); }
+                        }
+                        cm.PlacementTarget = kto; cm.IsOpen = true;
+                    };
+                    var gor = new WrapPanel(); gor.Children.Add(dodaj); gor.Children.Add(kto); st.Children.Add(gor); st.Children.Add(box);
                     UIElement SrvTile(LanPeerInfo pe, LanFilmItem x)
                     {
                                 var g = new Grid(); var img = Poster(PeerFilmKey(x)); var m = x.m ?? MetaFor(PeerFilmKey(x));
@@ -338,7 +353,7 @@ namespace Velivo
                                 Znaczki(g, x.d, x.fv);
                                 if (x.l > 0 && x.p > 0 && !x.d) g.Children.Add(Postep(x.p, x.l));
                                 var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); }), new List<(string, Action)> { (xx.fv ? "❤ " + L.T("Usuń z ulubionych") : "♡ " + L.T("Dodaj do ulubionych"), (Action)(() => { xx.fv = !xx.fv; SendFilmMsg(pe, new LanFilmMsg { kind = "fav", id = xx.i, fv = xx.fv }); odswiez?.Invoke(); })),
-                                    (xx.d ? "↺ " + L.T("Oznacz jako nieobejrzany") : "✓ " + L.T("Oznacz jako obejrzany"), (Action)(() => { xx.d = !xx.d; xx.p = 0; SendFilmMsg(pe, new LanFilmMsg { kind = "prog", id = xx.i, pos = 0, len = xx.l, done = xx.d }); odswiez?.Invoke(); })) }));   // na serwerze - jak postęp oglądania
+                                    (xx.d ? "↺ " + L.T("Oznacz jako nieobejrzany") : "✓ " + L.T("Oznacz jako obejrzany"), (Action)(() => { xx.d = !xx.d; xx.p = 0; SendFilmMsg(pe, new LanFilmMsg { kind = "prog", id = xx.i, pos = 0, len = xx.l, done = xx.d, act = xx.d ? null : "unwatch" }); odswiez?.Invoke(); })) }));   // na serwerze - jak postęp oglądania
                                 infoOf[b] = () => Opis(m?.Name ?? xx.t, string.Join("   ·   ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, L.T("z komputera ") + pe.Device }.Where(z => z != null)), string.IsNullOrWhiteSpace(m?.Overview) ? "" : m.Overview);
                                                         return b;
                     }

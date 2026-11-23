@@ -71,15 +71,15 @@ object MojSerwer {
     fun bytes(s: Srv, path: String) = get(s.host, s.port, s.fp, head(s, "GET", path))
 
     // logowanie: adres (np. moj-dom.ddns.net:41940) i hasło; dowód = HMAC(hasło, odcisk widzianego certyfikatu) - jak na komputerze
-    fun login(pw: Passwords, address: String, pass: String, device: String): Srv {
+    fun login(pw: Passwords, address: String, user: String, pass: String, device: String): Srv {
         val a = address.trim().removePrefix("https://").removePrefix("http://").trimEnd('/')
         val host = a.substringBeforeLast(':', a); val port = if (':' in a) a.substringAfterLast(':').toIntOrNull() ?: 41940 else 41940
         var fp: String? = null
         get(host, port, null, "GET /ping HTTP/1.1\r\nHost: $host\r\n") { fp = it }
         val f = fp ?: throw java.io.IOException("brak certyfikatu")
         val proof = hex(hmac(pass.trim().toByteArray(Charsets.UTF_8), f))
-        val j = JSONObject(String(get(host, port, f, "GET /pair?proof=$proof&name=${java.net.URLEncoder.encode(device, "UTF-8")} HTTP/1.1\r\nHost: $host\r\n"), Charsets.UTF_8))
-        val s = Srv(j.getString("name"), host, port, j.getString("id"), j.getString("key"), f)
+        val j = JSONObject(String(get(host, port, f, "GET /pair?proof=$proof&user=${java.net.URLEncoder.encode(user.trim(), "UTF-8")}&name=${java.net.URLEncoder.encode(device, "UTF-8")} HTTP/1.1\r\nHost: $host\r\n"), Charsets.UTF_8))
+        val s = Srv(j.getString("name") + (j.optString("user").let { u -> if (u.isNotEmpty()) " · $u" else "" }), host, port, j.getString("id"), j.getString("key"), f)
         save(pw, list(pw).filter { it.name != s.name } + s)
         return s
     }

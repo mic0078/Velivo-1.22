@@ -581,4 +581,6 @@
     <string name="ms_connecting">Connecting…</string>
     <string name="ms_bad_pass">Wrong server password</string>
     <string name="ms_no_conn">Could not connect:</string>
+    <string name="ms_user">Your name on the server</string>
+    <string name="ms_bad_pass2">Wrong name or password</string>
 </resources>

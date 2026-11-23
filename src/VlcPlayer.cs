@@ -1855,7 +1855,7 @@ namespace Velivo
                 bool jest = sv != null || tuSerwer;
                 srvTxt.Inlines.Clear();
                 srvTxt.Inlines.Add(new System.Windows.Documents.Run(jest ? "● " : "○ ") { Foreground = jest ? new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)) : new SolidColorBrush(Color.FromRgb(0x93, 0xA0, 0xBB)) });
-                srvTxt.Inlines.Add(new System.Windows.Documents.Run(sv != null ? L.T("Serwer: ") + sv.Device : tuSerwer ? L.T("Serwer: ten komputer") : L.T("Serwer: brak w sieci")));
+                srvTxt.Inlines.Add(new System.Windows.Documents.Run(sv != null ? L.T("Serwer: ") + sv.Device + (GetPref("kanapa-osoba-" + sv.Device) is string os0 && os0.Length > 0 ? " · " + os0 : "") : tuSerwer ? L.T("Serwer: ten komputer") : L.T("Serwer: brak w sieci")));
                 srvBtn.Background = jest ? (Brush)srvOn : srvOff; srvTxt.Foreground = jest ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x93, 0xA0, 0xBB)); srvBtn.Opacity = 1;
                 srvBtn.ToolTip = sv != null || tuSerwer ? L.T("Filmy z mojego serwera w sieci domowej – kliknij. Prawy przycisk: odśwież, wybór serwera") : L.T("Nie widać serwera filmów: włącz Velivo Serwer filmów (albo Velivo Odtwarzacz) na drugim komputerze – ta sama sieć domowa i sparowane komputery (ten sam profil)");
             }
@@ -1873,6 +1873,13 @@ namespace Velivo
                 var mOpen = new MenuItem { Header = "📚 " + L.T("Filmy z serwera") }; mOpen.Click += (a, b) => ShowKanapa("serwer"); srvMenu.Items.Add(mOpen);
                 var mRef = new MenuItem { Header = "🔄 " + L.T("Odśwież listę serwerów") }; mRef.Click += (a, b) => SrvFill(); srvMenu.Items.Add(mRef);
                 var l = SrvList(); var cur = SrvNow();
+                // 👥 „Kto ogląda?” - osoba na serwerze (jej postęp, ulubione, foldery); ta sama co w Kanapie
+                if (cur != null && _peerOsoby.TryGetValue(cur.Device, out var osl) && osl.Count > 0)
+                {
+                    srvMenu.Items.Add(new Separator()); srvMenu.Items.Add(new MenuItem { Header = "👤 " + L.T("Kto ogląda?"), IsEnabled = false });
+                    var teraz = GetPref("kanapa-osoba-" + cur.Device) ?? "";
+                    foreach (var os in new[] { "" }.Concat(osl)) { var o2 = os; var dev = cur.Device; var mi = new MenuItem { Header = o2.Length == 0 ? L.T("Właściciel (biblioteka serwera)") : o2, IsChecked = teraz == o2 }; mi.Click += (a, b) => { SetPref("kanapa-osoba-" + dev, o2); SrvFill(); }; srvMenu.Items.Add(mi); }
+                }
                 if (l.Count > 1) { srvMenu.Items.Add(new Separator()); foreach (var p0 in l) { var p = p0; var mi = new MenuItem { Header = p.Device, IsChecked = p == cur }; mi.Click += (a, b) => { SetPref("serwer-wybrany", p.Device); SrvFill(); }; srvMenu.Items.Add(mi); } }
             };
             SrvFill(); var srvTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; srvTm.Tick += (s0, e0) => SrvFill(); srvTm.Start(); win.Closed += (s0, e0) => srvTm.Stop();

@@ -41,6 +41,8 @@ namespace Velivo
             public long len { get; set; }
             public bool done { get; set; }
             public bool fv { get; set; }          // fav: ulubiony tak / nie
+            public string usr { get; set; }       // 👥 osoba na serwerze (libreq / prog / fav); brak = właściciel (biblioteka serwera)
+            public List<string> osoby { get; set; }   // lib: osoby serwera („Kto ogląda?”)
             public long startAt { get; set; }     // wspolny start (unix ms)
             public string act { get; set; }       // ctl: play / pause / seek / leave
             public List<LanFilmItem> items { get; set; }
@@ -251,11 +253,13 @@ namespace Velivo
 
         // ---------- wysylanie ----------
 
+        internal readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<string>> _peerOsoby = new System.Collections.Concurrent.ConcurrentDictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         void SendFilmMsg(LanPeerInfo peer, LanFilmMsg m)
         {
-            if (peer != null && NetIdx(peer.Id) is int ni) { if (m.kind == "fav") NetFav(ni, m.id, m.fv); if (m.kind == "prog") NetPostep(ni, m.id, m.pos, m.len, m.done, !m.done && m.pos == 0); return; }   // 🌍 przez internet: tylko postęp / obejrzany
+            if (peer != null && NetIdx(peer.Id) is int ni) { if (m.kind == "fav") NetFav(ni, m.id, m.fv); if (m.kind == "prog") NetPostep(ni, m.id, m.pos, m.len, m.done, m.act == "unwatch"); return; }   // 🌍 przez internet: tylko postęp / obejrzany
             if (_lanTx == null || _lanEncryptionKey == null || peer == null) return;
             m.to = peer.Id;
+            if (m.usr == null && (m.kind == "libreq" || m.kind == "prog" || m.kind == "fav")) m.usr = GetPref("kanapa-osoba-" + peer.Device);   // 👥 osoba wybrana w Kanapie dla tego serwera
             var pkt = new LanStatePacket { t = "film", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
             EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(m));
             LanSend(pkt);
@@ -476,11 +480,12 @@ namespace Velivo
             switch (m.kind)
             {
                 case "libreq":   // lista w tle - wylaczony NAS nie moze zawiesic okna
-                    _ = Task.Run(() => { var items = LibraryFor(peer, m.off, out var more); Dispatcher.BeginInvoke(new Action(() => SendFilmMsg(peer, new LanFilmMsg { kind = "lib", req = m.req, items = items, more = more }))); });
+                    _ = Task.Run(() => { var u = Wariant.Serwer ? NetUserByName(m.usr) : null; var items = LibraryFor(peer, m.off, out var more).Where(x => u == null || x.n == null || UserWidzi(u, x.n)).Select(x => UserItem(u, x)).ToList(); var os = Wariant.Serwer ? NetUserNames() : null; Dispatcher.BeginInvoke(new Action(() => SendFilmMsg(peer, new LanFilmMsg { kind = "lib", req = m.req, items = items, more = more, osoby = os }))); });
                     break;
                 case "lib":
                     if (m.req != null && _libMore.TryGetValue(m.req, out var mr)) mr.Item2[0] = m.more;
-                    if (m.items != null) PeerInfo(m.items);   // opisy i plakaty filmów tamtego komputera - jak z Jellyfin
+                    if (m.items != null) PeerInfo(m.items);
+                    if (m.osoby != null) _peerOsoby[peer.Device] = m.osoby;   // 👥 „Kto ogląda?” w Kanapie   // opisy i plakaty filmów tamtego komputera - jak z Jellyfin
                     if (m.req != null && _libRequests.TryGetValue(m.req, out var tcs)) tcs.TrySetResult(m.items ?? new List<LanFilmItem>());
                     break;
                 case "want":   // drugi komputer chce obejrzec film z tej biblioteki
@@ -507,10 +512,11 @@ namespace Velivo
                     if (m.act == "join") ShowToast(L.T("👥 Dołączył ponownie: ") + peer.Device, null);
                     _vlcRemoteCtl?.Invoke(m.act, m.pos);
                     break;
-                case "fav":   // ❤ ulubiony z drugiego komputera - wspólna lista serwera
-                    SrvUlubSet(m.id, m.fv); break;
+                case "fav":   // ❤ ulubiony z drugiego komputera - wspólna lista serwera (osoba - jej własna)
+                    if (!(Wariant.Serwer && UserFav(NetUserByName(m.usr), m.id, m.fv))) SrvUlubSet(m.id, m.fv); break;
                 case "prog":   // postep ogladania filmu z tej biblioteki na drugim komputerze
                 {
+                    if (Wariant.Serwer && UserProg(NetUserByName(m.usr), m.id, m.pos, m.len, m.done, m.act == "unwatch")) return;   // osoba - własny postęp
                     var l = LoadLibrary(); var v = l.Where(x => FilmId(x.Path) == m.id).OrderBy(x => IsShared(x) ? 0 : 1).FirstOrDefault();   // licznik wspolnej biblioteki
                     if (v == null) return;
                     ApplyPrefs(v, m.prefs);   // glosnosc, lektor, napisy ustawione na drugim komputerze

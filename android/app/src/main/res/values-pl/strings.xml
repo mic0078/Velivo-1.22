@@ -581,4 +581,6 @@
     <string name="ms_connecting">Łączę…</string>
     <string name="ms_bad_pass">Złe hasło serwera</string>
     <string name="ms_no_conn">Nie udało się połączyć:</string>
+    <string name="ms_user">Twoje imię na serwerze</string>
+    <string name="ms_bad_pass2">Złe imię albo hasło</string>
 </resources>

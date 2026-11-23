@@ -2623,15 +2623,16 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         box.addView(TextView(this).apply { text = getString(R.string.ms_login_help); textSize = 14f })
         val adr = EditText(this).apply { hint = "moj-dom.ddns.net:41940"; setSingleLine(); setText(MojSerwer.list(passwords).lastOrNull()?.let { it.host + ":" + it.port } ?: "") }
         val pas = EditText(this).apply { hint = getString(R.string.ms_password); setSingleLine(); inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
-        box.addView(adr); box.addView(pas)
+        val usr = EditText(this).apply { hint = getString(R.string.ms_user); setSingleLine() }
+        box.addView(adr); box.addView(usr); box.addView(pas)
         AlertDialog.Builder(this).setTitle("🗄 " + getString(R.string.ms_title)).setView(box)
             .setPositiveButton(R.string.ms_connect) { _, _ ->
                 toast(getString(R.string.ms_connecting))
                 Thread {
-                    val r = runCatching { MojSerwer.login(passwords, adr.text.toString(), pas.text.toString(), android.os.Build.MODEL) }
+                    val r = runCatching { MojSerwer.login(passwords, adr.text.toString(), usr.text.toString(), pas.text.toString(), android.os.Build.MODEL) }
                     runOnUiThread {
                         r.onSuccess { prefs.edit().putInt("ms-wybrany", MojSerwer.list(passwords).indexOfFirst { s -> s.name == it.name }.coerceAtLeast(0)).apply(); done() }
-                        r.onFailure { e -> toast(if (e.message?.contains("403") == true) getString(R.string.ms_bad_pass) else getString(R.string.ms_no_conn) + " " + (e.message ?: "")) }
+                        r.onFailure { e -> toast(if (e.message?.contains("403") == true) getString(R.string.ms_bad_pass2) else getString(R.string.ms_no_conn) + " " + (e.message ?: "")) }
                     }
                 }.start()
             }.setNegativeButton(android.R.string.cancel, null).show()

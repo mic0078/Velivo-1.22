@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Procesor – konflikty</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:900px}
+.win{width:780px;background:#11141c;border:1px solid #2A3240;border-radius:10px;padding:12px 14px;margin-bottom:6px}
+.modes{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0}
+.m{border:1px solid #2A3240;border-radius:10px;padding:8px;text-align:center;background:#141821}.m i{font-style:normal;font-size:18px;display:block}.m small{color:#8A93A3;display:block;font-size:11px}
+.m.on{border:2px solid #A78BFA;background:#2E1A4D}.m.now{border:2px solid #22B8D8}.m.p{border:2px solid #F5B544;background:#3A2A0A}
+.why{background:#0E2140;border:1px solid #1E3A66;border-radius:9px;padding:7px 11px;color:#CFE3FF;margin-bottom:8px}
+.warn{background:#2a1a1f;border:1px solid #5b2a33;border-radius:9px;padding:9px 12px;margin-bottom:8px}
+.warn b{color:#fbbf24}.warn div{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
+.btn{border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:3px 10px;margin-left:6px;white-space:nowrap}
+.new{outline:2px dashed #F5B544;outline-offset:2px}
+.cap{color:#ECE8FF;font-weight:600;margin:0 0 20px}
+.set{background:#141821;border:1px solid #2A3240;border-radius:9px;padding:9px 12px}
+</style></head><body>
+<h1>Velivo Procesor – ochrona przed konfliktem z innymi programami (propozycja)</h1>
+<p class="o">Żółta przerywana ramka = nowe. Program tylko ostrzega i podpowiada – nigdy nie zamyka cudzych programów.</p>
+
+<div class="win">
+ <div class="modes">
+  <div class="m on"><i>🧠</i>Auto<small>sam wybiera</small></div><div class="m now"><i>🌙</i>Cichy<small>do 1,4 GHz</small></div><div class="m"><i>⚖</i>Zrównoważony<small>zwykła praca</small></div><div class="m"><i>🚀</i>Turbo<small>pełna moc</small></div><div class="m new"><i>⏸</i>Wstrzymaj<small>steruje inny program</small></div><div class="m"><i>↺</i>Windows<small>ustawienia domyślne</small></div>
+ </div>
+ <div class="warn new"><b>⚠ Inny program też steruje procesorem</b>
+  <div><span>Działa <b style="color:#fff">Armoury Crate</b> (ASUS) – przełącza własne profile mocy. Dwa programy naraz nadpisują sobie ustawienia (skoki zegara, wentylator).</span><span><span class="btn">⏸ Wstrzymaj Velivo</span><span class="btn">Nie pokazuj dla tego programu</span></span></div>
+  <div><span>Ustawienia zasilania zmienił ktoś inny <b style="color:#fff">4 razy w ostatniej minucie</b> – nie zapisuję ich w kółko (bez walki).</span><span class="btn">Co to znaczy?</span></div></div>
+ <div class="why">💡 Spoczynek (8 %) – cicho, zegar do 1,4 GHz.</div>
+ <div class="cap" style="margin:0">1. Okno – ostrzeżenie nad „💡” (gdy jest konflikt) i nowy kafelek ⏸ Wstrzymaj</div>
+</div>
+<div style="height:14px"></div>
+
+<div class="win">
+ <div class="modes">
+  <div class="m"><i>🧠</i>Auto<small>sam wybiera</small></div><div class="m"><i>🌙</i>Cichy<small></small></div><div class="m"><i>⚖</i>Zrównoważony<small></small></div><div class="m"><i>🚀</i>Turbo<small></small></div><div class="m p"><i>⏸</i>Wstrzymany<small>tylko pomiary</small></div><div class="m"><i>↺</i>Windows<small></small></div>
+ </div>
+ <div class="why">💡 Wstrzymany – steruje inny program (Armoury Crate). Velivo Procesor tylko mierzy i pokazuje; ProBalance też wstrzymany. Wybierz tryb, aby znów sterował.</div>
+ <div class="cap" style="margin:0">2. Wstrzymany – ustawienia zostają takie, jakie zrobił drugi program (inaczej niż ↺ Windows, które przywraca domyślne)</div>
+</div>
+<div style="height:14px"></div>
+
+<div class="set new"><b>⚙ Ustawienia → Inne programy</b><br>
+☑ Ostrzegaj, gdy działa inny program sterujący procesorem (Armoury Crate, Lenovo Vantage, MSI Center, Dell Power Manager, Omen, Ryzen Controller, UXTU, ThrottleStop, Intel XTU, Process Lasso, CPU Manager)<br>
+☑ Gdy steruje Velivo: suwak „Tryb zasilania” Windows 11 na „Zrównoważony” (po zamknięciu wraca jak był)<br>
+<span style="color:#8A93A3">Wyciszone ostrzeżenia: Armoury Crate ✕</span></div>
+<div class="cap" style="margin-top:6px">3. Ustawienia</div>
+</body></html>

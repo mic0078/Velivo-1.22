@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Velivo Procesor 3</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1000px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.card{background:#141821;border:1px solid #2A3240;border-radius:9px;padding:10px 12px;width:420px}
+.card h3{margin:0 0 6px;font-size:13px}
+svg{display:block}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:420px}
+.tray{display:flex;gap:18px;align-items:center;background:#1f2937;border-radius:8px;padding:12px 16px;width:420px}
+.ic{position:relative;width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.led{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:#ff3b30;box-shadow:0 0 6px #ff3b30;animation:b .12s steps(2) infinite}
+@keyframes b{50%{opacity:.1}}
+.sel{border:1px solid #2A3240;border-radius:6px;padding:4px 8px;background:#11141c}
+</style></head><body>
+<h1>Velivo Procesor – kolorowa linia, ikona i dioda dysku (propozycja)</h1>
+<p class="o">Turkusowa linia procesora staje się jedną linią w kolorze trybu w danej chwili: zielona – Cichy, żółta – Zrównoważony, czerwona – Turbo. Fioletowa linia trybu znika (kolor ją zastępuje). Żółta przerywana – temperatura, zielone pionowe – ProBalance – bez zmian.</p>
+<div class="row">
+<div><div class="card"><h3>📈 Ostatnie 2 minuty</h3>
+<svg width="396" height="120" viewBox="0 0 396 120">
+ <polyline fill="none" stroke="#F5B544" stroke-width="1" stroke-dasharray="3 2" points="0,60 130,55 260,45 396,48"/>
+ <line x1="150" x2="150" y1="0" y2="120" stroke="#4ADE80" stroke-width="1" opacity=".7"/>
+ <polyline fill="none" stroke="#4ADE80" stroke-width="2" points="0,100 20,98 40,102 60,96 80,99 100,95"/>
+ <polyline fill="none" stroke="#FACC15" stroke-width="2" points="100,95 120,70 140,75 160,65 180,72"/>
+ <polyline fill="none" stroke="#F87171" stroke-width="2" points="180,72 200,25 220,18 240,30 260,22 280,40"/>
+ <polyline fill="none" stroke="#FACC15" stroke-width="2" points="280,40 300,70 320,78 340,74"/>
+ <polyline fill="none" stroke="#4ADE80" stroke-width="2" points="340,74 360,96 380,100 396,98"/>
+</svg>
+<small style="color:#8A93A3">procesor w kolorze trybu: <span style="color:#4ADE80">● Cichy</span> <span style="color:#FACC15">● Zrównoważony</span> <span style="color:#F87171">● Turbo</span> · żółta przerywana – temperatura · zielona pionowa – ProBalance</small></div>
+<div class="cap">1. Wykres – jedna linia, kolor zmienia się z trybem</div></div>
+
+<div><div class="tray">
+ <div class="ic" style="background:#16a34a">V</div><span style="color:#aab">12 %</span>
+ <div class="ic" style="background:#ca8a04">V</div><span style="color:#aab">45 %</span>
+ <div class="ic" style="background:#dc2626">V<span class="led"></span></div><span style="color:#aab">88 % + dysk pracuje</span>
+</div>
+<div class="cap">2. Ikona przy zegarze w kolorze obciążenia procesora (zielona do 30 %, żółta do 70 %, czerwona powyżej) i dioda w rogu – mruga szybko (jak LED dysku), gdy wybrany dysk czyta albo zapisuje</div>
+<div class="card" style="margin-top:14px"><h3>⚙ Ustawienia</h3>
+ 💡 Dioda dysku przy zegarze: <span class="sel">Wszystkie dyski ▾</span> &nbsp;(Wszystkie / C: / D: / … / Wyłączona)</div>
+<div class="cap">3. Wybór dysku dla diody</div></div>
+</div>
+<p class="o" style="margin-top:14px">Dioda mruga około 8 razy na sekundę, dopóki dysk pracuje, i gaśnie od razu po końcu. Ikona odświeża się ok. 10 razy na sekundę tylko w czasie mrugania – bez obciążenia procesora (rysowanie małej ikony).</p>
+</body></html>

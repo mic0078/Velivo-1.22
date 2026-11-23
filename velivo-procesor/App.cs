@@ -481,7 +481,9 @@ namespace VelivoProcesor
         void RysujWykres()
         {
             wykres.Children.Clear(); double w = Math.Max(10, wykres.ActualWidth), h = wykres.Height; int n = hCpu.Length;
-            Polyline L(Brush c, double th) { var pl = new Polyline { Stroke = c, StrokeThickness = th }; wykres.Children.Add(pl); return pl; }
+            // linie zbierane jako punkty, rysowane na końcu jako gładkie krzywe (bez kantów)
+            var linie = new List<Polyline>();
+            Polyline L(Brush c, double th) { var pl = new Polyline { Stroke = c, StrokeThickness = th }; linie.Add(pl); return pl; }
             // ⚖ ProBalance: pionowa linia w chwili, gdy uspokoił program w tle (jak Process Lasso)
             for (int i = 1; i < n; i++)
             {
@@ -507,6 +509,24 @@ namespace VelivoProcesor
                 if (lm == null) { lm = L(Vi, 1.5); lm.Opacity = 0.85; }
                 lm.Points.Add(new Point(w * i / (n - 1), h - 6 - hTryb[j] * (h - 12) / 2));
             }
+            foreach (var pl in linie)
+                if (pl.Points.Count > 1)
+                    wykres.Children.Add(new System.Windows.Shapes.Path { Data = Gladka(pl.Points, h), Stroke = pl.Stroke, StrokeThickness = pl.StrokeThickness, StrokeDashArray = pl.StrokeDashArray, Opacity = pl.Opacity,
+                        StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        }
+        // krzywa przez punkty (Catmull-Rom → Béziera): gładkie przejścia zamiast kantów, bez wychodzenia poza wykres
+        static Geometry Gladka(PointCollection p, double h)
+        {
+            var f = new PathFigure { StartPoint = p[0] }; var seg = new PolyBezierSegment();
+            Point Y(Point q) => new Point(q.X, Math.Max(0, Math.Min(h, q.Y)));
+            for (int i = 0; i < p.Count - 1; i++)
+            {
+                Point p0 = p[Math.Max(0, i - 1)], p1 = p[i], p2 = p[i + 1], p3 = p[Math.Min(p.Count - 1, i + 2)];
+                seg.Points.Add(Y(new Point(p1.X + (p2.X - p0.X) / 6, p1.Y + (p2.Y - p0.Y) / 6)));
+                seg.Points.Add(Y(new Point(p2.X - (p3.X - p1.X) / 6, p2.Y - (p3.Y - p1.Y) / 6)));
+                seg.Points.Add(p2);
+            }
+            f.Segments.Add(seg); var g = new PathGeometry(); g.Figures.Add(f); g.Freeze(); return g;
         }
 
         // cztery kafelki pomiarów

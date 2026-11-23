@@ -608,7 +608,10 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun swiped(trace: List<Slownik.P>, keys: Map<Char, Slownik.P>, keyW: Double) {
         if (!Slownik.loaded) return
         val r = Slownik.recognize(trace, keys, keyW, synchronized(learned) { HashMap(learned) }, 4, prevWord)
-        val w0 = r.firstOrNull() ?: return
+        var w0 = r.firstOrNull() ?: return
+        // zgoda form w zdaniu (ten sam ślad palca: taka / taką, moja / moją): forma z tą samą końcówką co poprzednie słowo - „taka moja wola”, „taką moją wolą”
+        prevWord?.lowercase()?.lastOrNull()?.let { pk -> if (pk == 'a' || pk == 'ą' || pk == 'e' || pk == 'ę')
+            r.firstOrNull { it != w0 && Slownik.fold(it) == Slownik.fold(w0) && it.lastOrNull() == pk && w0.lastOrNull() != pk }?.let { w0 = it } }
         val ic = currentInputConnection ?: return
         if (cur.isNotEmpty()) finishWord(" ")
         var w = w0
@@ -617,7 +620,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val b = before(1)
         ic.commitText((if (b.isNotEmpty() && !b.endsWith(" ") && !b.endsWith("\n")) " " else "") + w + " ", 1)
         if (!caps) shift = false
-        lastSwipe = w; lastTrace = trace; lastKeyW = keyW; swipeAlts = r.drop(1)
+        lastSwipe = w; lastTrace = trace; lastKeyW = keyW; swipeAlts = r.filter { !it.equals(w, true) }
         if (!noLearn) Slownik.learnShape(w, trace, keyW)
         learn(w)
         autoShift(); view.refresh()
@@ -1081,7 +1084,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     val kw = (keys.firstOrNull { it.code == "q" }?.r?.width() ?: 40f).toDouble()
                     // przeciąganie od litery: palec odjechał dalej niż pół klawisza
-                    if (!swiping && !longDone && k.code.length == 1 && k.code[0] in 'a'..'z' && !secret && !pref("klaw-senior", false) && hypot(x - downX, y - downY) > kw * 0.6) { swiping = true; removeCallbacks(longPress) }
+                    if (!swiping && !longDone && k.code.length == 1 && k.code[0] in 'a'..'z' && !secret && !pref("klaw-senior", false) && hypot(x - downX, y - downY) > kw * 0.9 && !k.r.contains(x, y)) { swiping = true; removeCallbacks(longPress) }   // przeciąganie dopiero, gdy palec wyjdzie z klawisza (było pół klawisza - szybkie stukanie z poślizgiem zamieniało się w przeciąganie i litery ginęły)
                     if (swiping) invalidate()
                 }
                 MotionEvent.ACTION_UP -> { up(x, y); activeId = -1 }

@@ -97,7 +97,7 @@ object Slownik {
         val pr = prev?.let { p -> synchronized(pairs) { pairs[p.lowercase() + " " + e.word] ?: 0 } } ?: 0
         return e.rank / (1.0 + 3.0 * min(n, 50)) * (if (isRecent(e.word)) 0.6 else 1.0) / (1.0 + 10.0 * min(pr, 20))
     }
-    private fun fold(w: String) = w.lowercase().map(::baseKey).joinToString("")
+    fun fold(w: String) = w.lowercase().map(::baseKey).joinToString("")
     // sąsiednie klawisze (QWERTY) - typowa pomyłka palca
     private val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
     private fun near(c: Char): List<Char> = rows.flatMap { r -> val i = r.indexOf(c); if (i < 0) emptyList() else listOfNotNull(r.getOrNull(i - 1), r.getOrNull(i + 1)) }

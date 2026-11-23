@@ -495,10 +495,19 @@ namespace Velivo
             if (_keyHook != IntPtr.Zero || _keyThread != 0) return;
             _keyProc = (code, wp, lp) =>
             {
+                if (code >= 0)
+                {
+                    int vk0 = Marshal.ReadInt32(lp), sc0 = Marshal.ReadInt32(lp, 4), fl0 = Marshal.ReadInt32(lp, 8); var ex0 = Marshal.ReadIntPtr(lp, 16);
+                    bool down0 = (int)wp == 0x100 || (int)wp == 0x104, inj0 = (fl0 & 0x10) != 0;
+                    if (inj0 && ex0 == InjMark) { if (down0) { bool koniec; lock (_injBuf) koniec = --_injLeft <= 0; if (koniec) InjFlush(); } return CallNextHookEx(_keyHook, code, wp, lp); }
+                    bool czeka; lock (_injBuf) czeka = _injLeft > 0 && Environment.TickCount64 - _injAt < 400;
+                    if (!inj0 && czeka) { lock (_injBuf) _injBuf.Add((vk0, sc0, fl0, !down0)); return (IntPtr)1; }   // poprawka jeszcze idzie - Twój klawisz po niej
+                    if (!czeka) { bool zalegle; lock (_injBuf) zalegle = _injLeft > 0 || _injBuf.Count > 0; if (zalegle) InjFlush(); }   // poprawka zgubiona - nic nie czeka dłużej niż 0,4 s
+                }
                 if (code >= 0 && ((int)wp == 0x100 || (int)wp == 0x104))   // WM_KEYDOWN / WM_SYSKEYDOWN
                 {
                     int vk = Marshal.ReadInt32(lp), flags = Marshal.ReadInt32(lp, 8);
-                    if ((flags & 0x10) == 0)   // bez znakow wyslanych przez sama klawiature Velivo
+                    if ((flags & 0x10) == 0 || Marshal.ReadIntPtr(lp, 16) == InjReplay)   // bez znakow wyslanych przez sama klawiature Velivo (Twoj wstrzymany klawisz - liczony jak zwykly)
                     {
                         var f = _onPhysKey; if (f != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => f(vk)));
                         bool swallow = false;
@@ -548,7 +557,22 @@ namespace Velivo
         }
         static long _tapLast;   // ostatnie klikniecie klawisza ekranowego
         static string _pWord = "", _pFixFrom, _pFixTo, _pPrevWord, _pPrevWord2; static bool _pPrevSpace; static long _pLast; static char _pPrev; static bool _pCap;
-        static void Inject(IEnumerable<KbdInput> ins) { var a = ins.ToArray(); if (a.Length > 0) SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))); }
+        // ⌨ szybkie pisanie: poprawka (kasowanie + nowe słowo) jest znakowana; klawisze, które wciśniesz, zanim cała przejdzie, czekają i idą zaraz po niej -
+        // wcześniej Windows wstawiał je przed poprawką i kasowanie zjadało Twoje nowe litery („litery uciekają”)
+        static readonly IntPtr InjMark = (IntPtr)0x56454C31, InjReplay = (IntPtr)0x56454C32;   // „VEL1” poprawka, „VEL2” Twój wstrzymany klawisz
+        static int _injLeft; static long _injAt; static readonly List<(int Vk, int Sc, int Fl, bool Up)> _injBuf = new List<(int, int, int, bool)>();
+        static void Inject(IEnumerable<KbdInput> ins)
+        {
+            var a = ins.ToArray(); if (a.Length == 0) return;
+            for (int i = 0; i < a.Length; i++) a[i].U.Kb.Extra = InjMark;
+            lock (_injBuf) { _injLeft += a.Count(x => (x.U.Kb.Flags & KeyUp) == 0); _injAt = Environment.TickCount64; }
+            if (SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))) == 0) lock (_injBuf) _injLeft = 0;
+        }
+        static void InjFlush()
+        {
+            KbdInput[] r; lock (_injBuf) { _injLeft = 0; if (_injBuf.Count == 0) return; r = _injBuf.Select(k => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = (ushort)k.Vk, Scan = (ushort)k.Sc, Flags = (uint)((k.Fl & 1) != 0 ? KeyExt : 0) | (k.Up ? KeyUp : 0), Extra = InjReplay } } }).ToArray(); _injBuf.Clear(); }
+            SendInput((uint)r.Length, r, Marshal.SizeOf(typeof(KbdInput)));
+        }
         static IEnumerable<KbdInput> KeyIn(ushort vk, char ch)
         {
             uint fl = vk == 0 ? KeyUnicode : ExtOf(vk); ushort sc = vk == 0 ? ch : (ushort)0;

@@ -56,7 +56,7 @@ namespace VelivoMonitor
         [StructLayout(LayoutKind.Sequential)] struct PdhValue { public uint Status; public uint Pad; public double Value; }
 
         long lastIdle, lastKer, lastUsr, lastSent = -1, lastRecv = -1; DateTime lastAt;
-        IntPtr pdhQ, pdhC, pdhF; double maxMhz;
+        IntPtr pdhQ, pdhC; double maxMhz;
         public double Up, Down, Cpu, Ghz;   // B/s, B/s, %, GHz
         const int N = 60; readonly double[] hUp = new double[N], hDown = new double[N], hGhz = new double[N]; int hPos;
 
@@ -66,9 +66,11 @@ namespace VelivoMonitor
             {   // najwyższe taktowanie bazowe (MHz) z Windows - PROCESSOR_POWER_INFORMATION: 6 × uint, MaxMhz na pozycji 2
                 int n = Environment.ProcessorCount; var b = new byte[24 * n];
                 if (CallNtPowerInformation(11, IntPtr.Zero, 0, b, b.Length) == 0) maxMhz = BitConverter.ToUInt32(b, 8);
+                // zegar bazowy z rejestru - ten sam co Velivo Procesor i Menedżer zadań (MaxMhz z Windows bywał inny: AMD 2,08 zamiast 3,50 GHz)
+                using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0")) { var r = Convert.ToDouble(k?.GetValue("~MHz") ?? 0); if (r > 0) maxMhz = r; }
             }
             catch (Exception) { }
-            try { if (PdhOpenQuery(null, IntPtr.Zero, out pdhQ) == 0 && PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\% Processor Performance", IntPtr.Zero, out pdhC) == 0) { if (PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\Processor Frequency", IntPtr.Zero, out pdhF) != 0) pdhF = IntPtr.Zero; PdhCollectQueryData(pdhQ); } else pdhQ = IntPtr.Zero; } catch (Exception) { pdhQ = IntPtr.Zero; }
+            try { if (PdhOpenQuery(null, IntPtr.Zero, out pdhQ) == 0 && PdhAddEnglishCounter(pdhQ, @"\Processor Information(_Total)\% Processor Performance", IntPtr.Zero, out pdhC) == 0) PdhCollectQueryData(pdhQ); else pdhQ = IntPtr.Zero; } catch (Exception) { pdhQ = IntPtr.Zero; }
         }
 
         void Sample()
@@ -93,7 +95,7 @@ namespace VelivoMonitor
                 lastIdle = idle; lastKer = ker; lastUsr = usr;
             }
             if (pdhQ != IntPtr.Zero && maxMhz > 0 && PdhCollectQueryData(pdhQ) == 0 && PdhGetFormattedCounterValue(pdhC, 0x200, IntPtr.Zero, out var v) == 0)   // PDH_FMT_DOUBLE
-                Ghz = ((pdhF != IntPtr.Zero && PdhGetFormattedCounterValue(pdhF, 0x200, IntPtr.Zero, out var fq) == 0 && fq.Value > 0) ? fq.Value : maxMhz) * v.Value / 100 / 1000;   // jak Menedżer zadań: zegar bazowy z licznika Windows × wydajność (MaxMhz bywa niższy - AMD: 2,08 zamiast 3,50 GHz)   // „% Processor Performance” ponad 100 = turbo
+                Ghz = maxMhz * v.Value / 100 / 1000;   // jak Menedżer zadań i Velivo Procesor: zegar bazowy z rejestru (~MHz) × wydajność   // „% Processor Performance” ponad 100 = turbo
             else if (maxMhz > 0) Ghz = maxMhz / 1000;
             hUp[hPos] = Up; hDown[hPos] = Down; hGhz[hPos] = Ghz; hPos = (hPos + 1) % N;
         }

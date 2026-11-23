@@ -132,4 +132,10 @@
     <string name="kb_access_tip">Senior mode, enlarged letter, Braille (learning and settings), Morse, sounds instead of words</string>
     <string name="kb_fingers">🤟 Fingerspelling</string>
     <string name="kb_fingers_learn">🤟 Learn fingerspelling</string>
+    <string name="kb_nauka">📒 What the keyboard has learned</string>
+    <string name="kb_nauka_fix">Corrections (⚠ = a correct word being replaced)</string>
+    <string name="kb_nauka_pairs">Phrases</string>
+    <string name="kb_nauka_clean">🧹 Remove all replacements of correct words</string>
+    <string name="kb_nauka_removed">Removed:</string>
+    <string name="kb_nauka_empty">Empty</string>
 </resources>

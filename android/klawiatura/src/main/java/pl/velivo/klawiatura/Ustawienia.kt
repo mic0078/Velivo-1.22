@@ -157,9 +157,24 @@ open class Ustawienia : Activity() {
 
     // ⚙ z klawiatury: wszystkie ustawienia w jednym okienku nad pisaniem; po wyborze powrót prosto do pisania
     private fun all() = list(R.string.kb_m_settings, listOf(getString(R.string.kb_dict_learn) to { list(R.string.kb_dict_learn, listOf(getString(R.string.kb_words) to { showWords() }, getString(R.string.kb_phrases) to { showPhrases() },
-            getString(R.string.kb_privacy) to { privacy() }, getString(R.string.kb_en_variant) to { enVariant() }, getString(R.string.kb_clear_learned) to { clearLearned() })) },
+            getString(R.string.kb_privacy) to { privacy() }, getString(R.string.kb_en_variant) to { enVariant() }, getString(R.string.kb_nauka) to { nauka() }, getString(R.string.kb_clear_learned) to { clearLearned() })) },
         getString(R.string.kb_m_access) to { access() }, getString(R.string.kb_theme) to { chooseTheme() }, getString(R.string.kb_height) to { chooseHeight() },
         getString(R.string.kb_mic_allow) to { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC) }, getString(R.string.kb_gif_allow) to { askGif() }))
+    // 📒 czego nauczyła się klawiatura (makieta-klawiatura-nauka.html): poprawki i zwroty, stuknięcie = usuń tę jedną rzecz
+    private fun nauka() {
+        val p = Slownik.naukaPoprawki(); val z = Slownik.naukaZwroty()
+        list(R.string.kb_nauka, listOf(
+            getString(R.string.kb_nauka_fix) + " (" + p.size + ")" to { naukaLista(R.string.kb_nauka_fix, p.take(300).map { (t, f) -> (t + " → " + f + if (Slownik.zamianaPoprawnego(t)) "  ⚠" else "") to { Slownik.zapomnijPoprawke(t) } }) },
+            getString(R.string.kb_nauka_pairs) + " (" + z.size + ")" to { naukaLista(R.string.kb_nauka_pairs, z.take(300).map { (k, n) -> "$k  ($n×)" to { Slownik.zapomnijZwrot(k) } }) },
+            getString(R.string.kb_nauka_clean) to {
+                val zle = Slownik.naukaPoprawki().filter { Slownik.zamianaPoprawnego(it.first) }; zle.forEach { Slownik.zapomnijPoprawke(it.first) }
+                KlawiaturaVelivo.save(this); android.widget.Toast.makeText(this, getString(R.string.kb_nauka_removed) + " " + zle.size, android.widget.Toast.LENGTH_LONG).show()
+            }))
+    }
+    private fun naukaLista(title: Int, items: List<Pair<String, () -> Unit>>) {
+        if (items.isEmpty()) { android.widget.Toast.makeText(this, R.string.kb_nauka_empty, android.widget.Toast.LENGTH_SHORT).show(); return }
+        list(title, items.map { (t, usun) -> ("✕  $t") to { usun(); KlawiaturaVelivo.save(this); nauka() } })
+    }
     // okienko nad pisaniem: gdy zamknie się ostatnie okienko (nic już nie jest otwarte) - od razu z powrotem do klawiatury
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)

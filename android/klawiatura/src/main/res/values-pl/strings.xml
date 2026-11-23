@@ -132,4 +132,10 @@
     <string name="kb_access_tip">Tryb Senior, powiększona litera, brajl (nauka i ustawienia), Morse, dźwięki zamiast słów</string>
     <string name="kb_fingers">🤟 Alfabet palcowy</string>
     <string name="kb_fingers_learn">🤟 Nauka alfabetu palcowego</string>
+    <string name="kb_nauka">📒 Czego nauczyła się klawiatura</string>
+    <string name="kb_nauka_fix">Poprawki (⚠ = poprawne słowo zamieniane)</string>
+    <string name="kb_nauka_pairs">Zwroty</string>
+    <string name="kb_nauka_clean">🧹 Usuń wszystkie zamiany poprawnych słów</string>
+    <string name="kb_nauka_removed">Usunięto:</string>
+    <string name="kb_nauka_empty">Pusto</string>
 </resources>

@@ -699,13 +699,20 @@ object Slownik {
                 line.startsWith("*") -> { val q = line.substring(1).split('\t'); val sc = q.getOrNull(0)?.toIntOrNull(); if (q.size in 2..3 && sc != null && sc >= 2 && q[1].length in 8..200) synchronized(sentences) { sentences[q[1]] = sc; sentDay[q[1]] = q.getOrNull(2)?.toIntOrNull() ?: today() } }
                 line.startsWith("&") -> { val q = line.substring(1).split('\t'); if (q.size == 2 && q[1].isNotEmpty()) synchronized(sentences) { ownPhrases[q[1]] = q[0] } }
                 line.startsWith("#") -> { val q = line.substring(1).split('\t'); val h = q.getOrNull(0)?.toIntOrNull(); val d = q.getOrNull(1)?.toIntOrNull(); if (h != null && d != null) synchronized(sentences) { seenOnce[h] = d } }
-                line.startsWith(">") -> { val q = line.substring(1).split('\t'); if (q.size == 2 && q[0].isNotEmpty() && q[1].isNotEmpty()) synchronized(myFix) { myFix[q[0]] = q[1] } }
-                line.startsWith("=") -> { val q = line.substring(1).split('\t'); val pc = q.getOrNull(1)?.toIntOrNull(); if (q.size == 2 && pc != null) synchronized(pairs) { pairs[q[0]] = pc } }
+                line.startsWith(">") -> { val q = line.substring(1).split('\t'); if (q.size == 2 && q[0].isNotEmpty() && q[1].isNotEmpty()) synchronized(myFix) { if (">" + q[0] !in usuniete) myFix[q[0]] = q[1] } }
+                line.startsWith("=") -> { val q = line.substring(1).split('\t'); val pc = q.getOrNull(1)?.toIntOrNull(); if (q.size == 2 && pc != null) synchronized(pairs) { if ("=" + q[0] !in usuniete) pairs[q[0]] = pc } }
                 else -> { val p = line.split('\t'); val n = p.getOrNull(1)?.toIntOrNull(); if (p.size == 2 && n != null && p[0].isNotEmpty()) learned[p[0]] = n }
             }
         }
     }
 
     // nowy język: nauka zostaje (słowa, pary), słownik główny od nowa
+    // 📒 „Czego nauczyła się klawiatura”: poprawki i zwroty do przejrzenia i usunięcia pojedynczo (usunięte nie wracają przy wczytaniu)
+    private val usuniete = HashSet<String>()
+    fun naukaPoprawki(): List<Pair<String, String>> = synchronized(myFix) { myFix.map { it.key to it.value }.sortedBy { it.first } }
+    fun naukaZwroty(): List<Pair<String, Int>> = synchronized(pairs) { pairs.map { it.key to it.value }.sortedByDescending { it.second } }
+    fun zapomnijPoprawke(t: String) { synchronized(myFix) { myFix.remove(t); usuniete.add(">$t") } }
+    fun zapomnijZwrot(k: String) { synchronized(pairs) { pairs.remove(k); usuniete.add("=$k") } }
+    fun zamianaPoprawnego(t: String) = main?.contains(t) == true || full?.known(t) == true   // taka → taką - błąd starej wersji
     fun clearLearned() { synchronized(mine) { mine.clear() }; synchronized(pairs) { pairs.clear() }; synchronized(myFix) { myFix.clear() }; synchronized(sentences) { sentences.clear(); sentDay.clear(); seenOnce.clear() }; synchronized(recent) { recent.clear() } }
 }

@@ -65,10 +65,17 @@ namespace Velivo
                 NetCert(); var l = new TcpListener(IPAddress.Any, NetFilmPort); l.Start(); _netListener = l;
                 _ = Task.Run(async () => { while (true) { TcpClient c; try { c = await l.AcceptTcpClientAsync(); } catch (Exception) { return; } _ = Task.Run(() => NetObsluz(c)); } });
                 NetStan = L.T("działa – sprawdzam router…");
+                // 🔁 router sam (UPnP): ponawiane co 10 min, póki port nie jest otwarty, potem odświeżane co godzinę (router po restarcie zapomina) - bez ręcznego przekierowania
                 _ = Task.Run(async () =>
                 {
-                    var (ext, mapped, note) = await KomUpnpAsync(NetFilmPort);
-                    NetStan = mapped ? L.T("działa – port otwarty w routerze") : L.T("działa w domu; router: ") + note + L.T(" – przekieruj ręcznie port TCP ") + NetFilmPort + L.T(" na ten komputer");
+                    while (_netListener == l)
+                    {
+                        bool mapped = false;
+                        try { var (ext, m, note) = await KomUpnpAsync(NetFilmPort); mapped = m;
+                            NetStan = m ? L.T("działa – port otwarty w routerze") : L.T("działa w domu; router: ") + note + L.T(" – ponawiam co 10 min (albo przekieruj ręcznie port TCP ") + NetFilmPort + L.T(" na ten komputer)"); }
+                        catch (Exception ex) { App.LogError(ex); }
+                        await Task.Delay(TimeSpan.FromMinutes(mapped ? 60 : 10));
+                    }
                 });
             }
             catch (Exception ex) { App.LogError(ex); NetStan = L.T("nie działa – port ") + NetFilmPort + L.T(" zajęty"); }

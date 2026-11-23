@@ -1967,6 +1967,8 @@ namespace Velivo
             { "Udostępnione, bo w oknie serwera zaznaczono „Udostępniaj też filmy z Jellyfin”", "Shared because “Also share films from Jellyfin” is ticked in the server window" },
             { "🎞 Mój serwer filmów", "🎞 My film server" },
             { "Filmy z Velivo Serwer filmów – w domu i przez internet (osobno od Jellyfin)", "Films from Velivo Film Server – at home and over the internet (separate from Jellyfin)" },
+            { " – ponawiam co 10 min (albo przekieruj ręcznie port TCP ", " – retrying every 10 min (or forward TCP port " },
+            { " na ten komputer)", " to this computer manually)" },
             { "Kontynuuj odtwarzanie", "Continue watching" },
             { "Serwer: ", "Server: " },
             { "Serwer: ten komputer", "Server: this computer" },

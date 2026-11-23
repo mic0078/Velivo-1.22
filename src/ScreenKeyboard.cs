@@ -577,6 +577,8 @@ namespace Velivo
         static void PhysReset() { _sent.Clear(); _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; _pZeAuto = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         // tylko sledzenie slowa i Ctrl+Spacja (bez zadnych poprawek) - gdy autokorekta jest wylaczona
+        // znane słowo wpisane bez polskich znaków (trafiac = trafiać) - to nie nowe słowo; Ctrl+Spacja nie dodaje go do słownika (inaczej błędna forma blokowała poprawkę)
+        static bool BezZnakow(string w) { var f = SwipeTyping.Fold(w); return SwipeTyping.Predict(w, false, 8).Any(x => SwipeTyping.Fold(x) == f && !x.Equals(w, StringComparison.OrdinalIgnoreCase)); }
         static bool PhysLearnOnly(int vk)
         {
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;
@@ -589,7 +591,7 @@ namespace Velivo
             }
             if (vk == 0x08 && !ctrl) { if (_pWord.Length > 0) _pWord = _pWord.Substring(0, _pWord.Length - 1); return false; }
             var nw = _pWord; _pWord = "";
-            if (vk != 0x20 || !ctrl || alt || sh || nw.Length < 2 || SwipeTyping.IsKnown(nw)) return false;
+            if (vk != 0x20 || !ctrl || alt || sh || nw.Length < 2 || SwipeTyping.IsKnown(nw) || BezZnakow(nw)) return false;
             var ins = new List<KbdInput>();
             bool lc = GetAsyncKeyState(0xA2) < 0, rc = GetAsyncKeyState(0xA3) < 0;
             if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2, Flags = KeyUp } } });
@@ -660,7 +662,7 @@ namespace Velivo
             }
             bool autoSp = _pAutoSpace; _pAutoSpace = false;
             char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : vk == 0xBD && !sh ? '-' : '\0';
-            if (vk == 0x20 && ctrl && !alt && !sh && _sentRest == null && !_physStale && _pWord.Length >= 2 && _pWord.All(char.IsLetter) && !SwipeTyping.IsKnown(_pWord))
+            if (vk == 0x20 && ctrl && !alt && !sh && _sentRest == null && !_physStale && _pWord.Length >= 2 && _pWord.All(char.IsLetter) && !SwipeTyping.IsKnown(_pWord) && !BezZnakow(_pWord))
             {   // Ctrl+Spacja po nowym slowie (spoza slownika): do Mojego slownika i spacja
                 var nw = _pWord; var ins = new List<KbdInput>();
                 bool lc = GetAsyncKeyState(0xA2) < 0, rc = GetAsyncKeyState(0xA3) < 0;

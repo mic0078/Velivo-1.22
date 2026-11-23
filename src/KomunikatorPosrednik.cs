@@ -241,16 +241,28 @@ namespace Velivo
             var mf = new Dictionary<string, string>();
             try { var d = KomBoxDir(rto); if (Directory.Exists(d)) foreach (var hdr in Directory.GetFiles(d, "*.hdr")) { var bin = Path.ChangeExtension(hdr, ".bin"); if (File.Exists(bin)) mf[Path.GetFileNameWithoutExtension(hdr).Split('-').Last()] = KomShaCached(bin); } } catch (Exception) { }
             var tf = (p["f"] as JsonObject)?.ToDictionary(kv => kv.Key, kv => (string)kv.Value) ?? new Dictionary<string, string>();
-            string me = KomSrvTag(_komId), them = KomSrvTag(from), who = KomSrvTag(rto); int n = 0;
+            // odpowiedź przychodzi kilkoma drogami (dwa porty, sieć domowa i łącze serwerów) - porównanie raz na 30 s dla serwera i odbiorcy
+            var dk = from + "|" + rto; if (_komFpSeen.TryGetValue(dk, out var dt0) && DateTime.UtcNow - dt0 < TimeSpan.FromSeconds(30)) return; _komFpSeen[dk] = DateTime.UtcNow;
+            string me = KomSrvTag(_komId), them = KomSrvTag(from), who = KomContactById(rto)?.Name ?? KomSrvTag(rto); int n = 0;
             foreach (var (kind, a, b) in new[] { ("wiadomość", mine, theirs), ("plik", mf, tf) })
+            {   // jeden wpis na rodzaj zdaniem (ile i czego brakuje), identyfikatory na końcu - zamiast setek wierszy z samymi kodami
+                var tylkoTu = new List<string>(); var tylkoTam = new List<string>(); var inne = new List<string>();
                 foreach (var id in a.Keys.Union(b.Keys).OrderBy(x => x, StringComparer.Ordinal))
                 {
                     a.TryGetValue(id, out var x); b.TryGetValue(id, out var y);
-                    if (x == y) continue; n++;
-                    KomDiag("RÓŻNICA", kind, id, me, them, "dla " + who + ": " + (x == null ? "brak na " + me + ", jest na " + them : y == null ? "jest na " + me + ", brak na " + them : "inna zawartość – " + me + " sha " + x + ", " + them + " sha " + y));
+                    if (x == y) continue; (x == null ? tylkoTam : y == null ? tylkoTu : inne).Add(id);
                 }
+                if (tylkoTu.Count + tylkoTam.Count + inne.Count == 0) continue; n++;
+                string Ile(int c) => c + (kind == "plik" ? (c == 1 ? " plik" : c < 5 ? " pliki" : " plików") : (c == 1 ? " wiadomość" : c < 5 ? " wiadomości" : " wiadomości"));
+                var zd = new List<string>();
+                if (tylkoTu.Count > 0) zd.Add(Ile(tylkoTu.Count) + " jest tylko na " + me);
+                if (tylkoTam.Count > 0) zd.Add(Ile(tylkoTam.Count) + " jest tylko na " + them);
+                if (inne.Count > 0) zd.Add(Ile(inne.Count) + " ma inną zawartość");
+                KomDiag("RÓŻNICA", kind, string.Join(",", tylkoTu.Concat(tylkoTam).Concat(inne).Take(20)), me, them, "dla " + who + ": " + string.Join("; ", zd) + " – „Wyrównaj teraz” dosyła brakujące");
+            }
             if (n == 0) KomDiag("RÓŻNICA", "skrzynka", "-", me, them, "dla " + who + ": przy sprawdzeniu pozycja po pozycji już zgodne (wiadomość była w drodze)");
         }
+        readonly ConcurrentDictionary<string, DateTime> _komFpSeen = new ConcurrentDictionary<string, DateTime>();
         readonly ConcurrentDictionary<string, DateTime> _komSyncTry = new ConcurrentDictionary<string, DateTime>(), _komSyncOk = new ConcurrentDictionary<string, DateTime>();   // ostatnie porównanie / ostatnia pełna zgodność z każdym moim serwerem
         readonly ConcurrentDictionary<string, (string fp, int same)> _komFpCmp = new ConcurrentDictionary<string, (string, int)>();
         // porównanie z innym serwerem (z jego stanu co minutę): wpis przy zmianie wyniku; różnica liczy się dopiero 3 razy z rzędu (wiadomości w drodze)

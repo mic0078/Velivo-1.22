@@ -66,7 +66,7 @@ namespace VelivoProcesor
         }
     }
 
-    sealed class Okno
+    sealed partial class Okno
     {
         static readonly Brush Bg = B(0x11, 0x14, 0x1C), Card = B(0x14, 0x18, 0x21), Line = B(0x2A, 0x32, 0x40), Fg = B(0xE8, 0xEB, 0xF0), Dim = B(0x8A, 0x93, 0xA3),
             Tq = B(0x22, 0xB8, 0xD8), Vi = B(0xA7, 0x8B, 0xFA), Ok = B(0x4A, 0xDE, 0x80), Warn = B(0xF5, 0xB5, 0x44), Hot = B(0xF8, 0x71, 0x71), On = B(0x2E, 0x1A, 0x4D);
@@ -121,7 +121,7 @@ namespace VelivoProcesor
                     Centrum(p);
                     s.ZapiszZapisy();   // ↺ co Velivo zmieniło - na dysku najwyżej co minutę (po awarii przywracanie dalej wie, co jest jego)
                     hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hAuto[hPos] = s.Auto; hPb[hPos] = pb.Liczba; hPos = (hPos + 1) % hCpu.Length;
-                    win.Dispatcher.BeginInvoke(new Action(Odswiez));
+                    win.Dispatcher.BeginInvoke(new Action(() => { Odswiez(); aiOdswiez?.Invoke(); }));   // 🤖 okno AI - tylko gdy otwarte
                 }
                 catch (Exception) { }
                 Thread.Sleep(1000);
@@ -187,6 +187,7 @@ namespace VelivoProcesor
             var pbIt = new System.Windows.Forms.ToolStripMenuItem("⚖ ProBalance – programy w tle nie przycinają"); pbIt.Click += (a, e) => PbUstaw(s.Get("probalance", "1") != "1"); m.Items.Add(pbIt);
             m.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             m.Items.Add("🪟 Otwórz okno", null, (a, e) => Pokaz());
+            m.Items.Add("🤖 Jak myśli AI", null, (a, e) => OknoAi());
             m.Items.Add("↺ Przywróć ustawienia domyślne Windows", null, (a, e) => Domyslne());
             m.Items.Add("⏻ Zakończ (ustawienia Windows wracają)", null, (a, e) => Koniec(true));
             m.Opening += (a, e) =>
@@ -281,7 +282,8 @@ namespace VelivoProcesor
             gw.Children.Add(T("procesor w kolorze trybu: zielony Cichy, żółty Zrównoważony, czerwony Turbo · fiolet – tryb wybrany przez Auto (dół Cichy, góra Turbo) · przerywana – temperatura · pionowa kreska – ProBalance", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
             var gp = new StackPanel(); var gh = new DockPanel();
             tAll = T("⤢ Wszystkie", 12, Tq); tAll.Cursor = Cursors.Hand; tAll.ToolTip = "Pełna lista programów – sortowanie i szukanie"; tAll.MouseLeftButtonUp += (a, e) => Wszystkie();
-            DockPanel.SetDock(tAll, Dock.Right); gh.Children.Add(tAll); gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
+            DockPanel.SetDock(tAll, Dock.Right); gh.Children.Add(tAll);
+            var tAi = T("🤖 AI   ", 12, Tq); tAi.Cursor = Cursors.Hand; tAi.ToolTip = "Jak myśli AI – głosy, przewidywanie, nauka programów"; tAi.MouseLeftButtonUp += (a, e) => OknoAi(); DockPanel.SetDock(tAi, Dock.Right); gh.Children.Add(tAi); gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
             lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             var sv = new ScrollViewer { Content = new Border { BorderBrush = Sep, BorderThickness = new Thickness(0, 1, 0, 0), Child = lista }, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             sv.MouseDoubleClick += (a, e) => Wszystkie(); gp.Children.Add(sv);

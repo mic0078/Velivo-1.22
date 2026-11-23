@@ -119,6 +119,7 @@ namespace Velivo
         internal static void AddUserWord(string word)
         {
             var w = (word ?? "").Trim().ToLowerInvariant();
+            lock (_ownRemoved) _ownRemoved.Remove(w);   // dodane znowu - znowu łączone
             if (_words == null || w.Length < 2 || IsKnown(w)) return;
             var keys = new string(w.Select(BaseKey).ToArray());
             if (!keys.All(k => k >= 'a' && k <= 'z')) return;
@@ -133,6 +134,7 @@ namespace Velivo
         internal static void RemoveUserWord(string word)
         {
             var w = (word ?? "").ToLowerInvariant();
+            lock (_ownRemoved) _ownRemoved.Add(w);   // nie wraca z pliku przy łączeniu zapisu z innym programem
             if (_words == null) return;
             _words.RemoveAll(e => e.Word == w && e.Rank == 3000);
             lock (_ownFold) { var f = Fold(w); if (_ownFold.TryGetValue(f, out var o) && o == w) _ownFold.Remove(f); }
@@ -742,10 +744,19 @@ namespace Velivo
             lock (_mine) { if (!_mine.TryGetValue(t[0], out var l)) _mine[t[0]] = l = new List<Point[]>(); if (l.Count < 3) l.Add(pts); }
         }
 
+        static readonly HashSet<string> _ownRemoved = new HashSet<string>();   // usunięte w tym programie z Mojego słownika - nie wracają z pliku przy łączeniu
         internal static void SaveLearned(string file, IDictionary<string, int> learned, ISet<string> own)
         {
             try
             {
+                // 🔀 kilka programów Velivo z klawiaturą (Klawiatura, Komunikator, Odtwarzacz, Velivo) zapisuje ten sam plik - najpierw dołączam to,
+                // co zapisał inny program (słowa ze słownika, liczniki - większy wygrywa, pary, zdania), żeby nie nadpisać jego nowych słów
+                if (File.Exists(file))
+                {
+                    var diskOwn = new HashSet<string>(); var disk = LoadLearned(file, diskOwn);
+                    foreach (var w in diskOwn) { bool rm; lock (_ownRemoved) rm = _ownRemoved.Contains(w); if (!rm && own.Add(w)) AddUserWord(w); }
+                    foreach (var kv in disk) if (!learned.TryGetValue(kv.Key, out var n) || n < kv.Value) learned[kv.Key] = kv.Value;
+                }
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
                 var text = string.Join("\n", learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
                     .Concat(own.Select(w => "+" + w))

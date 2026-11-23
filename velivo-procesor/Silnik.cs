@@ -40,6 +40,25 @@ namespace VelivoProcesor
         public double TempLimit => GetD("temp-limit", 90);
 
         public readonly string ProcesorNazwa; public readonly bool Amd; public readonly double BazaMhz;
+        // 🧩 hybrydowy = rdzenie o różnej klasie wydajności (Windows: EfficiencyClass > 0 u części rdzeni)
+        [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetSystemCpuSetInformation(IntPtr info, int len, out int ret, IntPtr proc, int flags);
+        public readonly bool Hybrydowy = WykryjHybryde();
+        static bool WykryjHybryde()
+        {
+            try
+            {
+                GetSystemCpuSetInformation(IntPtr.Zero, 0, out var n, IntPtr.Zero, 0); if (n <= 0) return false;
+                var buf = Marshal.AllocHGlobal(n);
+                try
+                {
+                    if (!GetSystemCpuSetInformation(buf, n, out n, IntPtr.Zero, 0)) return false;
+                    for (int off = 0; off + 19 <= n;) { int size = Marshal.ReadInt32(buf, off); if (size <= 0) break; if (Marshal.ReadByte(buf, off + 18) > 0) return true; off += size; }   // SYSTEM_CPU_SET_INFORMATION: EfficiencyClass na pozycji 18
+                }
+                finally { Marshal.FreeHGlobal(buf); }
+            }
+            catch (Exception) { }
+            return false;
+        }
         public string Ryzen;   // ścieżka ryzenadj.exe (AMD) albo null
         public bool RyzenDziala;   // RyzenAdj odpowiada (uprawnienia administratora i obsługiwany procesor)
 
@@ -447,7 +466,10 @@ namespace VelivoProcesor
             // AMD (CPPC): tryb autonomiczny - procesor sam wybiera zegar i pomija minimum z planu; wyłączany na czas sterowania (przy zamknięciu wraca)
             Autonom = new Guid("8baa4a8a-14c6-4451-8e8b-14bdbd197537"),
             // co ile ms Windows sprawdza obciążenie i zmienia zegar (domyślnie 30); na NUCBOX było 5000 - zegar reagował co 5 s
-            PerfCheck = new Guid("4d2b0152-7d5c-498b-88e2-34345392a2c5");
+            PerfCheck = new Guid("4d2b0152-7d5c-498b-88e2-34345392a2c5"),
+            // 🧩 procesory hybrydowe (Intel 12.+ gen., Core Ultra): drugi rodzaj rdzeni ma osobne ustawienia („klasa 1”) - bez nich Cichy nie ograniczał rdzeni wydajnych
+            Max1 = new Guid("bc5038f7-23e0-4960-96da-33abaf5935ed"), Min1 = new Guid("893dee8e-2bef-41e0-89c6-b55d0929964d"),
+            Epp1 = new Guid("36687f9e-e3a5-4dbf-b1dc-15eb381c6864"), Freq1 = new Guid("75b0ae3f-bce0-45a7-8c89-c9611c25e101");
         [DllImport("powrprof.dll")] static extern uint PowerGetActiveScheme(IntPtr root, out IntPtr guid);
         [DllImport("powrprof.dll")] static extern uint PowerSetActiveScheme(IntPtr root, ref Guid guid);
         [DllImport("powrprof.dll")] static extern uint PowerWriteACValueIndex(IntPtr root, ref Guid s, ref Guid sub, ref Guid set, uint v);
@@ -458,7 +480,7 @@ namespace VelivoProcesor
         public string Blad = "";
 
         static Guid Aktywny() { PowerGetActiveScheme(IntPtr.Zero, out var p); try { return (Guid)Marshal.PtrToStructure(p, typeof(Guid)); } finally { LocalFree(p); } }
-        static readonly Guid[] Ustawienia = { Max, Min, Boost, Epp, Freq, IncThr, DecThr, IncTime, DecTime, IncPol, MinCores, Autonom, PerfCheck };
+        static readonly Guid[] Ustawienia = { Max, Min, Boost, Epp, Freq, IncThr, DecThr, IncTime, DecTime, IncPol, MinCores, Autonom, PerfCheck, Max1, Min1, Epp1, Freq1 };
         readonly Dictionary<Guid, (uint Ac, uint Dc)> oryg = new Dictionary<Guid, (uint, uint)>();   // wartości Windows sprzed programu
         static readonly string KopiaFile = Path.Combine(Dir, "windows-przed.txt");
 
@@ -561,6 +583,7 @@ namespace VelivoProcesor
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
                 // tryb autonomiczny i co ile ms Windows zmienia zegar - zawsze jak przed programem (u właściciela 5000 ms z CPU Manager v40 = cisza; moje 30 ms = skoki zegara i wentylator)
                 foreach (var g in new[] { Autonom, PerfCheck }) if (oryg.TryGetValue(g, out var ov)) w.Add((g, ov.Ac, ov.Dc));
+                if (Hybrydowy) w.AddRange(new[] { (Max1, max, max), (Min1, min, min), (Epp1, epp, epp), (Freq1, freq, freq) });   // te same granice dla obu rodzajów rdzeni
                 uint err = 0;
                 foreach (var (g, va, vd) in w) { bool bez; lock (zapisy) bez = !wymus && zapisy.TryGetValue(g, out var by) && by.Ac == va && by.Dc == vd; if (bez) continue;   // bez zapisu, gdy wartość już taka (zasada: bez zbędnych zapisów)
                     var gg = g; var sub = Sub; uint e = PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, va); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, vd); if (g == Max || g == Min || g == Boost) err |= e; }

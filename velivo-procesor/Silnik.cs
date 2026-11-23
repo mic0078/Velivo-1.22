@@ -313,7 +313,7 @@ namespace VelivoProcesor
 
         // okna, na które tylko patrzysz (Velivo Procesor, okno AI, Menedżer zadań, Monitor) - nie uczą i nie decydują; liczy się program pod spodem
         static readonly HashSet<string> Obserwacja = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "VelivoProcesor", "VelivoMonitor", "VelivoCentrum", "Taskmgr", "perfmon", "resmon", "OpenHardwareMonitor", "LibreHardwareMonitor", "HWiNFO64", "HWiNFO32" };
-        string ostProgram = "";
+        string ostProgram = ""; DateTime wyjscieCichy;
         public Tryb Decyduj(Pomiar p)
         {
             if (Obserwacja.Contains(p.Program ?? "")) { p.Program = ostProgram; p.ProgCpu = -1; } else ostProgram = p.Program ?? "";
@@ -362,6 +362,9 @@ namespace VelivoProcesor
             { chce = Tryb.Zrownowazony; why = instalator != null ? "Instalacja (" + instalator + ") – nie zwalniam do Cichego, żeby nie szarpała." : "Kopiowanie (dysk " + p.DyskMBs.ToString("0") + " MB/s) – nie zwalniam do Cichego."; }
             if (!reczny && p.Bateria && chce == Tryb.Turbo && !(p.Temp < 0 && wysokoN > 3)) { chce = Tryb.Zrownowazony; why += " Na baterii bez Turbo."; }
 
+            // ⏳ przerwa przed powrotem do Cichego (jak cooldown w CPU Manager v40): po wyjściu z Cichego przez 20 s nie wraca - koniec skakania Cichy ↔ Zrównoważony
+            if (Obecny == Tryb.Cichy && chce != Tryb.Cichy) wyjscieCichy = DateTime.UtcNow;
+            if (chce == Tryb.Cichy && Obecny != Tryb.Cichy && !goraco && !reczny && (DateTime.UtcNow - wyjscieCichy).TotalSeconds < 20) { Dlaczego = why + " (Cichy za chwilę – przerwa po ostatniej zmianie, bez skakania)"; return Obecny; }
             // w dół powoli: Turbo → Zrównoważony po 3 s, Zrównoważony → Cichy po 8 s; w górę od razu
             if (chce < Obecny && p.Temp < TempLimit)
             {

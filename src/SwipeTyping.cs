@@ -500,6 +500,15 @@ namespace Velivo
             return NeedsComma("że", before) ? ", " + r : r;
         }
 
+        // „dom, w którym”, „ludzie, z którymi”: przecinek przed przyimkiem, gdy po nim „który” (i przed „czego / kogo” po przyimku: „nie wiem, o czym”)
+        static readonly HashSet<string> _przyimki = new HashSet<string> { "w", "we", "na", "z", "ze", "do", "o", "od", "przez", "dla", "przy", "po", "za", "pod", "nad", "przed", "u", "między", "bez", "obok", "wobec", "dzięki", "według", "mimo", "około", "spośród" };
+        static readonly HashSet<string> _ktory = new HashSet<string> { "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
+        internal static bool PrepKtory(string word, string prev, string prev2)
+        {
+            if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(prev2) || !prev2.All(char.IsLetter)) return false;
+            var p2 = prev2.ToLowerInvariant();
+            return _ktory.Contains(word.ToLowerInvariant()) && _przyimki.Contains(prev.ToLowerInvariant()) && !_przyimki.Contains(p2) && !_noCommaAfter.Contains(p2);
+        }
         internal static bool NeedsComma(string word, string prev)
         {
             if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return false;

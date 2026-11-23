@@ -490,6 +490,8 @@ class KlawiaturaVelivo : InputMethodService() {
             }
             if (Slownik.needsComma(word, p) && b.endsWith("$p $word")) {
                 ic.beginBatchEdit(); ic.deleteSurroundingText(word.length + 1, 0); ic.commitText(", $word", 1); ic.endBatchEdit()
+            } else Regex("""(\p{L}+) ${Regex.escape(p)} ${Regex.escape(word)}$""").find(b)?.groupValues?.get(1)?.takeIf { Slownik.prepKtory(word, p, it) }?.let {
+                ic.beginBatchEdit(); ic.deleteSurroundingText(p.length + 1 + word.length + 1, 0); ic.commitText(", $p $word", 1); ic.endBatchEdit()   // dom w którym -> dom, w którym
             }
         }
         learn(word)

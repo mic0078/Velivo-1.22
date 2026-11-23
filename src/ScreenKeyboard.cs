@@ -758,6 +758,13 @@ namespace Velivo
                 return true;
             }
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
+            // dom w którym -> dom, w którym (przecinek przed przyimkiem)
+            if (!comma && sep == ' ' && prevSpace && ze == null && !zeBack && jp == null && SwipeTyping.PrepKtory(fin, prevW, prevW2))
+            {
+                SentAdd(fin, sep, false, null, true); PhysPred(fin, true);
+                Inject(Enumerable.Range(0, word.Length + 1 + prevW.Length + 1).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn(", " + prevW + " " + fin + sep)));
+                return true;
+            }
             SentAdd(fin, sep, comma, zeBack ? "ze" : ze, true);
             _pZeAuto = zeNow; _pZeComma = comma;
             PhysPred(sep == ' ' ? fin : null, true);   // po spacji - inne formy skonczonego slowa

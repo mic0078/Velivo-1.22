@@ -433,6 +433,14 @@ object Slownik {
         return if (needsComma("że", before)) ", $r" else r
     }
 
+    // „dom, w którym”, „ludzie, z którymi”: przecinek przed przyimkiem, gdy po nim „który”
+    private val przyimki = setOf("w", "we", "na", "z", "ze", "do", "o", "od", "przez", "dla", "przy", "po", "za", "pod", "nad", "przed", "u", "między", "bez", "obok", "wobec", "dzięki", "według", "mimo", "około", "spośród")
+    private val ktory = setOf("który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi")
+    fun prepKtory(word: String, prev: String?, prev2: String?): Boolean {
+        if (prev.isNullOrEmpty() || prev2.isNullOrEmpty() || !prev2.all { it.isLetter() }) return false
+        val p2 = prev2.lowercase()
+        return word.lowercase() in ktory && prev.lowercase() in przyimki && p2 !in przyimki && p2 !in noCommaAfter
+    }
     fun needsComma(word: String?, prev: String?): Boolean {
         if (word.isNullOrEmpty() || prev.isNullOrEmpty() || !prev.all { it.isLetter() }) return false
         val wl = word.lowercase(); val pl = prev.lowercase()

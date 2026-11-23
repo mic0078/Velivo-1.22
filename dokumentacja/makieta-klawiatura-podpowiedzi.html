@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Podpowiedzi przy kursorze</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1000px}
+.row{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.doc{width:520px;background:#fff;color:#111;border-radius:6px;padding:18px 18px 70px;font:15px Calibri,"Segoe UI",sans-serif;position:relative}
+.cur{display:inline-block;width:1px;height:17px;background:#111;vertical-align:-3px;animation:b 1s steps(1) infinite}@keyframes b{50%{opacity:0}}
+.pop{position:absolute;display:flex;gap:4px;align-items:center;background:rgba(20,24,33,.96);border:1px solid #3b3f6b;border-radius:9px;padding:4px;font:13px "Segoe UI";color:#E8EBF0;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.pop span{padding:3px 9px;border-radius:6px}.pop .on{background:linear-gradient(90deg,#7C3AED,#06B6D4);color:#fff}
+.pop small{color:#8A93A3;margin:0 4px}
+.sent{color:#9aa;font-style:italic}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:520px}
+.set{background:#141821;border:1px solid #2A3240;border-radius:9px;padding:10px 12px;width:520px}
+</style></head><body>
+<h1>Klawiatura Velivo – podpowiedzi przy kursorze (propozycja)</h1>
+<p class="o">Działa przy zwykłej klawiaturze, także gdy okno klawiatury Velivo jest zamknięte. Mały pasek pojawia się tuż pod kursorem tekstu w dowolnym programie i znika po 3 s bez pisania albo po Esc. Nie zabiera kursora – piszesz dalej normalnie.</p>
+<div class="row">
+<div><div class="doc">Dzień dobry, dziękuję za wiadomość. Wszystko w<span class="cur"></span>
+ <div class="pop" style="left:150px;top:46px"><span class="on">porządku</span><span>razem</span><span>domu</span><small>Tab – wstaw · Tab Tab – następne</small></div></div>
+ <div class="cap">1. Następne słowo ze zwrotu (po „wszystko w” zwykle „porządku”). Tab wstawia pierwsze, Tab dwa razy szybko – kolejne; strzałki / Esc – nic.</div></div>
+
+<div><div class="doc">Pozdrawiam serdecznie i do<span class="cur"></span><span class="sent"> usłyszenia jutro.</span>
+ <div class="pop" style="left:150px;top:46px"><span class="on">… usłyszenia jutro.</span><small>Ctrl+Spacja – wstaw resztę zdania</small></div></div>
+ <div class="cap">2. Często pisane zdanie: szara reszta za kursorem i pasek – Ctrl+Spacja wstawia całość.</div></div>
+</div>
+<div class="set" style="margin-top:20px"><b>⚙ Klawiatura → Podpowiedzi</b><br>☑ Podpowiedzi przy kursorze (także przy zamkniętym oknie klawiatury)<br>☐ Szara reszta zdania w tekście (tylko tam, gdzie program na to pozwala)<br><span style="color:#8A93A3">Nigdy w polach haseł. Tab wstawia podpowiedź tylko gdy pasek jest widoczny – w innym przypadku Tab działa jak zawsze.</span></div>
+<div class="cap">3. Ustawienia (menu klawiatury przy zegarze)</div>
+<p class="o" style="margin-top:14px">Uwaga: szara reszta w samym tekście (rys. 2) w wielu programach może być niemożliwa – wtedy zostaje tylko pasek. Położenie kursora tekstu część programów (np. niektóre przeglądarki, gry) podaje niedokładnie – wtedy pasek pojawia się przy myszy.</p>
+</body></html>

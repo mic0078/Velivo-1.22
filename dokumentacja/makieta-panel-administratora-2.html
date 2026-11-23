@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel administratora 2</title>
+<style>
+:root{--bg:#0f1422;--side:#151b2d;--card:#1c2338;--line:#2f3a56;--fg:#e8ecf4;--dim:#93a0bb;--acc:#6d7cff;--ok:#4ade80;--warn:#fbbf24;--hot:#f87171}
+body{margin:0;background:#080b12;color:var(--fg);font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1150px;margin:0 0 14px}
+.win{width:1150px;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.tb{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)}.tb b{font-size:15px}.tb span{color:var(--dim)}
+.wrap{display:grid;grid-template-columns:210px 1fr;min-height:520px}
+.side{background:var(--side);border-right:1px solid var(--line);padding:10px 8px}
+.nav{display:flex;justify-content:space-between;padding:8px 10px;border-radius:7px;margin-bottom:2px;cursor:pointer}
+.nav.on{background:#2a2f63;box-shadow:inset 3px 0 0 var(--acc)}.nav small{color:var(--dim)}.nav .n{background:#3a2a0a;color:var(--warn);border-radius:8px;padding:0 6px;font-size:11px}
+.side hr{border:0;border-top:1px solid var(--line);margin:8px 4px}
+.main{padding:12px 14px}
+.head{display:flex;align-items:center;gap:10px;margin-bottom:4px}.head h2{margin:0;font-size:17px}
+.desc{color:var(--dim);margin:0 0 10px;max-width:820px}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:4px 10px}.btn.d{border-color:#7f1d1d;color:#fecaca}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}.seg span{padding:4px 10px}.seg span.on{background:#2a2f63}
+.srch{border:1px solid var(--line);border-radius:6px;padding:4px 9px;color:var(--dim);width:220px;margin-left:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:var(--dim);font-weight:400;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid #222a40}
+.g{color:var(--ok)}.y{color:var(--warn)}.r{color:var(--hot)}.dim{color:var(--dim)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 12px}.c b{font-size:22px;display:block}.c small{color:var(--dim)}
+.att{background:#2a1a1f;border:1px solid #5b2a33;border-radius:8px;padding:9px 12px;margin-bottom:10px}
+.att div{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+.srv{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.new{outline:2px dashed #F5B544;outline-offset:2px}
+.cap{color:#ECE8FF;font-weight:600;margin:4px 0 22px}
+.map td,.map th{font-size:12px}.map{width:1150px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+</style></head><body>
+<h1>Panel administratora – porządek (propozycja)</h1>
+<p class="o">Dziś: 14 zakładek w dwóch rzędach (WPF zamienia rzędy po kliknięciu), jeden pasek przycisków dla wszystkich zakładek (np. „Wyczyść dziennik” widać przy Skrzynce), wspólne pole szukania, te same dane w kilku miejscach (Skrzynka i Pliki, Osoby i Konta, Serwery i Infrastruktura, cztery dzienniki). Propozycja: <b>6 działów z lewej</b> zamiast zakładek; każdy dział ma krótki opis, <b>tylko swoje przyciski</b> i własne szukanie; kafelki i „Wymaga uwagi” tylko w Przeglądzie. Nic nie znika – mapa niżej.</p>
+
+<div class="win">
+ <div class="tb"><b>🛠 Panel administratora – NUCBOX</b><span>· zalogowany kluczem · sesja wygaśnie po 15 min bez ruchu</span><span style="margin-left:auto" class="g">● serwery zgodne · ostatnia wieść RYZENMIC 01:15</span></div>
+ <div class="wrap">
+  <div class="side">
+   <div class="nav on"><span>📊 Przegląd</span><span class="n">1</span></div>
+   <div class="nav"><span>🖥 Serwery</span><small>2</small></div>
+   <div class="nav"><span>📬 Skrzynka</span><small>101</small></div>
+   <div class="nav"><span>👥 Ludzie i urządzenia</span><small>5</small></div>
+   <div class="nav"><span>📜 Dzienniki</span></div>
+   <hr>
+   <div class="nav"><span>⚙ Ustawienia</span></div>
+  </div>
+  <div class="main">
+   <div class="head"><h2>📊 Przegląd</h2></div>
+   <p class="desc">Najważniejsze w jednym miejscu. Kliknij kafelek – przejdziesz do działu z gotowym widokiem.</p>
+   <div class="cards">
+    <div class="c"><b class="g">Działa</b><small>ten serwer · 2 z 2 moich serwerów działa</small></div>
+    <div class="c"><b class="y">101</b><small>czeka w skrzynce (101 wiadomości, 0 plików)</small></div>
+    <div class="c"><b>2 / 5</b><small>osób w sieci</small></div>
+    <div class="c"><b class="g">zgodne</b><small>wersje i dane serwerów</small></div>
+   </div>
+   <div class="att"><b class="y">⚠ Wymaga uwagi (1)</b>
+    <div><span>📬 101 wiadomości do Motorola czeka od wczoraj – Motorola nie łączy się z tym serwerem</span><span><span class="btn">Pokaż</span> <span class="btn">Wyślij ponownie</span></span></div></div>
+   <table><tr><th>Ostatnie zdarzenia (wszystkie dzienniki)</th><th>Serwer</th><th>Kiedy</th></tr>
+    <tr><td class="g">doręczony – zdjęcie 2,1 MB do Mi 10</td><td>NUCBOX</td><td>01:12</td></tr>
+    <tr><td class="y">czeka – wiadomość do Motorola (odbiorca poza siecią)</td><td>RYZENMIC</td><td>wczoraj 16:54</td></tr>
+    <tr><td class="dim">operacja: synchronizuj teraz (właściciel)</td><td>NUCBOX</td><td>wczoraj 22:10</td></tr></table>
+  </div>
+ </div>
+</div>
+<div class="cap">1. Przegląd – kafelki, „Wymaga uwagi” z czynnościami, ostatnie zdarzenia</div>
+
+<div class="win">
+ <div class="tb"><b>🛠 Panel administratora – NUCBOX</b></div>
+ <div class="wrap">
+  <div class="side">
+   <div class="nav"><span>📊 Przegląd</span><span class="n">1</span></div>
+   <div class="nav"><span>🖥 Serwery</span><small>2</small></div>
+   <div class="nav on"><span>📬 Skrzynka</span><small>101</small></div>
+   <div class="nav"><span>👥 Ludzie i urządzenia</span><small>5</small></div>
+   <div class="nav"><span>📜 Dzienniki</span></div><hr>
+   <div class="nav"><span>⚙ Ustawienia</span></div>
+  </div>
+  <div class="main">
+   <div class="head"><h2>📬 Skrzynka</h2></div>
+   <p class="desc">Wiadomości i pliki, które czekają na odbiorcę (był poza siecią). Serwer próbuje co minutę; po czasie z Ustawień („Przechowuj”) usuwa.</p>
+   <div class="bar"><span class="seg"><span class="on">Wszystko 101</span><span>Wiadomości 101</span><span>Pliki 0</span></span>
+    <span class="btn">↻ Wyślij ponownie zaznaczone</span><span class="btn d">🗑 Usuń zaznaczone</span><span class="srch">🔍 Szukaj osoby…</span></div>
+   <table><tr><th>Do kogo</th><th>Co</th><th>Od kogo</th><th>Czeka od</th><th>Dlaczego czeka</th></tr>
+    <tr><td>Motorola</td><td>💬 wiadomość</td><td>RYZENMIC</td><td>wczoraj 16:28</td><td class="y">Motorola nie łączy się z tym serwerem od piątku</td></tr>
+    <tr><td>Motorola</td><td>💬 wiadomość</td><td>RYZENMIC</td><td>wczoraj 16:31</td><td class="y">Motorola nie łączy się z tym serwerem od piątku</td></tr>
+    <tr><td>Mi 10</td><td>📎 plik 12,4 MB</td><td>Ryzen</td><td>dziś 00:40</td><td class="g">połączony – wysyłam (próba co minutę)</td></tr></table>
+  </div>
+ </div>
+</div>
+<div class="cap">2. Przykład działu – tylko jego przyciski, przełącznik rodzaju zamiast wpisywania „wiadomość (tekst)” w szukanie, „Dlaczego czeka” zdaniem</div>
+
+<table class="map"><tr><th>Dziś (14 zakładek + wspólny pasek)</th><th>Po zmianie</th></tr>
+<tr><td>Przegląd · Wymaga uwagi · kafelki</td><td>📊 Przegląd (+ ostatnie zdarzenia)</td></tr>
+<tr><td>Serwery · Infrastruktura · Informacje techniczne</td><td>🖥 Serwery – lista serwerów, polecenia dla zaznaczonego / wszystkich; szczegóły techniczne po rozwinięciu serwera</td></tr>
+<tr><td>Skrzynka · Pliki</td><td>📬 Skrzynka – przełącznik Wszystko / Wiadomości / Pliki</td></tr>
+<tr><td>Osoby i urządzenia · Konta</td><td>👥 Ludzie i urządzenia – jedna osoba = jeden wiersz (w sieci, przez który serwer, konto, numer)</td></tr>
+<tr><td>Dziennik skrzynki · Operacje administratora · Błędy Velivo · Diagnostyka</td><td>📜 Dzienniki – przełącznik Skrzynka / Operacje / Błędy / Diagnostyka; „Wyczyść”, „Zapisz do pliku”, „Kopiuj raport” tylko tutaj</td></tr>
+<tr><td>Ustawienia · Klucze sprzętowe · „Przechowuj” · Folder danych</td><td>⚙ Ustawienia – grupy: Przechowywanie, Dostęp (hasło, klucze), Dane (folder, kopia)</td></tr>
+</table>
+<p class="o" style="margin-top:10px">Bez zmian: działanie poleceń, logowanie, odświeżanie co 5 s (tylko widoczny dział), menu po prawym przycisku w tabelach.</p>
+</body></html>

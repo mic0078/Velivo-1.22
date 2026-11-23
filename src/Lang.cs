@@ -1928,6 +1928,8 @@ namespace Velivo
             { "Dzienniki", "Logs" },
             { "Szukaj w tej tabeli", "Search this table" },
             { "Tab – wstaw", "Tab – insert" },
+            { "Oznacz jako obejrzany", "Mark as watched" },
+            { "Oznacz jako nieobejrzany", "Mark as unwatched" },
             { "Kontynuuj odtwarzanie", "Continue watching" },
             { "Serwer: ", "Server: " },
             { "Serwer: ten komputer", "Server: this computer" },

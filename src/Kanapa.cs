@@ -62,7 +62,8 @@ namespace Velivo
             // 🎬 szczegóły filmu - to samo okno co w serwerze filmów
             Action poZmianie = null;   // odświeżenie widoku po zmianie ulubionych (ustawiane niżej)
             void Szczegoly(LibraryVideo v) { var p = v.Path; FilmSzczegoly(w, Tytul(v), MetaFor(p), Poster(p), v.Len, v.Pos, v.Done, how => Graj(() => { _pilotResume = how; PlayVideos(new[] { p }, 0); }),
-                new List<(string, Action)> { (UlubLok(p) ? "★ " + L.T("Usuń z ulubionych") : "☆ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubLokZmien(p); poZmianie?.Invoke(); })) }); }
+                new List<(string, Action)> { (UlubLok(p) ? "❤ " + L.T("Usuń z ulubionych") : "♡ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubLokZmien(p); poZmianie?.Invoke(); })),
+                    (v.Done ? "↺ " + L.T("Oznacz jako nieobejrzany") : "✓ " + L.T("Oznacz jako obejrzany"), (Action)(() => { ObejrzanyLok(p, !v.Done); poZmianie?.Invoke(); })) }); }
 
             // kafelek: Button z własnym szablonem - złota ramka i powiększenie, gdy wybrany (z kanapy widać, gdzie jesteś)
             Button Tile(double wd, double ht, UIElement content, Action act)
@@ -120,13 +121,24 @@ namespace Velivo
             void UlubLokZmien(string path) { var p = LoadPlaylists(); if (!p.Named.TryGetValue("⭐ Ulubione", out var l)) p.Named["⭐ Ulubione"] = l = new List<string>(); if (l.RemoveAll(x => string.Equals(x, path, StringComparison.OrdinalIgnoreCase)) == 0) l.Add(path); SavePlaylists(p); }
             List<string> UlubSrv() => (GetPref("kanapa-ulub-serwer") ?? "").Split('\n').Where(x => x.Length > 0).ToList();
             void UlubSrvZmien(string k) { var l = UlubSrv(); if (!l.Remove(k)) l.Add(k); SetPref("kanapa-ulub-serwer", string.Join("\n", l)); }
+            // ✓ obejrzany i ❤ ulubiony - znaczki w prawym górnym rogu plakatu (jak Jellyfin)
+            void Znaczki(Grid g, bool obejrzany, bool ulub)
+            {
+                var sp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 6, 0) };
+                Border Kolko(string t, Color c) => new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Background = new SolidColorBrush(c), Margin = new Thickness(4, 0, 0, 0),
+                    Child = new TextBlock { Text = t, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                if (ulub) sp.Children.Add(Kolko("❤", Color.FromRgb(0xE1, 0x1D, 0x48)));
+                if (obejrzany) sp.Children.Add(Kolko("✓", Color.FromRgb(0x06, 0x9C, 0xB8)));
+                if (sp.Children.Count > 0) g.Children.Add(sp);
+            }
+            void ObejrzanyLok(string path, bool tak) { var l = LoadLibrary(); foreach (var x in l.Where(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase))) { x.Done = tak; x.Pos = 0; if (tak) x.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); } SaveLibrary(l); }
             Button FilmTile(LibraryVideo v, double wd = 170)
             {
                 var g = new Grid(); var img = Poster(v.Path);
                 if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                 else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
                 var kr = Krotko(v); g.Children.Add(Caption(Tytul(v), kr.Length > 0 ? kr : null));
-                if (UlubLok(v.Path)) g.Children.Add(new TextBlock { Text = "⭐", FontSize = 18, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 8, 0) });
+                Znaczki(g, v.Done, UlubLok(v.Path));
                 if (v.Len > 0 && v.Pos > 0 && !v.Done) g.Children.Add(Postep(v.Pos, v.Len));
                 var path = v.Path;
                 var b = Tile(wd, wd * 1.5, g, () => Szczegoly(v)); infoOf[b] = () => FilmOpis(v); return b;   // klik = szczegóły filmu (jak Jellyfin), odtwarzanie stamtąd
@@ -322,9 +334,10 @@ namespace Velivo
                                 if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                                 else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
                                 g.Children.Add(Caption(m?.Name ?? x.t, m?.Year > 0 ? m.Year.ToString() : null));
-                                if (UlubSrv().Contains(pe.Device + "|" + x.i)) g.Children.Add(new TextBlock { Text = "⭐", FontSize = 18, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 8, 0) });
+                                Znaczki(g, x.d, UlubSrv().Contains(pe.Device + "|" + x.i));
                                 if (x.l > 0 && x.p > 0 && !x.d) g.Children.Add(Postep(x.p, x.l));
-                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); }), new List<(string, Action)> { (UlubSrv().Contains(pe.Device + "|" + xx.i) ? "★ " + L.T("Usuń z ulubionych") : "☆ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubSrvZmien(pe.Device + "|" + xx.i); odswiez?.Invoke(); })) }));
+                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); }), new List<(string, Action)> { (UlubSrv().Contains(pe.Device + "|" + xx.i) ? "❤ " + L.T("Usuń z ulubionych") : "♡ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubSrvZmien(pe.Device + "|" + xx.i); odswiez?.Invoke(); })),
+                                    (xx.d ? "↺ " + L.T("Oznacz jako nieobejrzany") : "✓ " + L.T("Oznacz jako obejrzany"), (Action)(() => { xx.d = !xx.d; xx.p = 0; SendFilmMsg(pe, new LanFilmMsg { kind = "prog", id = xx.i, pos = 0, len = xx.l, done = xx.d }); odswiez?.Invoke(); })) }));   // na serwerze - jak postęp oglądania
                                 infoOf[b] = () => Opis(m?.Name ?? xx.t, string.Join("   ·   ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, L.T("z komputera ") + pe.Device }.Where(z => z != null)), string.IsNullOrWhiteSpace(m?.Overview) ? "" : m.Overview);
                                                         return b;
                     }

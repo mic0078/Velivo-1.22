@@ -358,7 +358,9 @@ namespace VelivoProcesor
             Procesy();
             bool jest = false;
             KeyValuePair<string, Tryb>[] lista; lock (Studio) lista = Reczne.ToArray();
-            foreach (var r in lista) if (dzialajace.Contains(r.Key) && (!jest || r.Value > t)) { t = r.Value; nazwa = r.Key; jest = true; }
+            // w tle tylko „więcej mocy” (Studio One gra, a Ty w innym oknie); „zawsze Cichy” obowiązuje, gdy program jest na wierzchu -
+            // program przy zegarze z „zawsze Cichy” nie może trzymać całego komputera w Cichym (Sejf-Klient, Velivo Kursory)
+            foreach (var r in lista) if (r.Value != Tryb.Cichy && dzialajace.Contains(r.Key) && (!jest || r.Value > t)) { t = r.Value; nazwa = r.Key; jest = true; }
             return jest;
         }
         // 🎚 tryb Studio: działa program z trybem Studio (lista procesów jak wyżej, co 3 s)

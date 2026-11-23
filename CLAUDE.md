@@ -374,6 +374,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-23: Velivo Procesor AMD – dołożyłem pełny boost (2) w Zrównoważonym bez sprawdzenia skutków: przy filmie procesor się grzał i wył wentylator (wcześniej cicho). Cofnięte. Zmiana boostu/EPP = zmiana ciepła i hałasu – przed wysłaniem pomyśl o filmie i spoczynku, nie tylko o szczycie.
 
+* 2026-11-23: wnioski z CPU Manager v40 właściciela (`/home/user/cpumanager_40`), który na AMD był cichy: (1) interwał sprawdzania zegara 5000 ms (PERFCHECK) – zegar nie skacze; moje 30 ms = skoki i wentylator nawet w Cichym; (2) AMD w zwykłej pracy Max 99 % = bez wyskoku zegara, pełny boost tylko w Turbo; (3) na AMD v40 nie rusza EPP ani trybu boost – tylko Min/Max i RyzenAdj. Zanim zmienisz Velivo Procesor – sprawdź, jak to robił v40, i myśl o ciszy przy filmie.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

@@ -630,7 +630,8 @@ object Slownik {
             for (i in 0 until 4) {
                 val nx = following("$a $b").firstOrNull() ?: break
                 if (nx.value < 2) break   // cały zwrot po 2 razach, następne słowo już po pierwszym (jak Gboard)
-                val w = nx.key.substring(nx.key.lastIndexOf(' ') + 1); phrase.add(w); a = b; b = w
+                val w = nx.key.substring(nx.key.lastIndexOf(' ') + 1); if (w == p || w == p2 || w in phrase) break   // zwrot nie zawija się w kółko
+                phrase.add(w); a = b; b = w
             }
             if (phrase.size >= 2) res.add(0, phrase.joinToString(" "))
         }

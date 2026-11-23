@@ -736,7 +736,8 @@ namespace Velivo
                 {
                     var nx = Following(a + " " + b).FirstOrDefault();
                     if (nx.Key == null || nx.Value < 2) break;   // cały zwrot po 2 razach (było 3)
-                    var w = nx.Key.Substring(nx.Key.LastIndexOf(' ') + 1); phrase.Add(w); a = b; b = w;
+                    var w = nx.Key.Substring(nx.Key.LastIndexOf(' ') + 1); if (w == p || w == p2 || phrase.Contains(w)) break;   // zwrot nie zawija się w kółko (… dotrzesz daj znać)
+                    phrase.Add(w); a = b; b = w;
                 }
                 if (phrase.Count >= 2) res.Insert(0, string.Join(" ", phrase));
             }

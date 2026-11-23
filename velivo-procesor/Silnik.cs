@@ -490,6 +490,7 @@ namespace VelivoProcesor
                 var s = Aktywny(); ZapamietajWindows(s);
                 // Cichy: zegar do wybranej wartości (także poniżej bazowego), bez boostu, oszczędzanie; Zrównoważony: boost oszczędny; Turbo: boost agresywny, pełna wydajność
                 uint max = t == Tryb.Cichy ? (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100))) : 100;
+                if (Amd && t != Tryb.Cichy && t != Tryb.Turbo && StudioProg == null) max = 99;   // jak CPU Manager v40 (AMD Balanced Max 99): bez wyskoku zegara w zwykłej pracy i przy filmie - cicho; pełna moc tylko Turbo
                 uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 200u : t == Tryb.Turbo ? 0u : 100u;
                 uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
                 // minimum użytkownika (suwak) we WSZYSTKICH trybach: Cichy stoi dokładnie na nim, Zrównoważony i Turbo nie schodzą poniżej (było 5 % - spadki do 0,8 GHz)

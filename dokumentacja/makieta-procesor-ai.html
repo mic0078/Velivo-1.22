@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Procesor – okno AI</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:900px}
+.win{width:820px;background:#11141c;border:1px solid #2A3240;border-radius:10px;padding:14px}
+.top{display:flex;justify-content:space-between;align-items:center}.top b{font-size:17px}
+.now{background:#0E2140;border:1px solid #1E3A66;border-radius:9px;padding:9px 12px;margin:10px 0;color:#CFE3FF}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#141821;border:1px solid #2A3240;border-radius:9px;padding:10px 12px}
+.card b{display:block;margin-bottom:6px}
+.v{display:grid;grid-template-columns:130px 92px 1fr 40px;gap:6px;align-items:center;margin:5px 0}
+.bar{height:8px;background:#232a37;border-radius:4px}.bar i{display:block;height:8px;border-radius:4px;background:linear-gradient(90deg,#7C3AED,#06B6D4)}
+.m{padding:1px 8px;border-radius:9px;font-size:12px;text-align:center}.c{background:#14532D;color:#86EFAC}.z{background:#3A2A0A;color:#FCD34D}.t{background:#4C0519;color:#FDA4AF}.x{background:#232a37;color:#8A93A3}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:4px 3px;border-bottom:1px solid #232a37;text-align:left}th{color:#8A93A3;font-weight:normal}
+.dim{color:#8A93A3}.btn{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:4px 10px;margin:8px 6px 0 0}
+.heat{display:grid;grid-template-columns:30px repeat(24,1fr);gap:2px;font-size:10px}.heat span{height:12px;border-radius:2px}
+.cap{color:#ECE8FF;font-weight:600;margin-top:8px}
+</style></head><body>
+<h1>Velivo Procesor – okno „🤖 Jak myśli AI” (propozycja)</h1>
+<p class="o">Otwierane przyciskiem 🤖 w oknie programu i z menu w zasobniku. Odświeżane co sekundę, tylko gdy okno jest otwarte (bez kosztu, gdy zamknięte).</p>
+<div class="win">
+ <div class="top"><b>🤖 Jak myśli AI</b><span class="dim">Auto · teraz: <span class="m c">Cichy</span></span></div>
+ <div class="now">💡 VelivoOdtwarzacz – głosowanie: <b style="display:inline">Cichy</b> (nauka skutków 72%, profil programu 65%; przewiduję 8 %). Zasady bezpieczeństwa (temperatura, duże obciążenie) mają pierwszeństwo.</div>
+ <div class="grid">
+  <div class="card"><b>🗳 Głosy teraz (Ensemble)</b>
+   <div class="v"><span>Nauka skutków (Q)</span><span class="m c">Cichy</span><div class="bar"><i style="width:72%"></i></div><span>72%</span></div>
+   <div class="v"><span>Profil programu</span><span class="m c">Cichy</span><div class="bar"><i style="width:65%"></i></div><span>65%</span></div>
+   <div class="v"><span>Przewidywanie</span><span class="m z">Zrównoważony</span><div class="bar"><i style="width:54%"></i></div><span>54%</span></div>
+   <div class="v"><span>Pora dnia</span><span class="m x">brak zdania</span><div class="bar"><i style="width:41%"></i></div><span>41%</span></div>
+   <div class="dim">pasek = trafność głosu (jak często miał rację), sama się dostraja</div></div>
+  <div class="card"><b>🔮 Przewidywanie (Prediction)</b>
+   Teraz: 6 % · za 5 s: <b style="display:inline">8 %</b> · trend: spokojny<br>
+   O tej porze (pon. 20:00) zwykle: 14 %<br><br>
+   <div class="heat"><span></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span><span style="background:#244"></span><span style="background:#365"></span><span style="background:#5a6"></span><span style="background:#7b4"></span><span style="background:#5a6"></span><span style="background:#365"></span><span style="background:#365"></span><span style="background:#5a6"></span><span style="background:#a83"></span><span style="background:#5a6"></span><span style="background:#365"></span><span style="background:#365"></span><span style="background:#5a6"></span><span style="background:#365"></span><span style="background:#244"></span><span style="background:#1b2a3a"></span><span style="background:#1b2a3a"></span></div>
+   <div class="dim">obciążenie w tygodniu: dzień × godzina (jaśniej = więcej pracy)</div></div>
+ </div>
+ <div class="card" style="margin-top:10px"><b>🎓 Nauka skutków – programy (Q-learning)</b>
+  <table><tr><th>Program</th><th>Cichy</th><th>Zrównoważony</th><th>Turbo</th><th>Wybiera</th><th>Próbek</th></tr>
+  <tr><td>VelivoOdtwarzacz</td><td>+0,82</td><td>+0,10</td><td>−0,60</td><td><span class="m c">Cichy</span></td><td>4 210</td></tr>
+  <tr><td>chrome</td><td>+0,31</td><td>+0,45</td><td>−0,20</td><td><span class="m z">Zrównoważony</span></td><td>1 880</td></tr>
+  <tr><td>StudioOne</td><td>−0,90</td><td>+0,20</td><td>+1,10</td><td><span class="m t">Turbo</span></td><td>930</td></tr></table>
+  <div class="dim">wyżej = lepszy skutek (cicho bez przycięć); Twój ręczny wybór przy programie liczy się mocno</div>
+  <span class="btn">🗑 Zapomnij naukę zaznaczonego programu</span><span class="btn">↺ Wyzeruj trafność głosów</span></div>
+</div>
+<div class="cap">Okno AI: co decyduje teraz i dlaczego, głosy z trafnością, przewidywanie i wzorzec tygodnia, oceny trybów dla programów</div>
+</body></html>

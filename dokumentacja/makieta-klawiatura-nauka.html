@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Klawiatura – nauka</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:900px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.win{width:640px;background:#11141c;border:1px solid #2A3240;border-radius:10px;padding:14px}
+.tabs{display:flex;gap:6px;margin:10px 0}.tabs span{padding:5px 12px;border-radius:14px;background:#1b2133}.tabs .on{background:linear-gradient(90deg,#7C3AED,#06B6D4)}
+.srch{background:#0f131b;border:1px solid #2A3240;border-radius:6px;padding:5px 9px;color:#8A93A3;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{padding:6px 4px;border-bottom:1px solid #1d2430;text-align:left}th{color:#8A93A3;font-weight:normal}
+.x{border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:2px 8px;font-size:12px}
+.dim{color:#8A93A3;font-size:11.5px}.ok{color:#4ADE80}.bad{color:#F87171}
+.btn{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:4px 10px;margin:8px 6px 0 0}
+.phone{width:300px;height:560px;background:#0f1422;border:8px solid #222;border-radius:30px;padding:14px;box-sizing:border-box;font-size:12.5px}
+.it{background:#1b2133;border-radius:8px;padding:8px;margin:6px 0;display:flex;justify-content:space-between;align-items:center}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:640px}
+</style></head><body>
+<h1>Klawiatura Velivo – okno „📒 Czego nauczyła się klawiatura” (propozycja)</h1>
+<p class="o">Otwierane z menu klawiatury (Windows: logo V / zasobnik; telefon: logo V → Nauka). Widać wszystko, czego klawiatura nauczyła się sama, a każdą złą rzecz usuwasz osobno – bez czyszczenia całej nauki.</p>
+<div class="row"><div><div class="win">
+ <b style="font-size:16px">📒 Czego nauczyła się klawiatura</b>
+ <div class="tabs"><span class="on">✏ Poprawki (24)</span><span>🚫 Nie poprawiaj (9)</span><span>💬 Zwroty (312)</span><span>📖 Moje słowa (41)</span></div>
+ <div class="srch">🔍 Szukaj…</div>
+ <table><tr><th>Wpisujesz</th><th>Klawiatura robi</th><th>Skąd</th><th>Ile razy</th><th></th></tr>
+ <tr><td>kmoputer</td><td class="ok">komputer</td><td>poprawiłeś sam</td><td>5</td><td><span class="x">Usuń</span></td></tr>
+ <tr><td>taka</td><td class="bad">taką</td><td>stara wersja (błąd)</td><td>12</td><td><span class="x">Usuń</span></td></tr>
+ <tr><td>pisze</td><td class="bad">piszę</td><td>stara wersja (błąd)</td><td>8</td><td><span class="x">Usuń</span></td></tr>
+ <tr><td>niewiem</td><td class="ok">nie wiem</td><td>zasada pisowni</td><td>–</td><td class="dim">stała</td></tr></table>
+ <div class="dim" style="margin-top:6px">🚫 Nie poprawiaj – słowa, przy których cofnąłeś poprawkę (⌫). 💬 Zwroty – co podpowiada po słowie („matko” → „boska”). 📖 Moje słowa – dodane przez Ciebie.</div>
+ <span class="btn">🧹 Usuń wszystkie zamiany poprawnych słów</span><span class="btn">🗑 Wyczyść całą naukę…</span>
+</div><div class="cap">Windows: cztery zakładki, szukanie, „Usuń” przy każdej pozycji; przycisk sprzątający złe zamiany poprawnych słów (taka→taką) jednym kliknięciem</div></div>
+<div><div class="phone">
+ <b style="font-size:15px">📒 Nauka klawiatury</b>
+ <div class="tabs" style="flex-wrap:wrap"><span class="on">✏ Poprawki</span><span>🚫 Nie poprawiaj</span><span>💬 Zwroty</span></div>
+ <div class="it"><span>kmoputer → <b class="ok">komputer</b></span><span class="x">✕</span></div>
+ <div class="it"><span>taka → <b class="bad">taką</b></span><span class="x">✕</span></div>
+ <div class="it"><span>pisze → <b class="bad">piszę</b></span><span class="x">✕</span></div>
+ <div class="dim" style="margin-top:8px">Przytrzymaj pozycję – opis, skąd się wzięła.</div>
+</div><div class="cap" style="max-width:300px">Telefon: ta sama lista, ✕ usuwa</div></div></div>
+</body></html>

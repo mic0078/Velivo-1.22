@@ -340,6 +340,7 @@ namespace Velivo
             var w = typed.ToLowerInvariant();
             if (keep != null && keep.Contains(w)) return fix;
             if (Imperative(w, _main)) return fix;   // naprawiaj - dobre slowo, bez dokanczania do "naprawiają"
+            if (Full is Hunspell fullC && fullC.Known(w) && !NearCommon(w)) return fix;   // poprawna odmiana z pełnego słownika (potrzeb, wlanie) - bez dokańczania do innego słowa (potrzebuję)
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return fix;
             var p = Predict(typed, false, 3).FirstOrDefault(x => x.Length > typed.Length && Fold(x).StartsWith(Fold(w), StringComparison.Ordinal));   // pierwsze dokonczenie w pasku propozycji
             if (p == null || _foldAll == null) return fix;

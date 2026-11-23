@@ -270,7 +270,7 @@ namespace VelivoProcesor
         }
 
         // ---------- decyzja ----------
-        public Tryb Obecny = Tryb.Zrownowazony; public string Dlaczego = "";
+        public Tryb Obecny = Tryb.Zrownowazony; public string Dlaczego = ""; public volatile bool EkranWyl;
         readonly Queue<double> tempHist = new Queue<double>(); DateTime ostZmiana = DateTime.MinValue; int wysokoN, niskoN, gpuWyjscieN; bool gpuBound;
         int przycieciaN, nadmiarN;   // do samodostrajania progów
         int dyskN; DateTime dyskDo;
@@ -295,6 +295,9 @@ namespace VelivoProcesor
             { chce = Tryb.Cichy; goraco = true; why = "Procesor gorący (" + p.Temp.ToString("0") + " °C" + (trend > 0.3 ? ", rośnie" : "") + ") – zwalniam, zanim wentylator przyspieszy."; }
             // 2. „zawsze ten tryb”: program działa (na wierzchu albo w tle - np. Studio One gra, a Ty jesteś w innym oknie) - jego tryb, bez względu na obciążenie i baterię
             else if (ZawszeDla(p, out var rr, out var rn)) { gpuBound = false; reczny = true; chce = rr; why = rn + " działa – ustawiony na stałe: " + Nazwa(rr) + "."; }
+            // 🖥 ekran wyłączony (np. pilotem, film tylko do słuchania): Windows uruchamia wtedy zadania „w bezczynności” (indeksowanie, skanowanie, aktualizacje),
+            // a Auto brało je za pracę i przyspieszało (wentylator w nocy). Teraz cicho - te zadania idą wolniej, odtwarzanie ma dość mocy
+            else if (EkranWyl) { gpuBound = false; chce = Tryb.Cichy; why = "Ekran wyłączony – cicho (zadania Windows w tle dostają mniej mocy, wentylator nie przyspiesza)."; }
             // 3. wczytywanie (dysk pracuje, procesor też) - krótko pełna moc
             else if (kopiuje && p.Cpu > 30) { chce = Tryb.Turbo; why = "Wczytywanie (dysk " + p.DyskMBs.ToString("0") + " MB/s, procesor " + p.Cpu.ToString("0") + " %) – pełna moc, żeby szybciej skończyć."; }
             // 3. gra obciąża kartę, procesor nie: procesor mniej mocy, karta chłodniej i wyższy zegar (wyjście po 3 s - stabilnie)

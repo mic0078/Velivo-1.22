@@ -90,6 +90,7 @@ namespace VelivoProcesor
             new Thread(() => { while (ev.WaitOne()) win.Dispatcher.BeginInvoke(new Action(Pokaz)); }) { IsBackground = true }.Start();
             Microsoft.Win32.SystemEvents.SessionEnding += (a, e) => Koniec(false);
             Program.Zakoncz = () => Koniec(true);
+            EkranSluchaj();
             new Thread(Petla) { IsBackground = true, Name = "Velivo Procesor", Priority = ThreadPriority.AboveNormal }.Start();
             if (!ukryty) Pokaz();
         }
@@ -130,6 +131,27 @@ namespace VelivoProcesor
                 string t = (tryb == "windows" ? "ustawienia Windows" : (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %";
                 var b = System.Text.Encoding.UTF8.GetBytes(t); if (b.Length > 400) Array.Resize(ref b, 400);
                 using (var v = mmf.CreateViewAccessor()) { v.Write(0, b.Length); v.WriteArray(16, b, 0, b.Length); v.Write(8, (long)GetTickCount64()); }
+            }
+            catch (Exception) { }
+        }
+
+        // 🖥 ekran wyłączony (pilot, uśpienie monitora): Windows daje znać WM_POWERBROADCAST / GUID_CONSOLE_DISPLAY_STATE (0 wył., 1 wł., 2 przyciemniony)
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr RegisterPowerSettingNotification(IntPtr h, ref Guid g, int flags);
+        void EkranSluchaj()
+        {
+            try
+            {
+                var h = new System.Windows.Interop.WindowInteropHelper(win).EnsureHandle(); var g = new Guid("6fe69556-704a-47a0-8f24-c28d936fda47");
+                RegisterPowerSettingNotification(h, ref g, 0);
+                System.Windows.Interop.HwndSource.FromHwnd(h)?.AddHook((IntPtr hw, int msg, IntPtr wp, IntPtr lp, ref bool handled) =>
+                {
+                    if (msg == 0x218 && (int)wp == 0x8013)
+                    {   // POWERBROADCAST_SETTING: GUID (16 B), długość (4 B), wartość
+                        var gg = (Guid)System.Runtime.InteropServices.Marshal.PtrToStructure(lp, typeof(Guid));
+                        if (gg == g) s.EkranWyl = System.Runtime.InteropServices.Marshal.ReadInt32(lp, 20) == 0;
+                    }
+                    return IntPtr.Zero;
+                });
             }
             catch (Exception) { }
         }

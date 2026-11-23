@@ -303,7 +303,37 @@ namespace Velivo
                 _physApplyS = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (nf) { SwipeTyping.Prev = _physPrev; try { return SwipeTyping.Complete(wd, nf) ?? SwipeTyping.ContextFix(_physPrev, wd, nf); } finally { SwipeTyping.Prev = null; } } }) : null;
             }
             if (_physCorrect == null) _physApplyS();
+            PhysBgHandlers();
             EnsureSecretTimer(); StartKeyEcho();
+        }
+        // ⌨ bez okna klawiatury (start z Windows, ✕ zamyka okno) działało tylko poprawianie: Ctrl+Spacja nie zapisywał słowa, cofnięta poprawka (⌫)
+        // nie była pamiętana (to samo słowo poprawiane znowu), a pisane słowa nie uczyły podpowiedzi. Teraz to samo co przy otwartym oknie, bez pasków.
+        static string _bgPrev, _bgPrev2;
+        static void PhysBgHandlers()
+        {
+            void NoFix(string w0)
+            {
+                var nf = _noFixBg; if (nf == null) return;
+                lock (nf) { if (nf.Add(w0)) SetPref("klawiatura-bez-korekty", string.Join("|", nf.Skip(Math.Max(0, nf.Count - 500)))); }
+            }
+            _physAddWord = nw =>
+            {
+                var lw = (nw ?? "").Trim().ToLowerInvariant(); if (lw.Length < 2 || !lw.All(char.IsLetter) || SwipeTyping.IsMisspelling(lw)) return;
+                NoFix(lw);
+                lock (_swLearned) { _swOwn.Add(lw); SwipeTyping.AddUserWord(lw); _swLearned[lw] = (_swLearned.TryGetValue(lw, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
+            };
+            _physUndone = (from, to) => { var lw = (from ?? "").Trim().ToLowerInvariant(); if (lw.Length >= 2 && lw.All(char.IsLetter) && !SwipeTyping.IsMisspelling(lw)) NoFix(lw); };
+            _physFixLearned = (typo, good) => { lock (_swLearned) SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); };
+            _physPred = (wd, dn) =>
+            {   // nauka jak przy oknie: częste słowa i kolejność słów (podpowiedzi przy otwartej klawiaturze i na telefonie po synchronizacji)
+                if (!dn || wd == null || !SwipeTyping.Loaded || _physSecret) return;
+                foreach (var part in wd.Split(' '))
+                {
+                    var lw = part.ToLowerInvariant(); if (lw.Length < 2) continue;
+                    SwipeTyping.LearnPair(_bgPrev, lw); SwipeTyping.LearnTriple(_bgPrev2, _bgPrev, lw); _bgPrev2 = _bgPrev; _bgPrev = lw;
+                    lock (_swLearned) { _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1; SwSaveSoon(); }
+                }
+            };
         }
         static void EnsureSecretTimer()
         {
@@ -534,6 +564,7 @@ namespace Velivo
         }
         static bool _pAfterComma;
         static bool _pZeAuto, _pZeComma;   // "że" wstawione od razu (myślę ze -> że); "mną", "sobą"... dalej - wraca "ze"
+        static string _pNoFix;   // cofnięta właśnie poprawka (⌫) - to słowo po spacji zostaje, jak wpisano (zapis na stałe idzie osobno)
         static string _pRetype;   // slowo skasowane ⌫ zaraz po wpisaniu - wpisane od nowa uczy poprawki (kmoputer -> komputer)
         static Action<string, string> _physFixLearned;
         static Action<string> _physAddWord;   // Ctrl+Spacja: slowo do Mojego slownika
@@ -594,7 +625,7 @@ namespace Velivo
                 {   // cofniecie poprawki: znak i poprawione slowo -> to, co wpisano
                     string from = _pFixFrom, to = _pFixTo; _pFixFrom = _pFixTo = null;
                     Inject(Enumerable.Range(0, to.Length + 1).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn(from)));
-                    _pWord = from; var u = _physUndone; if (u != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => u(from, to)));
+                    _pWord = from; _pNoFix = from.ToLowerInvariant(); var u = _physUndone; if (u != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => u(from, to)));
                     return true;
                 }
                 if (_pWord.Length == 0 && _pRetype == null && _pPrev == ' ' && _pPrevSpace && !string.IsNullOrEmpty(_pPrevWord))
@@ -671,7 +702,7 @@ namespace Velivo
             if (_physStale) { SentAdd(word, sep, false, null, false); PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
             if (word.Length < 2 && ze == null && !zeBack && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
             _physPrev = prevSpace ? prevW : null;   // kontekst: poprzednie slowo (to pewni -> to pewnie)
-            var fix = word.Length >= 2 ? corr(word) : null;
+            var fix = word.Length >= 2 && word.ToLowerInvariant() != _pNoFix ? corr(word) : null;
             bool zeNow = false;
             if (fix == null && sep == ' ' && prevSpace) { fix = SwipeTyping.ZeNow(word, prevW); zeNow = fix != null; }   // myślę ze -> myślę, że
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
@@ -1670,7 +1701,7 @@ namespace Velivo
                 _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop();
                 if (_kbdKoniec) { try { _kbdSecretTm?.Stop(); } catch (Exception) { } _kbdSecretTm = null; StopKeyEcho(); return; }
                 // ✕ zamyka tylko okno: poprawianie zwykłej klawiatury (i pilnowanie pól haseł) działa dalej; bez pasków podpowiedzi okna
-                _onPhysKey = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null; _physAddWord = null;
+                _onPhysKey = null; _physNotify = null; _physAsk = null; PhysBgHandlers();   // pisanie dalej zapisuje słowa i uczy podpowiedzi
             };
             _kbd = w; w.Show();
         }

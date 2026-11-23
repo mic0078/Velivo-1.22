@@ -3391,6 +3391,20 @@ namespace Velivo
         }
         bool _komExit;   // prawdziwe zamkniecie (wyjscie z Velivo), nie chowanie do zasobnika
 
+        // ▶ osobny Komunikator: wpis „Velivo Komunikator” w autostarcie Windows (HKCU\Run, bez uprawnień administratora)
+        internal static bool KomAutoStart
+        {
+            get { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) return k?.GetValue("Velivo Komunikator") != null; } catch (Exception) { return false; } }
+            set
+            {
+                try
+                {
+                    using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                        if (value) k.SetValue("Velivo Komunikator", "\"" + Environment.ProcessPath + "\" --autostart"); else k.DeleteValue("Velivo Komunikator", false);
+                }
+                catch (Exception) { }
+            }
+        }
         void KomEnsureTray()
         {
             if (_komTray != null) { KomTrayUpdate(); return; }
@@ -3406,6 +3420,13 @@ namespace Velivo
             menu.Items.Add(L.T("➕ Dodaj kontakt"), null, (s, e) => Dispatcher.Invoke(async () => { ShowMessenger(); if (_komWindow != null) await KomAddDialog(_komWindow); }));
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             if (!KomSamodzielny || KomPrzegladarka != null) menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));   // osobny Komunikator: tylko gdy Velivo Przeglądarka / Velivo jest zainstalowane
+            if (KomSamodzielny)
+            {   // ▶ osobny Komunikator: start z Windows (domyślnie włączony) - wyłącznik tutaj, ten sam w menu z Centrum
+                var auto = new System.Windows.Forms.ToolStripMenuItem(L.T("Uruchamiaj z Windows"));
+                menu.Opening += (s, e) => auto.Checked = KomAutoStart;
+                auto.Click += (s, e) => KomAutoStart = !KomAutoStart;
+                menu.Items.Add(auto);
+            }
             menu.Items.Add(KomSamodzielny ? L.T("Zamknij komunikator") : L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
             _komTray.ContextMenuStrip = menu; CentrumZasobnik.Podlacz(_komTray, false);   // 🧩 menu z Velivo Centrum (ikona zostaje - powiadomienia)
             _komTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(() => ShowMessenger()); };

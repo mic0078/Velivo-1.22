@@ -111,14 +111,15 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); }   // bez WebView2 - wiadomości i pliki działają, rozmowy wideo nie
         }
 
-        // ▶ start z Windows (serwer ma działać zawsze): wpis użytkownika, bez uprawnień administratora, po cichu do zasobnika
+        // ▶ start z Windows domyślnie włączony - raz, przy pierwszym uruchomieniu; wyłączony w menu (zasobnik / Centrum) zostaje wyłączony.
+        // Ścieżka programu po aktualizacji (inny folder) - poprawiana, gdy wpis jest.
         static void Autostart()
         {
             try
             {
-                using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-                var cmd = "\"" + Environment.ProcessPath + "\" --autostart";
-                if ((k.GetValue("Velivo Komunikator") as string) != cmd) k.SetValue("Velivo Komunikator", cmd);
+                using var f = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Velivo\Komunikator");
+                if (f.GetValue("AutostartInit") == null) { KomAutoStart = true; f.SetValue("AutostartInit", 1); return; }
+                if (KomAutoStart) KomAutoStart = true;   // aktualna ścieżka programu
             }
             catch (Exception ex) { App.LogError(ex); }
         }

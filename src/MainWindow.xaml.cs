@@ -235,6 +235,8 @@ namespace Velivo
                     if (SilentStart && !Wariant.Klawiatura) StartSilently();   // ⌨ Velivo Klawiatura: tylko ikona klawiatury (bez ikony przeglądarki)
                     if (Wariant.Klawiatura) { Hide(); EnsureKbdTray(); StartPhysBackground(); if (!AutoStarted) ShowScreenKeyboard(); }   // poprawianie pisania od startu, także bez okna
                     _sessionReady = true;
+                    // ▶ każdy program Velivo domyślnie startuje z Windows (raz, przy pierwszym uruchomieniu); wyłączenie - menu programu przy zegarze / w Centrum, zostaje wyłączone
+                    if (GetPref("autostart-init") == null) { if (ReadAutostart() < 0) WriteAutostart(true, Wariant.Klawiatura ? 10 : 30); SetPref("autostart-init", "1"); }
                     if (Wariant.Odtwarzacz && !_odtwStartFilm && !AutoStarted) Dispatcher.BeginInvoke(new Action(OdtwOtworz), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // start z Windows: tylko ikona w zasobniku   // 🧩 Odtwarzacz startuje Kanapą
                     StartOdtwarzaczLekko();
                     SerwerStart();   // 🎞 Velivo Serwer filmów: foldery i informacje o filmach w tle

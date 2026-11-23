@@ -76,8 +76,8 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: str
 Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: string; ValueName: "Nazwa"; ValueData: "{#AppName}"
 Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: string; ValueName: "Wersja"; ValueData: "{#AppVer}"
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
-; ▶ start z Windows - serwer i rozmowy działają zawsze (po cichu, w zasobniku); przy odinstalowaniu wpis znika
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Velivo Komunikator"; ValueData: """{app}\VelivoKomunikator.exe"" --autostart"; Flags: uninsdeletevalue
+; ▶ start z Windows: program włącza go sam przy pierwszym uruchomieniu (domyślnie), wyłącznik w menu programu - aktualizacja nie włącza go z powrotem; przy odinstalowaniu wpis znika
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Velivo Komunikator"; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\VelivoKomunikator.exe"; Description: "{cm:RunApp}"; Flags: nowait postinstall skipifsilent

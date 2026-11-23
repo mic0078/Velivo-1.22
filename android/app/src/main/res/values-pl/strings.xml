@@ -561,4 +561,24 @@
     <string name="pc_app_none">Komputer nie przysłał listy – zaktualizuj Velivo na komputerze.</string>
     <string name="pc_app_remove">Usuń</string>
     <string name="pc_app_change">Zmień aplikację</string>
+    <string name="ms_title">Mój serwer</string>
+    <string name="ms_continue">Kontynuuj oglądanie</string>
+    <string name="ms_fav">Ulubione</string>
+    <string name="ms_all">Wszystkie filmy</string>
+    <string name="ms_from_start">⏮ Od początku</string>
+    <string name="ms_fav_add">Dodaj do ulubionych</string>
+    <string name="ms_fav_remove">Usuń z ulubionych</string>
+    <string name="ms_watched">Oznacz jako obejrzany</string>
+    <string name="ms_unwatched">Oznacz jako nieobejrzany</string>
+    <string name="ms_error">Serwer nie odpowiada (%1$s) – czy Velivo Serwer filmów jest włączony i ma włączony dostęp przez internet?</string>
+    <string name="ms_settings">Moje serwery</string>
+    <string name="ms_add">Dodaj serwer</string>
+    <string name="ms_forget">Zapomnij ten serwer</string>
+    <string name="ms_forgot">Serwer zapomniany</string>
+    <string name="ms_login_help">W domu i poza domem: wpisz adres serwera (w domu adres komputera, poza domem adres domu z portem 41940) i hasło z okna Velivo Serwer filmów. Wszystko szyfrowane.</string>
+    <string name="ms_password">Hasło serwera</string>
+    <string name="ms_connect">Połącz</string>
+    <string name="ms_connecting">Łączę…</string>
+    <string name="ms_bad_pass">Złe hasło serwera</string>
+    <string name="ms_no_conn">Nie udało się połączyć:</string>
 </resources>

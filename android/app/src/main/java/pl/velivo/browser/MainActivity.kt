@@ -1489,6 +1489,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             42 -> pickP2pFiles()
             30 -> showTv()
             31 -> showLibrary()
+            45 -> showMojSerwer()
             32 -> showMyFiles()
             33 -> showYtSongs()
             34 -> ytAddCurrent()
@@ -1615,7 +1616,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
         if (BuildConfig.ODTWARZACZ) {   // 🎬 tylko filmy i telewizja
             section(R.string.menu_media, listOf(
-                Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🎞", R.string.my_films, 32),
+                Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🗄", R.string.ms_title, 45), Triple("🎞", R.string.my_films, 32),
                 Triple("🎮", R.string.pilot, 44), Triple("🌙", R.string.sleep_title, 35), Triple("📱", R.string.phone_videos, 38)))
             section(R.string.menu_settings, listOf(
                 Triple("💻", R.string.lan_sync, 13), Triple("🌓", R.string.theme, 11), Triple("🌐", R.string.language, 22), Triple("▶", R.string.default_player, 37)))
@@ -1634,7 +1635,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
             Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
         section(R.string.menu_media, listOf(
-            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🎞", R.string.my_films, 32),
+            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🗄", R.string.ms_title, 45), Triple("🎞", R.string.my_films, 32),
             Triple("🎵", R.string.yt_my_songs, 33), Triple("⭐", R.string.yt_add, 34), Triple("🌙", R.string.sleep_title, 35), Triple("🎮", R.string.pilot, 44)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
@@ -2056,6 +2057,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         imgCache.get(url)?.let { iv.setImageBitmap(it); return }
         imgPool.execute {
             val bmp = runCatching {
+                if (url.startsWith("ms:")) return@runCatching url.substring(3).split('/', limit = 2).let { p -> MojSerwer.bytes(MojSerwer.servers[p[0].toInt()], "/p/" + p[1]) }.let { b -> android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size) }   // 🎞 plakat z mojego serwera (szyfrowane)
                 val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
                 c.connectTimeout = 8000; c.readTimeout = 10000
                 headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
@@ -2548,6 +2550,92 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         scr.addButton("⚙", R.string.jf_settings) { setupJellyfin { load() } }
         scr.show()
         load()
+    }
+
+    // 🎞 Mój serwer filmów (Velivo Serwer filmów) - w domu i przez internet: Kontynuuj, Ulubione, wszystkie; ✓ obejrzane i ❤ ulubione
+    private fun showMojSerwer() {
+        val srv = MojSerwer.list(passwords); MojSerwer.servers = srv
+        if (srv.isEmpty()) return mojSerwerLogin { showMojSerwer() }
+        val idx = prefs.getInt("ms-wybrany", 0).coerceIn(0, srv.size - 1); val s = srv[idx]
+        val fav = { prefs.getStringSet("ms-ulub", emptySet())!! }
+        var mode = prefs.getInt("ms-widok", 2)   // 0 kontynuuj, 1 ulubione, 2 wszystkie
+        var films = listOf<MojSerwer.Film>()
+        lateinit var scr: MediaScreen
+        fun dur(ms: Long) = if (ms > 0) (ms / 60000).let { m -> if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min" } else ""
+        fun row(f: MojSerwer.Film) = MRow((if (s.name + "|" + f.id in fav()) "❤ " else "") + (if (f.done) "✓ " else "") + f.title,
+            listOf(if (f.year > 0) f.year.toString() else "", dur(f.len), if (f.pos > 0 && f.len > 0 && !f.done) "▶ " + (f.pos * 100 / f.len) + "%" else "").filter { it.isNotEmpty() }.joinToString(" · ") +
+                if (f.overview.isNotEmpty()) "\n" + f.overview else "", if (f.poster) "ms:$idx/${f.id}" else null, emptyMap(), tag = f)
+        fun shown() = when (mode) { 0 -> films.filter { it.pos > 0 && !it.done && it.len > 0 }.sortedByDescending { it.last }; 1 -> films.filter { s.name + "|" + it.id in fav() }; else -> films }
+        val names = listOf(getString(R.string.ms_continue), getString(R.string.ms_fav), getString(R.string.ms_all))
+        fun title() = "● " + s.name + " · " + names[mode] + " (" + shown().size + ")"
+        fun item(f: MojSerwer.Film): PlayerActivity.Item {
+            val pp = getSharedPreferences("filmy", MODE_PRIVATE); val k = "ms-$idx-" + f.id
+            if (f.pos > 0 && !f.done) pp.edit().putFloat(k, f.pos / 1000f).apply() else pp.edit().remove(k).apply()   // miejsce z serwera (np. oglądane na komputerze)
+            return PlayerActivity.Item(f.title, MojSerwer.url(idx, f.id), k)
+        }
+        scr = MediaScreen("🗄 " + getString(R.string.ms_title), "ms", listOf(getString(R.string.sort_az), getString(R.string.jf_sort_year), getString(R.string.jf_sort_last)),
+            sorter = { l, so -> if (mode == 0) l else when (so) { 0 -> l.sortedBy { (it.tag as MojSerwer.Film).title.lowercase() }; 1 -> l.sortedByDescending { (it.tag as MojSerwer.Film).year }; else -> l.sortedByDescending { (it.tag as MojSerwer.Film).last } } },
+            onOpen = { r, rows -> val l = rows.map { it.tag as MojSerwer.Film }; play(l.map { item(it) }, l.indexOf(r.tag), false) },
+            onLong = { r ->   // przytrzymanie: opis, ❤, ✓, od początku
+                val f = r.tag as MojSerwer.Film; val key = s.name + "|" + f.id; val isFav = key in fav()
+                val body = TextView(this).apply { text = listOf(if (f.year > 0) f.year.toString() else "", dur(f.len), f.genres).filter { it.isNotEmpty() }.joinToString(" · ") + "\n\n" + f.overview.ifEmpty { "—" }; textSize = 16f; setPadding(dp(22), dp(8), dp(22), dp(8)); setTextIsSelectable(true) }
+                val acts = listOf(getString(R.string.jf_play), getString(R.string.ms_from_start), if (isFav) "❤ " + getString(R.string.ms_fav_remove) else "♡ " + getString(R.string.ms_fav_add), if (f.done) "↺ " + getString(R.string.ms_unwatched) else "✓ " + getString(R.string.ms_watched))
+                var ad: AlertDialog? = null
+                ad = AlertDialog.Builder(this).setTitle(f.title).setView(ScrollView(this).apply { addView(LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; addView(body)
+                    acts.forEachIndexed { i, a -> addView(TextView(this@MainActivity).apply { text = a; textSize = 17f; setPadding(dp(22), dp(12), dp(22), dp(12)); setOnClickListener {
+                        ad?.dismiss()
+                        when (i) {
+                            0 -> play(listOf(item(f)), 0, false)
+                            1 -> { f.pos = 0; play(listOf(item(f)), 0, false) }
+                            2 -> prefs.edit().putStringSet("ms-ulub", if (isFav) fav() - key else fav() + key).apply()
+                            else -> { f.done = !f.done; f.pos = 0; MojSerwer.progress(s, f.id, 0, f.len, f.done, !f.done) }
+                        }
+                        scr.setRows(shown().map { row(it) }, title()) } }) } }) })
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            })
+        fun load() {
+            scr.setRows(emptyList(), getString(R.string.tv_loading))
+            Thread {
+                val r = runCatching { MojSerwer.films(s) }
+                runOnUiThread { r.getOrNull()?.let { films = it }; scr.setRows(shown().map { row(it) }, if (r.isFailure) getString(R.string.ms_error, s.host + ":" + s.port) else title()) }
+            }.start()
+        }
+        scr.addButton("☰", R.string.tv_filter) {
+            AlertDialog.Builder(this).setSingleChoiceItems(names.toTypedArray(), mode) { d, i -> mode = i; prefs.edit().putInt("ms-widok", i).apply(); d.dismiss(); scr.setRows(shown().map { row(it) }, title()) }.show()
+        }
+        scr.addButton("⟳", R.string.reload) { load() }
+        scr.addButton("⚙", R.string.ms_settings) {
+            val opts = srv.map { (if (it == s) "● " else "") + it.name + " (" + it.host + ")" } + ("➕ " + getString(R.string.ms_add)) + ("🗑 " + getString(R.string.ms_forget))
+            AlertDialog.Builder(this).setItems(opts.toTypedArray()) { _, i ->
+                when {
+                    i < srv.size -> { prefs.edit().putInt("ms-wybrany", i).apply(); load(); scr.setRows(emptyList(), getString(R.string.tv_loading)) }
+                    i == srv.size -> mojSerwerLogin { showMojSerwer() }
+                    else -> { MojSerwer.save(passwords, srv.filter { it != s }); toast(getString(R.string.ms_forgot)) }
+                }
+            }.show()
+        }
+        scr.show()
+        load()
+    }
+
+    // logowanie do mojego serwera: adres (w domu albo adres domu z portem 41940) i hasło z okna Velivo Serwer filmów
+    private fun mojSerwerLogin(done: () -> Unit) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(8), dp(22), 0) }
+        box.addView(TextView(this).apply { text = getString(R.string.ms_login_help); textSize = 14f })
+        val adr = EditText(this).apply { hint = "moj-dom.ddns.net:41940"; setSingleLine(); setText(MojSerwer.list(passwords).lastOrNull()?.let { it.host + ":" + it.port } ?: "") }
+        val pas = EditText(this).apply { hint = getString(R.string.ms_password); setSingleLine(); inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        box.addView(adr); box.addView(pas)
+        AlertDialog.Builder(this).setTitle("🗄 " + getString(R.string.ms_title)).setView(box)
+            .setPositiveButton(R.string.ms_connect) { _, _ ->
+                toast(getString(R.string.ms_connecting))
+                Thread {
+                    val r = runCatching { MojSerwer.login(passwords, adr.text.toString(), pas.text.toString(), android.os.Build.MODEL) }
+                    runOnUiThread {
+                        r.onSuccess { prefs.edit().putInt("ms-wybrany", MojSerwer.list(passwords).indexOfFirst { s -> s.name == it.name }.coerceAtLeast(0)).apply(); done() }
+                        r.onFailure { e -> toast(if (e.message?.contains("403") == true) getString(R.string.ms_bad_pass) else getString(R.string.ms_no_conn) + " " + (e.message ?: "")) }
+                    }
+                }.start()
+            }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun showEpisodes(c: Jelly.Conf, series: Jelly.Item) {

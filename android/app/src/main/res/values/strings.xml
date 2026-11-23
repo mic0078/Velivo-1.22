@@ -561,4 +561,24 @@
     <string name="pc_app_none">The computer did not send the list – update Velivo on the computer.</string>
     <string name="pc_app_remove">Remove</string>
     <string name="pc_app_change">Change app</string>
+    <string name="ms_title">My server</string>
+    <string name="ms_continue">Continue watching</string>
+    <string name="ms_fav">Favourites</string>
+    <string name="ms_all">All films</string>
+    <string name="ms_from_start">⏮ From the beginning</string>
+    <string name="ms_fav_add">Add to favourites</string>
+    <string name="ms_fav_remove">Remove from favourites</string>
+    <string name="ms_watched">Mark as watched</string>
+    <string name="ms_unwatched">Mark as unwatched</string>
+    <string name="ms_error">Server not responding (%1$s) – is Velivo Film Server on and internet access enabled?</string>
+    <string name="ms_settings">My servers</string>
+    <string name="ms_add">Add server</string>
+    <string name="ms_forget">Forget this server</string>
+    <string name="ms_forgot">Server forgotten</string>
+    <string name="ms_login_help">At home or away: enter the server address (home: computer address, away: your home address with port 41940) and the password from the Velivo Film Server window. Everything is encrypted.</string>
+    <string name="ms_password">Server password</string>
+    <string name="ms_connect">Connect</string>
+    <string name="ms_connecting">Connecting…</string>
+    <string name="ms_bad_pass">Wrong server password</string>
+    <string name="ms_no_conn">Could not connect:</string>
 </resources>

@@ -286,8 +286,13 @@ class PlayerActivity : Activity() {
         override fun run() { if (gone) return; savePos(); ui.postDelayed(this, 5000) }
     }
 
+    private var msAt = 0L
     private fun savePos(ended: Boolean = false) {
         if (live) return
+        queue.getOrNull(index)?.key?.takeIf { it.startsWith("ms-") }?.split('-', limit = 3)?.let { k ->   // 🎞 mój serwer: postęp na serwerze (co 30 s, koniec od razu)
+            val s = MojSerwer.servers.getOrNull(k[1].toIntOrNull() ?: -1)
+            if (s != null && player.length > 0 && (ended || System.currentTimeMillis() - msAt > 30000)) { msAt = System.currentTimeMillis(); MojSerwer.progress(s, k[2], if (ended) 0 else player.time, player.length, ended) }
+        }
         val it = queue.getOrNull(index) ?: return
         val k = it.key ?: return
         val d = player.length / 1000f; val t = player.time / 1000f

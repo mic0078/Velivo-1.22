@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mój serwer wszędzie</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px;color:#ECE8FF}p.o{color:#aab;max-width:1100px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.win{width:560px;background:#151a26;border:1px solid #2A3240;border-radius:10px;padding:14px}
+.sec{background:#1b2133;border:1px solid #2f3a56;border-radius:9px;padding:10px 12px;margin-top:10px}
+.sec b{display:block;margin-bottom:6px}
+.btn{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:4px 10px;margin:4px 6px 0 0}
+.ok{color:#4ADE80}.dim{color:#8A93A3}.warn{color:#fbbf24}
+table{width:100%;border-collapse:collapse;font-size:12px}td{padding:4px 2px;border-bottom:1px solid #2a3350}
+.phone{width:300px;height:620px;background:#0f1422;border:8px solid #222;border-radius:30px;overflow:hidden;position:relative}
+.top{padding:12px 14px 6px;font-weight:600;font-size:15px;display:flex;justify-content:space-between}
+.tabs{display:flex;gap:6px;padding:0 10px 8px}.tabs span{padding:4px 10px;border-radius:14px;background:#1b2133;font-size:12px}.tabs .on{background:linear-gradient(90deg,#7C3AED,#06B6D4)}
+.lbl{padding:6px 12px 4px;font-weight:600}
+.rail{display:flex;gap:8px;padding:0 12px;overflow:hidden}
+.p{width:84px;height:126px;border-radius:7px;flex:none;position:relative;background:linear-gradient(160deg,#334,#123)}
+.bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.5)}.bar i{display:block;height:4px;background:#22D3EE}
+.bd{position:absolute;right:4px;top:4px;display:flex;gap:3px}.bd span{width:18px;height:18px;border-radius:9px;font-size:10px;display:flex;align-items:center;justify-content:center}
+.v{background:#069CB8}.h{background:#E11D48}
+.t{font-size:11px;margin-top:3px;color:#ccd}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px}
+.pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#14532D;color:#86EFAC}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:560px}
+.new{outline:2px dashed #F5B544;outline-offset:2px}
+</style></head><body>
+<h1>Mój serwer filmów wszędzie – w domu i przez internet, komputer i telefon (propozycja)</h1>
+<p class="o">Jeden serwer (NUCBOX) – te same filmy, plakaty, postęp oglądania, ✓ obejrzane i ❤ ulubione na każdym urządzeniu. W domu – sieć domowa (jak dziś), poza domem – przez Twój adres domu. Zaczynasz na telefonie w autobusie, kończysz na telewizorze.</p>
+
+<h2>1. Serwer (okno Velivo Serwer filmów na NUCBOX) – nowa część „Dostęp przez internet”</h2>
+<div class="row"><div><div class="win">
+ <b style="font-size:15px">🎞 Velivo Serwer filmów – NUCBOX</b><div class="dim">Foldery z filmami · 224 filmy · informacje z internetu</div>
+ <div class="sec new"><b>🌍 Dostęp przez internet</b>
+  ☑ Udostępniaj moje filmy poza domem<br>
+  Adres: <b style="display:inline">n5plus.ddns.net:41940</b> &nbsp;<span class="ok">● działa – port otwarty (sprawdzone przed chwilą)</span><br>
+  Jakość przez internet: <span class="btn">Automatyczna ▾</span> <span class="dim">(Oryginał · 1080p · 720p – lżej dla danych komórkowych)</span>
+ </div>
+ <div class="sec new"><b>📱 Urządzenia, które mogą oglądać</b>
+  <table><tr><td>📱 Motorola</td><td class="dim">ostatnio dziś 18:40 · przez internet</td><td><span class="btn">Odłącz</span></td></tr>
+  <tr><td>💻 RYZENMIC</td><td class="dim">ostatnio dziś 17:02 · w domu</td><td><span class="btn">Odłącz</span></td></tr></table>
+  <span class="btn">➕ Dodaj urządzenie (kod / QR)</span> <span class="dim">kod ważny 10 min</span>
+ </div>
+</div><div class="cap">Serwer: włącznik, adres ze sprawdzeniem portu, jakość, lista dopuszczonych urządzeń (odłączenie od razu odcina)</div></div>
+
+<div style="max-width:460px" class="sec"><b>🔐 Zabezpieczenie</b>
+ • Oglądać mogą tylko <b style="display:inline">sparowane</b> urządzenia: raz kod albo QR z okna serwera (jak parowanie komputerów), potem samo.<br>
+ • Każde urządzenie ma własny klucz; „Odłącz” – klucz unieważniony od razu.<br>
+ • Wszystko szyfrowane (AES-GCM, jak synchronizacja Velivo) – lista, plakaty i sam film; adres filmu działa tylko kilka godzin i tylko dla tego urządzenia.<br>
+ • Bez kont w chmurze i bez cudzych serwerów – tylko Twój dom.<br>
+ • Za dużo nieudanych prób z jednego adresu – blokada na godzinę.<br>
+ • W domu bez zmian: sieć domowa, bez internetu.<br>
+ <span class="warn">Router: port otwierany sam (UPnP, jak komunikator); bez UPnP – okno mówi, co przekierować.</span></div>
+</div>
+
+<h2>2. Komputer (Velivo Odtwarzacz poza domem)</h2>
+<p class="o">Przycisk „● Serwer: NUCBOX” i Kanapa → Moje serwery działają tak samo poza domem (np. laptop w hotelu): dopisek „przez internet” przy nazwie serwera. Nic więcej się nie zmienia.</p>
+
+<h2>3. Telefon (Velivo Odtwarzacz / Velivo na Androidzie) – nowa zakładka „Mój serwer”</h2>
+<div class="row"><div><div class="phone">
+ <div class="top">🎬 Filmy <span class="pill">● NUCBOX · przez internet</span></div>
+ <div class="tabs"><span>Jellyfin</span><span class="on new">🎞 Mój serwer</span><span>Na telefonie</span></div>
+ <div class="lbl">Kontynuuj odtwarzanie</div>
+ <div class="rail"><div><div class="p"><div class="bar"><i style="width:60%"></i></div></div><div class="t">Zabójcze maszyny</div></div><div><div class="p"><div class="bar"><i style="width:30%"></i></div></div><div class="t">Pitch Black</div></div><div><div class="p"><div class="bar"><i style="width:80%"></i></div></div><div class="t">Sisu</div></div></div>
+ <div class="lbl">Ulubione</div>
+ <div class="rail"><div><div class="p"><div class="bd"><span class="h">❤</span></div></div><div class="t">Batman</div></div><div><div class="p"><div class="bd"><span class="h">❤</span><span class="v">✓</span></div></div><div class="t">Blade Runner</div></div><div><div class="p"><div class="bd"><span class="h">❤</span></div></div><div class="t">Atlas chmur</div></div></div>
+ <div class="lbl">Wszystkie (224) · sortuj ▾ · 🔍</div>
+ <div class="grid"><div class="p"><div class="bd"><span class="v">✓</span></div></div><div class="p"></div><div class="p"><div class="bar"><i style="width:40%"></i></div></div></div>
+</div><div class="cap" style="max-width:300px">Telefon: ten sam wygląd co Kanapa – Kontynuuj, Ulubione, wszystkie z plakatami, pasek postępu, ✓ i ❤</div></div>
+
+<div><div class="phone">
+ <div class="top">🎞 Połącz z serwerem</div>
+ <div style="padding:14px;line-height:1.6">Pierwszy raz: w oknie serwera na NUCBOX kliknij <b>➕ Dodaj urządzenie</b> i:<br><br>
+ <span class="btn">📷 Zeskanuj kod QR</span><br><span class="btn">⌨ Wpisz kod: 482 913</span><br><br>
+ <span class="dim">W domu telefon znajdzie serwer sam (sieć domowa) – wystarczy potwierdzić na serwerze.</span><br><br>
+ <span class="dim">Przytrzymanie plakatu: ❤ ulubiony · ✓ obejrzany · ▶ od początku · 📺 Odtwórz na komputerze (Pilot)</span></div>
+</div><div class="cap" style="max-width:300px">Telefon: parowanie raz (QR / kod), potem samo w domu i poza nim</div></div>
+</div>
+<p class="o" style="margin-top:16px"><b>Kolejność prac:</b> 1) serwer przez internet + zabezpieczenie (komputery), 2) telefon – zakładka „Mój serwer”, 3) wspólny postęp, ulubione i obejrzane między wszystkimi. Ulubione serwera trzymane na serwerze (dziś – na każdym komputerze osobno). Przekodowanie do 720p/1080p wymaga FFmpeg na serwerze (jest w pakiecie) – mocniej obciąża NUCBOX podczas oglądania przez internet.</p>
+</body></html>

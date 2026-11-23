@@ -506,7 +506,7 @@ namespace VelivoProcesor
                 if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
                 // AMD: tryb autonomiczny pomija minimum - wyłączony, Windows trzyma minimum; wtedy zegar zależy od sprawdzania co PerfCheck ms - zawsze 30 ms (5000 = boost po 5 s, „nie wchodzi ponad 4 GHz”)
-                if (Amd) { w.Add((Autonom, 0, 0)); if (boost == 3) { int i = w.FindIndex(x => x.Item1 == Boost); w[i] = (Boost, 2, 2); } }   // bez trybu autonomicznego boost „wydajny” (3) bywa przycięty - pełny (2)
+                if (Amd) w.Add((Autonom, 0, 0));   // boost zostaje oszczędny (3) - pełny (2) w Zrównoważonym grzał procesor przy filmie
                 w.Add((PerfCheck, 30, 30));
                 uint err = 0;
                 foreach (var (g, va, vd) in w) { bool bez; lock (zapisy) bez = !wymus && zapisy.TryGetValue(g, out var by) && by.Ac == va && by.Dc == vd; if (bez) continue;   // bez zapisu, gdy wartość już taka (zasada: bez zbędnych zapisów)

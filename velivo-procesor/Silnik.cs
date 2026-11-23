@@ -158,36 +158,72 @@ namespace VelivoProcesor
 
         // temperatura: AMD - RyzenAdj (Tctl), inaczej LibreHardwareMonitor / OpenHardwareMonitor (gdy działa), zapasowo strefa ACPI; -1 = nieznana
         public string TempZrodlo = "";   // skąd temperatura (słowami do okna)
+        // źródło wybierane raz (potem tylko ono - bez zapytań WMI do nieistniejących źródeł co 3 s); bez wyniku - ponowne szukanie co minutę.
+        // Czujnik płyty (ACPI), który stoi w miejscu ponad 10 min, nie mierzy procesora (laptopy: stałe 28 °C przy 4 GHz) - wtedy „nieznana”, bez fałszywej ochrony.
+        int tempZr = -1; DateTime tempSzukaj; double acpiOst = -999; DateTime acpiZmiana = DateTime.UtcNow;
         double Temperatura()
         {
-            TempZrodlo = "";
-            if (RyzenDziala)
-                foreach (var l in RyzenWywolaj("--info"))
+            if (tempZr < 0 && DateTime.UtcNow < tempSzukaj) return -1;
+            for (int z = tempZr < 0 ? 0 : tempZr; z < 4; z++)
+            {
+                double t = z == 0 ? TempRyzen() : z == 1 ? TempLhm() : z == 2 ? TempAcpiWmi() : TempAcpiPdh();
+                if (t > 0)
                 {
-                    var m = System.Text.RegularExpressions.Regex.Match(l, @"THM VALUE( CORE)?\s*\|\s*([\d.]+)");
-                    if (m.Success && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float, Inv, out var t) && t > 0) { TempZrodlo = "z procesora (RyzenAdj)"; return t; }
+                    if (z >= 2)
+                    {   // czujnik płyty: sprawdzam, czy w ogóle się zmienia
+                        if (Math.Abs(t - acpiOst) >= 0.5) { acpiOst = t; acpiZmiana = DateTime.UtcNow; }
+                        if ((DateTime.UtcNow - acpiZmiana).TotalMinutes > 10) { TempZrodlo = "brak – czujnik płyty stoi w miejscu (nie mierzy procesora)"; return -1; }
+                    }
+                    tempZr = z; return t;
                 }
+                if (tempZr >= 0) { tempZr = -1; z = -1; continue; }   // wybrane źródło przestało działać - szukam od nowa
+            }
+            tempZr = -1; tempSzukaj = DateTime.UtcNow.AddMinutes(1); TempZrodlo = "brak czujnika (szukam co minutę)"; return -1;
+        }
+        double TempRyzen()
+        {
+            if (!RyzenDziala) return -1;
+            foreach (var l in RyzenWywolaj("--info"))
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(l, @"THM VALUE( CORE)?\s*\|\s*([\d.]+)");
+                if (m.Success && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float, Inv, out var t) && t > 0) { TempZrodlo = "z procesora (RyzenAdj)"; return t; }
+            }
+            return -1;
+        }
+        double TempLhm()
+        {   // Intel: „CPU Package” / rdzenie; AMD: „Tctl/Tdie”, „CCD”; bez „Distance to TjMax” (to zapas do granicy, nie temperatura)
             foreach (var ns in new[] { @"root\LibreHardwareMonitor", @"root\OpenHardwareMonitor" })
                 try
                 {
-                    using (var s = new System.Management.ManagementObjectSearcher(ns, "SELECT Name, Value FROM Sensor WHERE SensorType='Temperature'"))
+                    using (var s = new System.Management.ManagementObjectSearcher(ns, "SELECT Name, Value, Identifier FROM Sensor WHERE SensorType='Temperature'"))
                     {
-                        double best = -1;
+                        double pakiet = -1, rdzen = -1;
                         foreach (System.Management.ManagementObject o in s.Get())
                         {
-                            var n = o["Name"] as string ?? ""; var v = Convert.ToDouble(o["Value"]);
-                            if (n.IndexOf("Package", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("Tctl", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("CPU", StringComparison.OrdinalIgnoreCase) >= 0) best = Math.Max(best, v);
+                            var n = o["Name"] as string ?? ""; var id = o["Identifier"] as string ?? ""; var v = Convert.ToDouble(o["Value"]);
+                            if (v <= 0 || v > 125 || n.IndexOf("Distance", StringComparison.OrdinalIgnoreCase) >= 0 || id.IndexOf("cpu", StringComparison.OrdinalIgnoreCase) < 0) continue;   // tylko czujniki procesora
+                            if (n.IndexOf("Package", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("Tctl", StringComparison.OrdinalIgnoreCase) >= 0) pakiet = Math.Max(pakiet, v);
+                            else rdzen = Math.Max(rdzen, v);
                         }
-                        if (best > 0) { TempZrodlo = "z procesora (LibreHardwareMonitor)"; return best; }
+                        double best = pakiet > 0 ? pakiet : rdzen;
+                        if (best > 0) { TempZrodlo = "z procesora (" + (ns.Contains("Libre") ? "LibreHardwareMonitor" : "OpenHardwareMonitor") + ")"; return best; }
                     }
                 }
                 catch (Exception) { }
+            return -1;
+        }
+        double TempAcpiWmi()
+        {
             try
             {
                 using (var s = new System.Management.ManagementObjectSearcher(@"root\WMI", "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"))
                     foreach (System.Management.ManagementObject o in s.Get()) { double t = Convert.ToDouble(o["CurrentTemperature"]) / 10 - 273.15; if (t > 0 && t < 120) { TempZrodlo = "czujnik płyty (ACPI)"; return t; } }
             }
             catch (Exception) { }
+            return -1;
+        }
+        double TempAcpiPdh()
+        {
             double tz = Tablica(cTz, false) * tzMnoznik / 10 - 273.15;   // bez uprawnień: strefy ACPI z liczników Windows
             if (tz > 10 && tz < 120) { TempZrodlo = "czujnik płyty (ACPI)"; return tz; }
             return -1;
@@ -333,6 +369,7 @@ namespace VelivoProcesor
 
         // okna, na które tylko patrzysz (Velivo Procesor, okno AI, Menedżer zadań, Monitor) - nie uczą i nie decydują; liczy się program pod spodem
         static readonly HashSet<string> Obserwacja = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "VelivoProcesor", "VelivoMonitor", "VelivoCentrum", "Taskmgr", "perfmon", "resmon", "OpenHardwareMonitor", "LibreHardwareMonitor", "HWiNFO64", "HWiNFO32" };
+        string trybOst; DateTime trybOd;
         string ostProgram = ""; DateTime wyjscieCichy; string poprzedniNaWierzchu = ""; DateTime startDo;
         public Tryb Decyduj(Pomiar p)
         {
@@ -341,7 +378,9 @@ namespace VelivoProcesor
             StudioCzynne(p);
             if (Get("tryb") == "pauza") { Dlaczego = "Wstrzymany – steruje inny program. Velivo Procesor tylko mierzy i pokazuje (ProBalance też wstrzymany). Wybierz tryb, aby znów sterował."; return Obecny; }
             if (Get("tryb") == "windows") { Dlaczego = "Steruje Windows (ustawienia domyślne) – Velivo Procesor tylko pokazuje pomiary."; return Obecny; }
-            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; Ocen(p, r, true); Dlaczego = "Wybrany ręcznie (zapamiętuję dla " + (string.IsNullOrEmpty(p.Program) ? "tego programu" : p.Program) + ")."; return Ustal(r); }
+            if (Get("tryb") != trybOst) { trybOst = Get("tryb"); trybOd = DateTime.UtcNow; }
+            // ręczny wybór uczy tylko przez 2 min po kliknięciu (decyzja przy tym programie) - „zawsze Cichy” na cały dzień nie zapisuje Cichego wszystkim programom
+            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; if ((DateTime.UtcNow - trybOd).TotalMinutes < 2) Ocen(p, r, true); Dlaczego = "Wybrany ręcznie." + ((DateTime.UtcNow - trybOd).TotalMinutes < 2 && !string.IsNullOrEmpty(p.Program) ? " AI zapamiętuje ten wybór dla " + p.Program + "." : ""); return Ustal(r); }
             Ocen(p, Obecny, false);
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
@@ -488,7 +527,9 @@ namespace VelivoProcesor
         void ZapamietajWindows(Guid s)
         {   // zapis raz; ustawienie dopisane w nowszej wersji programu dochodzi do zapisu przy pierwszym uruchomieniu tej wersji (jeszcze nieruszone)
             var l = new List<string>(); try { if (File.Exists(KopiaFile)) l.AddRange(File.ReadAllLines(KopiaFile)); } catch (Exception) { }
-            if (l.Count == 0 || l[0] != s.ToString()) { if (l.Count > 0) return; l.Add(s.ToString()); }
+            // użytkownik przełączył plan zasilania: poprzedni plan wraca do swoich wartości (bez przełączania z powrotem), nowy zapamiętany od zera
+            if (l.Count > 0 && l[0] != s.ToString()) { PrzywrocWindows(false); l.Clear(); oryg.Clear(); }
+            if (l.Count == 0) l.Add(s.ToString());
             bool nowe = false;
             foreach (var x in l.Skip(1)) { var a = x.Split('\t'); if (a.Length >= 3) oryg[new Guid(a[0])] = (uint.Parse(a[1]), uint.Parse(a[2])); }
             foreach (var g in Ustawienia)
@@ -513,7 +554,7 @@ namespace VelivoProcesor
             zapisyAt = DateTime.UtcNow; zapisyZmiana = false; WczytajZapisy();
             try { List<string> l; lock (zapisy) l = zapisy.Select(kv => kv.Key + "\t" + kv.Value.Ac + "\t" + kv.Value.Dc).ToList(); Directory.CreateDirectory(Dir); File.WriteAllLines(ZapisyFile, l); } catch (Exception) { }
         }
-        public void PrzywrocWindows()
+        public void PrzywrocWindows(bool aktywuj = true)
         {
             try
             {
@@ -529,7 +570,7 @@ namespace VelivoProcesor
                     if (acOk) PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref g, oa);
                     if (dcOk) PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref g, od);
                 }
-                PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear();
+                if (aktywuj) PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear();
                 lock (zapisy) zapisy.Clear(); try { File.Delete(ZapisyFile); } catch (Exception) { }
             }
             catch (Exception) { }
@@ -566,7 +607,9 @@ namespace VelivoProcesor
                 var s = Aktywny(); ZapamietajWindows(s);
                 // Cichy: zegar do wybranej wartości (także poniżej bazowego), bez boostu, oszczędzanie; Zrównoważony: boost oszczędny; Turbo: boost agresywny, pełna wydajność
                 uint max = t == Tryb.Cichy ? (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100))) : 100;
-                uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 200u : t == Tryb.Turbo ? 0u : 100u;
+                // EPP (preferencja energia ↔ wydajność) w Windows: 0–100 % (0 = wydajność, 100 = oszczędność); było 200 (poza zakresem - Windows odrzucał)
+                // i 100 w Zrównoważonym (najbardziej oszczędne - Intel ze Speed Shift ociągał się z zegarem). Teraz jak Windows: Zrównoważony 33
+                uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 80u : t == Tryb.Turbo ? 0u : 33u;
                 uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
                 // minimum użytkownika (suwak) we WSZYSTKICH trybach: Cichy stoi dokładnie na nim, Zrównoważony i Turbo nie schodzą poniżej (było 5 % - spadki do 0,8 GHz)
                 uint podloga = (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100)));
@@ -577,7 +620,7 @@ namespace VelivoProcesor
                 var (it, dt, iT, dT, ip) = st ? (10u, 5u, 1u, 10u, 2u) : t == Tryb.Turbo ? (30u, 15u, 1u, 4u, 2u) : t == Tryb.Cichy ? (80u, 50u, 4u, 1u, 1u) : (50u, 25u, 2u, 2u, 0u);
                 // Studio + Turbo: dodatkowo stały pełny zegar (miks z wieloma wtyczkami); Studio + Zrównoważony: bez stałego pełnego zegara - chłodniej i ciszej (nagrywanie mikrofonem)
                 if (st && t == Tryb.Turbo) { boost = 2; epp = 0; min = 100; }
-                else if (st) epp = 50;
+                else if (st) epp = 25;
                 var w = new List<(Guid, uint, uint)> { (Max, max, max), (Min, min, min), (Boost, boost, boost), (Epp, epp, epp), (Freq, freq, freq), (IncThr, it, it), (DecThr, dt, dt), (IncTime, iT, iT), (DecTime, dT, dT), (IncPol, ip, ip) };
                 if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
@@ -620,7 +663,7 @@ namespace VelivoProcesor
             var wynik = new List<string>();
             try
             {
-                using (var p = Process.Start(new ProcessStartInfo(Ryzen, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true }))
+                using (var p = Process.Start(new ProcessStartInfo(Ryzen, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
                 {
                     var o = p.StandardOutput.ReadToEnd(); p.WaitForExit(3000);
                     wynik.AddRange(o.Split('\n'));

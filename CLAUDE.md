@@ -372,6 +372,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-23: Velivo Procesor AMD – wyłączyłem tryb autonomiczny (CPPC), by trzymać minimum: boost przestał wchodzić ponad 4 GHz, a minimum i tak nie było trzymane; potem pełny boost przy wyłączonym – też nic. Cofnięte (tryb jak w Windows). Zmian sterowania procesorem nie wysyłaj bez danych z tego komputera (zegar, tryb, plan) – zgadywanie dwa razy pogorszyło.
 
+* 2026-11-23: Velivo Procesor AMD – dołożyłem pełny boost (2) w Zrównoważonym bez sprawdzenia skutków: przy filmie procesor się grzał i wył wentylator (wcześniej cicho). Cofnięte. Zmiana boostu/EPP = zmiana ciepła i hałasu – przed wysłaniem pomyśl o filmie i spoczynku, nie tylko o szczycie.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

@@ -587,10 +587,18 @@ object Slownik {
     private fun pairCount(k: String) = synchronized(pairs) { pairs[k] ?: 0 }
 
     // kontekst z Twojego pisania: po tym słowie zwykle piszesz inne, bardzo podobne (to pewni -> to pewnie) - po co najmniej 3 razach
+    private val zbyt = setOf("mała", "duża", "droga", "długa", "krótka", "gruba", "cienka", "ciężka", "lekka", "wysoka", "niska", "szeroka", "wąska", "ciepła", "zimna", "gorąca", "młoda", "stara", "wolna", "szybka", "głośna", "cicha", "jasna", "ciemna", "słaba", "mocna", "tania", "bogata", "biedna", "daleka", "bliska", "późna", "wczesna", "ostra", "słodka", "kwaśna", "pełna", "pusta", "trudna", "łatwa", "dobra", "zła", "ładna", "brzydka", "mądra", "głupia", "grzeczna", "miła", "chuda", "wielka")   // „za mała” = zbyt mała - bez zmiany
+    private val narz = setOf("za", "pod", "nad", "przed", "z", "ze", "między", "pomiędzy", "przede", "nade", "pode", "poza", "zza")
     fun contextFix(prev: String?, word: String, keep: Collection<String>? = null): String? {
         if (prev.isNullOrEmpty() || word.length < 3 || !word.all { it.isLetter() }) return null
         val p = prev.lowercase(); val w = word.lowercase()
-        if (keep != null && w in keep || pairCount("$p $w") > 0) return null
+        if (keep != null && w in keep) return null
+        // 📐 gramatyka a/ą (słowo bez polskiej litery): po „za, pod, nad, przed, z, między…” narzędnik (za kanapa → za kanapą), po słowie na „ą” zgoda (taką moja → taką moją)
+        if (w.length >= 3 && w.last() == 'a' && pairCount("$p $w") < 2 && (p in narz && !(p == "za" && w in zbyt) || p.length >= 3 && p.last() == 'ą' && p != "są")) {
+            val wa = w.dropLast(1) + "ą"
+            if (main?.contains(wa) == true || full?.known(wa) == true) return cap(word, wa)
+        }
+        if (pairCount("$p $w") > 0) return null
         // poprawne słowo (taka, kanapa) zmieniane z kontekstu tylko przy pewnym zwrocie (para co najmniej 5 razy); literówka - jak dotąd po 3 razach
         val popr = main?.contains(w) == true || full?.known(w) == true
         var best: String? = null; var bn = if (popr) 4 else 2

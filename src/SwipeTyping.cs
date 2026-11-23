@@ -678,11 +678,21 @@ namespace Velivo
         static int PairCount(string k) { lock (_pairs) return _pairs.TryGetValue(k, out var c) ? c : 0; }
 
         // kontekst z Twojego pisania: po tym slowie zwykle piszesz inne, bardzo podobne (to pewni -> to pewnie) - po co najmniej 3 razach
+        static readonly HashSet<string> _zbyt = new HashSet<string> { "mała", "duża", "droga", "długa", "krótka", "gruba", "cienka", "ciężka", "lekka", "wysoka", "niska", "szeroka", "wąska", "ciepła", "zimna", "gorąca", "młoda", "stara", "wolna", "szybka", "głośna", "cicha", "jasna", "ciemna", "słaba", "mocna", "tania", "bogata", "biedna", "daleka", "bliska", "późna", "wczesna", "ostra", "słodka", "kwaśna", "pełna", "pusta", "trudna", "łatwa", "dobra", "zła", "ładna", "brzydka", "mądra", "głupia", "grzeczna", "miła", "chuda", "wielka" };   // „za mała” = zbyt mała - bez zmiany
+        static readonly HashSet<string> _narz = new HashSet<string> { "za", "pod", "nad", "przed", "z", "ze", "między", "pomiędzy", "przede", "nade", "pode", "poza", "zza" };
         internal static string ContextFix(string prev, string word, ICollection<string> keep = null)
         {
             if (string.IsNullOrEmpty(prev) || word == null || word.Length < 3 || !word.All(char.IsLetter)) return null;
             var p = prev.ToLowerInvariant(); var w = word.ToLowerInvariant();
-            if (keep != null && keep.Contains(w) || PairCount(p + " " + w) > 0) return null;
+            if (keep != null && keep.Contains(w)) return null;
+            // 📐 gramatyka a/ą (słowo bez polskiej litery): po „za, pod, nad, przed, z, między…” narzędnik (za kanapa → za kanapą), po słowie na „ą” zgoda (taką moja → taką moją);
+            // tylko gdy forma z „ą” istnieje i Ty nie piszesz tej pary (wtedy zostaje jak piszesz)
+            if (w.Length >= 3 && w[w.Length - 1] == 'a' && PairCount(p + " " + w) < 2 && (_narz.Contains(p) && !(p == "za" && _zbyt.Contains(w)) || p.Length >= 3 && p[p.Length - 1] == 'ą' && p != "są"))
+            {
+                var wa = w.Substring(0, w.Length - 1) + "ą";
+                if (_main != null && _main.Contains(wa) || Full is Hunspell fg && fg.Known(wa)) return char.IsUpper(word[0]) ? char.ToUpperInvariant(wa[0]) + wa.Substring(1) : wa;
+            }
+            if (PairCount(p + " " + w) > 0) return null;
             // poprawne słowo (taka, kanapa) zmieniane z kontekstu tylko przy pewnym zwrocie - Ty pisałeś tę parę co najmniej 5 razy (a tej formy po tym słowie nigdy);
             // literówka - jak dotąd po 3 razach. Bez tego zapamiętane wcześniej zmiany same się utrwalały (taka moja wola → taką moją wolą)
             bool popr = _main != null && _main.Contains(w) || Full is Hunspell fc && fc.Known(w);

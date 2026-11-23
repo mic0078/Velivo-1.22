@@ -298,7 +298,7 @@ namespace VelivoProcesor
                     programy[p.Program] = (v.Cpu + (c - v.Cpu) / n, v.Gpu + (Math.Max(0, p.Gpu) - v.Gpu) / n, v.N + 1, sz);
                 }
             int h = DateTime.Now.Hour; int hn = Math.Min(++godzN[h], 3600); godziny[h] += (p.Cpu - godziny[h]) / hn;
-            if ((DateTime.UtcNow - naukaZapis).TotalMinutes > 5) { naukaZapis = DateTime.UtcNow; ZapiszNauke(); }
+            if ((DateTime.UtcNow - naukaZapis).TotalMinutes > 5) { naukaZapis = DateTime.UtcNow; ZapiszNauke(); ZapiszGlosy(); }
         }
 
         // ---------- decyzja ----------
@@ -323,6 +323,7 @@ namespace VelivoProcesor
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
             wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;
             Tryb chce; string why; bool reczny = false, goraco = false;
+            var glos = Glosuj(p);   // zawsze (przewidywanie i trafność uczą się co sekundę)
             Procesy();
             // 💽 dysk pracuje (kopiowanie, instalacja, wczytywanie): ponad 15 MB/s albo 2+ operacje w kolejce, dłużej niż 3 s; trzymane jeszcze 5 s po końcu
             bool dyskRuch = p.DyskMBs > 15 || p.DyskKol >= 2; dyskN = dyskRuch ? dyskN + 1 : 0;
@@ -343,8 +344,8 @@ namespace VelivoProcesor
             { gpuBound = true; chce = Tryb.Zrownowazony; why = "Program obciąża kartę graficzną (" + p.Gpu.ToString("0") + " %), procesor tylko " + p.Cpu.ToString("0") + " % – procesor nie potrzebuje więcej mocy, karta ma chłodniej."; }
             // 4. duże obciążenie - od razu w górę (pół sekundy wystarczy, bez przycięć)
             else if (wysokoN >= 1) { gpuBound = false; chce = Tryb.Turbo; why = "Duże obciążenie (" + p.Cpu.ToString("0") + " %) – pełna moc od razu."; }
-            // 5. 🤖 nauczony ze skutków (cisza bez przycięć) albo z Twoich wyborów przy tym programie
-            else if (Oceniony(p.Program, out var oc)) { gpuBound = false; chce = oc; why = p.Program + " – nauczony: " + Nazwa(oc) + " wystarcza (cicho, bez przycięć)."; }
+            // 5. 🤖 głosowanie: nauka skutków (Q), profil programu, przewidywanie obciążenia, pora dnia - wagi z trafności
+            else if (glos != null) { gpuBound = false; chce = glos.Value; why = GlosOpis(p.Program, chce); }
             // 5. ręcznie przypisany / wyuczony program
             else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas

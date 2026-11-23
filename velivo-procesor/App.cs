@@ -12,6 +12,8 @@ using System.Windows.Shapes;
 
 namespace VelivoProcesor
 {
+    // ZASADA (właściciel 2026-11-23): Velivo Procesor nigdy nie pogarsza wydajności bardziej, niż wymaga wybrany tryb - nie zmienia ustawień bez potrzeby,
+    // bez zbędnych zapisów, bez dodatkowych procesów pomiarowych, bez obciążania procesora monitoringiem, bez zmienionych ustawień po awarii; przywracanie transakcyjne.
     // ⚙ Velivo Procesor - CPU Manager w rodzinie Velivo (dokumentacja/makieta-velivo-procesor.html): w zasobniku, co 1 s pomiar i decyzja,
     // okno ze stanem, trybami, „dlaczego”, wykresem, zapamiętanymi programami i ustawieniami. Zamknięcie = ustawienia Windows wracają.
     static class Program
@@ -72,7 +74,7 @@ namespace VelivoProcesor
 
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
-        TextBlock tCichy, tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
+        TextBlock tCichy, tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[6]; Border warn; TextBlock tWarn1, tWarn2; StackPanel warnRow1, warnRow2; string warnProg; Canvas wykres; StackPanel lista;
         readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; readonly bool[] hAuto = new bool[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
@@ -91,6 +93,7 @@ namespace VelivoProcesor
             Microsoft.Win32.SystemEvents.SessionEnding += (a, e) => Koniec(false);
             Program.Zakoncz = () => Koniec(true);
             EkranSluchaj();
+            { var t0 = s.Get("tryb", "auto"); s.SuwakW11(t0 != "pauza" && t0 != "windows"); }   // 🎚 suwak „Tryb zasilania” Windows 11 na czas sterowania
             // 💡 ikona: kolor obciążenia + dioda dysku (co 60 ms, w wątku okna - tylko zmiana obrazka, gdy stan się zmienia)
             dioda.Dysk(s.Get("dioda", "*"));
             var dt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
@@ -108,11 +111,15 @@ namespace VelivoProcesor
                 try
                 {
                     var p = s.Zmierz(); p.ProgCpu = pb.RdzenProcesu(p.Pid); var t = s.Decyduj(p); ost = p;
-                    if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid, s.PriorytetDla, s.BezPbDla);
+                    bool pauza = s.Get("tryb") == "pauza";
+                    if (pauza) { if (!pbStop) { pb.PrzywrocWszystkie(); pbStop = true; } }   // ⏸ wstrzymany - ProBalance też (priorytety wracają)
+                    else { pbStop = false; if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid, s.PriorytetDla, s.BezPbDla); }
+                    if (pauza) petlaN++;
                     // 🎚 Studio: komputer i ekran nie zasną, dopóki działa program w trybie Studio (wołane z tego samego, stałego wątku)
                     bool st = s.StudioProg != null && s.Get("tryb") != "windows";
                     if (st != uspienieBlok) { uspienieBlok = st; SetThreadExecutionState(st ? 0x80000003u : 0x80000000u); }
                     Centrum(p);
+                    s.ZapiszZapisy();   // ↺ co Velivo zmieniło - na dysku najwyżej co minutę (po awarii przywracanie dalej wie, co jest jego)
                     hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hAuto[hPos] = s.Auto; hPb[hPos] = pb.Liczba; hPos = (hPos + 1) % hCpu.Length;
                     win.Dispatcher.BeginInvoke(new Action(Odswiez));
                 }
@@ -125,6 +132,7 @@ namespace VelivoProcesor
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint f);
         bool uspienieBlok;
         readonly Dioda dioda = new Dioda();
+        bool pbStop;
         int petlaN; readonly ProBalance pb = new ProBalance();
         System.IO.MemoryMappedFiles.MemoryMappedFile mmf;
         // 🧩 stan dla Velivo Centrum (jak poziom Audio Balance): czas + tekst „Auto · Cichy · 54 °C”
@@ -134,7 +142,7 @@ namespace VelivoProcesor
             {
                 if (mmf == null) mmf = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateOrOpen(@"Local\Velivo.Procesor.Stan", 512);
                 string tryb = s.Get("tryb", "auto");
-                string t = (tryb == "windows" ? "ustawienia Windows" : (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %";
+                string t = (tryb == "pauza" ? "wstrzymany" : tryb == "windows" ? "ustawienia Windows" : (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %";
                 var b = System.Text.Encoding.UTF8.GetBytes(t); if (b.Length > 400) Array.Resize(ref b, 400);
                 using (var v = mmf.CreateViewAccessor()) { v.Write(0, b.Length); v.WriteArray(16, b, 0, b.Length); v.Write(8, (long)GetTickCount64()); }
             }
@@ -173,7 +181,7 @@ namespace VelivoProcesor
             var m = new System.Windows.Forms.ContextMenuStrip();
             var stan = new System.Windows.Forms.ToolStripMenuItem("Velivo Procesor") { Enabled = false }; m.Items.Add(stan);
             m.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            foreach (var (k, n) in new[] { ("auto", "🧠 Auto – sam wybiera"), ("cichy", "🌙 Cichy"), ("zrownowazony", "⚖ Zrównoważony"), ("turbo", "🚀 Turbo") })
+            foreach (var (k, n) in new[] { ("auto", "🧠 Auto – sam wybiera"), ("cichy", "🌙 Cichy"), ("zrownowazony", "⚖ Zrównoważony"), ("turbo", "🚀 Turbo"), ("pauza", "⏸ Wstrzymaj (steruje inny program)") })
             { var it = new System.Windows.Forms.ToolStripMenuItem(n); it.Click += (a, e) => Wybierz(k); it.Tag = k; m.Items.Add(it); }
             m.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             var pbIt = new System.Windows.Forms.ToolStripMenuItem("⚖ ProBalance – programy w tle nie przycinają"); pbIt.Click += (a, e) => PbUstaw(s.Get("probalance", "1") != "1"); m.Items.Add(pbIt);
@@ -183,14 +191,14 @@ namespace VelivoProcesor
             m.Items.Add("⏻ Zakończ (ustawienia Windows wracają)", null, (a, e) => Koniec(true));
             m.Opening += (a, e) =>
             {
-                stan.Text = "Velivo Procesor · " + (s.Get("tryb") == "windows" ? "ustawienia Windows" : (s.Auto ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (ost.Temp > 0 ? " · " + ost.Temp.ToString("0") + " °C" : "");
+                stan.Text = "Velivo Procesor · " + (s.Get("tryb") == "pauza" ? "wstrzymany" : s.Get("tryb") == "windows" ? "ustawienia Windows" : (s.Auto ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (ost.Temp > 0 ? " · " + ost.Temp.ToString("0") + " °C" : "");
                 foreach (var it in m.Items.OfType<System.Windows.Forms.ToolStripMenuItem>()) if (it.Tag is string k) it.Checked = s.Get("tryb", "auto") == k;
                 pbIt.Checked = s.Get("probalance", "1") == "1";
             };
             return m;
         }
 
-        void Wybierz(string k) { s.Put("tryb", k); tInfo.Text = ""; Odswiez(); }   // komunikat po ↺ Windows już nieaktualny
+        void Wybierz(string k) { s.Put("tryb", k); tInfo.Text = ""; s.SuwakW11(k != "pauza" && k != "windows"); if (k != "pauza") s.Ponow(); Odswiez(); }   // komunikat po ↺ Windows już nieaktualny
         CheckBox pbBox;
         void PbUstaw(bool on) { s.Put("probalance", on ? "1" : "0"); if (pbBox != null) pbBox.IsChecked = on; Odswiez(); }
         void Domyslne()
@@ -200,7 +208,7 @@ namespace VelivoProcesor
         }
         void Koniec(bool zamknij)
         {
-            try { pb.PrzywrocWszystkie(); s.PrzywrocWindows(); s.ZapiszNauke(); } catch (Exception) { }
+            try { pb.PrzywrocWszystkie(); s.SuwakW11(false); s.PrzywrocWindows(); s.ZapiszNauke(); } catch (Exception) { }
             if (!zamknij) return;
             try { tray.Visible = false; tray.Dispose(); } catch (Exception) { }
             Application.Current.Shutdown();
@@ -241,20 +249,30 @@ namespace VelivoProcesor
             var k = new UniformGrid4(); root.Children.Add(k.Panel);
             tCpu = k.Add("PROCESOR"); tGpu = k.Add("KARTA GRAFICZNA"); tTemp = k.Add("TEMPERATURA"); tGhz = k.Add("ZEGAR");
             // tryby
-            var tr = new Grid { Margin = new Thickness(0, 4, 0, 0) }; for (int i = 0; i < 5; i++) tr.ColumnDefinitions.Add(new ColumnDefinition());
-            var opisy = new[] { ("auto", "🧠", "Auto", "sam wybiera"), ("cichy", "🌙", "Cichy", "do " + s.CichyGhz.ToString("0.0") + " GHz"), ("zrownowazony", "⚖", "Zrównoważony", "zwykła praca"), ("turbo", "🚀", "Turbo", "pełna moc"), ("windows", "↺", "Windows", "ustawienia domyślne") };
-            for (int i = 0; i < 5; i++)
+            var tr = new Grid { Margin = new Thickness(0, 4, 0, 0) }; for (int i = 0; i < 6; i++) tr.ColumnDefinitions.Add(new ColumnDefinition());
+            var opisy = new[] { ("auto", "🧠", "Auto", "sam wybiera"), ("cichy", "🌙", "Cichy", "do " + s.CichyGhz.ToString("0.0") + " GHz"), ("zrownowazony", "⚖", "Zrównoważony", "zwykła praca"), ("turbo", "🚀", "Turbo", "pełna moc"), ("pauza", "⏸", "Wstrzymaj", "steruje inny program"), ("windows", "↺", "Windows", "ustawienia domyślne") };
+            for (int i = 0; i < 6; i++)
             {
                 var (key, ic, n, o) = opisy[i]; var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
                 sp.Children.Add(new TextBlock { Text = ic, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Fg });
                 sp.Children.Add(new TextBlock { Text = n, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Fg, FontWeight = FontWeights.SemiBold });
                 var to = new TextBlock { Text = o, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Dim }; sp.Children.Add(to); if (key == "cichy") tCichy = to;
                 var b = Box(sp); b.Cursor = Cursors.Hand; b.Padding = new Thickness(6, 10, 6, 10); kafle[i] = b;
-                b.ToolTip = key == "auto" ? "Program sam wybiera tryb: temperatura, wczytywanie, obciążenie, gry na karcie graficznej, zapamiętane programy, spoczynek" : key == "windows" ? "Przywraca plan zasilania Windows do ustawień domyślnych; program przestaje sterować" : "Zawsze ten tryb";
+                b.ToolTip = key == "pauza" ? "Velivo Procesor tylko mierzy i pokazuje – ustawienia zostają takie, jakie zrobił inny program (Armoury Crate, Vantage…). Wybierz tryb, aby znów sterował." : key == "auto" ? "Program sam wybiera tryb: temperatura, wczytywanie, obciążenie, gry na karcie graficznej, zapamiętane programy, spoczynek" : key == "windows" ? "Przywraca plan zasilania Windows do ustawień domyślnych; program przestaje sterować" : "Zawsze ten tryb";
                 b.MouseLeftButtonUp += (a, e) => { if (key == "windows") Domyslne(); else Wybierz(key); };
                 Grid.SetColumn(b, i); tr.Children.Add(b);
             }
             root.Children.Add(tr);
+            // ⚠ inny program też steruje procesorem / obce zmiany ustawień (makieta-procesor-konflikty.html) - widoczne tylko przy konflikcie
+            warn = new Border { Background = B(0x2A, 0x1A, 0x1F), BorderBrush = B(0x5B, 0x2A, 0x33), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(4), Visibility = Visibility.Collapsed };
+            var ws = new StackPanel(); ws.Children.Add(T("⚠ Inny program też steruje procesorem", 13, Warn, FontWeights.SemiBold));
+            DockPanel WRow(out TextBlock t, out StackPanel bp) { var d = new DockPanel { Margin = new Thickness(0, 4, 0, 0) }; bp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(bp, Dock.Right); d.Children.Add(bp); t = T("", 12, Fg); t.VerticalAlignment = VerticalAlignment.Center; d.Children.Add(t); return d; }
+            var r1 = WRow(out tWarn1, out warnRow1); var r2 = WRow(out tWarn2, out warnRow2); ws.Children.Add(r1); ws.Children.Add(r2);
+            warnRow1.Children.Add(Btn("⏸ Wstrzymaj Velivo", () => Wybierz("pauza"), "Velivo przestaje sterować – steruje tamten program"));
+            warnRow1.Children.Add(Btn("Nie pokazuj dla tego programu", () => { if (warnProg == null) return; s.Put("konflikty-cisza", ((s.Get("konflikty-cisza") ?? "") + "|" + warnProg).Trim('|')); Odswiez(); }, "Ostrzeżenie o tym programie znika (Ustawienia – „Pokaż znowu”)"));
+            warnRow2.Children.Add(Btn("Co to znaczy?", () => MessageBox.Show(win, "Inny program (np. narzędzie producenta laptopa) zmienia te same ustawienia zasilania, które ustawia Velivo Procesor. Gdy oba sterują naraz, nadpisują się nawzajem: zegar skacze, wentylator raz cicho, raz głośno.\n\nVelivo nie zapisuje ich w kółko (bez walki). Wyłącz sterowanie w tamtym programie albo wstrzymaj Velivo Procesor (⏸).", "Velivo Procesor", MessageBoxButton.OK, MessageBoxImage.Information)));
+            foreach (Button bb in warnRow1.Children.OfType<Button>().Concat(warnRow2.Children.OfType<Button>())) bb.Margin = new Thickness(6, 0, 0, 0);
+            warn.Child = ws; root.Children.Add(warn);
             var why = new Border { Background = B(0x0E, 0x21, 0x40), BorderBrush = B(0x1E, 0x3A, 0x66), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(4) };
             tWhy = T("", 13, B(0xCF, 0xE3, 0xFF)); why.Child = tWhy; root.Children.Add(why);
             // wykres i programy
@@ -277,6 +295,17 @@ namespace VelivoProcesor
                 ToolTip = "Gdy procesor jest mocno zajęty, program w tle, który zjada dużo procesora, dostaje na chwilę niższy priorytet. Wraca sam, gdy się uspokoi albo przejdziesz do niego. System, dźwięk i programy Velivo – nigdy." };
             pbBox.Click += (a, e) => PbUstaw(pbBox.IsChecked == true); us.Children.Add(pbBox);
             tPb = T("", 11, Dim); tPb.Margin = new Thickness(22, 0, 0, 0); us.Children.Add(tPb);
+            // ⚠ inne programy sterujące procesorem
+            var kOst = new CheckBox { Content = "⚠ Ostrzegaj, gdy działa inny program sterujący procesorem (Armoury Crate, Lenovo Vantage, MSI Center, Dell, Omen, Ryzen Controller, UXTU, ThrottleStop, Intel XTU, Process Lasso, CPU Manager)", Foreground = Fg, IsChecked = s.Get("konflikty-ostrzegaj", "1") == "1", Margin = new Thickness(0, 6, 0, 0) };
+            ((CheckBox)kOst).Content = new TextBlock { Text = (string)kOst.Content, TextWrapping = TextWrapping.Wrap, Foreground = Fg };
+            kOst.Click += (a, e) => { s.Put("konflikty-ostrzegaj", kOst.IsChecked == true ? "1" : "0"); warnSig = null; Odswiez(); }; us.Children.Add(kOst);
+            var kSuw = new CheckBox { Content = "🎚 Gdy steruje Velivo: suwak „Tryb zasilania” Windows 11 na „Zrównoważony” (po zamknięciu wraca jak był)", Foreground = Fg, IsChecked = s.Get("suwak-w11", "1") == "1", Margin = new Thickness(0, 6, 0, 0),
+                ToolTip = "Suwak Windows 11 zmienia oszczędzanie i boost niezależnie od planu – przy „Najlepsza wydajność” tryb Cichy nie byłby cichy" };
+            kSuw.Click += (a, e) => { s.Put("suwak-w11", kSuw.IsChecked == true ? "1" : "0"); var t1 = s.Get("tryb", "auto"); s.SuwakW11(kSuw.IsChecked == true && t1 != "pauza" && t1 != "windows"); }; us.Children.Add(kSuw);
+            var cisza = T("", 11, Dim); cisza.Margin = new Thickness(22, 2, 0, 0); us.Children.Add(cisza);
+            var ciszaB = Btn("Pokaż znowu wszystkie ostrzeżenia", () => { s.Put("konflikty-cisza", ""); cisza.Text = ""; warnSig = null; Odswiez(); }); ciszaB.HorizontalAlignment = HorizontalAlignment.Left; ciszaB.Margin = new Thickness(22, 2, 0, 0); us.Children.Add(ciszaB);
+            void CiszaPokaz() { var c = (s.Get("konflikty-cisza") ?? "").Trim('|'); cisza.Text = c.Length > 0 ? "Wyciszone ostrzeżenia: " + c.Replace("|", ", ") : ""; ciszaB.Visibility = c.Length > 0 ? Visibility.Visible : Visibility.Collapsed; }
+            CiszaPokaz(); win.Activated += (a, e) => CiszaPokaz();
             us.Children.Add(Suwak("🌙 Najniższy zegar (Cichy stoi na nim, inne tryby nie schodzą niżej)", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
             // 💡 dioda dysku przy zegarze: który dysk (albo wyłączona)
             var dd = new DockPanel { Margin = new Thickness(0, 6, 0, 0), ToolTip = "Czerwona kropka na ikonie przy zegarze mruga, gdy dysk czyta albo zapisuje (jak dioda w obudowie)" };
@@ -309,7 +338,7 @@ namespace VelivoProcesor
             d.Children.Add(sl); return d;
         }
 
-        string listaSig = "";
+        string listaSig = "", warnSig;
         void Odswiez()
         {
             var p = ost; string tryb = s.Get("tryb", "auto");
@@ -318,18 +347,29 @@ namespace VelivoProcesor
             tTemp.ToolTip = p.Temp > 0 ? "Źródło: " + s.TempZrodlo : "Temperatura nieznana – w Ustawieniach „🔑 Włącz odczyt temperatury” (czujniki wymagają uprawnień administratora) albo uruchom LibreHardwareMonitor";
             tGhz.Text = p.Ghz > 0 ? p.Ghz.ToString("0.00") + " GHz" : "–";
             bool studio = s.StudioProg != null && tryb != "windows";
-            tStan.Text = tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
+            tStan.Text = tryb == "pauza" ? "⏸ wstrzymany" : tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
             tWhy.Text = "💡 " + s.Dlaczego + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
             tSub.Text = "  " + s.ProcesorNazwa + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
                 + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak");
             bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;
-            var keys = new[] { "auto", "cichy", "zrownowazony", "turbo", "windows" };
-            for (int i = 0; i < 5; i++)
+            var keys = new[] { "auto", "cichy", "zrownowazony", "turbo", "pauza", "windows" };
+            for (int i = 0; i < 6; i++)
             {
                 bool wyb = keys[i] == tryb, teraz = tryb == "auto" && i - 1 == (int)s.Obecny;
-                kafle[i].Background = wyb ? On : Card; kafle[i].BorderBrush = wyb ? Vi : teraz ? Tq : Line; kafle[i].BorderThickness = new Thickness(wyb || teraz ? 2 : 1);
+                kafle[i].Background = wyb ? (keys[i] == "pauza" ? B(0x3A, 0x2A, 0x0A) : On) : Card; kafle[i].BorderBrush = wyb ? (keys[i] == "pauza" ? Warn : Vi) : teraz ? Tq : Line; kafle[i].BorderThickness = new Thickness(wyb || teraz ? 2 : 1);
             }
             tPb.Text = s.Get("probalance", "1") == "1" ? "ProBalance: " + (pb.Opis.Length > 0 ? pb.Opis : "czuwa") : "ProBalance wyłączony";
+            // ⚠ konflikty (co 5 s: lista procesów i odczyt ustawień - lekkie)
+            if (petlaN % 5 == 0 || warnSig == null)
+            {
+                var inne = s.Get("konflikty-ostrzegaj", "1") == "1" ? s.InneSterujace() : new List<string>(); int obce = s.ObceZmiany();
+                warnProg = inne.FirstOrDefault();
+                tWarn1.Text = inne.Count > 0 ? "Działa " + string.Join(", ", inne) + " – ustawia własne profile mocy. Dwa programy naraz nadpisują sobie ustawienia (skoki zegara, wentylator)." : "";
+                tWarn2.Text = obce >= 3 ? "Ustawienia zasilania zmienił ktoś inny " + obce + " razy w ostatniej minucie – nie zapisuję ich w kółko (bez walki)." : "";
+                ((FrameworkElement)tWarn1.Parent).Visibility = inne.Count > 0 && tryb != "pauza" ? Visibility.Visible : Visibility.Collapsed;
+                ((FrameworkElement)tWarn2.Parent).Visibility = obce >= 3 && tryb != "pauza" ? Visibility.Visible : Visibility.Collapsed;
+                warn.Visibility = (inne.Count > 0 || obce >= 3) && tryb != "pauza" && tryb != "windows" ? Visibility.Visible : Visibility.Collapsed; warnSig = "";
+            }
             if (tray != null) tray.Text = ("Velivo Procesor · " + (tryb == "windows" ? "Windows" : Silnik.Nazwa(s.Obecny)) + (p.Temp > 0 ? " · " + p.Temp.ToString("0") + " °C" : "") + " · " + p.Cpu.ToString("0") + " %");
             if (!win.IsVisible) return;   // schowane okno nie rysuje (bez pracy w tle)
             RysujWykres();

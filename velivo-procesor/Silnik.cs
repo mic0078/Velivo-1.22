@@ -18,7 +18,7 @@ namespace VelivoProcesor
         public double Cpu, Gpu = -1, Temp = -1, Dysk, DyskMBs, DyskKol, Ghz; public string Program = ""; public int Pid; public double ProgCpu = -1; public bool Bateria;
     }
 
-    sealed class Silnik
+    sealed partial class Silnik
     {
         // ---------- ustawienia ----------
         internal static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo", "Procesor");
@@ -118,7 +118,7 @@ namespace VelivoProcesor
                 p.DyskMBs = Math.Max(0, Licznik(cDyskB)) / 1e6; p.DyskKol = Math.Max(0, Licznik(cDyskQ));
                 p.Gpu = Gpu();
             }
-            if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s (odczyt bywa kosztowny)
+            if (++tempTick % (RyzenDziala ? 10 : 3) == 1) tempOst = Temperatura();   // co 3 s; na AMD co 10 s - RyzenAdj to osobny proces (zasada: bez dodatkowych procesów pomiarowych, gdy nie trzeba)
             p.Temp = tempOst;
             try
             {
@@ -284,6 +284,7 @@ namespace VelivoProcesor
         {
             Ucz(p);
             StudioCzynne(p);
+            if (Get("tryb") == "pauza") { Dlaczego = "Wstrzymany – steruje inny program. Velivo Procesor tylko mierzy i pokazuje (ProBalance też wstrzymany). Wybierz tryb, aby znów sterował."; return Obecny; }
             if (Get("tryb") == "windows") { Dlaczego = "Steruje Windows (ustawienia domyślne) – Velivo Procesor tylko pokazuje pomiary."; return Obecny; }
             if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; Dlaczego = "Wybrany ręcznie."; return Ustal(r); }
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
@@ -374,7 +375,8 @@ namespace VelivoProcesor
             StudioProg = st.FirstOrDefault(n => string.Equals(n, p.Program, StringComparison.OrdinalIgnoreCase)) ?? st.FirstOrDefault(n => dzialajace.Contains(n));
         }
         bool ZnanyProgram(string n, out (double Cpu, double Gpu, int N, double Szczyt) v) { lock (programy) return programy.TryGetValue(n ?? "", out v); }
-        public void Ponow() => zastosowany = false;   // zmienione ustawienie trybu (np. najniższy zegar Cichego) - zastosuj od nowa przy następnej decyzji
+        bool wymus;   // wybór trybu / suwaka przez użytkownika - zapis wszystkiego od nowa (także gdy ktoś inny zmienił ustawienia)
+        public void Ponow() { zastosowany = false; wymus = true; }   // zmienione ustawienie trybu (np. najniższy zegar Cichego) - zastosuj od nowa przy następnej decyzji
         bool studioZast;
         Tryb Ustal(Tryb t) { bool st = StudioProg != null; if (st && t == Tryb.Cichy) t = Tryb.Zrownowazony;   // Studio: niski zegar przy dźwięku = trzaski
             if (t != Obecny || !zastosowany || st != studioZast) { if (t != Obecny) ostZmiana = DateTime.UtcNow; Obecny = t; studioZast = st; Zastosuj(t); } return t; }
@@ -417,13 +419,38 @@ namespace VelivoProcesor
             }
             if (nowe) try { Directory.CreateDirectory(Dir); File.WriteAllLines(KopiaFile, l); } catch (Exception) { }
         }
+        // ↺ co Velivo zapisało w planie zasilania (GUID → AC, DC): przy przywracaniu wraca tylko to, czego nikt potem nie zmienił; plik zapisywany najwyżej co minutę
+        static readonly string ZapisyFile = Path.Combine(Dir, "velivo-zapisy.txt");
+        readonly Dictionary<Guid, (uint Ac, uint Dc)> zapisy = new Dictionary<Guid, (uint, uint)>(); bool zapisyZmiana, zapisyWcz; DateTime zapisyAt;
+        void WczytajZapisy()
+        {
+            if (zapisyWcz) return; zapisyWcz = true;
+            try { foreach (var x in File.ReadAllLines(ZapisyFile)) { var a = x.Split('\t'); if (a.Length == 3) lock (zapisy) if (!zapisy.ContainsKey(new Guid(a[0]))) zapisy[new Guid(a[0])] = (uint.Parse(a[1]), uint.Parse(a[2])); } } catch (Exception) { }
+        }
+        public void ZapiszZapisy(bool teraz = false)
+        {
+            if (!zapisyZmiana || !teraz && (DateTime.UtcNow - zapisyAt).TotalSeconds < 60) return;
+            zapisyAt = DateTime.UtcNow; zapisyZmiana = false; WczytajZapisy();
+            try { List<string> l; lock (zapisy) l = zapisy.Select(kv => kv.Key + "\t" + kv.Value.Ac + "\t" + kv.Value.Dc).ToList(); Directory.CreateDirectory(Dir); File.WriteAllLines(ZapisyFile, l); } catch (Exception) { }
+        }
         public void PrzywrocWindows()
         {
             try
             {
                 var l = File.ReadAllLines(KopiaFile); var s = new Guid(l[0]); var sub = Sub;
-                foreach (var x in l.Skip(1)) { var a = x.Split('\t'); var g = new Guid(a[0]); PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref g, uint.Parse(a[1])); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref g, uint.Parse(a[2])); }
+                WczytajZapisy();
+                foreach (var x in l.Skip(1))
+                {
+                    var a = x.Split('\t'); var g = new Guid(a[0]); uint oa = uint.Parse(a[1]), od = uint.Parse(a[2]);
+                    // ↺ transakcyjnie: wartość, którą Velivo zapisało i której nikt potem nie zmienił - wraca do Windows; zmieniona później (użytkownik, inny program) - zostaje
+                    bool znane; (uint Ac, uint Dc) moje; lock (zapisy) znane = zapisy.TryGetValue(g, out moje);
+                    bool acOk = !znane || PowerReadACValueIndex(IntPtr.Zero, ref s, ref sub, ref g, out var ca) != 0 || ca == moje.Ac;
+                    bool dcOk = !znane || PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sub, ref g, out var cd) != 0 || cd == moje.Dc;
+                    if (acOk) PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref g, oa);
+                    if (dcOk) PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref g, od);
+                }
                 PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear();
+                lock (zapisy) zapisy.Clear(); try { File.Delete(ZapisyFile); } catch (Exception) { }
             }
             catch (Exception) { }
             if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }   // AMD: limity fabryczne wracają same po restarcie; do tego czasu pełna moc
@@ -475,8 +502,11 @@ namespace VelivoProcesor
                 if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
                 uint err = 0;
-                foreach (var (g, va, vd) in w) { var gg = g; var sub = Sub; uint e = PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, va); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, vd); if (g == Max || g == Min || g == Boost) err |= e; }
-                PowerSetActiveScheme(IntPtr.Zero, ref s);
+                foreach (var (g, va, vd) in w) { bool bez; lock (zapisy) bez = !wymus && zapisy.TryGetValue(g, out var by) && by.Ac == va && by.Dc == vd; if (bez) continue;   // bez zapisu, gdy wartość już taka (zasada: bez zbędnych zapisów)
+                    var gg = g; var sub = Sub; uint e = PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, va); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, vd); if (g == Max || g == Min || g == Boost) err |= e; }
+                PowerSetActiveScheme(IntPtr.Zero, ref s); wymus = false;
+                Zapamietaj(s, w.Select(x => (x.Item1, x.Item2)));   // ⚠ do wykrywania obcych zmian
+                lock (zapisy) { foreach (var (g, va, vd) in w) zapisy[g] = (va, vd); zapisyZmiana = true; }   // ↺ co Velivo zmieniło (przywracanie transakcyjne)
                 if (err != 0) Blad = "Windows nie przyjął części ustawień zasilania (kod " + err + ").";
             }
             catch (Exception ex) { Blad = ex.Message; }

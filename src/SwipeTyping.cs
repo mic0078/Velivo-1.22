@@ -701,10 +701,10 @@ namespace Velivo
         static List<KeyValuePair<string, int>> Following(string ctx)
         {
             var k = ctx + " ";
-            lock (_pairs) return _pairs.Where(kv => kv.Key.StartsWith(k, StringComparison.Ordinal) && kv.Key.IndexOf(' ', k.Length) < 0 && kv.Value >= 2).OrderByDescending(kv => kv.Value).ToList();
+            lock (_pairs) return _pairs.Where(kv => kv.Key.StartsWith(k, StringComparison.Ordinal) && kv.Key.IndexOf(' ', k.Length) < 0).OrderByDescending(kv => kv.Value).ToList();   // jak Gboard / SwiftKey: następne słowo podpowiadane już po pierwszym razie (częstsze wyżej)
         }
 
-        // nastepne slowo: najpierw po dwoch poprzednich (zwrot), potem po jednym; plus caly zwrot, gdy pisany czesto (>= 3 razy)
+        // nastepne slowo: najpierw po dwoch poprzednich (zwrot), potem po jednym; plus caly zwrot, gdy pisany co najmniej 2 razy
         internal static List<string> NextWords(string prev, string prev2 = null, int count = 3)
         {
             var res = new List<string>();
@@ -721,7 +721,7 @@ namespace Velivo
                 for (int i = 0; i < 4; i++)
                 {
                     var nx = Following(a + " " + b).FirstOrDefault();
-                    if (nx.Key == null || nx.Value < 3) break;
+                    if (nx.Key == null || nx.Value < 2) break;   // cały zwrot po 2 razach (było 3)
                     var w = nx.Key.Substring(nx.Key.LastIndexOf(' ') + 1); phrase.Add(w); a = b; b = w;
                 }
                 if (phrase.Count >= 2) res.Insert(0, string.Join(" ", phrase));

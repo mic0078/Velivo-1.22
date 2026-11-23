@@ -602,7 +602,7 @@ object Slownik {
     }
     private fun following(ctx: String): List<Map.Entry<String, Int>> {
         val k = "$ctx "
-        return synchronized(pairs) { pairs.entries.filter { it.key.startsWith(k) && it.key.indexOf(' ', k.length) < 0 && it.value >= 2 }.sortedByDescending { it.value }.map { java.util.AbstractMap.SimpleEntry(it.key, it.value) } }
+        return synchronized(pairs) { pairs.entries.filter { it.key.startsWith(k) && it.key.indexOf(' ', k.length) < 0 }.sortedByDescending { it.value }.map { java.util.AbstractMap.SimpleEntry(it.key, it.value) } }
     }
 
     // następne słowo: najpierw po dwóch poprzednich (zwrot), potem po jednym; plus cały zwrot, gdy pisany często
@@ -618,7 +618,7 @@ object Slownik {
             val phrase = arrayListOf(res[0]); var a = p; var b = res[0]
             for (i in 0 until 4) {
                 val nx = following("$a $b").firstOrNull() ?: break
-                if (nx.value < 3) break
+                if (nx.value < 2) break   // cały zwrot po 2 razach, następne słowo już po pierwszym (jak Gboard)
                 val w = nx.key.substring(nx.key.lastIndexOf(' ') + 1); phrase.add(w); a = b; b = w
             }
             if (phrase.size >= 2) res.add(0, phrase.joinToString(" "))

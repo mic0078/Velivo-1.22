@@ -461,7 +461,7 @@ namespace VelivoProcesor
                 uint max = t == Tryb.Cichy ? (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100))) : 100;
                 uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 200u : t == Tryb.Turbo ? 0u : 100u;
                 uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
-                uint min = t == Tryb.Turbo ? 30u : 5u;
+                uint min = t == Tryb.Turbo ? 30u : t == Tryb.Cichy ? max : 5u;   // Cichy: zegar stoi na wartości z suwaka (bez schodzenia niżej - wcześniej spadał do 0,8 GHz przy 1,2)
                 // ⚡ reakcja (próg w %, czas w okresach sprawdzania ~30 ms, podnoszenie: 0 stopniowo, 1 o krok, 2 od razu do pełna): Cichy leniwie (ciszej), Turbo od razu;
                 // 🎚 Studio (muzyka): zegar w górę przy najmniejszym obciążeniu, w dół bardzo powoli, wszystkie rdzenie czuwają - bez opóźnień budzenia (trzaski)
                 bool st = StudioProg != null;

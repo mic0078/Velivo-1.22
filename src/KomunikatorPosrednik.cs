@@ -518,6 +518,9 @@ namespace Velivo
             var from = (string)p["id"]; var t = (string)p["t"];
             if (from == null || from.Length != 32 || (_komNetPeer == null && IPAddress.IsLoopback(addr))) return;
             if (KomEvIn(p, t, from, addr)) return;   // 🗄 dziennik zdarzeń moich serwerów
+            if (t == "p2p-ack" || t == "p2p-read") KomStoreAcked(from, p);
+            if (t == "p2p-dlv") { KomStoreAcked((string)p["rid"], p); return; }   // 📬 nadawca ogłasza: odbiorca potwierdził - kopia tutaj zbędna (słyszę nadawcę, skoro słyszałem jego wiadomość)
+            // 📬 odbiorca potwierdza wiadomość nadawcy (słyszę to w domu albo przez innego pośrednika) - kopia w skrzynce zbędna
             if (t == "p2p-admcmd" || t == "p2p-admack") { if (from != _komId && KomFromRelay(addr)) KomAdmIn(p); return; }   // 🛠 polecenie administratora (podpis sprawdza KomAdmIn)
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
             if ((bool?)p["fwd"] == true)
@@ -585,6 +588,19 @@ namespace Velivo
             lock (l) { if (!l.Any(x => (string)x["mid"] == mid)) { l.Add(p.DeepClone()); if (l.Count > 300) l.RemoveAt(0); } }
             KomStoreSave();
             return true;
+        }
+        // 📬 odbiorca potwierdził doręczenie („doręczone” / „przeczytane” do nadawcy) wiadomości, która czeka tu w skrzynce: dostał ją inną drogą
+        // (wprost w domu albo przez inny serwer, z którym ten serwer nie ma łącza) - kopia usuwana tu i na moich serwerach, żeby nie wisiała 30 dni jako „czeka”
+        void KomStoreAcked(string rid, JsonNode p)
+        {
+            if (_komRelayListener == null || rid == null || !_komStore.TryGetValue(rid, out var l)) return;
+            var ms = new HashSet<string>((((string)p["mid"] ?? "") + "," + ((string)p["mids"] ?? "")).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries));
+            if (ms.Count == 0) return;
+            List<string> gone; lock (l) { gone = l.Where(x => ms.Contains((string)x["mid"] ?? "")).Select(x => (string)x["mid"]).ToList(); l.RemoveAll(x => ms.Contains((string)x["mid"] ?? "")); }
+            if (gone.Count == 0) return;
+            KomStoreSave(); KomEvDone(rid, gone);
+            foreach (var m in gone) KomDiag("POTWIERDZONA", "wiadomość", m, KomSrvTag(rid) + " (odbiorca)", KomSrvTag(_komId), "odbiorca potwierdził doręczenie (dostał ją inną drogą) – kopia w skrzynce usunięta");
+            KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = rid, ["mids"] = new JsonArray(gone.Select(m => (JsonNode)m).ToArray()), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
         }
         void KomStoreFlush(string id, KomRemoteConn rc, IPAddress addr)
         {
@@ -894,6 +910,8 @@ namespace Velivo
                     }
                     if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal) || (string)p["id"] != id) continue;   // tylko pakiety tego urzadzenia
                     var pto = (string)p["to"];
+                    if (t == "p2p-ack" || t == "p2p-read") KomStoreAcked(id, p);
+                    if (t == "p2p-dlv") KomStoreAcked((string)p["rid"], p);   // 📬 odbiorca (połączony tutaj) potwierdził wiadomość - kopia w skrzynce zbędna
                     if (t == "p2p-srvid") { if (KomSrvIdIn(id, p)) KomSendFrame(me, KomSrvIdFrame(id)); continue; }   // 🏛 mój serwer przedstawia się certyfikatem
                     if (t == "p2p-srv") { KomSrvIn(id, p["p"]); continue; }   // 🔗 łącze serwerów: mój serwer połączony ze mną przez internet
                     if (t == "p2p-who") { KomSendFrame(me, KomRelayHere()); KomLanRaw(KomFwd(p), null); foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p); continue; }

@@ -413,6 +413,7 @@ namespace Velivo
             _komUdp = null; _komTcp = null; _komCts = null;
         }
 
+        readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _komDlvSent = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();   // „doręczone” ogłoszone (raz na wiadomość)
         void KomSendUdp(JsonObject p, IPAddress to)
         {
             // pośrednik / poza domem: pakiet do urzadzenia za pośrednikiem - tunelem (KomunikatorPosrednik.cs)
@@ -555,6 +556,12 @@ namespace Velivo
                             var f2 = p.DeepClone().AsObject(); f2["sfw"] = true; f2["fwd"] = true;
                             foreach (var pa in KomPeerAddrs()) KomLanRaw(f2, pa);
                             KomSrvNet(f2);
+                        }
+                        if ((bool?)p["fwd"] != true && (bool?)p["sfw"] != true && KomChat(c.Id).Any(x => x.Mine && x.Mid == mid) && _komDlvSent.TryAdd(mid, 0))
+                        {   // 📬 odbiorca ma moją wiadomość - ogłaszam serwerom (raz), żeby skasowały kopie ze skrzynki; serwer, który ją przechował, słyszał mnie, więc usłyszy też to
+                            var dl = KomPacket("p2p-dlv"); dl["rid"] = c.Id; dl["mid"] = mid; KomSendUdp(dl, null);
+                            if (_komRelayListener != null) KomStoreAcked(c.Id, dl);
+                            if (_komDlvSent.Count > 5000) _komDlvSent.Clear();
                         }
                         // ✓✓ szare: plik ze skrzynki 📬 dotarł do odbiorcy
                         foreach (var m in KomChat(c.Id)) if (m.Mine && m.Mid == mid && m.Text.Contains("📬")) { m.Ok = true; m.Text = m.Text.Replace(L.T(" – 📬 czeka na serwerze"), L.T(" – odebrano")); KomSave(); _komRefresh?.Invoke(); }

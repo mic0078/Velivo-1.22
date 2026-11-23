@@ -464,8 +464,9 @@ namespace Velivo
         // interpunkcja: przecinek przed spojnikami i zaimkami wzglednymi (wiem, że...; dom, który...; idę, bo...).
         // Bez przecinka, gdy slowo zaczyna zdanie albo poprzednie slowo to czesc spojnika (mimo że, chyba że, zwłaszcza że)
         // albo spojnik laczacy (i że, a że, oraz że, lub że, czy że, albo że) - tam przecinka nie stawiamy.
-        static readonly HashSet<string> _commaBefore = new HashSet<string> { "że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli", "a", "więc", "zatem", "natomiast", "gdy", "kiedy", "gdzie", "dlaczego", "jakby",
+        static readonly HashSet<string> _commaBefore = new HashSet<string> { "że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli", "a", "więc", "zatem", "natomiast", "gdy", "kiedy", "gdzie", "dlaczego", "jakby", "gdyby", "zanim", "dopóki", "póki", "odkąd", "dokąd", "skąd", "czemu", "jakoby",
             "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
+        static readonly HashSet<string> _poCzasowniku = new HashSet<string> { "jak", "czy", "co", "ile", "kto", "kogo", "komu", "kim", "czym", "czego", "by", "jaki", "jaka", "jakie", "jakim", "jakiego", "jakiej" };
         static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u", "tam", "wtedy", "zawsze", "nawet", "właśnie", "jak", "jakby", "kiedy", "gdy", "gdzie", "dlaczego", "więc", "zatem", "natomiast",
             "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "co", "jak", "niż" };   // bez „to”: „chodzi o to, że”, „to, który”
         // po tych slowach "ze" to prawie zawsze "że" - poprawiamy od razu po spacji (myślę ze -> myślę, że), bez czekania na nastepne slowo
@@ -503,7 +504,8 @@ namespace Velivo
         {
             if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return false;
             var wl = word.ToLowerInvariant(); var pl = prev.ToLowerInvariant();
-            if (wl == "jak") return IsVerbish(pl) && !_noCommaAfter.Contains(pl);   // „nie wiem, jak” - po czasowniku; „taki jak”, „jak najszybciej” - bez przecinka
+            // pytanie zależne po czasowniku: „nie wiem, jak / czy / co / ile / kto”, „chcę, by”; bez czasownika - porównanie albo zwykłe słowo („taki jak”, „ty czy ja”, „co dzień”)
+            if (_poCzasowniku.Contains(wl)) return IsVerbish(pl) && !_noCommaAfter.Contains(pl);
             return _commaBefore.Contains(wl) && !_noCommaAfter.Contains(pl);
         }
 

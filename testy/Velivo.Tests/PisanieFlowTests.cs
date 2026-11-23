@@ -227,6 +227,10 @@ public class PisanieFlowTests
         Assert.True(SwipeTyping.NeedsComma("a", "idę"));          // idę, a ty
         Assert.True(SwipeTyping.NeedsComma("gdzie", "wiem"));     // nie wiem, gdzie
         Assert.False(SwipeTyping.NeedsComma("a", "od"));          // od a do z
+        Assert.True(SwipeTyping.NeedsComma("że", "to"));          // chodzi o to, że
+        Assert.True(SwipeTyping.NeedsComma("ale", "to"));         // to, ale
+        Assert.True(SwipeTyping.NeedsComma("jak", "wiem"));       // nie wiem, jak
+        Assert.False(SwipeTyping.NeedsComma("jak", "taki"));      // taki jak ty
         Assert.False(SwipeTyping.NeedsComma("gdzie", "tam"));     // tam gdzie
         Assert.Equal(", że", SwipeTyping.ZeAsZe("ze", "to", "wiem"));   // wiem ze to -> wiem, że to
         Assert.Null(SwipeTyping.ZeAsZe("ze", "mną", "idź"));           // ze mną - przyimek

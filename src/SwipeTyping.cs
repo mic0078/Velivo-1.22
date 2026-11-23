@@ -467,7 +467,7 @@ namespace Velivo
         static readonly HashSet<string> _commaBefore = new HashSet<string> { "że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli", "a", "więc", "zatem", "natomiast", "gdy", "kiedy", "gdzie", "dlaczego", "jakby",
             "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
         static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u", "tam", "wtedy", "zawsze", "nawet", "właśnie", "jak", "jakby", "kiedy", "gdy", "gdzie", "dlaczego", "więc", "zatem", "natomiast",
-            "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "to", "co", "jak", "niż" };
+            "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "co", "jak", "niż" };   // bez „to”: „chodzi o to, że”, „to, który”
         // po tych slowach "ze" to prawie zawsze "że" - poprawiamy od razu po spacji (myślę ze -> myślę, że), bez czekania na nastepne slowo
         static readonly HashSet<string> _zeHeads = new HashSet<string> { "myślę", "myśli", "myślisz", "myślał", "myślała", "myśleliśmy", "wiem", "wiesz", "wie", "wiemy", "wiedział", "wiedziała",
             "mówię", "mówi", "mówisz", "mówił", "mówiła", "mówią", "powiem", "powiedział", "powiedziała", "powiedziałem", "powiedziałam", "sądzę", "sądzi", "uważam", "uważa", "uważasz",
@@ -502,7 +502,9 @@ namespace Velivo
         internal static bool NeedsComma(string word, string prev)
         {
             if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return false;
-            return _commaBefore.Contains(word.ToLowerInvariant()) && !_noCommaAfter.Contains(prev.ToLowerInvariant());
+            var wl = word.ToLowerInvariant(); var pl = prev.ToLowerInvariant();
+            if (wl == "jak") return IsVerbish(pl) && !_noCommaAfter.Contains(pl);   // „nie wiem, jak” - po czasowniku; „taki jak”, „jak najszybciej” - bez przecinka
+            return _commaBefore.Contains(wl) && !_noCommaAfter.Contains(pl);
         }
 
         // podwojne litery to ten sam klawisz - na sladzie jeden punkt

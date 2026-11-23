@@ -405,7 +405,7 @@ object Slownik {
     private val commaBefore = setOf("że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli", "a", "więc", "zatem", "natomiast", "gdy", "kiedy", "gdzie", "dlaczego", "jakby",
         "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi")
     private val noCommaAfter = setOf("mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u", "tam", "wtedy", "zawsze", "nawet", "właśnie", "jak", "jakby", "kiedy", "gdy", "gdzie", "dlaczego", "więc", "zatem", "natomiast",
-        "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "to", "co", "niż")
+        "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "co", "niż")   // bez „to”: „chodzi o to, że”
     private val zeHeads = setOf("myślę", "myśli", "myślisz", "myślał", "myślała", "myśleliśmy", "wiem", "wiesz", "wie", "wiemy", "wiedział", "wiedziała",
         "mówię", "mówi", "mówisz", "mówił", "mówiła", "mówią", "powiem", "powiedział", "powiedziała", "powiedziałem", "powiedziałam", "sądzę", "sądzi", "uważam", "uważa", "uważasz",
         "czuję", "widzę", "widać", "widzisz", "słyszę", "słyszałem", "słyszałam", "nadzieję", "wydaje", "wydawało", "okazało", "okazuje", "pamiętam", "pamiętaj", "zapomniałem", "zapomniałam",
@@ -434,7 +434,9 @@ object Slownik {
 
     fun needsComma(word: String?, prev: String?): Boolean {
         if (word.isNullOrEmpty() || prev.isNullOrEmpty() || !prev.all { it.isLetter() }) return false
-        return word.lowercase() in commaBefore && prev.lowercase() !in noCommaAfter
+        val wl = word.lowercase(); val pl = prev.lowercase()
+        if (wl == "jak") return isVerbish(pl) && pl !in noCommaAfter   // „nie wiem, jak” - po czasowniku; „taki jak” - bez przecinka
+        return wl in commaBefore && pl !in noCommaAfter
     }
 
     private fun collapse(keys: String): String { val sb = StringBuilder(); for (c in keys) if (sb.isEmpty() || sb.last() != c) sb.append(c); return sb.toString() }

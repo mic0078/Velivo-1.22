@@ -275,43 +275,57 @@ namespace VelivoProcesor
             foreach (Button bb in warnRow1.Children.OfType<Button>().Concat(warnRow2.Children.OfType<Button>())) bb.Margin = new Thickness(6, 0, 0, 0);
             warn.Child = ws; root.Children.Add(warn);
             var why = new Border { Background = B(0x0E, 0x21, 0x40), BorderBrush = B(0x1E, 0x3A, 0x66), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(4) };
-            tWhy = T("", 13, B(0xCF, 0xE3, 0xFF)); why.Child = tWhy; root.Children.Add(why);
+            tWhy = T("", 13, B(0xCF, 0xE3, 0xFF)); tWhy.VerticalAlignment = VerticalAlignment.Center;
+            // 🤖 wejście do okna AI - duży przycisk w pasku decyzji (makieta-velivo-procesor-4.html), własny wygląd i podświetlenie
+            var ai = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(10, 0, 0, 0), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center,
+                Background = new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), Color.FromRgb(0x06, 0xB6, 0xD4), 0), BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(1),
+                Child = new TextBlock { Text = "🤖 Jak myśli AI", Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 13 }, ToolTip = "Głosy, przewidywanie, nauka programów – co i dlaczego wybiera Auto" };
+            ai.MouseEnter += (a, e) => ai.BorderBrush = Brushes.White; ai.MouseLeave += (a, e) => ai.BorderBrush = Brushes.Transparent; ai.MouseLeftButtonUp += (a, e) => OknoAi();
+            why.Padding = new Thickness(12, 6, 6, 6); var wd = new DockPanel(); DockPanel.SetDock(ai, Dock.Right); wd.Children.Add(ai); wd.Children.Add(tWhy); why.Child = wd; root.Children.Add(why);
             // wykres i programy
             var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
-            var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 120, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
+            var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 92, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
             gw.Children.Add(T("procesor w kolorze trybu: zielony Cichy, żółty Zrównoważony, czerwony Turbo · fiolet – tryb wybrany przez Auto (dół Cichy, góra Turbo) · przerywana – temperatura · pionowa kreska – ProBalance", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
             var gp = new StackPanel(); var gh = new DockPanel();
             tAll = T("⤢ Wszystkie", 12, Tq); tAll.Cursor = Cursors.Hand; tAll.ToolTip = "Pełna lista programów – sortowanie i szukanie"; tAll.MouseLeftButtonUp += (a, e) => Wszystkie();
             DockPanel.SetDock(tAll, Dock.Right); gh.Children.Add(tAll);
-            var tAi = T("🤖 AI   ", 12, Tq); tAi.Cursor = Cursors.Hand; tAi.ToolTip = "Jak myśli AI – głosy, przewidywanie, nauka programów"; tAi.MouseLeftButtonUp += (a, e) => OknoAi(); DockPanel.SetDock(tAi, Dock.Right); gh.Children.Add(tAi); gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
+            gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
             lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             var sv = new ScrollViewer { Content = new Border { BorderBrush = Sep, BorderThickness = new Thickness(0, 1, 0, 0), Child = lista }, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            sv.MouseDoubleClick += (a, e) => Wszystkie(); gp.Children.Add(sv);
+            sv.Height = 112; sv.MouseDoubleClick += (a, e) => Wszystkie(); gp.Children.Add(sv);
             gp.Children.Add(T("śr. / szczyt – sam program, % jednego rdzenia · 🎚 Studio · ⬆⬇ priorytet · ⚖✕ bez ProBalance · prawy przycisk – ustawienia", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
             root.Children.Add(g);
             // ustawienia
             var us = new StackPanel(); us.Children.Add(T("⚙ Ustawienia", 13, Fg, FontWeights.SemiBold));
-            var auto = new CheckBox { Content = "Start z Windows (w zasobniku)", Foreground = Fg, IsChecked = Program.Autostart, Margin = new Thickness(0, 6, 0, 0) };
-            auto.Click += (a, e) => Program.Autostart = auto.IsChecked == true; us.Children.Add(auto);
-            pbBox = new CheckBox { Content = "⚖ ProBalance – programy w tle nie przycinają tego, z czym pracujesz", Foreground = Fg, IsChecked = s.Get("probalance", "1") == "1", Margin = new Thickness(0, 6, 0, 0),
+            // dwie kolumny z grupami (makieta-velivo-procesor-4.html): Działanie | Granice
+            var sg = new Grid(); sg.ColumnDefinitions.Add(new ColumnDefinition()); sg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) }); sg.ColumnDefinitions.Add(new ColumnDefinition()); us.Children.Add(sg);
+            var miejsca = new Dictionary<string, (int R, int C, int Span)> { ["g1"] = (0, 0, 3), ["auto"] = (1, 0, 1), ["pbBox"] = (1, 2, 1), ["tPb"] = (2, 2, 1), ["kOst"] = (3, 0, 1), ["kSuw"] = (3, 2, 1), ["cisza"] = (4, 0, 3), ["ciszaB"] = (5, 0, 3), ["g2"] = (6, 0, 3), ["s1"] = (7, 0, 1), ["s2"] = (7, 2, 1), ["dd"] = (8, 0, 1) };
+            for (int i = 0; i < 9; i++) sg.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            int suwN = 0;
+            void Siatka(UIElement e, string k = null) { k = k ?? (++suwN == 1 ? "s1" : "s2"); var m = miejsca[k]; Grid.SetRow(e, m.R); Grid.SetColumn(e, m.C); Grid.SetColumnSpan(e, m.Span); sg.Children.Add(e); }
+            TextBlock Grupa(string t) { var x = T(t, 10.5, Dim); x.Margin = new Thickness(0, 8, 0, 0); return x; }
+            Siatka(Grupa("DZIAŁANIE"), "g1"); Siatka(Grupa("GRANICE"), "g2");
+            var auto = new CheckBox { Content = "Start z Windows", Foreground = Fg, IsChecked = Program.Autostart, Margin = new Thickness(0, 6, 0, 0) };
+            auto.Click += (a, e) => Program.Autostart = auto.IsChecked == true; Siatka(auto, "auto");
+            pbBox = new CheckBox { Content = "⚖ ProBalance – tło nie przycina", Foreground = Fg, IsChecked = s.Get("probalance", "1") == "1", Margin = new Thickness(0, 6, 0, 0),
                 ToolTip = "Gdy procesor jest mocno zajęty, program w tle, który zjada dużo procesora, dostaje na chwilę niższy priorytet. Wraca sam, gdy się uspokoi albo przejdziesz do niego. System, dźwięk i programy Velivo – nigdy." };
-            pbBox.Click += (a, e) => PbUstaw(pbBox.IsChecked == true); us.Children.Add(pbBox);
-            tPb = T("", 11, Dim); tPb.Margin = new Thickness(22, 0, 0, 0); us.Children.Add(tPb);
+            pbBox.Click += (a, e) => PbUstaw(pbBox.IsChecked == true); Siatka(pbBox, "pbBox");
+            tPb = T("", 11, Dim); tPb.Margin = new Thickness(22, 0, 0, 0); Siatka(tPb, "tPb");
             // ⚠ inne programy sterujące procesorem
-            var kOst = new CheckBox { Content = "⚠ Ostrzegaj, gdy działa inny program sterujący procesorem (Armoury Crate, Lenovo Vantage, MSI Center, Dell, Omen, Ryzen Controller, UXTU, ThrottleStop, Intel XTU, Process Lasso, CPU Manager)", Foreground = Fg, IsChecked = s.Get("konflikty-ostrzegaj", "1") == "1", Margin = new Thickness(0, 6, 0, 0) };
+            var kOst = new CheckBox { ToolTip = "Armoury Crate, Lenovo Vantage, MSI Center, Dell, Omen, Ryzen Controller, UXTU, ThrottleStop, Intel XTU, Process Lasso, CPU Manager – dwa programy naraz nadpisują sobie ustawienia", Content = "⚠ Ostrzegaj o innych programach", Foreground = Fg, IsChecked = s.Get("konflikty-ostrzegaj", "1") == "1", Margin = new Thickness(0, 6, 0, 0) };
             ((CheckBox)kOst).Content = new TextBlock { Text = (string)kOst.Content, TextWrapping = TextWrapping.Wrap, Foreground = Fg };
-            kOst.Click += (a, e) => { s.Put("konflikty-ostrzegaj", kOst.IsChecked == true ? "1" : "0"); warnSig = null; Odswiez(); }; us.Children.Add(kOst);
-            var kSuw = new CheckBox { Content = "🎚 Gdy steruje Velivo: suwak „Tryb zasilania” Windows 11 na „Zrównoważony” (po zamknięciu wraca jak był)", Foreground = Fg, IsChecked = s.Get("suwak-w11", "1") == "1", Margin = new Thickness(0, 6, 0, 0),
-                ToolTip = "Suwak Windows 11 zmienia oszczędzanie i boost niezależnie od planu – przy „Najlepsza wydajność” tryb Cichy nie byłby cichy" };
-            kSuw.Click += (a, e) => { s.Put("suwak-w11", kSuw.IsChecked == true ? "1" : "0"); var t1 = s.Get("tryb", "auto"); s.SuwakW11(kSuw.IsChecked == true && t1 != "pauza" && t1 != "windows"); }; us.Children.Add(kSuw);
-            var cisza = T("", 11, Dim); cisza.Margin = new Thickness(22, 2, 0, 0); us.Children.Add(cisza);
-            var ciszaB = Btn("Pokaż znowu wszystkie ostrzeżenia", () => { s.Put("konflikty-cisza", ""); cisza.Text = ""; warnSig = null; Odswiez(); }); ciszaB.HorizontalAlignment = HorizontalAlignment.Left; ciszaB.Margin = new Thickness(22, 2, 0, 0); us.Children.Add(ciszaB);
+            kOst.Click += (a, e) => { s.Put("konflikty-ostrzegaj", kOst.IsChecked == true ? "1" : "0"); warnSig = null; Odswiez(); }; Siatka(kOst, "kOst");
+            var kSuw = new CheckBox { Content = "🎚 Suwak „Tryb zasilania” Windows 11", Foreground = Fg, IsChecked = s.Get("suwak-w11", "1") == "1", Margin = new Thickness(0, 6, 0, 0),
+                ToolTip = "Gdy steruje Velivo: suwak „Tryb zasilania” Windows 11 na „Zrównoważony” (po zamknięciu wraca jak był). Suwak Windows 11 zmienia oszczędzanie i boost niezależnie od planu – przy „Najlepsza wydajność” tryb Cichy nie byłby cichy" };
+            kSuw.Click += (a, e) => { s.Put("suwak-w11", kSuw.IsChecked == true ? "1" : "0"); var t1 = s.Get("tryb", "auto"); s.SuwakW11(kSuw.IsChecked == true && t1 != "pauza" && t1 != "windows"); }; Siatka(kSuw, "kSuw");
+            var cisza = T("", 11, Dim); cisza.Margin = new Thickness(22, 2, 0, 0); Siatka(cisza, "cisza");
+            var ciszaB = Btn("Pokaż znowu wszystkie ostrzeżenia", () => { s.Put("konflikty-cisza", ""); cisza.Text = ""; warnSig = null; Odswiez(); }); ciszaB.HorizontalAlignment = HorizontalAlignment.Left; ciszaB.Margin = new Thickness(22, 2, 0, 0); Siatka(ciszaB, "ciszaB");
             void CiszaPokaz() { var c = (s.Get("konflikty-cisza") ?? "").Trim('|'); cisza.Text = c.Length > 0 ? "Wyciszone ostrzeżenia: " + c.Replace("|", ", ") : ""; ciszaB.Visibility = c.Length > 0 ? Visibility.Visible : Visibility.Collapsed; }
             CiszaPokaz(); win.Activated += (a, e) => CiszaPokaz();
-            us.Children.Add(Suwak("🌙 Najniższy zegar (Cichy stoi na nim, inne tryby nie schodzą niżej)", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
+            Siatka(Suwak("🌙 Najniższy zegar", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Cichy stoi na nim, inne tryby nie schodzą niżej. Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
             // 💡 dioda dysku przy zegarze: który dysk (albo wyłączona)
             var dd = new DockPanel { Margin = new Thickness(0, 6, 0, 0), ToolTip = "Czerwona kropka na ikonie przy zegarze mruga, gdy dysk czyta albo zapisuje (jak dioda w obudowie)" };
-            var dl = T("💡 Dioda dysku przy zegarze", 12, Fg); dl.Width = 260; DockPanel.SetDock(dl, Dock.Left); dd.Children.Add(dl);
+            var dl = T("💡 Dioda dysku", 12, Fg); dl.Width = 120; DockPanel.SetDock(dl, Dock.Left); dd.Children.Add(dl);
             var dc = new ComboBox { Width = 160, HorizontalAlignment = HorizontalAlignment.Left };
             var opcje = new List<(string Klucz, string Nazwa)> { ("*", "Wszystkie dyski") };
             foreach (var di in System.IO.DriveInfo.GetDrives()) { try { if (di.DriveType == System.IO.DriveType.Fixed || di.DriveType == System.IO.DriveType.Removable) opcje.Add((di.Name.Substring(0, 2), di.Name.Substring(0, 2) + (di.IsReady && di.VolumeLabel.Length > 0 ? " " + di.VolumeLabel : ""))); } catch (Exception) { } }
@@ -319,8 +333,8 @@ namespace VelivoProcesor
             foreach (var o in opcje) dc.Items.Add(o.Nazwa);
             dc.SelectedIndex = Math.Max(0, opcje.FindIndex(o => o.Klucz == s.Get("dioda", "*")));
             dc.SelectionChanged += (a, e) => { var k = opcje[Math.Max(0, dc.SelectedIndex)].Klucz; s.Put("dioda", k); dioda.Dysk(k); };
-            dd.Children.Add(dc); us.Children.Add(dd);
-            us.Children.Add(Suwak("🌡 Temperatura graniczna (wtedy Cichy)", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", "Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
+            dd.Children.Add(dc); Siatka(dd, "dd");
+            Siatka(Suwak("🌡 Temperatura graniczna", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", "Powyżej – Cichy. Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
             bAdmin = Btn(s.Amd && s.Ryzen != null ? "🔑 Włącz sterowanie mocą AMD i odczyt temperatury (jedno „Tak” administratora)" : "🔑 Włącz odczyt temperatury (jedno „Tak” administratora)", Program.ZadanieUtworz,
                 "Odczyt czujników (i moc AMD przez RyzenAdj) wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami – bez pytania przy każdym starcie.");
             bAdmin.HorizontalAlignment = HorizontalAlignment.Left; bAdmin.Visibility = Visibility.Collapsed; us.Children.Add(bAdmin);
@@ -333,8 +347,8 @@ namespace VelivoProcesor
         UIElement Suwak(string n, string key, double min, double max, double def, double step, Func<double, string> fmt, string tip)
         {
             var d = new DockPanel { Margin = new Thickness(0, 6, 0, 0), ToolTip = tip };
-            var val = T(fmt(s.GetD(key, def)), 12, Fg); val.Width = 70; DockPanel.SetDock(val, Dock.Right); d.Children.Add(val);
-            var lab = T(n, 12, Fg); lab.Width = 260; DockPanel.SetDock(lab, Dock.Left); d.Children.Add(lab);
+            var val = T(fmt(s.GetD(key, def)), 12, Fg); val.Width = 56; DockPanel.SetDock(val, Dock.Right); d.Children.Add(val);
+            var lab = T(n, 12, Fg); lab.Width = 150; DockPanel.SetDock(lab, Dock.Left); d.Children.Add(lab);
             var sl = new Slider { Minimum = min, Maximum = max, Value = Math.Max(min, Math.Min(max, s.GetD(key, def))), TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             sl.ValueChanged += (a, e) => { val.Text = fmt(sl.Value); s.Put(key, sl.Value); s.Ponow(); if (key == "cichy-ghz" && tCichy != null) tCichy.Text = "do " + sl.Value.ToString("0.0") + " GHz"; };   // nowa wartość od razu (pętla stosuje w ciągu sekundy)
             d.Children.Add(sl); return d;
@@ -350,7 +364,7 @@ namespace VelivoProcesor
             tGhz.Text = p.Ghz > 0 ? p.Ghz.ToString("0.00") + " GHz" : "–";
             bool studio = s.StudioProg != null && tryb != "windows";
             tStan.Text = tryb == "pauza" ? "⏸ wstrzymany" : tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
-            tWhy.Text = "💡 " + s.Dlaczego + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
+            tWhy.Text = "💡 " + s.Dlaczego + (s.Auto && s.Get("tryb") == "auto" ? (s.ZAi ? " · decyduje: AI" : " · decyduje: zasady" + (s.Glosow < 2 ? " (AI jeszcze się uczy – " + s.Glosow + " z 4 głosów)" : "")) : "") + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
             tSub.Text = "  " + s.ProcesorNazwa + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
                 + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak");
             bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;

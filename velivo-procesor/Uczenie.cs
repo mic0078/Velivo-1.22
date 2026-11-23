@@ -30,7 +30,7 @@ namespace VelivoProcesor
             double nach = (bufor[(bufPos - 1 + bufor.Length) % bufor.Length] - stare) / Math.Max(1, bufN - 1);
             return Math.Max(0, Math.Min(100, s10 / 10 + nach * 5));
         }
-        readonly double[] wynik = new double[3]; double ostPrz;   // bez nowych obiektów co sekundę
+        readonly double[] wynik = new double[3]; double ostPrz; public int Glosow; public bool ZAi;   // do paska decyzji: ile głosów ma zdanie, czy decydowało AI   // bez nowych obiektów co sekundę
         // opis słowami - tylko gdy głosowanie decyduje
         string GlosOpis(string prog, Tryb w)
         {
@@ -55,7 +55,7 @@ namespace VelivoProcesor
             ostGlos[GPora] = tydzienN[(int)d.DayOfWeek, d.Hour] > 600 ? Prog(tydzien[(int)d.DayOfWeek, d.Hour]) : -1;
             Array.Clear(wynik, 0, 3); int glosow = 0, naTurbo = 0;
             for (int i = 0; i < GLiczba; i++) if (ostGlos[i] >= 0) { wynik[ostGlos[i]] += trafnosc[i]; glosow++; if (ostGlos[i] == 2) naTurbo++; }
-            if (glosow < 2) return null;   // za mało wiedzy - decydują zwykłe zasady
+            Glosow = glosow; if (glosow < 2) return null;   // za mało wiedzy - decydują zwykłe zasady
             int w = wynik[0] >= wynik[1] && wynik[0] >= wynik[2] * 0.9 ? 0 : wynik[2] > wynik[1] && naTurbo >= 2 ? 2 : 1;   // przy remisie cichszy, Turbo co najmniej 2 głosy
             ostPrz = prz; return (Tryb)w;
         }

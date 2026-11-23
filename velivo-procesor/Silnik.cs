@@ -323,7 +323,7 @@ namespace VelivoProcesor
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
             wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;
             Tryb chce; string why; bool reczny = false, goraco = false;
-            var glos = Glosuj(p);   // zawsze (przewidywanie i trafność uczą się co sekundę)
+            var glos = Glosuj(p); ZAi = false;   // zawsze (przewidywanie i trafność uczą się co sekundę)
             Procesy();
             // 💽 dysk pracuje (kopiowanie, instalacja, wczytywanie): ponad 15 MB/s albo 2+ operacje w kolejce, dłużej niż 3 s; trzymane jeszcze 5 s po końcu
             bool dyskRuch = p.DyskMBs > 15 || p.DyskKol >= 2; dyskN = dyskRuch ? dyskN + 1 : 0;
@@ -345,7 +345,7 @@ namespace VelivoProcesor
             // 4. duże obciążenie - od razu w górę (pół sekundy wystarczy, bez przycięć)
             else if (wysokoN >= 1) { gpuBound = false; chce = Tryb.Turbo; why = "Duże obciążenie (" + p.Cpu.ToString("0") + " %) – pełna moc od razu."; }
             // 5. 🤖 głosowanie: nauka skutków (Q), profil programu, przewidywanie obciążenia, pora dnia - wagi z trafności
-            else if (glos != null) { gpuBound = false; chce = glos.Value; why = GlosOpis(p.Program, chce); }
+            else if (glos != null) { gpuBound = false; ZAi = true; chce = glos.Value; why = GlosOpis(p.Program, chce); }
             // 5. ręcznie przypisany / wyuczony program
             else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas

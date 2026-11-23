@@ -563,12 +563,24 @@ namespace VelivoProcesor
                 Zapamietaj(s, w.Select(x => (x.Item1, x.Item2)));   // ⚠ do wykrywania obcych zmian
                 lock (zapisy) { foreach (var (g, va, vd) in w) zapisy[g] = (va, vd); zapisyZmiana = true; }   // ↺ co Velivo zmieniło (przywracanie transakcyjne)
                 if (err != 0) Blad = "Windows nie przyjął części ustawień zasilania (kod " + err + ").";
+                // 🛟 awaria: 3 razy z rzędu Windows odrzuca ustawienia - przestaję sterować (ustawienia Windows), zamiast próbować na siłę
+                bladZasilN = err != 0 ? bladZasilN + 1 : 0;
+                if (bladZasilN >= 3) { bladZasilN = 0; Put("tryb", "windows"); PrzywrocWindows();   // tylko to, co zmieniło Velivo (przywracanie transakcyjne)
+                     Blad = "Windows 3 razy odrzucił ustawienia zasilania – Velivo przestało sterować, działa zarządzanie Windows. Wybierz tryb, aby spróbować znowu."; return; }
             }
             catch (Exception ex) { Blad = ex.Message; }
-            if (RyzenDziala) { var m = MocAmd(t); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }
+            if (RyzenDziala) { var m = MocAmd(t); var ro = RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); RyzenSprawdz(ro); }
             zastosowany = true;
         }
 
+        // 🛟 RyzenAdj 3 razy z rzędu bez powodzenia - wyłączony (moc AMD zostaje fabryczna), zamiast wołać go przy każdej zmianie trybu
+        int bladZasilN, bladRyzenN;
+        void RyzenSprawdz(List<string> o)
+        {
+            bool zle = o.Count == 0 || o.Any(l => l.IndexOf("unable", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("fail", StringComparison.OrdinalIgnoreCase) >= 0);
+            bladRyzenN = zle ? bladRyzenN + 1 : 0;
+            if (bladRyzenN >= 3) { RyzenDziala = false; bladRyzenN = 0; Blad = "RyzenAdj przestał odpowiadać – wyłączony do ponownego uruchomienia programu; moc AMD jak ustawił producent, reszta sterowania działa."; }
+        }
         public void SprawdzRyzen()
         {
             RyzenDziala = false;

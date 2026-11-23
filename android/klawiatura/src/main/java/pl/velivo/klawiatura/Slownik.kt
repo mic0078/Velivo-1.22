@@ -180,6 +180,8 @@ object Slownik {
     }
 
     // autokorekta: słowo spoza słownika -> najczęstsze znane słowo różniące się polskimi znakami albo jedną literą; null = zostaw
+    @Volatile var lang = "pl"
+    private val enFix = mapOf("dont" to "don\'t", "doesnt" to "doesn\'t", "didnt" to "didn\'t", "cant" to "can\'t", "wont" to "won\'t", "isnt" to "isn\'t", "arent" to "aren\'t", "wasnt" to "wasn\'t", "werent" to "weren\'t", "havent" to "haven\'t", "hasnt" to "hasn\'t", "hadnt" to "hadn\'t", "couldnt" to "couldn\'t", "shouldnt" to "shouldn\'t", "wouldnt" to "wouldn\'t", "mustnt" to "mustn\'t", "neednt" to "needn\'t", "im" to "I\'m", "ive" to "I\'ve", "youre" to "you\'re", "youve" to "you\'ve", "youll" to "you\'ll", "youd" to "you\'d", "theyre" to "they\'re", "theyve" to "they\'ve", "theyll" to "they\'ll", "weve" to "we\'ve", "thats" to "that\'s", "whats" to "what\'s", "wheres" to "where\'s", "whos" to "who\'s", "theres" to "there\'s", "heres" to "here\'s", "hes" to "he\'s", "shes" to "she\'s", "lets" to "let\'s", "itll" to "it\'ll", "thatll" to "that\'ll", "wouldve" to "would\'ve", "couldve" to "could\'ve", "shouldve" to "should\'ve", "aint" to "ain\'t", "yall" to "y\'all")
     fun correct(typed: String, keep: Collection<String>? = null, anyRank: Boolean = false, split: Boolean = true): String? {
         if (words == null || typed.length < 2 || !typed.all { it.isLetter() }) return null
         if (!index()) return null
@@ -187,6 +189,7 @@ object Slownik {
         if (keep != null && w in keep) return null
         val f = fold!!; val m = main!!
         val poprawne = w in m || full?.known(w) == true   // poprawne słowo (taka, moja, wola, kanapa) nigdy nie zmieniane przez zapamiętaną poprawkę
+        if (lang == "en") enFix[w]?.let { return if (it[0] == 'I') it else cap(typed, it) }   // 🇬🇧 skróty z apostrofem (dont -> don't, im -> I'm)
         if (!poprawne) synchronized(myFix) { myFix[w] }?.let { return cap(typed, it) }
         if (w !in m && runCatching { useCount?.invoke(w) ?: 0 }.getOrDefault(0) >= 3) return null   // często pisane przez użytkownika (nazwisko, miejsce, termin) - zostaje
         if (w == "ze") return null

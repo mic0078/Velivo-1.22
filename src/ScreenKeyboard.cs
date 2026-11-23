@@ -109,7 +109,7 @@ namespace Velivo
                     }
                     try { File.Delete(Path.Combine(DataDir, "klawiatura-slowa.txt")); } catch (Exception) { }   // dawny jawny plik - nauka od nowa, juz zaszyfrowana
                     var own = new HashSet<string>(); var learned = SwipeTyping.LoadLearned(SwipeFile, own);
-                    SwipeTyping.Load(words);
+                    SwipeTyping.Load(words); SwipeTyping.Lang = lang;
                     // 📖 pełny słownik polski (Hunspell sjp.pl) - każda odmiana; wczytywany w tle po liście częstych słów (klawiatura działa od razu)
                     SwipeTyping.Full = null;
                     if (lang == "pl")
@@ -736,6 +736,7 @@ namespace Velivo
             if (ze != null) prevW = "że";
             _pPrevWord2 = sep == ' ' ? prevW : null;
             if (_physStale) { SentAdd(word, sep, false, null, false); PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
+            if (word == "i" && SwipeTyping.Lang == "en" && !_physStale) { SentAdd("I", sep, false, null, true); PhysPred(null, false); Inject(KeyIn(0x08, '\0').Concat(TextIn("I" + sep))); return true; }   // 🇬🇧 i -> I
             if (word.Length < 2 && ze == null && !zeBack && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
             _physPrev = prevSpace ? prevW : null;   // kontekst: poprzednie slowo (to pewni -> to pewnie)
             var fix = word.Length >= 2 && word.ToLowerInvariant() != _pNoFix ? corr(word) : null;

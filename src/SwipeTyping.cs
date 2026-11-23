@@ -206,6 +206,7 @@ namespace Velivo
             }
             bool poprawne = main.Contains(w) || Full is Hunspell fullP && fullP.Known(w);   // poprawne słowo (taka, moja, wola, kanapa) nigdy nie zmieniane przez zapamiętaną poprawkę
             lock (_myFix) if (!poprawne && _myFix.TryGetValue(w, out var mf)) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(mf[0]) + mf.Substring(1) : mf;   // Twoja poprawka (skasowane i wpisane od nowa)
+            if (Lang == "en" && _enFix.TryGetValue(w, out var ef)) return char.IsUpper(typed[0]) && ef[0] != 'I' ? char.ToUpperInvariant(ef[0]) + ef.Substring(1) : ef;
             if (w == "ze") return null;
             if (_polite.Contains(w)) return typed[0] == char.ToUpperInvariant(typed[0]) ? null : Polite(w);   // ty -> Ty   // ze / że - rozstrzyga nastepne slowo (ZeAsZe): ze mną, że to
             // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
@@ -433,6 +434,9 @@ namespace Velivo
         }
 
         // czeste bledy w pisowni stalych zwrotow (klucz bez polskich znakow)
+        // 🇬🇧 angielski (tylko klawiatura po angielsku - po polsku „im” to zwykłe słowo): skróty z apostrofem i duże „I”
+        internal static volatile string Lang = "pl";
+        static readonly Dictionary<string, string> _enFix = new Dictionary<string, string> { { "dont", "don't" }, { "doesnt", "doesn't" }, { "didnt", "didn't" }, { "cant", "can't" }, { "wont", "won't" }, { "isnt", "isn't" }, { "arent", "aren't" }, { "wasnt", "wasn't" }, { "werent", "weren't" }, { "havent", "haven't" }, { "hasnt", "hasn't" }, { "hadnt", "hadn't" }, { "couldnt", "couldn't" }, { "shouldnt", "shouldn't" }, { "wouldnt", "wouldn't" }, { "mustnt", "mustn't" }, { "neednt", "needn't" }, { "im", "I'm" }, { "ive", "I've" }, { "youre", "you're" }, { "youve", "you've" }, { "youll", "you'll" }, { "youd", "you'd" }, { "theyre", "they're" }, { "theyve", "they've" }, { "theyll", "they'll" }, { "weve", "we've" }, { "thats", "that's" }, { "whats", "what's" }, { "wheres", "where's" }, { "whos", "who's" }, { "theres", "there's" }, { "heres", "here's" }, { "hes", "he's" }, { "shes", "she's" }, { "lets", "let's" }, { "itll", "it'll" }, { "thatll", "that'll" }, { "wouldve", "would've" }, { "couldve", "could've" }, { "shouldve", "should've" }, { "aint", "ain't" }, { "yall", "y'all" } };
         static readonly Dictionary<string, string> _phraseFix = new Dictionary<string, string> {
             ["napewno"] = "na pewno", ["narazie"] = "na razie", ["wogole"] = "w ogóle", ["poprostu"] = "po prostu", ["naprzyklad"] = "na przykład",
             ["conajmniej"] = "co najmniej", ["conajwyzej"] = "co najwyżej", ["spowrotem"] = "z powrotem", ["zpowrotem"] = "z powrotem", ["wkoncu"] = "w końcu",

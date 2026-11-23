@@ -98,7 +98,7 @@ class KlawiaturaVelivo : InputMethodService() {
                         val have = words.toHashSet(); val add = extra.map { it.trim() }.filter { it.isNotEmpty() && have.add(it) }
                         words.addAll(min(5000, words.size), add)
                     }
-                    Slownik.load(words)
+                    Slownik.load(words); Slownik.lang = l
                     // 📖 pełny słownik polski (Hunspell sjp.pl) - każda odmiana; w tle po liście częstych słów (klawiatura działa od razu)
                     Slownik.full = null
                     if (l == "pl") runCatching {

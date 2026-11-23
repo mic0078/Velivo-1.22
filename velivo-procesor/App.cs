@@ -107,7 +107,7 @@ namespace VelivoProcesor
             {
                 try
                 {
-                    var p = s.Zmierz(); var t = s.Decyduj(p); ost = p;
+                    var p = s.Zmierz(); p.ProgCpu = pb.RdzenProcesu(p.Pid); var t = s.Decyduj(p); ost = p;
                     if (++petlaN % 2 == 0) pb.Krok(s.Get("probalance", "1") == "1", p.Cpu, p.Pid, s.PriorytetDla, s.BezPbDla);
                     // 🎚 Studio: komputer i ekran nie zasną, dopóki działa program w trybie Studio (wołane z tego samego, stałego wątku)
                     bool st = s.StudioProg != null && s.Get("tryb") != "windows";
@@ -267,7 +267,7 @@ namespace VelivoProcesor
             lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             var sv = new ScrollViewer { Content = new Border { BorderBrush = Sep, BorderThickness = new Thickness(0, 1, 0, 0), Child = lista }, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             sv.MouseDoubleClick += (a, e) => Wszystkie(); gp.Children.Add(sv);
-            gp.Children.Add(T("śr. / szczyt procesora · 🎚 Studio · ⬆⬇ priorytet · ⚖✕ bez ProBalance · prawy przycisk – ustawienia", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
+            gp.Children.Add(T("śr. / szczyt – sam program, % jednego rdzenia · 🎚 Studio · ⬆⬇ priorytet · ⚖✕ bez ProBalance · prawy przycisk – ustawienia", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
             root.Children.Add(g);
             // ustawienia
             var us = new StackPanel(); us.Children.Add(T("⚙ Ustawienia", 13, Fg, FontWeights.SemiBold));

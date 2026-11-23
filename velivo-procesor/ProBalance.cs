@@ -27,7 +27,7 @@ namespace VelivoProcesor
         { "Idle", "System", "Registry", "smss", "csrss", "wininit", "winlogon", "services", "lsass", "svchost", "dwm", "explorer", "audiodg", "fontdrvhost", "ctfmon",
           "MsMpEng", "SearchHost", "ShellExperienceHost", "StartMenuExperienceHost", "TextInputHost", "sihost", "taskhostw", "RuntimeBroker", "vlc", "obs64", "obs32" };
 
-        sealed class Proc { public IntPtr H; public string Name; public long Czas; public int Wysoko, Spokoj; public bool Obnizony, Eco; public uint Profil, Oryg; }
+        sealed class Proc { public IntPtr H; public string Name; public long Czas; public int Wysoko, Spokoj; public bool Obnizony, Eco; public uint Profil, Oryg; public double Ost = -1; }
         readonly Dictionary<int, Proc> procs = new Dictionary<int, Proc>();
         readonly int rdzenie = Environment.ProcessorCount; long ostTick; int spokojCalosc;
         public string Opis = ""; public int Liczba;   // co teraz robi - słowami do okna; ile programów w tle uspokojonych (wykres)
@@ -60,7 +60,7 @@ namespace VelivoProcesor
                     }
                     else if (x.Profil != 0) { if (GetPriorityClass(x.H) == x.Profil) SetPriorityClass(x.H, x.Oryg == 0 ? Normal : x.Oryg); x.Profil = 0; }
                     if (!GetProcessTimes(x.H, out _, out _, out var k, out var u)) continue;
-                    long t = k + u; double proc = dt > 0 && x.Czas > 0 ? (t - x.Czas) / 1e7 / dt / rdzenie * 100 : 0; x.Czas = t;   // % całego procesora
+                    long t = k + u; double proc = dt > 0 && x.Czas > 0 ? (t - x.Czas) / 1e7 / dt / rdzenie * 100 : 0; x.Czas = t; if (dt > 0) x.Ost = proc;   // % całego procesora
                     if (!wlaczony || chce != 0 || bezPb(n)) { if (x.Obnizony) Przywroc(x); continue; }
                     bool tlo = id != fg;
                     if (x.Obnizony)
@@ -82,6 +82,9 @@ namespace VelivoProcesor
             Opis = !wlaczony ? "wyłączony" : nazwy.Count == 0 ? "czuwa – nic nie przeszkadza"
                 : "w tle uspokojone: " + string.Join(", ", nazwy.Take(4)) + (nazwy.Count > 4 ? " i " + (nazwy.Count - 4) + " inne" : "") + (ob.Any(x => x.Eco) ? " (tryb wydajności Windows + niższy priorytet)" : " (niższy priorytet)");
         }
+
+        // 🎓 do nauki programów: obciążenie samego procesu na wierzchu w % jednego rdzenia (program liczący jednym wątkiem = 100 % - jemu też pomaga Turbo); -1 = nieznane
+        public double RdzenProcesu(int pid) => procs.TryGetValue(pid, out var x) && x.Ost >= 0 ? Math.Min(100, x.Ost * rdzenie) : -1;
 
         // tryb wydajności Windows 11 (EcoQoS): włączony = niższy zegar dla programu; wyłączony = Windows decyduje jak zwykle. Windows 10 - nic (zostaje sam priorytet)
         static bool Eco(IntPtr h, bool on)

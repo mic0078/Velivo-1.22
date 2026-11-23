@@ -15,7 +15,7 @@ namespace VelivoProcesor
 
     sealed class Pomiar
     {
-        public double Cpu, Gpu = -1, Temp = -1, Dysk, DyskMBs, DyskKol, Ghz; public string Program = ""; public int Pid; public bool Bateria;
+        public double Cpu, Gpu = -1, Temp = -1, Dysk, DyskMBs, DyskKol, Ghz; public string Program = ""; public int Pid; public double ProgCpu = -1; public bool Bateria;
     }
 
     sealed class Silnik
@@ -262,8 +262,9 @@ namespace VelivoProcesor
                 lock (programy)
                 {
                     programy.TryGetValue(p.Program, out var v); int n = Math.Min(v.N + 1, 600);   // średnia z ok. 10 min pracy (starsze wygasa)
-                    double sz = p.Cpu > v.Szczyt ? v.Szczyt + (p.Cpu - v.Szczyt) * 0.2 : v.Szczyt - (v.Szczyt - p.Cpu) / 300;   // szczyt: szybko w górę, powoli w dół (ok. 5 min)
-                    programy[p.Program] = (v.Cpu + (p.Cpu - v.Cpu) / n, v.Gpu + (Math.Max(0, p.Gpu) - v.Gpu) / n, v.N + 1, sz);
+                    double c = p.ProgCpu >= 0 ? p.ProgCpu : p.Cpu;   // obciążenie SAMEGO programu (% jednego rdzenia, z ProBalance); nieznane - całego komputera jak dotąd
+                    double sz = c > v.Szczyt ? v.Szczyt + (c - v.Szczyt) * 0.2 : v.Szczyt - (v.Szczyt - c) / 300;   // szczyt: szybko w górę, powoli w dół (ok. 5 min)
+                    programy[p.Program] = (v.Cpu + (c - v.Cpu) / n, v.Gpu + (Math.Max(0, p.Gpu) - v.Gpu) / n, v.N + 1, sz);
                 }
             int h = DateTime.Now.Hour; int hn = Math.Min(++godzN[h], 3600); godziny[h] += (p.Cpu - godziny[h]) / hn;
             if ((DateTime.UtcNow - naukaZapis).TotalMinutes > 5) { naukaZapis = DateTime.UtcNow; ZapiszNauke(); }

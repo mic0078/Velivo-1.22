@@ -46,6 +46,7 @@ namespace Velivo
             _serwerTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
             _serwerTm.Tick += (s, e) => SerwerSkanuj(false);
             _serwerTm.Start();
+            NetSerwerStart();   // 🌍 filmy przez internet (gdy włączone)
             Dispatcher.BeginInvoke(new Action(() => SerwerSkanuj(false)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
@@ -226,6 +227,38 @@ namespace Velivo
             var jf = new CheckBox { Content = STxt(L.T("Udostępniaj też filmy z Jellyfin"), 13), IsChecked = GetPref("serwer-jellyfin") == "1", Foreground = SFg };
             jf.Click += (s, e) => { SetPref("serwer-jellyfin", jf.IsChecked == true ? "1" : "0"); _sharedCache = null; };
             left.Children.Add(auto); left.Children.Add(jf);
+            // 🌍 dostęp przez internet - jak Jellyfin: adres domu + hasło serwera
+            var net = STxt(L.T("🌍 Dostęp przez internet"), 14.5, null, true); net.Margin = new Thickness(0, 18, 0, 6); left.Children.Add(net);
+            left.Children.Add(STxt(L.T("Oglądaj swoje filmy poza domem (komputer, telefon): wpisz tam adres domu z portem ") + NetFilmPort + L.T(" i hasło serwera. Wszystko szyfrowane."), 12, SDim));
+            var netOn = new CheckBox { Content = STxt(L.T("Udostępniaj moje filmy przez internet"), 13), IsChecked = NetWlaczony, Foreground = SFg, Margin = new Thickness(0, 6, 0, 4) };
+            var netSt = STxt("", 12, SDim); netSt.TextWrapping = TextWrapping.Wrap;
+            var hRow = new DockPanel { Margin = new Thickness(0, 4, 0, 4) };
+            var hLbl = STxt(L.T("Hasło serwera:"), 13); hLbl.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(hLbl, Dock.Left); hRow.Children.Add(hLbl);
+            var haslo = new TextBox { Text = NetHaslo ?? "", Background = SField, Foreground = SFg, CaretBrush = SFg, BorderBrush = SLine, Padding = new Thickness(6, 3, 6, 3), ToolTip = L.T("Hasło, które wpisujesz na telefonie lub komputerze poza domem") };
+            hRow.Children.Add(haslo);
+            haslo.LostFocus += (s, e) => NetHaslo = haslo.Text;
+            var devs = new StackPanel();
+            Action netFill = null;
+            netFill = () =>
+            {
+                netSt.Text = (NetWlaczony ? "● " : "○ ") + (NetStan.Length > 0 ? NetStan : L.T("wyłączony")) + (NetWlaczony && string.IsNullOrEmpty(NetHaslo) ? L.T(" – ustaw hasło") : "");
+                devs.Children.Clear();
+                var lista = NetUrzadzenia();
+                if (lista.Count == 0) devs.Children.Add(STxt(L.T("Jeszcze nikt się nie zalogował."), 12, SDim));
+                foreach (var d in lista)
+                {
+                    var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
+                    var id = d.Id; var od = SBtnMake(L.T("Odłącz"), () => { NetOdlacz(id); netFill(); }); od.Margin = new Thickness(6, 0, 0, 0); od.ToolTip = L.T("Odetnij to urządzenie od razu (zaloguje się znowu tylko z hasłem)");
+                    DockPanel.SetDock(od, Dock.Right); row.Children.Add(od);
+                    row.Children.Add(STxt(d.Name + " · " + DateTimeOffset.FromUnixTimeMilliseconds(d.Seen).LocalDateTime.ToString("d.MM HH:mm"), 12.5));
+                    devs.Children.Add(row);
+                }
+            };
+            netOn.Click += (s, e) => { if (netOn.IsChecked == true && string.IsNullOrWhiteSpace(haslo.Text)) haslo.Text = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)).Replace("/", "x").Replace("+", "y"); NetHaslo = haslo.Text; SetPref("serwer-net", netOn.IsChecked == true ? "1" : "0"); NetSerwerStart(); netFill(); };
+            left.Children.Add(netOn); left.Children.Add(hRow); left.Children.Add(netSt);
+            var dl = STxt(L.T("📱 Zalogowane urządzenia"), 13, null, true); dl.Margin = new Thickness(0, 10, 0, 4); left.Children.Add(dl); left.Children.Add(devs);
+            netFill();
+            var netTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; netTm.Tick += (s, e) => netFill(); netTm.Start(); w.Closed += (s, e) => { netTm.Stop(); NetHaslo = haslo.Text; };
             // prawa: filmy serwera
             var right = new DockPanel(); Grid.SetColumn(right, 2); grid.Children.Add(right);
             var rHead = STxt("", 14.5, null, true); DockPanel.SetDock(rHead, Dock.Top); right.Children.Add(rHead);

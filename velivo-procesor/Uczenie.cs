@@ -38,7 +38,18 @@ namespace VelivoProcesor
             for (int i = 0; i < GLiczba; i++) if (ostGlos[i] == (int)w) za += (za.Length > 0 ? ", " : "") + GNazwy[i] + " " + (trafnosc[i] * 100).ToString("0") + "%";
             return (string.IsNullOrEmpty(prog) ? "" : prog + " – ") + "głosowanie: " + Nazwa(w) + " (" + za + "; przewiduję " + ostPrz.ToString("0") + " %).";
         }
-        int Prog(double cpu) => cpu > ProgWysoki ? 2 : cpu < ProgNiski ? 0 : 1;
+        // próg z histerezą (jak termostat): zmiana głosu dopiero 4 punkty za progiem - obciążenie krążące wokół progu nie przełącza trybu co chwilę
+        int Prog(double cpu, int bylo)
+        {
+            const double H = 4;
+            int teraz = cpu > ProgWysoki ? 2 : cpu < ProgNiski ? 0 : 1;
+            if (bylo < 0 || teraz == bylo) return teraz;
+            if (bylo == 0 && teraz == 1 && cpu < ProgNiski + H) return 0;
+            if (bylo == 1 && teraz == 0 && cpu > ProgNiski - H) return 1;
+            if (bylo == 2 && teraz == 1 && cpu > ProgWysoki - H) return 2;
+            if (bylo == 1 && teraz == 2 && cpu < ProgWysoki + H) return 1;
+            return teraz;
+        }
 
         // głosowanie; null = żaden głos nie ma zdania
         Tryb? Glosuj(Pomiar p)
@@ -51,8 +62,8 @@ namespace VelivoProcesor
             var d = DateTime.Now;
             ostGlos[GQ] = Oceniony(p.Program, out var q) ? (int)q : -1;
             ostGlos[GProg] = ZnanyProgram(p.Program, out var v) && v.N >= 30 ? (int)Wyuczony(v) : -1;
-            ostGlos[GTrend] = bufN >= 10 ? Prog(prz) : -1;
-            ostGlos[GPora] = tydzienN[(int)d.DayOfWeek, d.Hour] > 600 ? Prog(tydzien[(int)d.DayOfWeek, d.Hour]) : -1;
+            ostGlos[GTrend] = bufN >= 10 ? Prog(prz, ostGlos[GTrend]) : -1;
+            ostGlos[GPora] = tydzienN[(int)d.DayOfWeek, d.Hour] > 600 ? Prog(tydzien[(int)d.DayOfWeek, d.Hour], ostGlos[GPora]) : -1;
             Array.Clear(wynik, 0, 3); int glosow = 0, naTurbo = 0;
             for (int i = 0; i < GLiczba; i++) if (ostGlos[i] >= 0) { wynik[ostGlos[i]] += trafnosc[i]; glosow++; if (ostGlos[i] == 2) naTurbo++; }
             Glosow = glosow; if (glosow < 2) return null;   // za mało wiedzy - decydują zwykłe zasady

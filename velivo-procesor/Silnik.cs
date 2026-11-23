@@ -197,13 +197,13 @@ namespace VelivoProcesor
                 foreach (var l in File.ReadAllLines(NaukaFile))
                 {
                     var a = l.Split('\t');
-                    if (a[0] == "P" && a.Length >= 5 && !Powloka.Contains(a[1])) programy[a[1]] = (double.Parse(a[2], Inv), double.Parse(a[3], Inv), int.Parse(a[4]), a.Length >= 6 ? double.Parse(a[5], Inv) : double.Parse(a[2], Inv));
+                    if (a[0] == "P" && a.Length >= 5 && !Powloka.Contains(a[1]) && !Obserwacja.Contains(a[1])) programy[a[1]] = (double.Parse(a[2], Inv), double.Parse(a[3], Inv), int.Parse(a[4]), a.Length >= 6 ? double.Parse(a[5], Inv) : double.Parse(a[2], Inv));
                     else if (a[0] == "H" && a.Length >= 4) { int h = int.Parse(a[1]); godziny[h] = double.Parse(a[2], Inv); godzN[h] = int.Parse(a[3]); }
                     else if (a[0] == "R" && a.Length >= 3) Reczne[a[1]] = (Tryb)int.Parse(a[2]);
                     else if (a[0] == "Q" && a.Length >= 3) Priorytet[a[1]] = int.Parse(a[2]);
                     else if (a[0] == "S" && a.Length >= 2) Studio.Add(a[1]);
                     else if (a[0] == "B" && a.Length >= 2) BezPb.Add(a[1]);
-                    else if (a[0] == "A" && a.Length >= 6) ocena[a[1]] = (new[] { double.Parse(a[2], Inv), double.Parse(a[3], Inv), double.Parse(a[4], Inv) }, int.Parse(a[5]));
+                    else if (a[0] == "A" && a.Length >= 6 && !Obserwacja.Contains(a[1])) ocena[a[1]] = (new[] { double.Parse(a[2], Inv), double.Parse(a[3], Inv), double.Parse(a[4], Inv) }, int.Parse(a[5]));
                     else if (a[0] == "T" && a.Length >= 3) { ProgWysoki = double.Parse(a[1], Inv); ProgNiski = double.Parse(a[2], Inv); }
                 }
             }
@@ -311,8 +311,12 @@ namespace VelivoProcesor
         int przycieciaN, nadmiarN;   // do samodostrajania progów
         int dyskN; DateTime dyskDo;
 
+        // okna, na które tylko patrzysz (Velivo Procesor, okno AI, Menedżer zadań, Monitor) - nie uczą i nie decydują; liczy się program pod spodem
+        static readonly HashSet<string> Obserwacja = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "VelivoProcesor", "VelivoMonitor", "VelivoCentrum", "Taskmgr", "perfmon", "resmon", "OpenHardwareMonitor", "LibreHardwareMonitor", "HWiNFO64", "HWiNFO32" };
+        string ostProgram = "";
         public Tryb Decyduj(Pomiar p)
         {
+            if (Obserwacja.Contains(p.Program ?? "")) { p.Program = ostProgram; p.ProgCpu = -1; } else ostProgram = p.Program ?? "";
             Ucz(p);
             StudioCzynne(p);
             if (Get("tryb") == "pauza") { Dlaczego = "Wstrzymany – steruje inny program. Velivo Procesor tylko mierzy i pokazuje (ProBalance też wstrzymany). Wybierz tryb, aby znów sterował."; return Obecny; }

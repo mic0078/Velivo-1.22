@@ -33,12 +33,12 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 pl.TFull=Pełny – wszystkie programy Velivo
 en.TFull=Full – all Velivo programs
-pl.TTyp=Typowy – Velivo z filmami, dźwiękiem i monitorem
-en.TTyp=Typical – Velivo with movies, sound and monitor
+pl.TTyp=Typowy – programy do codziennej pracy (bez Kursorów i Serwera filmów)
+en.TTyp=Typical – everyday programs (without Cursors and Movie server)
 pl.TOwn=Własny – wybierz sam
 en.TOwn=Custom – choose yourself
-pl.CVelivo=Velivo (przeglądarka, komunikator, klawiatura, Pilot)
-en.CVelivo=Velivo (browser, messenger, keyboard, Remote)
+pl.CVelivo=Velivo wszystko w jednym (zamiast osobnych programów – zwykle niepotrzebne)
+en.CVelivo=Velivo all-in-one (instead of separate programs – usually not needed)
 pl.CPlayer=Odtwarzacz filmów
 en.CPlayer=Video player
 pl.CIptv=Telewizja IPTV
@@ -53,8 +53,8 @@ pl.CProc=Velivo Procesor (cicho, wydajnie – sam dobiera moc procesora)
 en.CProc=Velivo Processor (quiet, efficient – adjusts CPU power itself)
 pl.CCen=Velivo Centrum (wszystkie programy w jednym miejscu)
 en.CCen=Velivo Centre (all programs in one place)
-pl.CSep=Osobne programy (każdy działa sam, bez Velivo)
-en.CSep=Separate programs (each works on its own, without Velivo)
+pl.CSep=Programy Velivo (każdy działa sam)
+en.CSep=Velivo programs (each works on its own)
 pl.COdt=Velivo Odtwarzacz (sam odtwarzacz)
 en.COdt=Velivo Player (player only)
 pl.CPrz=Velivo Przeglądarka (sama przeglądarka)
@@ -76,19 +76,19 @@ Name: "typowy"; Description: "{cm:TTyp}"
 Name: "wlasny"; Description: "{cm:TOwn}"; Flags: iscustom
 
 [Components]
-Name: "velivo"; Description: "{cm:CVelivo}"; Types: pelny typowy
-Name: "velivo\player"; Description: "{cm:CPlayer}"; Types: pelny typowy
-Name: "velivo\player\iptv"; Description: "{cm:CIptv}"; Types: pelny; Flags: dontinheritcheck
+Name: "velivo"; Description: "{cm:CVelivo}"
+Name: "velivo\player"; Description: "{cm:CPlayer}"
+Name: "velivo\player\iptv"; Description: "{cm:CIptv}"; Flags: dontinheritcheck
 Name: "ab"; Description: "{cm:CAb}"; Types: pelny typowy
 Name: "monitor"; Description: "{cm:CMon}"; Types: pelny typowy
 Name: "kursory"; Description: "{cm:CKur}"; Types: pelny
 Name: "procesor"; Description: "{cm:CProc}"; Types: pelny typowy
 Name: "centrum"; Description: "{cm:CCen}"; Types: pelny typowy
-Name: "osobne"; Description: "{cm:CSep}"; Types: pelny
-Name: "osobne\odtwarzacz"; Types: pelny; Description: "{cm:COdt}"; Flags: dontinheritcheck
-Name: "osobne\przegladarka"; Types: pelny; Description: "{cm:CPrz}"; Flags: dontinheritcheck
-Name: "osobne\klawiatura"; Types: pelny; Description: "{cm:CKla}"; Flags: dontinheritcheck
-Name: "osobne\komunikator"; Types: pelny; Description: "{cm:CKom}"; Flags: dontinheritcheck
+Name: "osobne"; Description: "{cm:CSep}"; Types: pelny typowy
+Name: "osobne\odtwarzacz"; Types: pelny typowy; Description: "{cm:COdt}"; Flags: dontinheritcheck
+Name: "osobne\przegladarka"; Types: pelny typowy; Description: "{cm:CPrz}"; Flags: dontinheritcheck
+Name: "osobne\klawiatura"; Types: pelny typowy; Description: "{cm:CKla}"; Flags: dontinheritcheck
+Name: "osobne\komunikator"; Types: pelny typowy; Description: "{cm:CKom}"; Flags: dontinheritcheck
 Name: "osobne\serwer"; Types: pelny; Description: "{cm:CSrv}"; Flags: dontinheritcheck
 
 [Files]

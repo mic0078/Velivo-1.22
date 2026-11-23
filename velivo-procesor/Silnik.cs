@@ -505,9 +505,8 @@ namespace VelivoProcesor
                 var w = new List<(Guid, uint, uint)> { (Max, max, max), (Min, min, min), (Boost, boost, boost), (Epp, epp, epp), (Freq, freq, freq), (IncThr, it, it), (DecThr, dt, dt), (IncTime, iT, iT), (DecTime, dT, dT), (IncPol, ip, ip) };
                 if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
-                // AMD: tryb autonomiczny pomija minimum - wyłączony, Windows trzyma minimum; wtedy zegar zależy od sprawdzania co PerfCheck ms - zawsze 30 ms (5000 = boost po 5 s, „nie wchodzi ponad 4 GHz”)
-                if (Amd) w.Add((Autonom, 0, 0));   // boost zostaje oszczędny (3) - pełny (2) w Zrównoważonym grzał procesor przy filmie
-                w.Add((PerfCheck, 30, 30));
+                // tryb autonomiczny i co ile ms Windows zmienia zegar - zawsze jak przed programem (u właściciela 5000 ms z CPU Manager v40 = cisza; moje 30 ms = skoki zegara i wentylator)
+                foreach (var g in new[] { Autonom, PerfCheck }) if (oryg.TryGetValue(g, out var ov)) w.Add((g, ov.Ac, ov.Dc));
                 uint err = 0;
                 foreach (var (g, va, vd) in w) { bool bez; lock (zapisy) bez = !wymus && zapisy.TryGetValue(g, out var by) && by.Ac == va && by.Dc == vd; if (bez) continue;   // bez zapisu, gdy wartość już taka (zasada: bez zbędnych zapisów)
                     var gg = g; var sub = Sub; uint e = PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, va); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, vd); if (g == Max || g == Min || g == Boost) err |= e; }

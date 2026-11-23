@@ -1120,6 +1120,8 @@ namespace Velivo
                     return;
                 }
                 addItem(L.T("▶ Odtwórz"), play);
+                addItem(L.T("🎞 Odtwórz płynnie – wygładzanie (mpv)"), () => { var ps = selPaths(); if (ps.Length > 0) { MpvPlay(ps[0], 1); LibAway(win); } });   // PRÓBA: drugi silnik mpv
+                addItem(L.T("🎞 Odtwórz płynnie – jak w telewizorze (mpv, próba)"), () => { var ps = selPaths(); if (ps.Length > 0) { MpvPlay(ps[0], 2); LibAway(win); } });
                 if (_pipShowFilm != null) addItem(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => { var ps = selPaths(); if (ps.Length > 0) _pipShowFilm(ps[0]); });
                 int nSel = list.SelectedItems.Count;
                 Action<List<string>> rememberMine = q => { var p0 = LoadPlaylists(); p0.Mine = q.ToList(); SavePlaylists(p0); };   // moja kolejka zostaje (takze po wlaczeniu innego filmu i po zamknieciu)

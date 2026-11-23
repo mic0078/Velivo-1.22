@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Płynny ruch mpv</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1000px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.menu{width:330px;background:#1b1f27;border:1px solid #3a4250;border-radius:8px;padding:4px 0}
+.menu div{padding:6px 14px}.menu hr{border:0;border-top:1px solid #3a4250;margin:4px 0}.new{outline:2px dashed #F5B544;outline-offset:-2px}
+.win{width:560px;background:#000;border:1px solid #2A3240;border-radius:8px;overflow:hidden}
+.pic{height:260px;background:linear-gradient(135deg,#1e293b,#0f172a);display:flex;align-items:center;justify-content:center;color:#64748b}
+.bar{background:rgba(20,24,33,.95);padding:8px 12px;display:flex;gap:10px;align-items:center}
+.bar i{flex:1;height:4px;background:#334155;border-radius:2px;position:relative}.bar i:after{content:"";position:absolute;left:0;width:35%;height:4px;background:#22B8D8;border-radius:2px}
+.pill{background:#14532D;color:#86EFAC;border-radius:8px;padding:1px 8px;font-size:11px}
+.dlg{width:420px;background:#141821;border:1px solid #2A3240;border-radius:10px;padding:14px}
+.opt{border:1px solid #2A3240;border-radius:8px;padding:8px 10px;margin:6px 0}.opt.on{border-color:#A78BFA;background:#2E1A4D}.opt small{display:block;color:#8A93A3}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:560px}
+</style></head><body>
+<h1>Płynny ruch (mpv) – etap 1, tylko Velivo Odtwarzacz 1.22 na próbę</h1>
+<p class="o">Filmy z dysku można odtworzyć drugim silnikiem (mpv), który dorabia klatki jak telewizor. TV, Audio Balance, lektor i reszta zostają na VLC. mpv i dodatek do płynnego ruchu pobierają się za pierwszym razem (za zgodą, z GitHub).</p>
+<div class="row">
+<div><div class="menu">
+ <div>▶ Odtwórz</div><div>⏯ Odtwórz od początku</div>
+ <div class="new">🎞 Odtwórz z płynnym ruchem (mpv)</div>
+ <hr><div>☆ Dodaj do ulubionych</div><div>ℹ Opis filmu</div></div>
+ <div class="cap">1. Prawy przycisk na filmie w bibliotece</div></div>
+
+<div><div class="win"><div class="pic">obraz filmu – okno mpv (pełny ekran: F / dwuklik)</div>
+ <div class="bar">⏯ <i></i><span>0:41:12 / 1:58:03</span><span class="pill">🎞 płynny ruch: jak w TV · 24→60</span></div></div>
+ <div class="cap">2. Osobne okno odtwarzania mpv – pasek mpv (spacja pauza, ←/→ przewijanie, M wycisz, Esc wyjście); znaczek pokazuje, co robi płynny ruch. Postęp oglądania zapisuje się w bibliotece Velivo jak zwykle.</div></div>
+
+<div><div class="dlg"><b>🎞 Płynny ruch</b>
+ <div class="opt">Wyłączony<small>jak zwykle, tylko silnik mpv</small></div>
+ <div class="opt">Wygładzanie<small>bez dorabiania klatek – usuwa szarpanie 24 kl./s na ekranie 60 Hz; działa na każdym komputerze</small></div>
+ <div class="opt on">Jak w telewizorze<small>dorabia klatki (MVTools) do częstotliwości ekranu; mocniejszy procesor – na NUCBOX może przycinać przy 4K</small></div>
+ <div style="color:#8A93A3;margin-top:8px">Zmiana: klawisz <b>I</b> w trakcie filmu albo ⚙ w odtwarzaczu Velivo → „Płynny ruch (mpv)”. Pamiętane.</div></div>
+ <div class="cap">3. Wybór trybu</div></div>
+</div>
+<p class="o" style="margin-top:14px">Nie w etapie 1: napisy z Velivo (mpv pokaże napisy z pliku/obok filmu), Audio Balance, lektor, Pilot, wspólne oglądanie, TV.</p>
+</body></html>

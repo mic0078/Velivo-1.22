@@ -60,7 +60,9 @@ namespace Velivo
             void Wyjdz() { tm.Stop(); w.Close(); }
             void Graj(Action a) { Wyjdz(); try { a(); } catch (Exception ex) { App.LogError(ex); } }
             // 🎬 szczegóły filmu - to samo okno co w serwerze filmów
-            void Szczegoly(LibraryVideo v) { var p = v.Path; FilmSzczegoly(w, Tytul(v), MetaFor(p), Poster(p), v.Len, v.Pos, v.Done, how => Graj(() => { _pilotResume = how; PlayVideos(new[] { p }, 0); })); }
+            Action poZmianie = null;   // odświeżenie widoku po zmianie ulubionych (ustawiane niżej)
+            void Szczegoly(LibraryVideo v) { var p = v.Path; FilmSzczegoly(w, Tytul(v), MetaFor(p), Poster(p), v.Len, v.Pos, v.Done, how => Graj(() => { _pilotResume = how; PlayVideos(new[] { p }, 0); }),
+                new List<(string, Action)> { (UlubLok(p) ? "★ " + L.T("Usuń z ulubionych") : "☆ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubLokZmien(p); poZmianie?.Invoke(); })) }); }
 
             // kafelek: Button z własnym szablonem - złota ramka i powiększenie, gdy wybrany (z kanapy widać, gdzie jesteś)
             Button Tile(double wd, double ht, UIElement content, Action act)
@@ -105,14 +107,27 @@ namespace Velivo
                 Opis(Tytul(v), string.Join("   ·   ", parts), string.IsNullOrWhiteSpace(m?.Overview) ? L.T("Brak opisu – uzupełnij dane filmu w bibliotece (Jellyfin).") : m.Overview);
             }
             EpgItem Teraz(IptvChannel ch) { try { return _iptvEpg == null ? null : EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now); } catch (Exception) { return null; } }
+            // ▬ ile filmu obejrzane - turkusowy pasek na dole plakatu (jak Jellyfin); zwykły ProgressBar Windows bywał niewidoczny
+            UIElement Postep(long pos, long len)
+            {
+                var gr = new Grid { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(0x66, 0x00, 0x00, 0x00)) };
+                double f = Math.Max(0.02, Math.Min(1, (double)pos / Math.Max(1, len)));
+                gr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(f, GridUnitType.Star) }); gr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1 - f, GridUnitType.Star) });
+                gr.Children.Add(new Border { Background = new SolidColorBrush(Color.FromRgb(0x22, 0xD3, 0xEE)) }); return gr;
+            }
+            // ⭐ ulubione: film z dysku - lista „⭐ Ulubione” (ta sama co w odtwarzaczu); film z serwera - „komputer|id” (kanapa-ulub-serwer)
+            bool UlubLok(string path) => LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) && fl.Contains(path, StringComparer.OrdinalIgnoreCase);
+            void UlubLokZmien(string path) { var p = LoadPlaylists(); if (!p.Named.TryGetValue("⭐ Ulubione", out var l)) p.Named["⭐ Ulubione"] = l = new List<string>(); if (l.RemoveAll(x => string.Equals(x, path, StringComparison.OrdinalIgnoreCase)) == 0) l.Add(path); SavePlaylists(p); }
+            List<string> UlubSrv() => (GetPref("kanapa-ulub-serwer") ?? "").Split('\n').Where(x => x.Length > 0).ToList();
+            void UlubSrvZmien(string k) { var l = UlubSrv(); if (!l.Remove(k)) l.Add(k); SetPref("kanapa-ulub-serwer", string.Join("\n", l)); }
             Button FilmTile(LibraryVideo v, double wd = 170)
             {
                 var g = new Grid(); var img = Poster(v.Path);
                 if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                 else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
                 var kr = Krotko(v); g.Children.Add(Caption(Tytul(v), kr.Length > 0 ? kr : null));
-                if (v.Len > 0 && v.Pos > 0 && !v.Done)
-                    g.Children.Add(new ProgressBar { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Minimum = 0, Maximum = v.Len, Value = v.Pos, Foreground = KnGold, Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) });
+                if (UlubLok(v.Path)) g.Children.Add(new TextBlock { Text = "⭐", FontSize = 18, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 8, 0) });
+                if (v.Len > 0 && v.Pos > 0 && !v.Done) g.Children.Add(Postep(v.Pos, v.Len));
                 var path = v.Path;
                 var b = Tile(wd, wd * 1.5, g, () => Szczegoly(v)); infoOf[b] = () => FilmOpis(v); return b;   // klik = szczegóły filmu (jak Jellyfin), odtwarzanie stamtąd
             }
@@ -169,7 +184,7 @@ namespace Velivo
             }
 
             var tabBtns = new Dictionary<string, Button>();
-            int kSort = int.TryParse(GetPref("kanapa-sort"), out var ks0) ? ks0 : 0, kGen = 0, kSortTv = int.TryParse(GetPref("kanapa-sorttv"), out var ks1) ? ks1 : 0, kGrp = 0; Action odswiez = null; bool wyborGrupy = false;   // wybór zapamiętany (grupa, gatunek - po nazwie)
+            int kSort = int.TryParse(GetPref("kanapa-sort"), out var ks0) ? ks0 : 0, kGen = 0, kSortTv = int.TryParse(GetPref("kanapa-sorttv"), out var ks1) ? ks1 : 0, kGrp = 0; Action odswiez = null; bool wyborGrupy = false; poZmianie = () => odswiez?.Invoke();   // wybór zapamiętany (grupa, gatunek - po nazwie)
             var szukaj = new TextBox { Width = 380, FontSize = 18, Padding = new Thickness(12, 6, 12, 6), Background = KnCard, Foreground = KnFg, CaretBrush = KnFg, BorderBrush = KnGold, BorderThickness = new Thickness(0, 0, 0, 2), VerticalContentAlignment = VerticalAlignment.Center,
                 ToolTip = L.T("Szukaj: tytuł, aktor albo kanał i program – zacznij pisać") };
             var tSzukaj = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
@@ -301,6 +316,18 @@ namespace Velivo
                 else if (t == "serwer")
                 {   // 🎞 filmy z moich włączonych komputerów z Velivo (Serwer filmów, Odtwarzacz) - wykrywane same, jak wspólna biblioteka
                     var box = new StackPanel(); st.Children.Add(box); List<LanPeerInfo> peers = null; List<LanFilmItem>[] got = null;
+                    UIElement SrvTile(LanPeerInfo pe, LanFilmItem x)
+                    {
+                                var g = new Grid(); var img = Poster(PeerFilmKey(x)); var m = x.m ?? MetaFor(PeerFilmKey(x));
+                                if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
+                                else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
+                                g.Children.Add(Caption(m?.Name ?? x.t, m?.Year > 0 ? m.Year.ToString() : null));
+                                if (UlubSrv().Contains(pe.Device + "|" + x.i)) g.Children.Add(new TextBlock { Text = "⭐", FontSize = 18, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 8, 0) });
+                                if (x.l > 0 && x.p > 0 && !x.d) g.Children.Add(Postep(x.p, x.l));
+                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); }), new List<(string, Action)> { (UlubSrv().Contains(pe.Device + "|" + xx.i) ? "★ " + L.T("Usuń z ulubionych") : "☆ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubSrvZmien(pe.Device + "|" + xx.i); odswiez?.Invoke(); })) }));
+                                infoOf[b] = () => Opis(m?.Name ?? xx.t, string.Join("   ·   ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, L.T("z komputera ") + pe.Device }.Where(z => z != null)), string.IsNullOrWhiteSpace(m?.Overview) ? "" : m.Overview);
+                                                        return b;
+                    }
                     async void Wczytaj()
                     {
                         var fol = SerwerFolderyZPliku();   // 🎞 serwer na tym samym komputerze - wprost z dysku, bez sieci
@@ -316,6 +343,15 @@ namespace Velivo
                         var po = peers.Select((p, i) => (p, l: all[i])).GroupBy(x => x.p.Device, StringComparer.OrdinalIgnoreCase).Select(g => g.OrderByDescending(x => x.l?.Count ?? -1).First()).ToList();
                         peers = po.Select(x => x.p).ToList(); got = po.Select(x => x.l).ToArray(); }   // lista pobrana raz na wejście w zakładkę - szukanie filtruje bez ponownego pytania serwerów
                         box.Children.Clear(); int n = 0;
+                        // ▶ Kontynuuj odtwarzanie i ⭐ Ulubione - z wszystkich moich serwerów (jak Jellyfin), nad listami komputerów
+                        if (szukaj.Text.Trim().Length == 0)
+                        {
+                            var wsz = peers.Select((pe0, i0) => (pe0, l0: got[i0])).Where(z => z.l0 != null).SelectMany(z => z.l0.Where(x => x.sv).Select(x => (pe: z.pe0, x))).ToList();
+                            var dalej = wsz.Where(z => z.x.p > 0 && !z.x.d && z.x.l > 0).OrderByDescending(z => z.x.w).Take(15).ToList();
+                            if (dalej.Count > 0) box.Children.Add(Row(L.T("Kontynuuj odtwarzanie"), dalej.Select(z => SrvTile(z.pe, z.x))));
+                            var ul = UlubSrv(); var ulub = wsz.Where(z => ul.Contains(z.pe.Device + "|" + z.x.i)).ToList();
+                            if (ulub.Count > 0) box.Children.Add(Row(L.T("Ulubione"), ulub.Select(z => SrvTile(z.pe, z.x))));
+                        }
                         { var q0 = szukaj.Text.Trim(); var lt = tu.Where(v => q0.Length == 0 || Tytul(v).IndexOf(q0, StringComparison.CurrentCultureIgnoreCase) >= 0).ToList();
                           if (lt.Count > 0) { n += lt.Count; box.Children.Add(new TextBlock { Text = "🎞 " + Environment.MachineName + L.T(" (ten komputer)") + "  (" + lt.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) }); box.Children.Add(Wrap(lt.Select(v => (UIElement)FilmTile(v)))); } }
                         for (int i = 0; i < peers.Count; i++)
@@ -326,17 +362,7 @@ namespace Velivo
                             var l = items.Where(x => x.sv).Where(x => q.Length == 0 || (x.m?.Name ?? x.t ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).OrderBy(x => x.m?.Name ?? x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
                             if (l.Count == 0) continue; n += l.Count;
                             box.Children.Add(new TextBlock { Text = "🎞 " + pe.Device + "  (" + l.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
-                            box.Children.Add(Wrap(l.Select(x =>
-                            {
-                                var g = new Grid(); var img = Poster(PeerFilmKey(x)); var m = x.m ?? MetaFor(PeerFilmKey(x));
-                                if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
-                                else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
-                                g.Children.Add(Caption(m?.Name ?? x.t, m?.Year > 0 ? m.Year.ToString() : null));
-                                if (x.l > 0 && x.p > 0 && !x.d) g.Children.Add(new ProgressBar { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Minimum = 0, Maximum = x.l, Value = x.p, Foreground = KnGold, BorderThickness = new Thickness(0) });
-                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); })));
-                                infoOf[b] = () => Opis(m?.Name ?? xx.t, string.Join("   ·   ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, L.T("z komputera ") + pe.Device }.Where(z => z != null)), string.IsNullOrWhiteSpace(m?.Overview) ? "" : m.Overview);
-                                return (UIElement)b;
-                            })));
+                            box.Children.Add(Wrap(l.Select(x => SrvTile(pe, x))));
                         }
                         if (n == 0) box.Children.Add(new TextBlock { Text = L.T("Twoje serwery nie udostępniają teraz żadnych filmów (dodaj folder w oknie Velivo Serwer filmów)."), FontSize = 18, Foreground = KnDim, TextWrapping = TextWrapping.Wrap });
                     }

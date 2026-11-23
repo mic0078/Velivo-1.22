@@ -1928,6 +1928,7 @@ namespace Velivo
             { "Dzienniki", "Logs" },
             { "Szukaj w tej tabeli", "Search this table" },
             { "Tab – wstaw", "Tab – insert" },
+            { "Kontynuuj odtwarzanie", "Continue watching" },
             { "Serwer: ", "Server: " },
             { "Serwer: ten komputer", "Server: this computer" },
             { "Serwer: brak w sieci", "Server: none on the network" },

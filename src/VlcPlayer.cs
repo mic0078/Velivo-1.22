@@ -4330,6 +4330,11 @@ namespace Velivo
                         }
                         cm.Items.Add(root);
                     }
+                    // 🎞 PRÓBA: ten film od tego miejsca w drugim silniku (mpv) z płynnym ruchem
+                    var mpvRoot = new MenuItem { Header = L.T("🎞 Płynny ruch (mpv)") };
+                    foreach (var (tr, nm) in new[] { (1, L.T("🎞 Odtwórz płynnie – wygładzanie (mpv)")), (2, L.T("🎞 Odtwórz płynnie – jak w telewizorze (mpv, próba)")) })
+                    { var t0 = tr; var mi = new MenuItem { Header = nm }; mi.Click += (a, b) => { long at = mp.Time; savePos(); mp.Stop(); MpvPlay(path, t0, at); }; mpvRoot.Items.Add(mi); }
+                    cm.Items.Add(mpvRoot);
                 }
                 if (_together != null) add(L.T("👋 Przestań oglądać razem (druga osoba ogląda dalej)"), LeaveTogether, true);
                 else if (_lastTogether != null && PeerById(_lastTogether.PeerId) != null)

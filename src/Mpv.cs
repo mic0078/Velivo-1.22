@@ -54,12 +54,12 @@ namespace Velivo
             File.Move(target + ".tmp", target, true);
         }
 
-        async void MpvPlay(string path, int tryb)
+        async void MpvPlay(string path, int tryb, long startMs = -1)
         {
             if (!await MpvEnsureAsync()) return;
             var src = File.Exists(path) ? path : JellyfinStreamUrl(path) ?? path;   // film tylko w Jellyfin - prosto z serwera
             var lib = LoadLibrary(); var e = FindEntry(lib, path, null);
-            long start = e != null && !e.Done ? e.Pos : 0;
+            long start = startMs >= 0 ? startMs : e != null && !e.Done ? e.Pos : 0;   // z odtwarzacza - od miejsca, w którym grał
             var wl = Path.Combine(MpvDir, "pozycje"); try { if (Directory.Exists(wl)) Directory.Delete(wl, true); } catch (Exception) { }
             var tytul = e?.MyTitle ?? e?.Title ?? Path.GetFileNameWithoutExtension(path);
             string opis = tryb == 2 ? L.T("płynny ruch: jak w telewizorze (próba)") : L.T("płynny ruch: wygładzanie");

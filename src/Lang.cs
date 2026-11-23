@@ -1929,6 +1929,7 @@ namespace Velivo
             { "Szukaj w tej tabeli", "Search this table" },
             { "Płynny ruch używa darmowego odtwarzacza mpv (ok. 35 MB, z serwisu GitHub).\n\nPobrać go teraz? To jednorazowe.", "Smooth motion uses the free mpv player (about 35 MB, from GitHub).\n\nDownload it now? This is a one-time step." },
             { "⬇ Pobieram mpv…", "⬇ Downloading mpv…" },
+            { "🎞 Płynny ruch (mpv)", "🎞 Smooth motion (mpv)" },
             { "brak archiwum mpv w najnowszym wydaniu", "no mpv archive in the latest release" },
             { "Nie udało się pobrać mpv:\n", "Could not download mpv:\n" },
             { "Nie udało się uruchomić mpv:\n", "Could not start mpv:\n" },

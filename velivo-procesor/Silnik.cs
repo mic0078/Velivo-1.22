@@ -368,15 +368,19 @@ namespace VelivoProcesor
             // w dół powoli: Turbo → Zrównoważony po 3 s, Zrównoważony → Cichy po 8 s; w górę od razu
             if (chce < Obecny && p.Temp < TempLimit)
             {
-                double wait = Obecny == Tryb.Turbo ? 3 : 8;
+                double wait = Obecny == Tryb.Turbo ? (turboPowrot ? 15 : 3) : 8;   // Turbo wróciło w ciągu 30 s - trzymane 15 s (bez skakania Zrównoważony ↔ Turbo)
                 if ((DateTime.UtcNow - ostZmiana).TotalSeconds < wait && !(p.Temp >= TempLimit)) { Dlaczego = why + " (zmiana za chwilę – bez skakania trybów)"; return Obecny; }
             }
             // samodostrajanie: w Cichym procesor ciągle pełny = za późno w górę (próg niżej); w Turbo ciągle mało = za łatwo (próg wyżej)
             if (Obecny == Tryb.Cichy && p.Cpu > 95) { if (++przycieciaN > 20) { ProgWysoki = Math.Max(50, ProgWysoki - 2); przycieciaN = 0; } } else przycieciaN = 0;
             if (Obecny == Tryb.Turbo && p.Cpu < 30 && !gpuBound) { if (++nadmiarN > 60) { ProgWysoki = Math.Min(85, ProgWysoki + 2); nadmiarN = 0; } } else nadmiarN = 0;
+            // ⏳ Turbo: zapamiętane wyjście; powrót w ciągu 30 s = obciążenie skacze wokół progu - następnym razem Turbo trzymane dłużej
+            if (chce == Tryb.Turbo && Obecny != Tryb.Turbo) turboPowrot = (DateTime.UtcNow - wyjscieTurbo).TotalSeconds < 30;
+            if (Obecny == Tryb.Turbo && chce != Tryb.Turbo) wyjscieTurbo = DateTime.UtcNow;
             Dlaczego = why;
             return Ustal(chce);
         }
+        DateTime wyjscieTurbo; bool turboPowrot;
         // program z „zawsze ten tryb”: najpierw ten na wierzchu, inaczej działający w tle (kilka - najwyższy tryb); lista procesów co 3 s
         HashSet<string> dzialajace = new HashSet<string>(StringComparer.OrdinalIgnoreCase); DateTime dzialajaceT;
         // lista działających programów co 3 s (zawsze ten tryb, Studio, instalatory)

@@ -444,6 +444,11 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 3. Każdy napis `L.T("…")` ma tłumaczenie w `Lang.cs` (test `SlownikTests`); napisy Androida w PL i EN.
 4. Sprawdź `git diff`. Wysyłaj dopiero po pomyślnej kompilacji.
 
+## Velivo Procesor – zasada (właściciel 2026-11-23)
+
+* Nigdy nie pogarsza wydajności bardziej, niż wymaga wybrany tryb: nie zmienia ustawień bez potrzeby, bez zbędnych zapisów (rejestr, pliki), bez dodatkowych procesów pomiarowych, bez obciążania procesora monitoringiem, bez zmienionych ustawień po awarii.
+* Przywracanie ustawień Windows transakcyjne: program wie, co sam zmienił; ustawienie zmienione później przez użytkownika lub inny program zostaje.
+
 ## Interfejs
 
 * AUTOMAT, NIE PYTANIA (2026-11-09, właściciel): to, co program może zrobić sam (synchronizacja, klucze między urządzeniami, nauka), robi w tle bez komunikatów i bez pytań – im więcej informacji i pytań, tym gorzej (użytkownik nie chce czytać). Pytanie tylko przy decyzji, której program nie może podjąć sam, a komunikat tylko przy błędzie, który użytkownik musi naprawić.

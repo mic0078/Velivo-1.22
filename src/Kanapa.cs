@@ -19,11 +19,12 @@ namespace Velivo
             KnCard = KnBrush(Color.FromRgb(0x17, 0x20, 0x36)), KnLive = KnBrush(Color.FromRgb(0xEF, 0x44, 0x44));
         static Brush KnBrush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
-        internal void ShowKanapa()
+        Action<string> _kanapaIdz;
+        internal void ShowKanapa(string start = null)   // start: zakładka na wejście (np. "serwer" z przycisku Serwer w odtwarzaczu)
         {
             if (!Wariant.MaFilmy) { if (!Wariant.Odtworz()) ShowToast(L.T("Kanapa jest w programie Velivo Odtwarzacz – zainstaluj go, a otworzy się stąd."), null); return; }   // 🧩 Przeglądarka
             if (!PremiumOk(L.T("🛋 Kanapa"))) return;
-            if (_kanapa != null) { _kanapa.Activate(); return; }
+            if (_kanapa != null) { _kanapa.Activate(); if (start != null) _kanapaIdz?.Invoke(start); return; }
             var w = new Window
             {
                 Title = "Velivo – " + L.T("Kanapa"), WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, WindowState = WindowState.Maximized, Topmost = true,
@@ -458,7 +459,7 @@ namespace Velivo
                 if (_kanapa != w) return;
                 if (tab == "tv") Pokaz("tv"); else if (tab == "start") Pokaz("start");
             })));
-            Pokaz("start");
+            Pokaz(start ?? "start"); _kanapaIdz = Pokaz; w.Closed += (s0, e0) => _kanapaIdz = null;
         }
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]

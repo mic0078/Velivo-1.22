@@ -1833,11 +1833,43 @@ namespace Velivo
             right.Children.Add(grp(L.T("Widok"), new UIElement[] { qInfo, qBarTime, qInfoSet }));
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
             swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(5, 0, 2, 0); swap.Height = 40;
-            right.Children.Add(capt(swap, L.T("Przełącz")));
+            var swapC = capt(swap, L.T("Przełącz"));
             var sofa = textBtn("🛋", L.T("Kanapa – duże kafelki na telewizor, sterowanie strzałkami, Enter i Esc (Home)")); sofa.Height = 40; sofa.Margin = new Thickness(2, 0, 2, 0); sofa.FontSize = 18;
             sofa.Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xB5, 0x44)); sofa.Foreground = new SolidColorBrush(Color.FromRgb(0x1A, 0x12, 0x04));   // złota jak w Kanapie - wyróżnia się obok niebieskiego „Przełącz”
             sofa.Click += (s, e) => ShowKanapa();
-            right.Children.Add(capt(sofa, L.T("Kanapa")));
+            var sofaC = capt(sofa, L.T("Kanapa"));
+            // 🎞 długi przycisk „Serwer” nad TV i Kanapą (makieta-przycisk-serwer.html): czy mój serwer filmów w sieci domowej działa; klik - jego filmy (Kanapa → Serwer)
+            var srvTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            var srvBtn = new Button { Content = srvTxt, Height = 24, Margin = new Thickness(3, 0, 3, 3), Padding = new Thickness(8, 0, 8, 0), Cursor = System.Windows.Input.Cursors.Hand, BorderThickness = new Thickness(0), Foreground = Brushes.White };
+            var srvOn = new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), Color.FromRgb(0x06, 0xB6, 0xD4), 0); var srvOff = new SolidColorBrush(Color.FromRgb(0x2A, 0x33, 0x50));
+            List<LanPeerInfo> SrvList() => SendTargets().Where(p => !(p.Device ?? "").StartsWith("📱", StringComparison.Ordinal)).GroupBy(p => p.Device, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+            LanPeerInfo SrvNow() { var l = SrvList(); var want = GetPref("serwer-wybrany"); return l.FirstOrDefault(p => string.Equals(p.Device, want, StringComparison.OrdinalIgnoreCase)) ?? l.FirstOrDefault(); }
+            void SrvFill()
+            {
+                var sv = SrvNow(); bool tuSerwer = SerwerFolderyZPliku().Count > 0;
+                srvTxt.Text = sv != null ? "● " + L.T("Serwer: ") + sv.Device : tuSerwer ? "● " + L.T("Serwer: ten komputer") : "○ " + L.T("Serwer: brak w sieci");
+                srvBtn.Background = sv != null || tuSerwer ? (Brush)srvOn : srvOff; srvBtn.Foreground = sv != null || tuSerwer ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x93, 0xA0, 0xBB));
+                srvBtn.ToolTip = sv != null || tuSerwer ? L.T("Filmy z mojego serwera w sieci domowej – kliknij. Prawy przycisk: odśwież, wybór serwera") : L.T("Nie widać serwera filmów: włącz Velivo Serwer filmów (albo Velivo Odtwarzacz) na drugim komputerze – ta sama sieć domowa i sparowane komputery (ten sam profil)");
+            }
+            srvBtn.Click += (s0, e0) =>
+            {
+                SrvFill();
+                if (SrvNow() == null && SerwerFolderyZPliku().Count == 0) { ShowToast(L.T("Nie widać serwera filmów – włącz go na drugim komputerze (ta sama sieć, sparowane komputery)"), null); return; }
+                ShowKanapa("serwer");
+            };
+            var srvMenu = new ContextMenu(); srvBtn.ContextMenu = srvMenu;
+            srvMenu.Opened += (s0, e0) =>
+            {
+                srvMenu.Items.Clear();
+                var mOpen = new MenuItem { Header = "📚 " + L.T("Filmy z serwera") }; mOpen.Click += (a, b) => ShowKanapa("serwer"); srvMenu.Items.Add(mOpen);
+                var mRef = new MenuItem { Header = "🔄 " + L.T("Odśwież listę serwerów") }; mRef.Click += (a, b) => SrvFill(); srvMenu.Items.Add(mRef);
+                var l = SrvList(); var cur = SrvNow();
+                if (l.Count > 1) { srvMenu.Items.Add(new Separator()); foreach (var p0 in l) { var p = p0; var mi = new MenuItem { Header = p.Device, IsChecked = p == cur }; mi.Click += (a, b) => { SetPref("serwer-wybrany", p.Device); SrvFill(); }; srvMenu.Items.Add(mi); } }
+            };
+            SrvFill(); var srvTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; srvTm.Tick += (s0, e0) => SrvFill(); srvTm.Start(); win.Closed += (s0, e0) => srvTm.Stop();
+            var pair = new StackPanel { Orientation = Orientation.Horizontal }; pair.Children.Add(swapC); pair.Children.Add(sofaC);
+            var srvCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; srvCol.Children.Add(srvBtn); srvCol.Children.Add(pair);
+            right.Children.Add(srvCol);
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
             quick.Children.Add(new Border { Width = 1, Height = 36, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(4, 0, 8, 18), VerticalAlignment = VerticalAlignment.Bottom });
             var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };

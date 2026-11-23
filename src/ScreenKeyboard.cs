@@ -271,6 +271,10 @@ namespace Velivo
                 menu.Opening += (s, e) => korIt.Checked = GetPref("klawiatura-korekta") != "0";
                 korIt.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { bool on = GetPref("klawiatura-korekta") == "0"; SetPref("klawiatura-korekta", on ? "1" : "0"); if (!on) _physCorrect = null; else _physApplyS?.Invoke(); }));
                 menu.Items.Add(korIt);
+                var podIt = new System.Windows.Forms.ToolStripMenuItem(L.T("💬 Podpowiedzi przy kursorze (Tab – wstaw)")) { ToolTipText = L.T("Mały pasek pod kursorem w każdym programie: następne słowo ze zwrotu i reszta często pisanego zdania – także przy zamkniętym oknie klawiatury") };
+                menu.Opening += (s, e) => podIt.Checked = PodOn;
+                podIt.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { SetPref("klawiatura-podpowiedzi", PodOn ? "0" : "1"); if (!PodOn) PodHide(); }));
+                menu.Items.Add(podIt);
                 if (Wariant.Klawiatura)
                 {   // ⌨ Velivo Klawiatura: start z Windows i zakończenie programu (to jedyna ikona tego programu)
                     var auto = new System.Windows.Forms.ToolStripMenuItem(L.T("Uruchamiaj z Windows")) { CheckOnClick = true };
@@ -325,7 +329,9 @@ namespace Velivo
             _physUndone = (from, to) => { var lw = (from ?? "").Trim().ToLowerInvariant(); if (lw.Length >= 2 && lw.All(char.IsLetter) && !SwipeTyping.IsMisspelling(lw)) NoFix(lw); };
             _physFixLearned = (typo, good) => { lock (_swLearned) SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); };
             _physPred = (wd, dn) =>
-            {   // nauka jak przy oknie: częste słowa i kolejność słów (podpowiedzi przy otwartej klawiaturze i na telefonie po synchronizacji)
+            {
+                PodShow(wd, dn);   // ⌨ pasek przy kursorze (włącznik w menu klawiatury)
+                // nauka jak przy oknie: częste słowa i kolejność słów (podpowiedzi przy otwartej klawiaturze i na telefonie po synchronizacji)
                 if (!dn || wd == null || !SwipeTyping.Loaded || _physSecret) return;
                 foreach (var part in wd.Split(' '))
                 {
@@ -604,6 +610,7 @@ namespace Velivo
             bool afterComma = _pAfterComma; _pAfterComma = false;   // przecinek tuz za slowem - nastepna litera dostaje spacje przed soba
             long now = Environment.TickCount64; if (now - _pLast > 60000) PhysReset(); _pLast = now;
             bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0, caps = (GetKeyState(0x14) & 1) != 0;
+            if (PodKey(vk, ctrl, alt, sh)) return true;   // ⌨ Tab przy pasku podpowiedzi przy kursorze
             if (vk == 0x08 && ctrl && !alt)
             {   // Ctrl+Backspace (lewy albo prawy): usun slowo przed kursorem - takze w programach, ktore tego nie umieja
                 var del = new List<KbdInput>();

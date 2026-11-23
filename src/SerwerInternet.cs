@@ -271,5 +271,39 @@ namespace Velivo
                 }
                 catch (Exception) { }
         }
+
+        // 🌍 moje serwery przez internet jako „komputery” w Kanapie - tylko gdy tego serwera nie widać w sieci domowej (w domu bez zmian)
+        int? NetIdx(string id) => id != null && id.StartsWith("net:") && int.TryParse(id.Substring(4), out var i) && i >= 0 && i < NetSerwery().Count ? i : (int?)null;
+        List<LanPeerInfo> NetPeers(List<LanPeerInfo> lan) => NetSerwery().Select((s, i) => (s, i)).Where(z => !lan.Any(p => string.Equals(p.Device, z.s.Name, StringComparison.OrdinalIgnoreCase)))
+            .Select(z => new LanPeerInfo { Id = "net:" + z.i, Device = z.s.Name }).ToList();
+
+        // okno: dodaj mój serwer filmów przez internet (adres domu + hasło serwera) - jak logowanie do Jellyfin
+        internal void NetDodajOkno(System.Windows.Window owner, Action done)
+        {
+            var w = new System.Windows.Window { Title = L.T("Mój serwer filmów przez internet"), Width = 460, SizeToContent = System.Windows.SizeToContent.Height, Owner = owner, WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner, Background = SBg, Topmost = owner?.Topmost == true, ResizeMode = System.Windows.ResizeMode.NoResize };
+            var sp = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(18) }; w.Content = sp;
+            var op = STxt(L.T("Wpisz adres domu z portem serwera (np. moj-dom.ddns.net:41940) i hasło z okna Velivo Serwer filmów. Hasło nie jest wysyłane – połączenie jest szyfrowane."), 13, SDim); op.TextWrapping = System.Windows.TextWrapping.Wrap; sp.Children.Add(op);
+            System.Windows.Controls.TextBox Pole(string etykieta, string tekst)
+            {
+                var l = STxt(etykieta, 13); l.Margin = new System.Windows.Thickness(0, 12, 0, 4); sp.Children.Add(l);
+                var t = new System.Windows.Controls.TextBox { Text = tekst, Background = SField, Foreground = SFg, CaretBrush = SFg, BorderBrush = SLine, Padding = new System.Windows.Thickness(6, 4, 6, 4), FontSize = 14 }; sp.Children.Add(t); return t;
+            }
+            var adr = Pole(L.T("Adres serwera:"), NetSerwery().LastOrDefault() is NetSerwer o ? o.Host + ":" + o.Port : "");
+            var has = Pole(L.T("Hasło serwera:"), "");
+            var wyn = STxt("", 13, SDim); wyn.TextWrapping = System.Windows.TextWrapping.Wrap; wyn.Margin = new System.Windows.Thickness(0, 10, 0, 0); sp.Children.Add(wyn);
+            var row = new System.Windows.Controls.WrapPanel { Margin = new System.Windows.Thickness(0, 12, 0, 0) }; sp.Children.Add(row);
+            System.Windows.Controls.Button ok = null;
+            ok = SBtnMake(L.T("🔐 Połącz"), async () =>
+            {
+                ok.IsEnabled = false; wyn.Text = L.T("Łączę…");
+                var blad = await NetSparuj(adr.Text, has.Text); ok.IsEnabled = true;
+                if (blad != null) { wyn.Text = blad; return; }
+                w.Close(); done?.Invoke();
+            }, SAccent);
+            row.Children.Add(ok);
+            if (NetSerwery().Count > 0) row.Children.Add(SBtnMake(L.T("🗑 Zapomnij moje serwery internetowe"), () => { NetSerwery().Clear(); NetSerweryZapisz(); w.Close(); done?.Invoke(); }));
+            w.Loaded += (s, e) => (adr.Text.Length > 0 ? has : adr).Focus();
+            w.ShowDialog();
+        }
     }
 }

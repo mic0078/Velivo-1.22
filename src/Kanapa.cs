@@ -327,7 +327,9 @@ namespace Velivo
                 }
                 else if (t == "serwer")
                 {   // 🎞 filmy z moich włączonych komputerów z Velivo (Serwer filmów, Odtwarzacz) - wykrywane same, jak wspólna biblioteka
-                    var box = new StackPanel(); st.Children.Add(box); List<LanPeerInfo> peers = null; List<LanFilmItem>[] got = null;
+                    var box = new StackPanel(); List<LanPeerInfo> peers = null; List<LanFilmItem>[] got = null;
+                    var dodaj = SBtnMake(L.T("🌍 Mój serwer przez internet…"), () => NetDodajOkno(w, () => { got = null; odswiez?.Invoke(); })); dodaj.HorizontalAlignment = HorizontalAlignment.Left; dodaj.Margin = new Thickness(0, 0, 0, 14);
+                    dodaj.ToolTip = L.T("Oglądaj filmy z mojego serwera poza domem: adres domu i hasło serwera"); st.Children.Add(dodaj); st.Children.Add(box);
                     UIElement SrvTile(LanPeerInfo pe, LanFilmItem x)
                     {
                                 var g = new Grid(); var img = Poster(PeerFilmKey(x)); var m = x.m ?? MetaFor(PeerFilmKey(x));
@@ -346,7 +348,7 @@ namespace Velivo
                         var fol = SerwerFolderyZPliku();   // 🎞 serwer na tym samym komputerze - wprost z dysku, bez sieci
                         var tu = fol.Count == 0 ? new List<LibraryVideo>() : LoadLibrary().Where(v => File.Exists(v.Path) && fol.Any(d => v.Path.StartsWith(d.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)))
                             .GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(gg => gg.OrderByDescending(v => v.Last).First()).OrderBy(Tytul, StringComparer.CurrentCultureIgnoreCase).ToList();
-                        if (got == null) { peers = SendTargets();
+                        if (got == null) { peers = SendTargets(); peers.AddRange(NetPeers(peers));
                         box.Children.Clear();
                         if (peers.Count == 0 && tu.Count == 0) { box.Children.Add(new TextBlock { Text = L.T("Nie widać żadnego Twojego serwera filmów. Włącz Velivo Serwer filmów (albo Velivo) na drugim komputerze – musi być sparowany i w tym samym profilu."), FontSize = 18, Foreground = KnDim, TextWrapping = TextWrapping.Wrap }); return; }
                         box.Children.Add(new TextBlock { Text = L.T("Szukam filmów na: ") + string.Join(", ", peers.Select(p => p.Device).Distinct(StringComparer.OrdinalIgnoreCase)) + "…", FontSize = 18, Foreground = KnDim });
@@ -374,7 +376,7 @@ namespace Velivo
                             var q = szukaj.Text.Trim();
                             var l = items.Where(x => x.sv).Where(x => q.Length == 0 || (x.m?.Name ?? x.t ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).OrderBy(x => x.m?.Name ?? x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
                             if (l.Count == 0) continue; n += l.Count;
-                            box.Children.Add(new TextBlock { Text = "🎞 " + pe.Device + "  (" + l.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+                            box.Children.Add(new TextBlock { Text = "🎞 " + pe.Device + (NetIdx(pe.Id) != null ? L.T(" · przez internet") : "") + "  (" + l.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
                             box.Children.Add(Wrap(l.Select(x => SrvTile(pe, x))));
                         }
                         if (n == 0) box.Children.Add(new TextBlock { Text = L.T("Twoje serwery nie udostępniają teraz żadnych filmów (dodaj folder w oknie Velivo Serwer filmów)."), FontSize = 18, Foreground = KnDim, TextWrapping = TextWrapping.Wrap });

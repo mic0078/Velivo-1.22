@@ -251,6 +251,7 @@ namespace Velivo
 
         void SendFilmMsg(LanPeerInfo peer, LanFilmMsg m)
         {
+            if (peer != null && NetIdx(peer.Id) is int ni) { if (m.kind == "prog") NetPostep(ni, m.id, m.pos, m.len, m.done, !m.done && m.pos == 0); return; }   // 🌍 przez internet: tylko postęp / obejrzany
             if (_lanTx == null || _lanEncryptionKey == null || peer == null) return;
             m.to = peer.Id;
             var pkt = new LanStatePacket { t = "film", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
@@ -258,7 +259,7 @@ namespace Velivo
             LanSend(pkt);
         }
 
-        LanPeerInfo PeerById(string id) { return SendTargets().FirstOrDefault(p => p.Id == id); }
+        LanPeerInfo PeerById(string id) { return NetIdx(id) != null ? new LanPeerInfo { Id = id } : SendTargets().FirstOrDefault(p => p.Id == id); }
 
         // film z biblioteki tego komputera dla drugiego: strumien + sciezka NAS + napisy
         LanFilmMsg FilmFor(LibraryVideo v, LanPeerInfo peer, string kind)
@@ -274,6 +275,7 @@ namespace Velivo
         // "Odtworz na" / "Ogladaj razem" z biblioteki tego komputera
         void PlayFilmOn(LibraryVideo v, LanPeerInfo peer, bool together)
         {
+            if (NetIdx(peer.Id) != null) return;   // serwer przez internet nie odtwarza na sobie
             if (together && !PremiumOk(L.T("👥 Oglądaj razem"))) return;
             // 🎞 film z serwera Jellyfin (pliku nie ma na tym komputerze) - drugi komputer bierze go z Jellyfin; wcześniej nic się nie działo
             var jf = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path);
@@ -332,6 +334,8 @@ namespace Velivo
         // cala wspolna biblioteka drugiego komputera - w kilku paczkach (jedna paczka LAN miesci ok. 200-300 filmow)
         async Task<List<LanFilmItem>> RequestLibrary(LanPeerInfo peer)
         {
+            if (NetIdx(peer.Id) is int ni)   // 🌍 mój serwer przez internet
+            { try { var l = await NetLista(ni); PeerInfo(l); return l; } catch (Exception) { return null; } }
             var all = new List<LanFilmItem>();
             for (int page = 0; page < 60; page++)
             {
@@ -439,6 +443,12 @@ namespace Velivo
         void WantRemoteFilm(LanPeerInfo peer, LanFilmItem item, bool together)
         {
             if (together && !PremiumOk(L.T("👥 Oglądaj razem"))) return;
+            if (NetIdx(peer.Id) is int ni)   // 🌍 przez internet: film przez lokalnego pośrednika (szyfrowane połączenie z serwerem)
+            {
+                if (together) { ShowToast(L.T("Oglądanie razem działa tylko w sieci domowej."), null); return; }
+                var url = NetProxyUrl(ni, "f/" + item.i); _remoteFilms[url] = new RemoteFilm { PeerId = peer.Id, Id = item.i, Title = item.t, Pos = item.p, Len = item.l, Prefs = item.f };
+                PlayVideos(new[] { url }, 0); return;
+            }
             if (!together && item.u != null && item.u.Contains("/Videos/")) { _remoteFilms[item.u] = new RemoteFilm { PeerId = peer.Id, Id = item.i, Title = item.t, Pos = item.p, Len = item.l, Prefs = item.f }; PlayVideos(new[] { item.u }, 0); return; }   // film z Jellyfin serwera - wprost z Jellyfin
             if (!together && item.n != null && File.Exists(item.n))   // NAS widoczny tutaj - wprost z dysku sieciowego, z ustawieniami filmu
             {

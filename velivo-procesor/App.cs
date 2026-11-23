@@ -73,7 +73,7 @@ namespace VelivoProcesor
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
         TextBlock tCichy, tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[5]; Canvas wykres; StackPanel lista;
-        readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; int hPos;
+        readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; readonly bool[] hAuto = new bool[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
 
@@ -113,7 +113,7 @@ namespace VelivoProcesor
                     bool st = s.StudioProg != null && s.Get("tryb") != "windows";
                     if (st != uspienieBlok) { uspienieBlok = st; SetThreadExecutionState(st ? 0x80000003u : 0x80000000u); }
                     Centrum(p);
-                    hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hPb[hPos] = pb.Liczba; hPos = (hPos + 1) % hCpu.Length;
+                    hCpu[hPos] = p.Cpu; hTemp[hPos] = p.Temp; hTryb[hPos] = (int)t; hAuto[hPos] = s.Auto; hPb[hPos] = pb.Liczba; hPos = (hPos + 1) % hCpu.Length;
                     win.Dispatcher.BeginInvoke(new Action(Odswiez));
                 }
                 catch (Exception) { }
@@ -260,7 +260,7 @@ namespace VelivoProcesor
             // wykres i programy
             var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
             var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 120, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
-            gw.Children.Add(T("procesor w kolorze trybu: zielony Cichy, żółty Zrównoważony, czerwony Turbo · przerywana – temperatura · pionowa kreska – ProBalance", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
+            gw.Children.Add(T("procesor w kolorze trybu: zielony Cichy, żółty Zrównoważony, czerwony Turbo · fiolet – tryb wybrany przez Auto (dół Cichy, góra Turbo) · przerywana – temperatura · pionowa kreska – ProBalance", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
             var gp = new StackPanel(); var gh = new DockPanel();
             tAll = T("⤢ Wszystkie", 12, Tq); tAll.Cursor = Cursors.Hand; tAll.ToolTip = "Pełna lista programów – sortowanie i szukanie"; tAll.MouseLeftButtonUp += (a, e) => Wszystkie();
             DockPanel.SetDock(tAll, Dock.Right); gh.Children.Add(tAll); gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
@@ -498,6 +498,14 @@ namespace VelivoProcesor
                 if (hTryb[j] != tr0) { var prev = lc; tr0 = hTryb[j]; lc = L(KolorTrybu(tr0), 2); if (prev != null && prev.Points.Count > 0) lc.Points.Add(prev.Points[prev.Points.Count - 1]); }
                 lc.Points.Add(pt);
                 if (hTemp[j] > 0) lt.Points.Add(new Point(x, h - Math.Min(100, hTemp[j]) / 100 * h));
+            }
+            // 🧠 fiolet: tryb wybrany przez automatykę (schodki: dół Cichy, środek Zrównoważony, góra Turbo) - tylko gdy działało Auto
+            Polyline lm = null;
+            for (int i = 0; i < n; i++)
+            {
+                int j = (hPos + i) % n; if (!hAuto[j]) { lm = null; continue; }
+                if (lm == null) { lm = L(Vi, 1.5); lm.Opacity = 0.85; }
+                lm.Points.Add(new Point(w * i / (n - 1), h - 6 - hTryb[j] * (h - 12) / 2));
             }
         }
 

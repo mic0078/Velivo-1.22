@@ -186,7 +186,7 @@ namespace VelivoProcesor
         // priorytet, który program dostaje: wybrany, a w trybie Studio domyślnie Wysoki
         public int PriorytetDla(string n) { lock (Studio) return Priorytet.TryGetValue(n, out var v) ? v : Studio.Contains(n) ? 1 : 0; }
         public bool BezPbDla(string n) { lock (Studio) return BezPb.Contains(n); }
-        public void Zapomnij(string n) { lock (programy) programy.Remove(n); lock (Studio) { Reczne.Remove(n); Priorytet.Remove(n); Studio.Remove(n); BezPb.Remove(n); } ZapiszNauke(); }
+        public void Zapomnij(string n) { lock (programy) { programy.Remove(n); ocena.Remove(n); } lock (Studio) { Reczne.Remove(n); Priorytet.Remove(n); Studio.Remove(n); BezPb.Remove(n); } ZapiszNauke(); }
         public double ProgWysoki = 70, ProgNiski = 20;   // samodostrajane
         DateTime naukaZapis = DateTime.UtcNow;
 
@@ -203,6 +203,7 @@ namespace VelivoProcesor
                     else if (a[0] == "Q" && a.Length >= 3) Priorytet[a[1]] = int.Parse(a[2]);
                     else if (a[0] == "S" && a.Length >= 2) Studio.Add(a[1]);
                     else if (a[0] == "B" && a.Length >= 2) BezPb.Add(a[1]);
+                    else if (a[0] == "A" && a.Length >= 6) ocena[a[1]] = (new[] { double.Parse(a[2], Inv), double.Parse(a[3], Inv), double.Parse(a[4], Inv) }, int.Parse(a[5]));
                     else if (a[0] == "T" && a.Length >= 3) { ProgWysoki = double.Parse(a[1], Inv); ProgNiski = double.Parse(a[2], Inv); }
                 }
             }
@@ -214,6 +215,7 @@ namespace VelivoProcesor
             {
                 var l = new List<string>();
                 lock (programy) foreach (var p in programy) l.Add("P\t" + p.Key + "\t" + p.Value.Cpu.ToString("0.0", Inv) + "\t" + p.Value.Gpu.ToString("0.0", Inv) + "\t" + p.Value.N + "\t" + p.Value.Szczyt.ToString("0.0", Inv));
+                lock (programy) foreach (var o in ocena) l.Add("A\t" + o.Key + "\t" + string.Join("\t", o.Value.Q.Select(x => x.ToString("0.000", Inv))) + "\t" + o.Value.N);
                 for (int h = 0; h < 24; h++) if (godzN[h] > 0) l.Add("H\t" + h + "\t" + godziny[h].ToString("0.0", Inv) + "\t" + godzN[h]);
                 lock (Studio)
                 {
@@ -256,6 +258,35 @@ namespace VelivoProcesor
         static string Czas(int n) => n >= 3600 ? (n / 3600) + " h" : Math.Max(1, n / 60) + " min";
         public static string Nazwa(Tryb t) => t == Tryb.Cichy ? "Cichy" : t == Tryb.Turbo ? "Turbo" : "Zrównoważony";
 
+        // 🤖 nauka skutków (wniosek z Q-learningu CPU Manager v40, lżej): dla każdego programu ocena trybów z tego, co tryb dał - cisza bez przycięć = nagroda,
+        // przycięcie (procesor albo rdzeń programu pełny) w słabszym trybie = kara, Turbo przy małym obciążeniu lub cieple = kara; Twój ręczny wybór przy programie = silna nagroda.
+        // Wybór: tryb z najlepszą oceną, przy remisie cichszy; dopiero po 2 min pracy programu. Bez losowania (bez skakania trybów).
+        readonly Dictionary<string, (double[] Q, int N)> ocena = new Dictionary<string, (double[], int)>(StringComparer.OrdinalIgnoreCase);
+        void Ocen(Pomiar p, Tryb t, bool ręcznie)
+        {
+            if (string.IsNullOrEmpty(p.Program) || Powloka.Contains(p.Program)) return;
+            bool lag = p.Cpu > 85 || p.ProgCpu > 90; bool cieplo = p.Temp > 0 && p.Temp >= TempLimit - 5;
+            double r = ręcznie ? 2 : t == Tryb.Cichy ? (lag ? -2 : 1) : t == Tryb.Zrownowazony ? (lag ? -0.5 : p.Cpu < 15 ? -0.3 : 0.5) : (lag ? 1.5 : p.Cpu < 30 ? -1.5 : 0.3);
+            if (!ręcznie && cieplo) r -= t == Tryb.Turbo ? 1 : t == Tryb.Zrownowazony ? 0.3 : 0;
+            lock (programy)
+            {
+                if (!ocena.TryGetValue(p.Program, out var o)) o = (new double[3], 0);
+                o.Q[(int)t] += (r - o.Q[(int)t]) * (ręcznie ? 0.05 : 0.02);
+                if (ręcznie) for (int i = 0; i < 3; i++) if (i != (int)t) o.Q[i] += (-1 - o.Q[i]) * 0.02;   // inne tryby przy tym programie - słabiej
+                ocena[p.Program] = (o.Q, Math.Min(o.N + 1, 100000));
+            }
+        }
+        bool Oceniony(string prog, out Tryb t)
+        {
+            t = Tryb.Zrownowazony;
+            lock (programy)
+            {
+                if (string.IsNullOrEmpty(prog) || !ocena.TryGetValue(prog, out var o) || o.N < 60) return false;
+                int best = 0; for (int i = 1; i < 3; i++) if (o.Q[i] > o.Q[best] + 0.2) best = i;   // remis - cichszy
+                t = (Tryb)best; return true;
+            }
+        }
+
         void Ucz(Pomiar p)
         {
             if (!string.IsNullOrEmpty(p.Program) && !Powloka.Contains(p.Program) && p.Program.IndexOf("setup", StringComparison.OrdinalIgnoreCase) < 0 && !p.Program.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))   // instalatory (jednorazowe) - bez nauki
@@ -286,7 +317,8 @@ namespace VelivoProcesor
             StudioCzynne(p);
             if (Get("tryb") == "pauza") { Dlaczego = "Wstrzymany – steruje inny program. Velivo Procesor tylko mierzy i pokazuje (ProBalance też wstrzymany). Wybierz tryb, aby znów sterował."; return Obecny; }
             if (Get("tryb") == "windows") { Dlaczego = "Steruje Windows (ustawienia domyślne) – Velivo Procesor tylko pokazuje pomiary."; return Obecny; }
-            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; Dlaczego = "Wybrany ręcznie."; return Ustal(r); }
+            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; Ocen(p, r, true); Dlaczego = "Wybrany ręcznie (zapamiętuję dla " + (string.IsNullOrEmpty(p.Program) ? "tego programu" : p.Program) + ")."; return Ustal(r); }
+            Ocen(p, Obecny, false);
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
             wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;
@@ -311,6 +343,8 @@ namespace VelivoProcesor
             { gpuBound = true; chce = Tryb.Zrownowazony; why = "Program obciąża kartę graficzną (" + p.Gpu.ToString("0") + " %), procesor tylko " + p.Cpu.ToString("0") + " % – procesor nie potrzebuje więcej mocy, karta ma chłodniej."; }
             // 4. duże obciążenie - od razu w górę (pół sekundy wystarczy, bez przycięć)
             else if (wysokoN >= 1) { gpuBound = false; chce = Tryb.Turbo; why = "Duże obciążenie (" + p.Cpu.ToString("0") + " %) – pełna moc od razu."; }
+            // 5. 🤖 nauczony ze skutków (cisza bez przycięć) albo z Twoich wyborów przy tym programie
+            else if (Oceniony(p.Program, out var oc)) { gpuBound = false; chce = oc; why = p.Program + " – nauczony: " + Nazwa(oc) + " wystarcza (cicho, bez przycięć)."; }
             // 5. ręcznie przypisany / wyuczony program
             else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas

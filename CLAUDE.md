@@ -450,6 +450,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Przyciski, ikony i menu mają podpowiedzi PL i EN.
 * Wszystko jasne, czytelne, zrozumiałe i łatwe w obsłudze (2026-10-29, właściciel) – od pierwszej wersji, nie po uwagach: każde okno ma krótkie objaśnienie, co pokazuje i co robią przyciski; stan słowami (nie same ikony/emoji – w okienkach Windows są szare); kolory prawdziwe; najważniejsze na górze; pisz dla osoby, która widzi to pierwszy raz (np. mama, 68 lat).
 * Wygląd Velivo (bez szarych okien Androida), czytelny w jasnym i ciemnym motywie.
+* ZAWSZE (2026-11-23, właściciel: „oducz się tego”): nigdy zwykły `Button` WPF na ciemnym tle – po najechaniu robi się biały. Każdy nowy przycisk: własny szablon albo `Border` z własnym kolorem najechania (przygaszenie / jaśniejszy odcień tego samego koloru). Sprawdzaj najechanie przy każdym nowym przycisku.
 * Menu czytelne i łatwe (2026-10-27, właściciel): pogrupowane (kilka grup z podmenu zamiast długiej listy), krótkie nazwy (opis w podpowiedzi albo po stuknięciu), okienka dopasowane do zawartości – bez przewijania, gdy się mieści.
 * Zmiany Filmów i TV opisz w `dokumentacja/instrukcja-filmy-tv.md` i `instrukcja-filmy-tv-notatki.md`; telefonu – w `instrukcja-telefon.md` (PL i EN).
 

@@ -91,6 +91,11 @@ namespace VelivoProcesor
             Microsoft.Win32.SystemEvents.SessionEnding += (a, e) => Koniec(false);
             Program.Zakoncz = () => Koniec(true);
             EkranSluchaj();
+            // 💡 ikona: kolor obciążenia + dioda dysku (co 60 ms, w wątku okna - tylko zmiana obrazka, gdy stan się zmienia)
+            dioda.Dysk(s.Get("dioda", "*"));
+            var dt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
+            dt.Tick += (a, e) => { try { var ic = dioda.Krok(ost.Cpu, System.Windows.Forms.SystemInformation.SmallIconSize.Width); if (ic != null && tray.Visible) tray.Icon = ic; } catch (Exception) { } };
+            dt.Start();
             new Thread(Petla) { IsBackground = true, Name = "Velivo Procesor", Priority = ThreadPriority.AboveNormal }.Start();
             if (!ukryty) Pokaz();
         }
@@ -119,6 +124,7 @@ namespace VelivoProcesor
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern ulong GetTickCount64();
         [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint f);
         bool uspienieBlok;
+        readonly Dioda dioda = new Dioda();
         int petlaN; readonly ProBalance pb = new ProBalance();
         System.IO.MemoryMappedFiles.MemoryMappedFile mmf;
         // 🧩 stan dla Velivo Centrum (jak poziom Audio Balance): czas + tekst „Auto · Cichy · 54 °C”
@@ -272,6 +278,17 @@ namespace VelivoProcesor
             pbBox.Click += (a, e) => PbUstaw(pbBox.IsChecked == true); us.Children.Add(pbBox);
             tPb = T("", 11, Dim); tPb.Margin = new Thickness(22, 0, 0, 0); us.Children.Add(tPb);
             us.Children.Add(Suwak("🌙 Najniższy zegar w trybie Cichym", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
+            // 💡 dioda dysku przy zegarze: który dysk (albo wyłączona)
+            var dd = new DockPanel { Margin = new Thickness(0, 6, 0, 0), ToolTip = "Czerwona kropka na ikonie przy zegarze mruga, gdy dysk czyta albo zapisuje (jak dioda w obudowie)" };
+            var dl = T("💡 Dioda dysku przy zegarze", 12, Fg); dl.Width = 260; DockPanel.SetDock(dl, Dock.Left); dd.Children.Add(dl);
+            var dc = new ComboBox { Width = 160, HorizontalAlignment = HorizontalAlignment.Left };
+            var opcje = new List<(string Klucz, string Nazwa)> { ("*", "Wszystkie dyski") };
+            foreach (var di in System.IO.DriveInfo.GetDrives()) { try { if (di.DriveType == System.IO.DriveType.Fixed || di.DriveType == System.IO.DriveType.Removable) opcje.Add((di.Name.Substring(0, 2), di.Name.Substring(0, 2) + (di.IsReady && di.VolumeLabel.Length > 0 ? " " + di.VolumeLabel : ""))); } catch (Exception) { } }
+            opcje.Add(("", "Wyłączona"));
+            foreach (var o in opcje) dc.Items.Add(o.Nazwa);
+            dc.SelectedIndex = Math.Max(0, opcje.FindIndex(o => o.Klucz == s.Get("dioda", "*")));
+            dc.SelectionChanged += (a, e) => { var k = opcje[Math.Max(0, dc.SelectedIndex)].Klucz; s.Put("dioda", k); dioda.Dysk(k); };
+            dd.Children.Add(dc); us.Children.Add(dd);
             us.Children.Add(Suwak("🌡 Temperatura graniczna (wtedy Cichy)", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", "Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
             bAdmin = Btn(s.Amd && s.Ryzen != null ? "🔑 Włącz sterowanie mocą AMD i odczyt temperatury (jedno „Tak” administratora)" : "🔑 Włącz odczyt temperatury (jedno „Tak” administratora)", Program.ZadanieUtworz,
                 "Odczyt czujników (i moc AMD przez RyzenAdj) wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami – bez pytania przy każdym starcie.");

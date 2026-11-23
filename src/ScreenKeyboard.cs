@@ -275,6 +275,9 @@ namespace Velivo
                 menu.Opening += (s, e) => podIt.Checked = PodOn;
                 podIt.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { SetPref("klawiatura-podpowiedzi", PodOn ? "0" : "1"); if (!PodOn) PodHide(); }));
                 menu.Items.Add(podIt);
+                var naukaIt = new System.Windows.Forms.ToolStripMenuItem(L.T("📒 Czego nauczyła się klawiatura…"));
+                naukaIt.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => (Application.Current?.MainWindow as MainWindow)?.KlawiaturaNaukaOkno()));
+                menu.Items.Add(naukaIt);
                 if (Wariant.Klawiatura)
                 {   // ⌨ Velivo Klawiatura: start z Windows i zakończenie programu (to jedyna ikona tego programu)
                     var auto = new System.Windows.Forms.ToolStripMenuItem(L.T("Uruchamiaj z Windows")) { CheckOnClick = true };

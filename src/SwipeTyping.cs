@@ -777,6 +777,14 @@ namespace Velivo
             lock (_mine) { if (!_mine.TryGetValue(t[0], out var l)) _mine[t[0]] = l = new List<Point[]>(); if (l.Count < 3) l.Add(pts); }
         }
 
+        // 📒 okno „Czego nauczyła się klawiatura”: poprawki i zwroty do przejrzenia i usunięcia pojedynczo (usunięte nie wracają z pliku innego programu)
+        static readonly HashSet<string> _usuniete = new HashSet<string>();
+        internal static List<(string Typo, string Fix)> NaukaPoprawki() { lock (_myFix) return _myFix.Select(kv => (kv.Key, kv.Value)).OrderBy(x => x.Key).ToList(); }
+        internal static List<(string Key, int N)> NaukaZwroty() { lock (_pairs) return _pairs.Select(kv => (kv.Key, kv.Value)).OrderByDescending(x => x.Value).ToList(); }
+        internal static void ZapomnijPoprawke(string t) { lock (_myFix) { _myFix.Remove(t); _usuniete.Add(">" + t); } }
+        internal static void ZapomnijZwrot(string k) { lock (_pairs) { _pairs.Remove(k); _usuniete.Add("=" + k); } }
+        // zamiana poprawnego słowa (taka → taką, pisze → piszę) - błąd starej wersji
+        internal static bool ZamianaPoprawnego(string t) { var m = _main; return m != null && m.Contains(t) || Full is Hunspell h && h.Known(t); }
         static readonly HashSet<string> _ownRemoved = new HashSet<string>();   // usunięte w tym programie z Mojego słownika - nie wracają z pliku przy łączeniu
         internal static void SaveLearned(string file, IDictionary<string, int> learned, ISet<string> own)
         {
@@ -848,8 +856,8 @@ namespace Velivo
                         if (line.StartsWith("~")) { ReadShape(line); continue; }
                         if (line.StartsWith("*")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[0], out var sc) && sc >= 2 && q[1].Length > 0) lock (_sentences) _sentences[q[1]] = sc; continue; }   // zdania uzyte raz (dawny zapis) - pominiete
                         if (line.StartsWith("#")) { if (int.TryParse(line.Substring(1), out var sh)) lock (_sentences) _seenOnce.Add(sh); continue; }
-                        if (line.StartsWith(">")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && q[0].Length > 0 && q[1].Length > 0) lock (_myFix) _myFix[q[0]] = q[1]; continue; }
-                        if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) _pairs[q[0]] = pc; continue; }
+                        if (line.StartsWith(">")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && q[0].Length > 0 && q[1].Length > 0) lock (_myFix) if (!_usuniete.Contains(">" + q[0])) _myFix[q[0]] = q[1]; continue; }
+                        if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) if (!_usuniete.Contains("=" + q[0])) _pairs[q[0]] = pc; continue; }
                         var p = line.Split('\t');
                         if (p.Length == 2 && int.TryParse(p[1], out var n) && p[0].Length > 0) d[p[0]] = n;
                     }

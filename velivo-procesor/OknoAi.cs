@@ -32,8 +32,8 @@ namespace VelivoProcesor
             var pb2 = new StackPanel(); pb2.Children.Add(T("🔮 Przewidywanie", 13, Fg, FontWeights.SemiBold)); pb2.Children.Add(prz); pb2.Children.Add(dzien);
             pb2.Children.Add(T("dzisiejszy dzień tygodnia: zwykłe obciążenie w każdej godzinie (0–23, wyżej = więcej pracy)", 11, Dim)); var bxp = Box(pb2); Grid.SetColumn(bxp, 1); g.Children.Add(bxp);
             // programy
-            var lv = new ListView { Background = Card, Foreground = Fg, BorderBrush = Line, Height = 260 };
-            var gv = new GridView(); lv.View = gv;
+            var lv = new ListView { Background = Card, Foreground = Fg, BorderBrush = Line, Height = 260, ItemContainerStyle = WierszStyl() };
+            var gv = new GridView { ColumnHeaderContainerStyle = NaglowekStyl() }; lv.View = gv;
             foreach (var (h, p, w) in new[] { ("Program", "Prog", 220.0), ("Cichy", "C", 80.0), ("Zrównoważony", "Z", 100.0), ("Turbo", "Tu", 80.0), ("Wybiera", "W", 120.0), ("Próbek", "N", 80.0) })
                 gv.Columns.Add(new GridViewColumn { Header = h, DisplayMemberBinding = new System.Windows.Data.Binding(p), Width = w });
             var pp = new StackPanel(); pp.Children.Add(T("🎓 Nauka skutków – programy", 13, Fg, FontWeights.SemiBold)); pp.Children.Add(lv);

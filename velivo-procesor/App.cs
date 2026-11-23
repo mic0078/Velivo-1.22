@@ -254,7 +254,7 @@ namespace VelivoProcesor
             // wykres i programy
             var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
             var gw = new StackPanel(); gw.Children.Add(T("📈 Ostatnie 2 minuty", 13, Fg, FontWeights.SemiBold)); wykres = new Canvas { Height = 120, ClipToBounds = true, Margin = new Thickness(0, 6, 0, 4) }; gw.Children.Add(wykres);
-            gw.Children.Add(T("turkus – procesor · fiolet – tryb · żółty – temperatura · zielona linia – ProBalance uspokoił program w tle", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
+            gw.Children.Add(T("procesor w kolorze trybu: zielony Cichy, żółty Zrównoważony, czerwony Turbo · przerywana – temperatura · pionowa kreska – ProBalance", 11, Dim)); var bw = Box(gw); Grid.SetColumn(bw, 0); g.Children.Add(bw);
             var gp = new StackPanel(); var gh = new DockPanel();
             tAll = T("⤢ Wszystkie", 12, Tq); tAll.Cursor = Cursors.Hand; tAll.ToolTip = "Pełna lista programów – sortowanie i szukanie"; tAll.MouseLeftButtonUp += (a, e) => Wszystkie();
             DockPanel.SetDock(tAll, Dock.Right); gh.Children.Add(tAll); gh.Children.Add(T("🎮 Programy (zapamiętane)", 13, Fg, FontWeights.SemiBold)); gp.Children.Add(gh);
@@ -459,6 +459,8 @@ namespace VelivoProcesor
             var st = new Style(typeof(GridViewColumnHeader)); st.Setters.Add(new Setter(Control.TemplateProperty, t)); st.Setters.Add(new Setter(Control.ForegroundProperty, Dim)); st.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left)); st.Setters.Add(new Setter(FrameworkElement.CursorProperty, Cursors.Hand)); return st;
         }
 
+        static readonly Brush Zielony = B(0x4A, 0xDE, 0x80), Zolty = B(0xFA, 0xCC, 0x15), Czerwony = B(0xF8, 0x71, 0x71);
+        static Brush KolorTrybu(int t) => t == (int)Tryb.Turbo ? Czerwony : t == (int)Tryb.Zrownowazony ? Zolty : Zielony;
         void RysujWykres()
         {
             wykres.Children.Clear(); double w = Math.Max(10, wykres.ActualWidth), h = wykres.Height; int n = hCpu.Length;
@@ -470,13 +472,15 @@ namespace VelivoProcesor
                 double x = w * i / (n - 1);
                 wykres.Children.Add(new Line { X1 = x, X2 = x, Y1 = 0, Y2 = h, Stroke = Ok, StrokeThickness = 1, Opacity = 0.8, ToolTip = "ProBalance uspokoił program w tle (" + c + ")" });
             }
-            var lc = L(Tq, 1.5); var lt = L(Warn, 1); var lm = L(Vi, 1.5); lt.StrokeDashArray = new DoubleCollection { 3, 2 };
+            var lt = L(Warn, 1); lt.StrokeDashArray = new DoubleCollection { 3, 2 };
+            // procesor: jedna linia w kolorze trybu w danej chwili (zielona Cichy, żółta Zrównoważony, czerwona Turbo) - odcinki stykają się w punktach
+            Polyline lc = null; int tr0 = -1;
             for (int i = 0; i < n; i++)
             {
-                int j = (hPos + i) % n; double x = w * i / (n - 1);
-                lc.Points.Add(new Point(x, h - hCpu[j] / 100 * h));
+                int j = (hPos + i) % n; double x = w * i / (n - 1); var pt = new Point(x, h - hCpu[j] / 100 * h);
+                if (hTryb[j] != tr0) { var prev = lc; tr0 = hTryb[j]; lc = L(KolorTrybu(tr0), 2); if (prev != null && prev.Points.Count > 0) lc.Points.Add(prev.Points[prev.Points.Count - 1]); }
+                lc.Points.Add(pt);
                 if (hTemp[j] > 0) lt.Points.Add(new Point(x, h - Math.Min(100, hTemp[j]) / 100 * h));
-                lm.Points.Add(new Point(x, h - 6 - hTryb[j] * (h - 12) / 2));
             }
         }
 

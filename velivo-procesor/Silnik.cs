@@ -352,7 +352,9 @@ namespace VelivoProcesor
             else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
             else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
             // kopiowanie i instalacja: nie zwalniam do Cichego (małe pliki i skanowanie antywirusa potrzebują procesora), ale bez Turbo - mało ciepła
-            if (!goraco && !reczny && chce == Tryb.Cichy && (kopiuje || instalator != null))
+            // dysk w tle (Windows Update, Defender) nie odbiera ciszy programowi, który zwykle potrzebuje Cichego (np. film) - tylko instalacja tak
+            bool cichyProgram = (Oceniony(p.Program, out var oc0) && oc0 == Tryb.Cichy) || (ZnanyProgram(p.Program, out var v0) && v0.N >= 30 && Wyuczony(v0) == Tryb.Cichy);
+            if (!goraco && !reczny && chce == Tryb.Cichy && (kopiuje && !cichyProgram || instalator != null))
             { chce = Tryb.Zrownowazony; why = instalator != null ? "Instalacja (" + instalator + ") – nie zwalniam do Cichego, żeby nie szarpała." : "Kopiowanie (dysk " + p.DyskMBs.ToString("0") + " MB/s) – nie zwalniam do Cichego."; }
             if (!reczny && p.Bateria && chce == Tryb.Turbo && !(p.Temp < 0 && wysokoN > 3)) { chce = Tryb.Zrownowazony; why += " Na baterii bez Turbo."; }
 

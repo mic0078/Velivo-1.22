@@ -204,7 +204,8 @@ namespace Velivo
                 _foldAll = all; _sortedFold = sorted.Select(x => x.F).ToArray(); _sortedEntry = sorted.Select(x => x.E).ToArray();
                 _main = main; _fold = fold;
             }
-            lock (_myFix) if (_myFix.TryGetValue(w, out var mf)) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(mf[0]) + mf.Substring(1) : mf;   // Twoja poprawka (skasowane i wpisane od nowa)
+            bool poprawne = main.Contains(w) || Full is Hunspell fullP && fullP.Known(w);   // poprawne słowo (taka, moja, wola, kanapa) nigdy nie zmieniane przez zapamiętaną poprawkę
+            lock (_myFix) if (!poprawne && _myFix.TryGetValue(w, out var mf)) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(mf[0]) + mf.Substring(1) : mf;   // Twoja poprawka (skasowane i wpisane od nowa)
             if (w == "ze") return null;
             if (_polite.Contains(w)) return typed[0] == char.ToUpperInvariant(typed[0]) ? null : Polite(w);   // ty -> Ty   // ze / że - rozstrzyga nastepne slowo (ZeAsZe): ze mną, że to
             // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
@@ -615,7 +616,7 @@ namespace Velivo
         {
             if (string.IsNullOrEmpty(typo) || string.IsNullOrEmpty(fix) || typo.Length < 3 || fix.Length < 2 || !typo.All(char.IsLetter) || !fix.All(char.IsLetter)) return false;
             string t = typo.ToLowerInvariant(), f = fix.ToLowerInvariant();
-            if (t == f || _main == null || _main.Contains(t) || Edits(t, f) > Math.Max(1, Math.Min(2, t.Length / 3))) return false;   // poprawne slowo zmienione na inne albo zupelnie inne slowo - to nie literowka
+            if (t == f || _main == null || _main.Contains(t) || Full is Hunspell fl && fl.Known(t) || Edits(t, f) > Math.Max(1, Math.Min(2, t.Length / 3))) return false;   // poprawne slowo zmienione na inne albo zupelnie inne slowo - to nie literowka
             lock (_myFix) { _myFix[t] = f; if (_myFix.Count > 2000) _myFix.Remove(_myFix.Keys.First()); }
             return true;
         }
@@ -682,7 +683,10 @@ namespace Velivo
             if (string.IsNullOrEmpty(prev) || word == null || word.Length < 3 || !word.All(char.IsLetter)) return null;
             var p = prev.ToLowerInvariant(); var w = word.ToLowerInvariant();
             if (keep != null && keep.Contains(w) || PairCount(p + " " + w) > 0) return null;
-            string best = null; int bn = 2;
+            // poprawne słowo (taka, kanapa) zmieniane z kontekstu tylko przy pewnym zwrocie - Ty pisałeś tę parę co najmniej 5 razy (a tej formy po tym słowie nigdy);
+            // literówka - jak dotąd po 3 razach. Bez tego zapamiętane wcześniej zmiany same się utrwalały (taka moja wola → taką moją wolą)
+            bool popr = _main != null && _main.Contains(w) || Full is Hunspell fc && fc.Known(w);
+            string best = null; int bn = popr ? 4 : 2;
             lock (_pairs)
                 foreach (var kv in _pairs)
                 {

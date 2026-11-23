@@ -186,7 +186,8 @@ object Slownik {
         val w = typed.lowercase()
         if (keep != null && w in keep) return null
         val f = fold!!; val m = main!!
-        synchronized(myFix) { myFix[w] }?.let { return cap(typed, it) }
+        val poprawne = w in m || full?.known(w) == true   // poprawne słowo (taka, moja, wola, kanapa) nigdy nie zmieniane przez zapamiętaną poprawkę
+        if (!poprawne) synchronized(myFix) { myFix[w] }?.let { return cap(typed, it) }
         if (w !in m && runCatching { useCount?.invoke(w) ?: 0 }.getOrDefault(0) >= 3) return null   // często pisane przez użytkownika (nazwisko, miejsce, termin) - zostaje
         if (w == "ze") return null
         if (w in polite) return if (typed[0] == typed[0].uppercaseChar()) null else polite(w)
@@ -518,7 +519,7 @@ object Slownik {
     fun learnFix(typo: String, fix: String): Boolean {
         if (typo.length < 3 || fix.length < 2 || !typo.all { it.isLetter() } || !fix.all { it.isLetter() }) return false
         val t = typo.lowercase(); val f = fix.lowercase(); val m = main
-        if (t == f || m == null || t in m || edits(t, f) > max(1, min(2, t.length / 3))) return false
+        if (t == f || m == null || t in m || full?.known(t) == true || edits(t, f) > max(1, min(2, t.length / 3))) return false
         synchronized(myFix) { myFix[t] = f; if (myFix.size > 2000) myFix.remove(myFix.keys.first()) }
         return true
     }
@@ -590,7 +591,9 @@ object Slownik {
         if (prev.isNullOrEmpty() || word.length < 3 || !word.all { it.isLetter() }) return null
         val p = prev.lowercase(); val w = word.lowercase()
         if (keep != null && w in keep || pairCount("$p $w") > 0) return null
-        var best: String? = null; var bn = 2
+        // poprawne słowo (taka, kanapa) zmieniane z kontekstu tylko przy pewnym zwrocie (para co najmniej 5 razy); literówka - jak dotąd po 3 razach
+        val popr = main?.contains(w) == true || full?.known(w) == true
+        var best: String? = null; var bn = if (popr) 4 else 2
         synchronized(pairs) {
             for ((k, n) in pairs) {
                 if (n <= bn || !k.startsWith("$p ")) continue

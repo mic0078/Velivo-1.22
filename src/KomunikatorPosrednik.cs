@@ -2238,30 +2238,31 @@ namespace Velivo
             if (!await KomAdmLogin(owner)) return;   // 🔐 klucz sprzętowy albo hasło administratora
             var w = new Window { Title = "🛠 " + L.T("Panel administratora") + " – " + Environment.MachineName, Width = 1100, Height = 760, WindowState = WindowState.Maximized, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             string Ago(DateTime t) => t.ToString("yyyy-MM-dd HH:mm");
-            Action rOps = null, rInfra = null, rFiles = null, rDiag = null, rAcc = null, rKeys = null, AttnFill = null; Border attn = null; TextBlock cProb = null; string attnSig = null; TabControl tabs = null;   // używane w All() (przyciski tworzone wcześniej)
+            Action rOps = null, rInfra = null, rFiles = null, rDiag = null, rAcc = null, rKeys = null, AttnFill = null, NavFill = null, NavShow = null, rRecent = null; int nMsgs = 0, nFiles = 0; Border attn = null; TextBlock cProb = null; string attnSig = null; TabControl tabs = null;   // używane w All() (przyciski tworzone wcześniej)
             // kafelki
             var cards = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
             TextBlock Card(string sub) { var v = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold }; cards.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = AdmB(0x34405e), Background = AdmB(0x232b42), CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 8, 0),
                 Child = new StackPanel { Children = { v, new TextBlock { Text = sub, Opacity = 0.75 } } } }); return v; }
-            var cSrv = Card(L.T("serwer")); var cFiles = Card(L.T("pliki czekają")); var cMsg = Card(L.T("wiadomości czekają")); var cOn = Card(L.T("osób w sieci")); var cVer = Card(L.T("wersje serwerów"));
+            var cSrv = Card(L.T("serwer")); var cFiles = new TextBlock(); var cMsg = Card(L.T("czeka w skrzynce")); var cOn = Card(L.T("osób w sieci")); var cVer = Card(L.T("wersje serwerów"));   // 4 kafelki (makieta): pliki i wiadomości razem
+            int boxKind = 0;   // 📬 Skrzynka: 0 wszystko, 1 wiadomości, 2 pliki
             var search = new TextBox { Padding = new Thickness(4), ToolTip = L.T("Szukaj w otwartej tabeli (osoba, zdarzenie, adres…)") };
             // stan słowami z tego, co serwer naprawdę widzi: odbiorca połączony z TYM serwerem (wysyła), z innym (tamten oddaje), poza siecią
             string Why(string id, bool copy) =>
                 _komRemote.ContainsKey(id) || (_komLanSeen.TryGetValue(id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) ? L.T("połączony z tym serwerem – wysyłam (próba co minutę)")
                 : KomOnlineAny(id) ? (copy ? L.T("w sieci przez inny serwer – oddaje go tamten serwer, tu zapasowa kopia") : L.T("w sieci przez inny serwer – ten serwer czeka, aż odbiorca połączy się z nim"))
-                : L.T("poza siecią – wyślę, gdy się pojawi");
+                : (KomContactById(id)?.Name ?? L.T("Odbiorca")) + L.T(" nie łączy się z tym serwerem") + (_komSeenAt.TryGetValue(id, out var wsa) ? L.T(" od ") + wsa.ToString("dd.MM HH:mm") : "") + L.T(" – wyślę, gdy się pojawi");
             // 1. skrzynka
-            var (tBox, rBox) = KomTable(new[] { L.T("Osoba"), L.T("Plik (rozmiar KB)"), L.T("Czeka od"), L.T("Stan") }, () =>
+            var (tBox, rBox) = KomTable(new[] { L.T("Do kogo"), L.T("Co"), L.T("Od kogo"), L.T("Czeka od"), L.T("Dlaczego czeka") }, () =>
             {
                 var l = new List<string[]>(); var root = Path.Combine(DataDir, "skrzynka");
-                foreach (var d in Directory.Exists(root) ? Directory.GetDirectories(root) : Array.Empty<string>())
+                foreach (var d in boxKind == 1 || !Directory.Exists(root) ? Array.Empty<string>() : Directory.GetDirectories(root))
                 {
                     var id = Path.GetFileName(d); var name = KomContactById(id)?.Name ?? id;
                     foreach (var bin in Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)))
-                        l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), Why(id, Path.GetFileName(bin.FullName).StartsWith('k')), id + "|" + bin.FullName });   // ostatnie pole (niewidoczne) - do usuwania
+                        l.Add(new[] { name, "📎 " + L.T("plik ") + (bin.Length / 1048576.0).ToString(bin.Length < 10485760 ? "0.0" : "0") + " MB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), "–", Ago(bin.LastWriteTime), Why(id, Path.GetFileName(bin.FullName).StartsWith('k')), id + "|" + bin.FullName });   // ostatnie pole (niewidoczne) - do usuwania
                 }
-                foreach (var kv in _komStore) { List<JsonNode> ms; lock (kv.Value) ms = kv.Value.ToList(); foreach (var m in ms)
-                    l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, L.T("wiadomość (tekst) od ") + (KomContactById((string)m["id"] ?? "")?.Name ?? "?"),
+                if (boxKind != 2) foreach (var kv in _komStore) { List<JsonNode> ms; lock (kv.Value) ms = kv.Value.ToList(); foreach (var m in ms)
+                    l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, "💬 " + L.T("wiadomość"), KomContactById((string)m["id"] ?? "")?.Name ?? "?",
                         (long?)m["ts"] is long ts ? Ago(DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime) : "", Why(kv.Key, false), kv.Key + "|m:" + (string)m["mid"] }); }
                 return l;
             }, search);
@@ -2469,7 +2470,7 @@ namespace Velivo
                     Text = L.T("NIE ZAIMPLEMENTOWANE (jeszcze nie działa – nie udaję): blokowanie / odblokowanie użytkownika, tworzenie konta przez administratora, urządzenia osoby i rozłączanie sesji, backup i przywracanie serwera z panelu, role i priorytety serwerów, zasoby (procesor, pamięć, dysk) innych serwerów, historia awarii, wspólny dokument konfiguracji dla wszystkich serwerów, zmiana portu / adresu innego serwera zdalnie, historia rozmów i połączeń na serwerach. Kolejność: dokumentacja/architektura-panel-administratora.md.") });
             var tSet = Page(L.T("Ustawienia tego serwera i moich serwerów w jednym miejscu."), new ScrollViewer { Content = setBody, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             // ⚠ Wymaga uwagi (na górze) + kafelek „problemy”
-            cProb = Card(L.T("problemy teraz"));
+            cProb = new TextBlock();   // liczba problemów - przy dziale Przegląd (bez osobnego kafelka)
             attn = new Border { Background = AdmB(0x2a2133), BorderBrush = AdmB(0x6b3a4a), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 8) };
             AttnFill = () =>
             {
@@ -2521,10 +2522,21 @@ namespace Velivo
                 attn.Child = sp; KomStyle(w); AdmLook(w, tabs);
             };
             tabs = new TabControl();
-            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo), ("🏛 " + L.T("Infrastruktura"), tInfra), ("📎 " + L.T("Pliki"), tFiles), ("🔬 " + L.T("Diagnostyka"), tDiag), ("📝 " + L.T("Konta"), tAcc), ("🔑 " + L.T("Klucze sprzętowe"), tKeys), ("⚙ " + L.T("Ustawienia"), tSet), ("📋 " + L.T("Operacje administratora"), tOps) })
-                tabs.Items.Add(new TabItem { Header = h, Content = el });
+            // 📊 Przegląd: kafelki, „Wymaga uwagi”, ostatnie zdarzenia wszystkich moich serwerów
+            FrameworkElement tRecent; (tRecent, rRecent) = KomTable(new[] { L.T("Kiedy"), L.T("Serwer"), L.T("Co się stało") }, () =>
+                LogRows("skrzynka.log", 200).Concat(LogRows("skrzynka-serwery.log", 200)).Select(rw =>
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(rw[1], @"^\[([^\]]+)\]\s+(.*)$");
+                    return m.Success ? new[] { rw[0], m.Groups[1].Value, m.Groups[2].Value } : new[] { rw[0], Environment.MachineName, rw[1] };
+                }).GroupBy(rw => rw[0] + "|" + rw[1] + "|" + rw[2]).Select(g => g.First()).OrderByDescending(rw => rw[0]).Take(40).ToList(), new TextBox());
+            var overview = new DockPanel();
+            var recentHead = new TextBlock { Text = L.T("Ostatnie zdarzenia (wszystkie moje serwery)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) };
+            foreach (var el in new FrameworkElement[] { cards, attn, recentHead }) { DockPanel.SetDock(el, Dock.Top); overview.Children.Add(el); }
+            overview.Children.Add(tRecent);
+            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), SrvView()), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo), ("🏛 " + L.T("Infrastruktura"), tInfra), ("📎 " + L.T("Pliki"), tFiles), ("🔬 " + L.T("Diagnostyka"), tDiag), ("📝 " + L.T("Konta"), tAcc), ("🔑 " + L.T("Klucze sprzętowe"), tKeys), ("⚙ " + L.T("Ustawienia"), tSet), ("📋 " + L.T("Operacje administratora"), tOps), ("📊 " + L.T("Przegląd"), overview) })
+                tabs.Items.Add(new TabItem { Header = h, Content = el, Visibility = Visibility.Collapsed });   // bez paska zakładek - działy z lewej (makieta-panel-administratora-2.html)
             // 👆 kafelki prowadzą do szczegółów: klik = właściwa zakładka z odfiltrowaną listą (tam zaznaczasz i usuwasz / sprawdzasz)
-            tabs.SelectionChanged += (s, e) => { if (e.Source == tabs) { search.Text = ""; All(); } };   // 🔍 filtr tylko dla zakładki, w której go wpisano (kafelek ustawia go po przełączeniu)
+            tabs.SelectionChanged += (s, e) => { if (e.Source == tabs) { search.Text = ""; NavShow?.Invoke(); All(); } };   // 🔍 filtr tylko dla zakładki, w której go wpisano (kafelek ustawia go po przełączeniu)
             void Go(TextBlock card, int tab, string q, string tip)
             {
                 if (card.Parent is not StackPanel sp || sp.Parent is not Border b) return;
@@ -2535,21 +2547,23 @@ namespace Velivo
             }
             Go(cSrv, 1, "", L.T("Kliknij – zakładka Serwery: stan, włącz / wyłącz, uruchom od nowa, sprawdź porty, zapora, adres i port"));
             Go(cFiles, 2, "KB", L.T("Kliknij – zakładka Skrzynka z samymi plikami: komu, od kiedy czeka i dlaczego; zaznacz i „Usuń zaznaczone”, a co doręczono – Dziennik skrzynki"));
-            Go(cMsg, 2, L.T("wiadomość (tekst)"), L.T("Kliknij – zakładka Skrzynka z samymi wiadomościami: komu, od kiedy czeka i dlaczego; zaznacz i „Usuń zaznaczone”"));
+            Go(cMsg, 2, "", L.T("Kliknij – zakładka Skrzynka z samymi wiadomościami: komu, od kiedy czeka i dlaczego; zaznacz i „Usuń zaznaczone”"));
             Go(cOn, 3, "", L.T("Kliknij – zakładka Osoby i urządzenia: kto jest w sieci, przez który serwer, ostatnio widziany"));
             Go(cVer, 0, "", L.T("Kliknij – zakładka Przegląd: wersja i stan każdego mojego serwera"));
             Go(cProb, 9, "RÓŻN", L.T("Kliknij – problemy są opisane w ramce „Wymaga uwagi” nad zakładkami; tu Diagnostyka z różnicami między serwerami"));
             void All()
             {
                 int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
-                cSrv.Text = _komRelayListener != null ? L.T("Działa") : L.T("Wyłączony"); cFiles.Text = files.ToString(); cMsg.Text = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }).ToString();
+                cSrv.Text = _komRelayListener != null ? L.T("Działa") : L.T("Wyłączony"); nFiles = files; nMsgs = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }); cFiles.Text = files.ToString(); cMsg.Text = (nMsgs + files).ToString();
+                if (cMsg.Parent is StackPanel cmp && cmp.Children.Count > 1 && cmp.Children[1] is TextBlock cms) cms.Text = nMsgs + L.T(" wiadomości, ") + files + L.T(" plików czeka w skrzynce");
                 cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnlineAny(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
                 var vers = _komSrvInfo.Where(kv => kv.Key != _komId && DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)).Select(kv => ((string)kv.Value.Info["ver"] ?? "").Split(' ')[0]).Append(KomBuild.Split(' ')[0]).Distinct().Count();
                 cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
                 cSrv.Foreground = AdmB(_komRelayListener != null ? 0x4ade80 : 0xf87171); cVer.Foreground = AdmB(vers <= 1 ? 0x4ade80 : 0xf87171);
                 cFiles.Foreground = AdmB(files > 0 ? 0xfbbf24 : 0xe8ecf4); cMsg.Foreground = AdmB(cMsg.Text != "0" ? 0xfbbf24 : 0xe8ecf4);
+                NavFill?.Invoke();
                 // ⚡ tylko widoczna zakładka - przebudowa wszystkich 14 (całe dzienniki, diagnostyka, tysiące wierszy) co 5 s w wątku okna zacinała całe Velivo
-                var per = new Action[] { rOver, SrvFill, rBox, rPeople, rLog, rErr, rInfo, rInfra, rFiles, rDiag, rAcc, rKeys, null, rOps };
+                var per = new Action[] { rOver, SrvFill, rBox, rPeople, rLog, rErr, rInfo, rInfra, rFiles, rDiag, rAcc, rKeys, null, rOps, rRecent };
                 int ti = tabs?.SelectedIndex ?? 0; if (ti >= 0 && ti < per.Length) per[ti]?.Invoke();
                 AttnFill?.Invoke();
             }
@@ -2600,15 +2614,15 @@ namespace Velivo
                     KomStoreSave(); All(); return;
                 }
                 if (tab != tBox) { MessageBox.Show(w, L.T("W tej zakładce nie ma czego usuwać."), "🗑"); return; }
-                var rows = sel.Where(r => r.Length > 4 && r[4].Contains('|')).ToList();
+                var rows = sel.Where(r => r.Length > 5 && r[5].Contains('|')).ToList();
                 if (rows.Count == 0) { MessageBox.Show(w, L.T("Zaznacz pliki albo wiadomości w zakładce Skrzynka (Ctrl+A – wszystko)."), "🗑"); return; }
                 if (MessageBox.Show(w, L.T("Usunąć ze skrzynki na wszystkich moich serwerach: ") + rows.Count + L.T(" pozycji? Odbiorca ich nie dostanie."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                foreach (var g in rows.GroupBy(r => r[4].Substring(0, r[4].IndexOf('|'))))
+                foreach (var g in rows.GroupBy(r => r[5].Substring(0, r[5].IndexOf('|'))))
                 {
                     var files = new JsonArray(); var mids = new JsonArray();
                     foreach (var r in g)
                     {
-                        var what = r[4].Substring(r[4].IndexOf('|') + 1);
+                        var what = r[5].Substring(r[5].IndexOf('|') + 1);
                         if (what.StartsWith("m:")) { var mid = what.Substring(2); if (_komStore.TryGetValue(g.Key, out var l2)) lock (l2) l2.RemoveAll(x => (string)x["mid"] == mid); mids.Add(mid); }
                         else { foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(what, ext)); } catch (Exception) { } files.Add(Path.GetFileNameWithoutExtension(what).Split('-').Last()); }
                         KomBoxLog(g.Key, "usunięty ręcznie przez właściciela: " + r[1]);
@@ -2645,13 +2659,6 @@ namespace Velivo
             var folder = new Button { Content = "📂 " + L.T("Folder danych"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
             folder.Click += (s, e) => { try { System.Diagnostics.Process.Start("explorer.exe", DataDir); } catch (Exception) { } };
             var refresh = new Button { Content = "🔄 " + L.T("Odśwież"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) }; refresh.Click += (s, e) => All();
-            var bar = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };   // pole szukania w osobnym wierszu na całą szerokość, przyciski pod nim zawijane (wąskie okno)
-            bar.Children.Add(new DockPanel { Margin = new Thickness(0, 0, 0, 6), Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } });
-            var right = new WrapPanel { Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }, keep, refresh, del, clear, save, copy, folder } };
-            foreach (FrameworkElement el in right.Children) el.Margin = new Thickness(el.Margin.Left, 2, el.Margin.Right, 2);
-            bar.Children.Add(right);
-            var help = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8),
-                Text = L.T("Wszystko o tym serwerze w jednym miejscu. Klik w nagłówek kolumny – sortowanie (drugi klik – odwrotnie), pole 🔍 – szukanie w otwartej tabeli. Niedoręczone pliki czekają na serwerze, a serwer próbuje co minutę; po czasie z „Przechowuj” są usuwane. Odświeża się samo co 5 s.") };
             // 🖱 menu kontekstowe (prawy przycisk) na każdej tabeli: czynności dla zaznaczonych wierszy + kopiuj / odśwież
             void Ctx(FrameworkElement t, params (string Label, Action Run)[] items)
             {
@@ -2707,8 +2714,77 @@ namespace Velivo
                 syncTxt.Text = ls.Count == 0 ? L.T("🔄 Brak wieści od innych moich serwerów (12 h) – nie ma z kim synchronizować.") : string.Join("\n", ls);
             }
             SyncFill(); var syncTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; syncTimer.Tick += (_, _) => SyncFill(); syncTimer.Start(); w.Closed += (_, _) => syncTimer.Stop();
-            foreach (var el in new FrameworkElement[] { syncBar, cards, attn, help, bar }) { DockPanel.SetDock(el, Dock.Top); root2.Children.Add(el); }
-            root2.Children.Add(tabs);
+            DockPanel.SetDock(syncBar, Dock.Top); root2.Children.Add(syncBar);
+            // 🗂 6 działów z lewej (zamiast 14 zakładek w dwóch rzędach); każdy: opis, przełącznik części, tylko swoje przyciski, szukanie
+            var secs = new (string Name, string Desc, (int Tab, string Sub)[] Subs)[] {
+                ("📊 " + L.T("Przegląd"), L.T("Najważniejsze w jednym miejscu. Kliknij kafelek – przejdziesz do działu z gotowym widokiem."), new[] { (14, "") }),
+                ("🖥 " + L.T("Serwery"), L.T("Wszystkie moje serwery: stan, wersja, połączenia. „Ten serwer” – sterowanie tym komputerem; „Infrastruktura” – polecenia dla zaznaczonych albo wszystkich serwerów."), new[] { (0, L.T("Wszystkie serwery")), (1, L.T("Ten serwer")), (7, L.T("Infrastruktura")), (6, L.T("Informacje techniczne")) }),
+                ("📬 " + L.T("Skrzynka"), L.T("Wiadomości i pliki, które czekają na odbiorcę (był poza siecią). Serwer próbuje co minutę; po czasie z Ustawień („Przechowuj”) usuwa. „Los plików” – co stało się z każdym plikiem."), new[] { (2, L.T("Czeka")), (8, L.T("Los plików")) }),
+                ("👥 " + L.T("Ludzie i urządzenia"), L.T("Kto jest w sieci i przez który serwer; konta założone na moich serwerach."), new[] { (3, L.T("Osoby i urządzenia")), (10, L.T("Konta")) }),
+                ("📜 " + L.T("Dzienniki"), L.T("Co się działo: skrzynka, polecenia administratora, błędy Velivo, diagnostyka synchronizacji serwerów."), new[] { (4, L.T("Skrzynka")), (13, L.T("Operacje administratora")), (5, L.T("Błędy Velivo")), (9, L.T("Diagnostyka")) }),
+                ("⚙ " + L.T("Ustawienia"), L.T("Przechowywanie, dostęp do panelu (hasło, klucze sprzętowe), folder danych."), new[] { (12, L.T("Ustawienia")), (11, L.T("Klucze sprzętowe")) }) };
+            int SecOf(int ti) { for (int k = 0; k < secs.Length; k++) if (secs[k].Subs.Any(x => x.Tab == ti)) return k; return 0; }
+            var lastSub = secs.Select(x => x.Subs[0].Tab).ToArray();   // ostatnio otwarta część każdego działu
+            var nav = new StackPanel { Margin = new Thickness(8) }; var navItems = new List<(Border B, TextBlock Badge)>();
+            for (int k = 0; k < secs.Length; k++)
+            {
+                if (k == secs.Length - 1) nav.Children.Add(new Border { Height = 1, Background = AdmB(0x34405e), Margin = new Thickness(4, 8, 4, 8) });
+                var kk = k; var badge = new TextBlock { Foreground = AdmB(0x93a0bb), VerticalAlignment = VerticalAlignment.Center };
+                var dpn = new DockPanel(); DockPanel.SetDock(badge, Dock.Right); dpn.Children.Add(badge); dpn.Children.Add(new TextBlock { Text = secs[k].Name, Foreground = AdmB(0xe8ecf4), FontSize = 14 });
+                var nb = new Border { Child = dpn, Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 2), CornerRadius = new CornerRadius(7), Cursor = System.Windows.Input.Cursors.Hand, Background = Brushes.Transparent, BorderThickness = new Thickness(3, 0, 0, 0), BorderBrush = Brushes.Transparent };
+                nb.MouseLeftButtonUp += (s, e) => tabs.SelectedIndex = lastSub[kk];
+                nb.MouseEnter += (s, e) => { if (SecOf(tabs.SelectedIndex) != kk) nb.Background = AdmB(0x232b42); }; nb.MouseLeave += (s, e) => { if (SecOf(tabs.SelectedIndex) != kk) nb.Background = Brushes.Transparent; };
+                nav.Children.Add(nb); navItems.Add((nb, badge));
+            }
+            var side = new Border { Background = AdmB(0x161c2e), BorderBrush = AdmB(0x34405e), BorderThickness = new Thickness(0, 0, 1, 0), Width = 230, Child = nav };
+            DockPanel.SetDock(side, Dock.Left); root2.Children.Add(side);
+            var secTitle = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White };
+            var secDesc = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 2, 0, 8), MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left };
+            var segs = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var tools = new WrapPanel(); var searchBox = new DockPanel { Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } }; search.Width = 260; search.ToolTip = L.T("Szukaj w tej tabeli");
+            DockPanel.SetDock(searchBox, Dock.Right);
+            var toolRow = new DockPanel { Margin = new Thickness(0, 0, 0, 6), Children = { searchBox, tools } };
+            var head2 = new StackPanel { Children = { secTitle, secDesc, segs, toolRow } };
+            var mainP = new DockPanel { Margin = new Thickness(14, 0, 0, 0) }; DockPanel.SetDock(head2, Dock.Top); mainP.Children.Add(head2); mainP.Children.Add(tabs);
+            tabs.Padding = new Thickness(0); tabs.BorderThickness = new Thickness(0);
+            root2.Children.Add(mainP);
+            Border Seg(string text, bool on, Action a)
+            {
+                var b = new Border { Child = new TextBlock { Text = text, Foreground = on ? Brushes.White : AdmB(0xc8d0e0) }, Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 4, 4), CornerRadius = new CornerRadius(6),
+                    Background = on ? AdmB(0x2a2f63) : AdmB(0x232b42), BorderBrush = on ? AdmB(0x6d7cff) : AdmB(0x34405e), BorderThickness = new Thickness(1), Cursor = System.Windows.Input.Cursors.Hand };
+                b.MouseLeftButtonUp += (s, e) => a(); return b;
+            }
+            void Tools(params FrameworkElement[] els) { tools.Children.Clear(); foreach (var el in els) { if (el.Parent is Panel pp) pp.Children.Remove(el); el.Margin = new Thickness(0, 0, 6, 4); tools.Children.Add(el); } }
+            var keepRow = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) } } };
+            NavShow = () =>
+            {
+                int ti = tabs.SelectedIndex, k = SecOf(ti); lastSub[k] = ti;
+                for (int q = 0; q < navItems.Count; q++) { navItems[q].B.Background = q == k ? AdmB(0x2a2f63) : Brushes.Transparent; navItems[q].B.BorderBrush = q == k ? AdmB(0x6d7cff) : Brushes.Transparent; }
+                secTitle.Text = secs[k].Name; secDesc.Text = secs[k].Desc;
+                segs.Children.Clear();
+                if (secs[k].Subs.Length > 1) foreach (var (tb, nm) in secs[k].Subs) { var t2 = tb; segs.Children.Add(Seg(nm, t2 == ti, () => tabs.SelectedIndex = t2)); }
+                if (ti == 2)
+                {   // 📬 rodzaj zamiast wpisywania „wiadomość (tekst)” w szukanie
+                    if (segs.Children.Count > 0) segs.Children.Add(new Border { Width = 16 });
+                    foreach (var (kd, nm) in new[] { (0, L.T("Wszystko ") + (nMsgs + nFiles)), (1, L.T("Wiadomości ") + nMsgs), (2, L.T("Pliki ") + nFiles) }) { var k2 = kd; segs.Children.Add(Seg(nm, boxKind == k2, () => { boxKind = k2; NavShow(); All(); })); }
+                }
+                searchBox.Visibility = ti == 14 || ti == 1 || ti == 12 ? Visibility.Collapsed : Visibility.Visible;
+                // tylko przyciski, które w tej części coś robią
+                if (ti == 2 || ti == 3) Tools(del, refresh);
+                else if (ti == 4 || ti == 5) Tools(del, clear, save, copy, refresh);
+                else if (ti == 9 || ti == 13) Tools(save, copy, refresh);
+                else if (ti == 12 || ti == 11) { if (!keepRow.Children.Contains(keep)) { if (keep.Parent is Panel kp) kp.Children.Remove(keep); keepRow.Children.Add(keep); } Tools(keepRow, folder); }
+                else Tools(refresh);
+                KomStyle(w); AdmLook(w, tabs);
+            };
+            NavFill = () =>
+            {
+                navItems[0].Badge.Text = cProb.Text is { Length: > 0 } pr && pr != "0" ? "⚠ " + pr : ""; navItems[0].Badge.Foreground = AdmB(0xfbbf24);
+                navItems[1].Badge.Text = (_komSrvInfo.Count(kv => kv.Key != _komId && DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)) + 1).ToString();
+                navItems[2].Badge.Text = (nMsgs + nFiles).ToString(); navItems[2].Badge.Foreground = AdmB(nMsgs + nFiles > 0 ? 0xfbbf24 : 0x93a0bb);
+                navItems[3].Badge.Text = _komContacts.Count(x => !x.IsGroup).ToString();
+            };
+            tabs.SelectedIndex = 14; NavShow();
             w.Content = root2;
             All();
             // ⏱ sesja: 15 min bez ruchu myszy / klawiatury w panelu = koniec (stan serwerów nie ma wpływu); unieważnienie z innego serwera zamyka panel od razu

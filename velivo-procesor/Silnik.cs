@@ -258,7 +258,7 @@ namespace VelivoProcesor
 
         void Ucz(Pomiar p)
         {
-            if (!string.IsNullOrEmpty(p.Program) && !Powloka.Contains(p.Program))
+            if (!string.IsNullOrEmpty(p.Program) && !Powloka.Contains(p.Program) && p.Program.IndexOf("setup", StringComparison.OrdinalIgnoreCase) < 0 && !p.Program.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))   // instalatory (jednorazowe) - bez nauki
                 lock (programy)
                 {
                     programy.TryGetValue(p.Program, out var v); int n = Math.Min(v.N + 1, 600);   // średnia z ok. 10 min pracy (starsze wygasa)

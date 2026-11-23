@@ -267,7 +267,7 @@ namespace VelivoProcesor
             lista = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             var sv = new ScrollViewer { Content = new Border { BorderBrush = Sep, BorderThickness = new Thickness(0, 1, 0, 0), Child = lista }, Height = 130, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             sv.MouseDoubleClick += (a, e) => Wszystkie(); gp.Children.Add(sv);
-            gp.Children.Add(T("śr. / szczyt procesora · 🎚 Studio · ⬆⬇ priorytet · ⚖̸ bez ProBalance · prawy przycisk – ustawienia", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
+            gp.Children.Add(T("śr. / szczyt procesora · 🎚 Studio · ⬆⬇ priorytet · ⚖✕ bez ProBalance · prawy przycisk – ustawienia", 11, Dim)); var bp = Box(gp); Grid.SetColumn(bp, 1); g.Children.Add(bp);
             root.Children.Add(g);
             // ustawienia
             var us = new StackPanel(); us.Children.Add(T("⚙ Ustawienia", 13, Fg, FontWeights.SemiBold));
@@ -359,7 +359,7 @@ namespace VelivoProcesor
             void Ik(string t, string tip) => nz.Children.Add(new TextBlock { Text = t, FontSize = 12, Foreground = Fg, Margin = new Thickness(5, 0, 0, 0), ToolTip = tip, VerticalAlignment = VerticalAlignment.Center });
             if (x.StudioOn) Ik("🎚", "Tryb Studio – muzyka i nagrywanie bez trzasków");
             if (x.Prio > 0) Ik("⬆", "Priorytet Wysoki"); else if (x.Prio < 0) Ik("⬇", "Priorytet Niski");
-            if (x.BezPbOn) Ik("⚖̸", "ProBalance nie uspokaja tego programu");
+            if (x.BezPbOn) Ik("⚖✕", "ProBalance nie uspokaja tego programu");
             d.Children.Add(nz);
             var b = new Border { Child = d, BorderBrush = Sep, BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 4, 0, 4), CornerRadius = new CornerRadius(4) };
             b.MouseEnter += (a, e) => { if (x.Prog != wybrany) d.Background = Hov; };

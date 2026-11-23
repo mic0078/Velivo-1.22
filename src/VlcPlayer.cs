@@ -1343,7 +1343,20 @@ namespace Velivo
 
         void PlayVideos(string[] files, int index, bool library = true)
         {
-            if (files == null || files.Length == 0 || !EnsureLibVlc()) return;
+            if (files == null || files.Length == 0) return;
+            if (!VlcInstalled && File.Exists(Wariant.OdtwarzaczExe))
+            {   // 🎬 ten program nie ma odtwarzacza (np. Velivo Serwer filmów), a Velivo Odtwarzacz jest zainstalowany - film gra tam (film tylko w Jellyfin - adresem z serwera)
+                var ord = files.Skip(Math.Max(0, Math.Min(index, files.Length - 1))).Concat(files.Take(Math.Max(0, Math.Min(index, files.Length - 1))));
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo(Wariant.OdtwarzaczExe) { UseShellExecute = false };
+                    foreach (var f in ord) psi.ArgumentList.Add(File.Exists(f) || f.Contains("://") ? f : JellyfinStreamUrl(f) ?? f);
+                    System.Diagnostics.Process.Start(psi); ShowToast(L.T("🎬 Film otwiera się w Velivo Odtwarzacz"), null);
+                }
+                catch (Exception ex) { App.LogError(ex); ShowToast(L.T("🎬 Odtwarzacz filmów nie jest zainstalowany"), null); }
+                return;
+            }
+            if (!EnsureLibVlc()) return;
             _playlist = files.ToList();
             if (_settings.VlcLector) SupertonicWarm();   // lektor gotowy, zanim pojawi się pierwszy napis
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));

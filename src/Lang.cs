@@ -2526,6 +2526,7 @@ namespace Velivo
             { "Usuń z biblioteki", "Remove from library" },
             { "Biblioteka jest pusta. Dodaj filmy albo cały folder (np. Wideo) – przyciski na dole.", "The library is empty. Add videos or a whole folder (e.g. Videos) – buttons at the bottom." },
             { "🎬 Odtwarzacz filmów nie jest zainstalowany", "🎬 The video player is not installed" },
+            { "🎬 Film otwiera się w Velivo Odtwarzacz", "🎬 The film opens in Velivo Player" },
             { "Nie udało się uruchomić odtwarzacza filmów:\n", "Could not start the video player:\n" },
             { "Poprzedni (P)", "Previous (P)" },
             { "Pauza / odtwarzaj (spacja)", "Pause / play (space)" },

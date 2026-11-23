@@ -1928,6 +1928,7 @@ namespace Velivo
             { "Dzienniki", "Logs" },
             { "Szukaj w tej tabeli", "Search this table" },
             { "Tab – wstaw", "Tab – insert" },
+            { " jest już w słowniku", " is already in the dictionary" },
             { "Ctrl+Spacja – reszta zdania", "Ctrl+Space – rest of the sentence" },
             { "💬 Podpowiedzi przy kursorze (Tab – wstaw)", "💬 Suggestions at the cursor (Tab – insert)" },
             { "Mały pasek pod kursorem w każdym programie: następne słowo ze zwrotu i reszta często pisanego zdania – także przy zamkniętym oknie klawiatury", "A small bar under the cursor in any program: the next word of a phrase and the rest of a frequently typed sentence – also with the keyboard window closed" },

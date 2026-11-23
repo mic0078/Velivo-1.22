@@ -34,26 +34,40 @@ namespace Velivo
             var sug = done ? SwipeTyping.NextWords(word.ToLowerInvariant(), _pPrevWord2) : word.Length >= 2 ? SwipeTyping.Predict(word, false).Where(x => !x.Equals(word, StringComparison.OrdinalIgnoreCase)).ToList() : new List<string>();
             if (sug.Count == 0 && rest == null) { PodHide(); return; }
             _podSug = sug; _podDone = done; _podWord = word; _podIdx = 0;
-            if (_pod == null)
-            {
-                _podRow = new StackPanel { Orientation = Orientation.Horizontal };
-                _pod = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = true, ShowActivated = false, Focusable = false, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize,
-                    Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF5, 0x14, 0x18, 0x21)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x3F, 0x6B)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(4), Child = _podRow } };
-                _pod.SourceInitialized += (s, e) => { var h = new System.Windows.Interop.WindowInteropHelper(_pod).Handle; SetWindowLongPtr(h, -20, (IntPtr)(GetWindowLongPtr(h, -20).ToInt64() | 0x08000000 | 0x80 | 0x20)); };   // bez aktywacji, poza Alt+Tab, przezroczysty dla myszy
-                _podTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; _podTm.Tick += (s, e) => PodHide();
-            }
+            PodEnsure(); _podTm.Interval = TimeSpan.FromSeconds(3);
             _podRow.Children.Clear();
             TextBlock Chip(string t, bool on) => new TextBlock { Text = t, Foreground = Brushes.White, FontSize = 13, Padding = new Thickness(9, 3, 9, 3), Margin = new Thickness(0, 0, 3, 0),
                 Background = on ? new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), Color.FromRgb(0x06, 0xB6, 0xD4), 0) : Brushes.Transparent };
             for (int i = 0; i < Math.Min(3, sug.Count); i++) _podRow.Children.Add(Chip(sug[i], i == 0));
             if (rest != null) _podRow.Children.Add(Chip("… " + (rest.Length > 40 ? rest.Substring(0, 40) + "…" : rest.TrimStart()), sug.Count == 0));
             _podRow.Children.Add(new TextBlock { Text = (sug.Count > 0 ? L.T("Tab – wstaw") : "") + (sug.Count > 0 && rest != null ? " · " : "") + (rest != null ? L.T("Ctrl+Spacja – reszta zdania") : ""), Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA3)), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) });
+            PodPlace();
+        }
+        // krótki komunikat w tym samym pasku (np. Ctrl+Spacja: dodano / już jest w słowniku) - 2,5 s
+        internal static void PodMsg(string text)
+        {
+            if (_kbd != null) return;   // okno klawiatury pokazuje to u siebie
+            PodEnsure(); _podSug = null; _podRow.Children.Clear();
+            _podRow.Children.Add(new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 13, Padding = new Thickness(9, 3, 9, 3) });
+            _podTm.Interval = TimeSpan.FromSeconds(2.5); PodPlace();
+        }
+        static void PodEnsure()
+        {
+            if (_pod != null) return;
+            _podRow = new StackPanel { Orientation = Orientation.Horizontal };
+            _pod = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = true, ShowActivated = false, Focusable = false, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize,
+                Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF5, 0x14, 0x18, 0x21)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x3F, 0x6B)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(4), Child = _podRow } };
+            _pod.SourceInitialized += (s, e) => { var h = new System.Windows.Interop.WindowInteropHelper(_pod).Handle; SetWindowLongPtr(h, -20, (IntPtr)(GetWindowLongPtr(h, -20).ToInt64() | 0x08000000 | 0x80 | 0x20)); };   // bez aktywacji, poza Alt+Tab, przezroczysty dla myszy
+            _podTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; _podTm.Tick += (s, e) => PodHide();
+        }
+        static void PodPlace()
+        {
             var pt = PodWhere();
             var src = PresentationSource.FromVisual(Application.Current.MainWindow ?? _pod);
             var dip = src?.CompositionTarget != null ? src.CompositionTarget.TransformFromDevice.Transform(new Point(pt.X, pt.Y)) : new Point(pt.X, pt.Y);
             _pod.Left = dip.X; _pod.Top = dip.Y + 6;
             if (!_pod.IsVisible) _pod.Show();
-            _podTm.Stop(); _podTm.Start();
+            _podTm.Stop(); _podTm.Start();   // znika sam
         }
         static void PodHide() { _podSug = null; try { if (_pod != null && _pod.IsVisible) _pod.Hide(); _podTm?.Stop(); } catch (Exception) { } }
 

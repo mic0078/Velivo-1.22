@@ -22,7 +22,7 @@ import javax.net.ssl.X509TrustManager
 // telefon dostaje własny klucz i podpisuje nim każde zapytanie. Odtwarzacz (VLC) dostaje adres lokalnego pośrednika 127.0.0.1.
 object MojSerwer {
     class Srv(val name: String, val host: String, val port: Int, val id: String, val key: String, val fp: String)
-    class Film(val id: String, val title: String, val year: Int, val overview: String, val genres: String, val len: Long, var pos: Long, var done: Boolean, val last: Long, val poster: Boolean)
+    class Film(val id: String, val title: String, val year: Int, val overview: String, val genres: String, val len: Long, var pos: Long, var done: Boolean, val last: Long, val poster: Boolean, var fav: Boolean)
 
     fun list(pw: Passwords): MutableList<Srv> = runCatching {
         val a = JSONArray(pw.secret("moj-serwer") ?: "[]")
@@ -90,9 +90,10 @@ object MojSerwer {
             val m = o.optJSONObject("m")
             val g = m?.optJSONArray("Genres")?.let { ga -> (0 until ga.length()).joinToString(", ") { ga.getString(it) } } ?: ""
             Film(o.getString("i"), m?.optString("Name").takeUnless { it.isNullOrEmpty() } ?: o.optString("t"), m?.optInt("Year") ?: 0, m?.optString("Overview") ?: "", g,
-                o.optLong("l"), o.optLong("p"), o.optBoolean("d"), o.optLong("w"), !o.isNull("pu"))
+                o.optLong("l"), o.optLong("p"), o.optBoolean("d"), o.optLong("w"), !o.isNull("pu"), o.optBoolean("fv"))
         }
     }
+    fun favourite(s: Srv, id: String, on: Boolean) = Thread { runCatching { bytes(s, "/fav?id=$id&on=" + (if (on) "1" else "0")) } }.start()
     fun progress(s: Srv, id: String, posMs: Long, lenMs: Long, done: Boolean, unwatch: Boolean = false) =
         Thread { runCatching { bytes(s, "/prog?id=$id&pos=$posMs&len=$lenMs" + (if (done) "&done=1" else "") + (if (unwatch) "&unwatch=1" else "")) } }.start()
 

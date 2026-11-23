@@ -120,7 +120,6 @@ namespace Velivo
             bool UlubLok(string path) => LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) && fl.Contains(path, StringComparer.OrdinalIgnoreCase);
             void UlubLokZmien(string path) { var p = LoadPlaylists(); if (!p.Named.TryGetValue("⭐ Ulubione", out var l)) p.Named["⭐ Ulubione"] = l = new List<string>(); if (l.RemoveAll(x => string.Equals(x, path, StringComparison.OrdinalIgnoreCase)) == 0) l.Add(path); SavePlaylists(p); }
             List<string> UlubSrv() => (GetPref("kanapa-ulub-serwer") ?? "").Split('\n').Where(x => x.Length > 0).ToList();
-            void UlubSrvZmien(string k) { var l = UlubSrv(); if (!l.Remove(k)) l.Add(k); SetPref("kanapa-ulub-serwer", string.Join("\n", l)); }
             // ✓ obejrzany i ❤ ulubiony - znaczki w prawym górnym rogu plakatu (jak Jellyfin)
             void Znaczki(Grid g, bool obejrzany, bool ulub)
             {
@@ -336,9 +335,9 @@ namespace Velivo
                                 if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
                                 else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
                                 g.Children.Add(Caption(m?.Name ?? x.t, m?.Year > 0 ? m.Year.ToString() : null));
-                                Znaczki(g, x.d, UlubSrv().Contains(pe.Device + "|" + x.i));
+                                Znaczki(g, x.d, x.fv);
                                 if (x.l > 0 && x.p > 0 && !x.d) g.Children.Add(Postep(x.p, x.l));
-                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); }), new List<(string, Action)> { (UlubSrv().Contains(pe.Device + "|" + xx.i) ? "❤ " + L.T("Usuń z ulubionych") : "♡ " + L.T("Dodaj do ulubionych"), (Action)(() => { UlubSrvZmien(pe.Device + "|" + xx.i); odswiez?.Invoke(); })),
+                                var xx = x; var b = Tile(170, 255, g, () => FilmSzczegoly(w, m?.Name ?? xx.t, m, Poster(PeerFilmKey(xx)), xx.l, xx.p, xx.d, how => Graj(() => { if (how == "poczatek") xx.p = 0; WantRemoteFilm(pe, xx, false); }), new List<(string, Action)> { (xx.fv ? "❤ " + L.T("Usuń z ulubionych") : "♡ " + L.T("Dodaj do ulubionych"), (Action)(() => { xx.fv = !xx.fv; SendFilmMsg(pe, new LanFilmMsg { kind = "fav", id = xx.i, fv = xx.fv }); odswiez?.Invoke(); })),
                                     (xx.d ? "↺ " + L.T("Oznacz jako nieobejrzany") : "✓ " + L.T("Oznacz jako obejrzany"), (Action)(() => { xx.d = !xx.d; xx.p = 0; SendFilmMsg(pe, new LanFilmMsg { kind = "prog", id = xx.i, pos = 0, len = xx.l, done = xx.d }); odswiez?.Invoke(); })) }));   // na serwerze - jak postęp oglądania
                                 infoOf[b] = () => Opis(m?.Name ?? xx.t, string.Join("   ·   ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, L.T("z komputera ") + pe.Device }.Where(z => z != null)), string.IsNullOrWhiteSpace(m?.Overview) ? "" : m.Overview);
                                                         return b;
@@ -364,7 +363,10 @@ namespace Velivo
                             var wsz = peers.Select((pe0, i0) => (pe0, l0: got[i0])).Where(z => z.l0 != null).SelectMany(z => z.l0.Where(x => x.sv).Select(x => (pe: z.pe0, x))).ToList();
                             var dalej = wsz.Where(z => z.x.p > 0 && !z.x.d && z.x.l > 0).OrderByDescending(z => z.x.w).Take(15).ToList();
                             if (dalej.Count > 0) box.Children.Add(Row(L.T("Kontynuuj odtwarzanie"), dalej.Select(z => SrvTile(z.pe, z.x))));
-                            var ul = UlubSrv(); var ulub = wsz.Where(z => ul.Contains(z.pe.Device + "|" + z.x.i)).ToList();
+                            var ul = UlubSrv();   // dawne ulubione z tego komputera - raz przenoszone na serwer
+                            foreach (var z in wsz.Where(z => !z.x.fv && ul.Contains(z.pe.Device + "|" + z.x.i))) { z.x.fv = true; SendFilmMsg(z.pe, new LanFilmMsg { kind = "fav", id = z.x.i, fv = true }); }
+                            if (ul.Count > 0 && wsz.Count > 0) SetPref("kanapa-ulub-serwer", string.Join("\n", ul.Where(k => !wsz.Any(z => z.pe.Device + "|" + z.x.i == k))));
+                            var ulub = wsz.Where(z => z.x.fv).ToList();
                             if (ulub.Count > 0) box.Children.Add(Row(L.T("Ulubione"), ulub.Select(z => SrvTile(z.pe, z.x))));
                         }
                         { var q0 = szukaj.Text.Trim(); var lt = tu.Where(v => q0.Length == 0 || Tytul(v).IndexOf(q0, StringComparison.CurrentCultureIgnoreCase) >= 0).ToList();
@@ -376,8 +378,11 @@ namespace Velivo
                             var q = szukaj.Text.Trim();
                             var l = items.Where(x => x.sv).Where(x => q.Length == 0 || (x.m?.Name ?? x.t ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).OrderBy(x => x.m?.Name ?? x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
                             if (l.Count == 0) continue; n += l.Count;
-                            box.Children.Add(new TextBlock { Text = "🎞 " + pe.Device + (NetIdx(pe.Id) != null ? L.T(" · przez internet") : "") + "  (" + l.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
-                            box.Children.Add(Wrap(l.Select(x => SrvTile(pe, x))));
+                            // moja biblioteka serwera (foldery) i filmy z Jellyfin - zawsze osobno, z jasnym podpisem
+                            var wlasne = l.Where(x => x.u == null).ToList(); var zJf = l.Where(x => x.u != null).ToList();
+                            var gdzie = pe.Device + (NetIdx(pe.Id) != null ? L.T(" · przez internet") : "");
+                            if (wlasne.Count > 0) { box.Children.Add(new TextBlock { Text = "🎞 " + gdzie + L.T(" – moja biblioteka") + "  (" + wlasne.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) }); box.Children.Add(Wrap(wlasne.Select(x => SrvTile(pe, x)))); }
+                            if (zJf.Count > 0) { box.Children.Add(new TextBlock { Text = "🟣 " + gdzie + L.T(" – filmy z Jellyfin") + "  (" + zJf.Count + ")", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 12), ToolTip = L.T("Udostępnione, bo w oknie serwera zaznaczono „Udostępniaj też filmy z Jellyfin”") }); box.Children.Add(Wrap(zJf.Select(x => SrvTile(pe, x)))); }
                         }
                         if (n == 0) box.Children.Add(new TextBlock { Text = L.T("Twoje serwery nie udostępniają teraz żadnych filmów (dodaj folder w oknie Velivo Serwer filmów)."), FontSize = 18, Foreground = KnDim, TextWrapping = TextWrapping.Wrap });
                     }

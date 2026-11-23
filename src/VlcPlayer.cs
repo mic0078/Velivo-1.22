@@ -855,6 +855,9 @@ namespace Velivo
             names();
             source.Items.Add(sharedItem); source.Items.Add(localItem);
             if (IptvInstalled) source.Items.Add(tvItem); else _libTvView = false;
+            // 🎞 mój serwer filmów (w domu i przez internet) - osobno od bibliotek tego komputera i od Jellyfin; otwiera filmy serwera
+            var srvItem = new ComboBoxItem { Content = L.T("🎞 Mój serwer filmów"), ToolTip = L.T("Filmy z Velivo Serwer filmów – w domu i przez internet (osobno od Jellyfin)") };
+            source.Items.Add(srvItem);
             source.SelectedItem = _libTvView ? tvItem : _libSharedView ? sharedItem : localItem;
             var renameBtn = SmallButton(L.T("✏ Zmień nazwę"), null);
             var deleteBtn = SmallButton(L.T("🗑 Usuń bibliotekę"), null);
@@ -978,6 +981,7 @@ namespace Velivo
             search.TextChanged += (s, a) => fill();
             source.SelectionChanged += (s, a) =>
             {
+                if (source.SelectedItem == srvItem) { source.SelectedItem = _libTvView ? tvItem : _libSharedView ? sharedItem : localItem; ShowKanapa("serwer"); return; }
                 _libSharedView = source.SelectedItem == sharedItem; _libTvView = source.SelectedItem == tvItem;
                 renameBtn.IsEnabled = !_libTvView;
                 fill();

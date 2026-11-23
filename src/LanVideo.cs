@@ -40,6 +40,7 @@ namespace Velivo
             public long pos { get; set; }
             public long len { get; set; }
             public bool done { get; set; }
+            public bool fv { get; set; }          // fav: ulubiony tak / nie
             public long startAt { get; set; }     // wspolny start (unix ms)
             public string act { get; set; }       // ctl: play / pause / seek / leave
             public List<LanFilmItem> items { get; set; }
@@ -55,6 +56,7 @@ namespace Velivo
             public long l { get; set; }     // dlugosc
             public long p { get; set; }     // miejsce
             public bool d { get; set; }     // obejrzany
+            public bool fv { get; set; }    // ❤ ulubiony - wspólny, zapisany na serwerze
             public long w { get; set; }     // ostatnio ogladany
             public string u { get; set; }   // strumien
             public string n { get; set; }   // sciezka sieciowa (NAS)
@@ -251,7 +253,7 @@ namespace Velivo
 
         void SendFilmMsg(LanPeerInfo peer, LanFilmMsg m)
         {
-            if (peer != null && NetIdx(peer.Id) is int ni) { if (m.kind == "prog") NetPostep(ni, m.id, m.pos, m.len, m.done, !m.done && m.pos == 0); return; }   // 🌍 przez internet: tylko postęp / obejrzany
+            if (peer != null && NetIdx(peer.Id) is int ni) { if (m.kind == "fav") NetFav(ni, m.id, m.fv); if (m.kind == "prog") NetPostep(ni, m.id, m.pos, m.len, m.done, !m.done && m.pos == 0); return; }   // 🌍 przez internet: tylko postęp / obejrzany
             if (_lanTx == null || _lanEncryptionKey == null || peer == null) return;
             m.to = peer.Id;
             var pkt = new LanStatePacket { t = "film", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
@@ -395,7 +397,7 @@ namespace Velivo
                 if (mi != null) mi.Poster = null;   // nazwa pliku tutaj nic tamtemu komputerowi nie mówi
                 return new LanFilmItem
                 {
-                    i = FilmId(v.Path), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
+                    i = FilmId(v.Path), fv = SrvUlub().Contains(FilmId(v.Path)), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
                     n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path), m = mi, pu = pu,
                     u = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path), sv = NaSerwerze(v),   // film z Jellyfin serwera - strumień wprost z Jellyfin
                 };
@@ -505,6 +507,8 @@ namespace Velivo
                     if (m.act == "join") ShowToast(L.T("👥 Dołączył ponownie: ") + peer.Device, null);
                     _vlcRemoteCtl?.Invoke(m.act, m.pos);
                     break;
+                case "fav":   // ❤ ulubiony z drugiego komputera - wspólna lista serwera
+                    SrvUlubSet(m.id, m.fv); break;
                 case "prog":   // postep ogladania filmu z tej biblioteki na drugim komputerze
                 {
                     var l = LoadLibrary(); var v = l.Where(x => FilmId(x.Path) == m.id).OrderBy(x => IsShared(x) ? 0 : 1).FirstOrDefault();   // licznik wspolnej biblioteki

@@ -2557,15 +2557,14 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val srv = MojSerwer.list(passwords); MojSerwer.servers = srv
         if (srv.isEmpty()) return mojSerwerLogin { showMojSerwer() }
         val idx = prefs.getInt("ms-wybrany", 0).coerceIn(0, srv.size - 1); val s = srv[idx]
-        val fav = { prefs.getStringSet("ms-ulub", emptySet())!! }
         var mode = prefs.getInt("ms-widok", 2)   // 0 kontynuuj, 1 ulubione, 2 wszystkie
         var films = listOf<MojSerwer.Film>()
         lateinit var scr: MediaScreen
         fun dur(ms: Long) = if (ms > 0) (ms / 60000).let { m -> if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min" } else ""
-        fun row(f: MojSerwer.Film) = MRow((if (s.name + "|" + f.id in fav()) "❤ " else "") + (if (f.done) "✓ " else "") + f.title,
+        fun row(f: MojSerwer.Film) = MRow((if (f.fav) "❤ " else "") + (if (f.done) "✓ " else "") + f.title,
             listOf(if (f.year > 0) f.year.toString() else "", dur(f.len), if (f.pos > 0 && f.len > 0 && !f.done) "▶ " + (f.pos * 100 / f.len) + "%" else "").filter { it.isNotEmpty() }.joinToString(" · ") +
                 if (f.overview.isNotEmpty()) "\n" + f.overview else "", if (f.poster) "ms:$idx/${f.id}" else null, emptyMap(), tag = f)
-        fun shown() = when (mode) { 0 -> films.filter { it.pos > 0 && !it.done && it.len > 0 }.sortedByDescending { it.last }; 1 -> films.filter { s.name + "|" + it.id in fav() }; else -> films }
+        fun shown() = when (mode) { 0 -> films.filter { it.pos > 0 && !it.done && it.len > 0 }.sortedByDescending { it.last }; 1 -> films.filter { it.fav }; else -> films }
         val names = listOf(getString(R.string.ms_continue), getString(R.string.ms_fav), getString(R.string.ms_all))
         fun title() = "● " + s.name + " · " + names[mode] + " (" + shown().size + ")"
         fun item(f: MojSerwer.Film): PlayerActivity.Item {
@@ -2577,7 +2576,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             sorter = { l, so -> if (mode == 0) l else when (so) { 0 -> l.sortedBy { (it.tag as MojSerwer.Film).title.lowercase() }; 1 -> l.sortedByDescending { (it.tag as MojSerwer.Film).year }; else -> l.sortedByDescending { (it.tag as MojSerwer.Film).last } } },
             onOpen = { r, rows -> val l = rows.map { it.tag as MojSerwer.Film }; play(l.map { item(it) }, l.indexOf(r.tag), false) },
             onLong = { r ->   // przytrzymanie: opis, ❤, ✓, od początku
-                val f = r.tag as MojSerwer.Film; val key = s.name + "|" + f.id; val isFav = key in fav()
+                val f = r.tag as MojSerwer.Film; val isFav = f.fav
                 val body = TextView(this).apply { text = listOf(if (f.year > 0) f.year.toString() else "", dur(f.len), f.genres).filter { it.isNotEmpty() }.joinToString(" · ") + "\n\n" + f.overview.ifEmpty { "—" }; textSize = 16f; setPadding(dp(22), dp(8), dp(22), dp(8)); setTextIsSelectable(true) }
                 val acts = listOf(getString(R.string.jf_play), getString(R.string.ms_from_start), if (isFav) "❤ " + getString(R.string.ms_fav_remove) else "♡ " + getString(R.string.ms_fav_add), if (f.done) "↺ " + getString(R.string.ms_unwatched) else "✓ " + getString(R.string.ms_watched))
                 var ad: AlertDialog? = null
@@ -2587,7 +2586,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                         when (i) {
                             0 -> play(listOf(item(f)), 0, false)
                             1 -> { f.pos = 0; play(listOf(item(f)), 0, false) }
-                            2 -> prefs.edit().putStringSet("ms-ulub", if (isFav) fav() - key else fav() + key).apply()
+                            2 -> { f.fav = !isFav; MojSerwer.favourite(s, f.id, f.fav) }   // ❤ wspólne - zapisane na serwerze
                             else -> { f.done = !f.done; f.pos = 0; MojSerwer.progress(s, f.id, 0, f.len, f.done, !f.done) }
                         }
                         scr.setRows(shown().map { row(it) }, title()) } }) } }) })

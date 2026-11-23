@@ -134,12 +134,13 @@ namespace Velivo
                             var mi = LookupMeta(Meta, v.Path); MovieInfo info = null;
                             if (mi != null) { var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…"; info = new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList() }; }
                             bool pl = mi?.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster));
-                            return new LanFilmItem { i = FilmId(v.Path), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null };
+                            return new LanFilmItem { i = FilmId(v.Path), fv = SrvUlub().Contains(FilmId(v.Path)), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null };
                         }).ToList();
                         await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(items)); return;
                     }
-                    var id = route.Length > 3 ? route.Substring(3) : ""; var film = lib.FirstOrDefault(v => FilmId(v.Path) == (route == "/prog" ? (q.TryGetValue("id", out var qi) ? qi : "") : id));
+                    var id = route.Length > 3 ? route.Substring(3) : ""; var film = lib.FirstOrDefault(v => FilmId(v.Path) == (route == "/prog" || route == "/fav" ? (q.TryGetValue("id", out var qi) ? qi : "") : id));
                     if (film == null) { await HttpOdp(ssl, 404, "text/plain", null); return; }
+                    if (route == "/fav") { SrvUlubSet(FilmId(film.Path), q.TryGetValue("on", out var on) && on == "1"); await HttpOdp(ssl, 200, "text/plain", null); return; }
                     if (route.StartsWith("/p/"))
                     {
                         var mi = LookupMeta(Meta, film.Path); var pf = mi?.Poster != null ? Path.Combine(PosterDir, mi.Poster) : null;
@@ -234,6 +235,14 @@ namespace Velivo
             return items;
         }
         internal async Task<bool> NetPing(int idx) { try { await NetPobierz(NetSerwery()[idx], "/ping"); return true; } catch (Exception) { return false; } }
+        internal void NetFav(int idx, string id, bool on) { var path = "/fav?id=" + id + "&on=" + (on ? "1" : "0"); _ = Task.Run(async () => { try { await NetPobierz(NetSerwery()[idx], path); } catch (Exception) { } }); }
+        // ❤ ulubione serwera - jedna lista dla wszystkich moich urządzeń (komputery w domu, przez internet, telefon)
+        HashSet<string> SrvUlub() => new HashSet<string>((GetPref("serwer-ulubione") ?? "").Split('\n').Where(x => x.Length > 0));
+        void SrvUlubSet(string id, bool on)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+            Dispatcher.BeginInvoke(new Action(() => { var l = SrvUlub(); if (on ? l.Add(id) : l.Remove(id)) { SetPref("serwer-ulubione", string.Join("\n", l)); _sharedCache = null; } }));
+        }
         internal void NetPostep(int idx, string id, long pos, long len, bool done, bool odznacz = false)
         {
             var path = "/prog?id=" + id + "&pos=" + pos + "&len=" + len + (done ? "&done=1" : "") + (odznacz ? "&unwatch=1" : "");

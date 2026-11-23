@@ -97,15 +97,15 @@ namespace VelivoProcesor
         }
 
         // 🤖 dla okna „Jak myśli AI” - kopia stanu (czytana tylko, gdy okno otwarte)
-        public sealed class AiStan { public string[] Nazwy; public double[] Traf; public int[] Glos; public double Teraz, Przew, Pora; public double[,] Tydz; public List<(string Prog, double[] Q, int N)> Programy; }
+        public sealed class AiStan { public string[] Nazwy; public double[] Traf; public int[] Glos; public double Teraz, Przew, Pora; public double[,] Tydz; public List<(string Prog, double[] Q, int N, DateTime Ost)> Programy; }
         public AiStan StanAi()
         {
             var d = DateTime.Now; var st = new AiStan { Nazwy = GNazwy, Traf = (double[])trafnosc.Clone(), Glos = (int[])ostGlos.Clone(), Przew = ostPrz, Tydz = (double[,])tydzien.Clone(),
                 Teraz = bufN > 0 ? bufor[(bufPos - 1 + bufor.Length) % bufor.Length] : 0, Pora = tydzienN[(int)d.DayOfWeek, d.Hour] > 0 ? tydzien[(int)d.DayOfWeek, d.Hour] : -1 };
-            lock (programy) st.Programy = ocena.Select(o => (o.Key, (double[])o.Value.Q.Clone(), o.Value.N)).OrderByDescending(x => x.N).ToList();
+            lock (programy) st.Programy = ocena.Select(o => (o.Key, (double[])o.Value.Q.Clone(), o.Value.N, ostatnio.TryGetValue(o.Key, out var od) ? od : DateTime.MinValue)).ToList();
             return st;
         }
-        public void ZapomnijOcene(string prog) { lock (programy) ocena.Remove(prog); ZapiszNauke(); }
+        public void ZapomnijOcene(string prog) { lock (programy) { ocena.Remove(prog); ostatnio.Remove(prog); } ZapiszNauke(); }
         public void ZerujTrafnosc() { trafnosc[0] = trafnosc[1] = 0.6; trafnosc[2] = 0.5; trafnosc[3] = 0.4; ZapiszGlosy(); }
     }
 }

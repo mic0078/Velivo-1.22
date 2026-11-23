@@ -41,22 +41,26 @@ namespace VelivoProcesor
             if (!ikony.TryGetValue(klucz * 1000 + px, out var ic)) ikony[klucz * 1000 + px] = ic = Rysuj(kol, swieci, px);
             return ic;
         }
+        // obraz z pulpitu (procesor.ico), a jasny symbol procesora z V w kolorze obciążenia; tło bez zmian
         static Icon Rysuj(int kol, bool led, int px)
         {
-            using (var bmp = new Bitmap(px, px))
+            var kolor = kol == 2 ? Color.FromArgb(0xFF, 0x5A, 0x4F) : kol == 1 ? Color.FromArgb(0xFF, 0xD2, 0x3C) : Color.FromArgb(0x5C, 0xF0, 0x8E);
+            Bitmap bmp;
+            try { using (var ico = new Icon(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "procesor.ico"), px, px)) bmp = new Bitmap(ico.ToBitmap(), px, px); }
+            catch (Exception) { bmp = new Bitmap(px, px); }
+            using (bmp)
             using (var g = Graphics.FromImage(bmp))
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias; g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                var tlo = kol == 2 ? Color.FromArgb(0xDC, 0x26, 0x26) : kol == 1 ? Color.FromArgb(0xCA, 0x8A, 0x04) : Color.FromArgb(0x16, 0xA3, 0x4A);
-                float r = px * 0.22f, s = px - 1;
-                using (var path = new GraphicsPath())
-                {
-                    path.AddArc(0, 0, r * 2, r * 2, 180, 90); path.AddArc(s - r * 2, 0, r * 2, r * 2, 270, 90);
-                    path.AddArc(s - r * 2, s - r * 2, r * 2, r * 2, 0, 90); path.AddArc(0, s - r * 2, r * 2, r * 2, 90, 90); path.CloseFigure();
-                    using (var b = new SolidBrush(tlo)) g.FillPath(b, path);
-                }
-                using (var pen = new Pen(Color.White, Math.Max(1.6f, px / 9f)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
-                    g.DrawLines(pen, new[] { new PointF(px * 0.27f, px * 0.25f), new PointF(px * 0.5f, px * 0.75f), new PointF(px * 0.73f, px * 0.25f) });   // V jak w logo
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                for (int y = 0; y < px; y++)
+                    for (int x = 0; x < px; x++)
+                    {   // jasne, mało nasycone piksele = biały symbol procesora i V - przefarbowane, z zachowaniem jasności i przezroczystości krawędzi
+                        var p = bmp.GetPixel(x, y); if (p.A < 40) continue;
+                        int mx = Math.Max(p.R, Math.Max(p.G, p.B)), mn = Math.Min(p.R, Math.Min(p.G, p.B));
+                        if (mx < 170 || mx - mn > 70) continue;
+                        double k = mx / 255.0;
+                        bmp.SetPixel(x, y, Color.FromArgb(p.A, (int)(kolor.R * k), (int)(kolor.G * k), (int)(kolor.B * k)));
+                    }
                 if (led)
                 {
                     float d = px * 0.42f;

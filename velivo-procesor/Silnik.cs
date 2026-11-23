@@ -390,7 +390,7 @@ namespace VelivoProcesor
         static readonly Guid IncThr = new Guid("06cadf0e-64ed-448a-8927-ce7bf90eb35d"), DecThr = new Guid("12a0ab44-fe28-4fa9-b3bd-4b64f44960a6"),
             IncTime = new Guid("984cf492-3bed-4488-a8f9-4286c97bf5aa"), DecTime = new Guid("d8edeb9b-95cf-4f95-a73c-b061973693c8"),
             IncPol = new Guid("465e1f50-b610-473a-ab58-00d1077dc418"), MinCores = new Guid("0cc5b647-c1df-4637-891a-dec35c318583"),
-            // AMD (CPPC): tryb autonomiczny - procesor sam wybiera zegar i pomija minimum z planu; wyłączany na czas sterowania, przy zamknięciu wraca
+            // AMD (CPPC): tryb autonomiczny - procesor sam wybiera zegar i pomija minimum z planu; nie zmieniany (tylko przywracany do wartości Windows)
             Autonom = new Guid("8baa4a8a-14c6-4451-8e8b-14bdbd197537");
         [DllImport("powrprof.dll")] static extern uint PowerGetActiveScheme(IntPtr root, out IntPtr guid);
         [DllImport("powrprof.dll")] static extern uint PowerSetActiveScheme(IntPtr root, ref Guid guid);
@@ -503,8 +503,7 @@ namespace VelivoProcesor
                 var w = new List<(Guid, uint, uint)> { (Max, max, max), (Min, min, min), (Boost, boost, boost), (Epp, epp, epp), (Freq, freq, freq), (IncThr, it, it), (DecThr, dt, dt), (IncTime, iT, iT), (DecTime, dT, dT), (IncPol, ip, ip) };
                 if (st && !oryg.ContainsKey(MinCores)) { var g0 = MinCores; var sb = Sub; if (PowerReadACValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var a0) == 0 && PowerReadDCValueIndex(IntPtr.Zero, ref s, ref sb, ref g0, out var d0) == 0) oryg[MinCores] = (a0, d0); }   // po Studio parkowanie wraca do tej wartości
                 if (st) w.Add((MinCores, 100, 100)); else if (oryg.TryGetValue(MinCores, out var mc)) w.Add((MinCores, mc.Ac, mc.Dc));   // poza Studio - parkowanie jak w Windows
-                // AMD: tryb autonomiczny wyłączony - Windows trzyma minimum użytkownika (autonomiczny je pomijał); boost „oszczędny” działa tylko w autonomicznym (było: nic powyżej 4 GHz), więc boost pełny
-                if (Amd) { w.Add((Autonom, 0, 0)); if (boost != 0) { int i = w.FindIndex(x => x.Item1 == Boost); w[i] = (Boost, 2, 2); } }
+                if (Amd && oryg.TryGetValue(Autonom, out var au)) w.Add((Autonom, au.Ac, au.Dc));   // AMD: tryb autonomiczny zawsze jak w Windows (wyłączony blokował boost powyżej 4 GHz) - naprawia też komputery po tamtej wersji
                 uint err = 0;
                 foreach (var (g, va, vd) in w) { bool bez; lock (zapisy) bez = !wymus && zapisy.TryGetValue(g, out var by) && by.Ac == va && by.Dc == vd; if (bez) continue;   // bez zapisu, gdy wartość już taka (zasada: bez zbędnych zapisów)
                     var gg = g; var sub = Sub; uint e = PowerWriteACValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, va); PowerWriteDCValueIndex(IntPtr.Zero, ref s, ref sub, ref gg, vd); if (g == Max || g == Min || g == Boost) err |= e; }

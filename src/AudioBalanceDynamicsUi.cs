@@ -35,8 +35,8 @@ namespace Velivo
         internal static void AbSilaKompresor(string sila)
         {
             var p = DynParams.ForSila(sila, AbProc.Pre.Params.IsEnabled); var n = sila == "light" ? L.T("Lekko") : sila == "strong" ? L.T("Noc") : L.T("Normalnie");
-            if (_abPreUi != null) { _abPreUi(p, n); return; }
-            AbPreSetDefault(p); SetPref("ab-kompresor-nazwa", n); if (!_abPreSrcOwn) AbProc.Pre.Params = p;
+            AbPreSetDefault(p); SetPref("ab-kompresor-nazwa", n); if (!_abPreSrcOwn) AbProc.Pre.Params = p;   // zawsze zapis i dźwięk; panel tylko pokazuje
+            _abPreUi?.Invoke(p, n);
         }
         internal static void AbPreApplyFor(string src, bool tv)
         {
@@ -301,8 +301,7 @@ namespace Velivo
             };
             Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params);
             manual = () => { if (!string.IsNullOrEmpty(GetPref("ab-kompresor-nazwa"))) SetName(null); };
-            _abPreUi = (p, n) => { AbPreSetDefault(p); if (!_abPreSrcOwn) { AbProc.Pre.Params = p; Show(p); DrawCurve(p); } SetName(n); };
-            exp.Unloaded += (s, e) => _abPreUi = null;
+            _abPreUi = (p, n) => { if (!_abPreSrcOwn) { Show(p); DrawCurve(p); } SetName(n); };   // ostatnio zbudowany panel (Unloaded nie zeruje - w Audio Balance for Windows panel bywa odpinany)
             var lastName = GetPref("ab-kompresor-nazwa"); SetName(string.IsNullOrEmpty(lastName) ? null : lastName);
             var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             tm.Tick += (s, e) =>

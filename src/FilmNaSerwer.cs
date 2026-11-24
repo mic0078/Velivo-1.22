@@ -196,6 +196,7 @@ namespace Velivo
                         Directory.CreateDirectory(dir);
                         var cel = Path.Combine(dir, Path.GetFileName(film)); if (File.Exists(cel)) { pom++; continue; }
                         File.Move(film, cel); zmiany[film] = cel; ok++;
+                        foreach (var sh in _filmShares.Values.Where(x => string.Equals(x.Path, film, StringComparison.OrdinalIgnoreCase))) sh.Path = cel;   // film oglądany teraz na innym komputerze - przewijanie dalej działa (nowa ścieżka)
                         foreach (var f in razem) try { var c = Path.Combine(dir, Path.GetFileName(f)); if (!File.Exists(c)) File.Move(f, c); } catch (Exception) { }
                     }
                     catch (Exception ex) { pom++; App.LogInfo("Serwer filmów – porządek: " + film + " – " + ex.Message); }   // film otwarty (gra) - zostaje

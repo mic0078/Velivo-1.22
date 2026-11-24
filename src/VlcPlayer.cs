@@ -3199,6 +3199,7 @@ namespace Velivo
                     if (stream && _ytAudio.TryGetValue(path, out var ytA)) media.AddSlave(MediaSlaveType.Audio, 4, ytA);   // ▶ YouTube: dźwięk osobnym strumieniem (yt-dlp)
                     if (tv != null && curRecFile == null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
                     if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
+                    if (GetPref("vlc-sprzet") == "0") { media.AddOption(":avcodec-hw=none"); media.AddOption(":codec=avcodec,any"); }   // 🖥 dekodowanie procesorem: samo --avcodec-hw=none przy starcie VLC nie wystarczyło (w vlc.log dalej d3d11va, NUCBOX 2026-11-24)
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && !stream && IsAviFile(path)) { media.AddOption(":demux=avformat,any"); VlcLogLine("velivo", "Info", "AVI - czytnik FFmpeg (avformat)"); }
                     _aoutFailed = false;

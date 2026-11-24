@@ -328,7 +328,7 @@ namespace Velivo
             { SetPref("ab-profil", op == "limiter" ? "limit" : "auto"); SetPref("ab-sila", op == "light" ? "light" : op == "night" ? "strong" : "normal"); }
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
-            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); AbProc.QuietBelow = double.TryParse(GetPref("ab-cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qpr) ? qpr : -35; AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
+            AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); AbProc.QuietBelow = double.TryParse(GetPref("ab-cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qpr) ? qpr : -35; AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? Math.Min(12, qd) : 12;
             AbProc.Pre.Params = AbPreDef();   // 🎚 kompresor wstępny (domyślnie wył.)
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);

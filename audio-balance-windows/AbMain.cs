@@ -242,7 +242,7 @@ namespace Velivo
             var g = new Grid { Margin = new Thickness(0, 4, 0, 0) };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             g.Children.Add(new TextBlock { Text = L.T("Dodatkowe podbicie"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center });
-            double v0 = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var q) ? q : 15;
+            double v0 = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var q) ? Math.Min(12, q) : 12;
             var sl = new Slider { Minimum = 0, Maximum = 12, Value = v0, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(sl, 1);
             var val = new TextBlock { Text = L.T("do +") + v0.ToString("0") + " dB", Foreground = Fg, VerticalAlignment = VerticalAlignment.Center };
             var pill = new Border { Background = BtnBg, CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 12, 0), Child = val }; Grid.SetColumn(pill, 2);
@@ -278,7 +278,7 @@ namespace Velivo
             p.Dialog = int.TryParse(Get("dialogi"), out var d) ? d : 0;
             p.Volume = 1; p.CeilingDb = -1; p.FilmLong = false;   // dźwięk Windows jak kanał TV - poziom z ostatnich ok. 30 s (zmiana programu, reklamy)
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
-            p.QuietOn = Get("cichy") == "1" || MainWindow.AbQuietFor(MainWindow.AbQuietSrc); p.QuietMaxDb = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
+            p.QuietOn = Get("cichy") == "1" || MainWindow.AbQuietFor(MainWindow.AbQuietSrc); p.QuietMaxDb = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? Math.Min(12, qd) : 12;
             p.QuietBelow = double.TryParse(Get("cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qp) ? qp : -35;
             var pre = Get("kompresor"); p.Pre.Params = string.IsNullOrWhiteSpace(pre) ? DynParams.ForSila(Get("sila") ?? "normal", true) : DynParams.Load(pre);   // bez MainWindow - przy starcie okna panelu jeszcze nie ma
         }

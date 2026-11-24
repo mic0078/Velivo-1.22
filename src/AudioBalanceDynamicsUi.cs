@@ -152,7 +152,7 @@ namespace Velivo
             autoThr = new CheckBox { Content = L.T("Próg automatyczny (z poziomu filmu)"), Foreground = fg, Margin = new Thickness(0, 2, 0, 2),
                 ToolTip = L.T("Kompresor sam mierzy typowy poziom dźwięku i ustawia próg ponad nim, a całość doprowadza do celu LUFS: bardzo cichy film podgłaśnia, głośny ścisza. Wyrównanie LUFS potem tylko dopracowuje.") };
             if (AbWide) { autoThr.Margin = new Thickness(0, 0, 14, 0); opts.Children.Add(autoThr); } else panel.Children.Add(autoThr);
-            Row("aoff", L.T("Nad średnią filmu"), L.T("O ile dB ponad typowym poziomem filmu zaczyna działać próg automatyczny."), 0, 20, 0.5, Db);
+            Row("aoff", L.T("Nad celem LUFS"), L.T("Próg automatyczny: o ile dB ponad celem LUFS zaczyna działać kompresor (stały – nie jeździ za sceną). Lekko ok. +6, normalnie +4, noc +2."), 0, 20, 0.5, Db);
             Row("ratio", L.T("Stopień"), L.T("Jak mocno ściszać to, co ponad progiem: 4:1 – 4 dB ponad progiem daje 1 dB."), 1, 20, 0.1, v => v.ToString("0.0") + ":1");
             Row("att", L.T("Atak"), L.T("Jak szybko kompresor zaczyna ściszać (ms)."), 0.5, 200, 0.5, v => v.ToString("0.#") + " ms");
             Row("rel", L.T("Powrót"), L.T("Jak szybko wraca po głośnym fragmencie (ms) – dłużej = spokojniej, bez pompowania."), 10, 2000, 10, v => v.ToString("0") + " ms");

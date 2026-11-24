@@ -243,7 +243,7 @@ namespace Velivo
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) }); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             g.Children.Add(new TextBlock { Text = L.T("Dodatkowe podbicie"), Foreground = Dim, VerticalAlignment = VerticalAlignment.Center });
             double v0 = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var q) ? q : 15;
-            var sl = new Slider { Minimum = 0, Maximum = 24, Value = v0, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(sl, 1);
+            var sl = new Slider { Minimum = 0, Maximum = 12, Value = v0, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(sl, 1);
             var val = new TextBlock { Text = L.T("do +") + v0.ToString("0") + " dB", Foreground = Fg, VerticalAlignment = VerticalAlignment.Center };
             var pill = new Border { Background = BtnBg, CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(8, 0, 12, 0), Child = val }; Grid.SetColumn(pill, 2);
             quietNow = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, MinWidth = 92, ToolTip = L.T("Ile program teraz dodaje ponad zwykłe wyrównanie. „mniej – szum”: nagranie ma szum tła – podbija tylko tyle, żeby szum został niesłyszalny.") }; Grid.SetColumn(quietNow, 3);

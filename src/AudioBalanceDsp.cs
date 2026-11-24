@@ -356,7 +356,7 @@ namespace Velivo
             if (eqDirty) { lock (eqDb) for (int i = 0; i < 10; i++) eq[i] = AbBiquad.Peak(Fs, EqFreq[i], 1.41, eqDb[i]); eqDirty = false; }
             double Tg = Target;
             if (Tg >= -0.5) Tg = -23;   // Auto = -23 LUFS (EBU R128): stały punkt odniesienia - ciche w górę, głośne w dół, bez stałego podbijania całości
-            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; Pre.AutoTargetDb = float.NaN;   /* kompresor stoi PO wyrównaniu LUFS - nie goni już celu (dublował pracę: dialog 7 dB ponad cel, wybuch równy dialogowi) */
+            Tg += TargetAdj; EffTarget = Tg; var pr = Profile; Pre.AutoTargetDb = float.NaN; Pre.RefDb = pr != null ? (float)Tg : float.NaN;   /* 🎚 próg automatyczny kompresora liczony od celu LUFS (stały), nie od ruchomej średniej filmu - konsultacja GPT/Gemini 2026-11-24 */   /* kompresor stoi PO wyrównaniu LUFS - nie goni już celu (dublował pracę: dialog 7 dB ponad cel, wybuch równy dialogowi) */
             // tło: fragment ponad 22 dB cichszy niż średnia tego filmu (szum, ambient, pauza) nie jest podbijany - regulator czeka (raz na bufor)
             double bgGate = pr == null ? -99 : Tg + pr.Gate, film = !FilmLong && tvP < 0 ? tvP : In.Integrated;   /* TV: tło liczone od poziomu kanału z ostatnich ok. 30 s */ if (pr != null && film > -70) bgGate = Math.Max(bgGate, film - 22); double qB = double.IsNaN(QuietBelow) ? Tg - 12 : QuietBelow; QuietLevel = film; if (pr != null && QuietOn && film > -70 && film < qB) bgGate = Math.Min(bgGate, film - 10);   /* 🔈 skrajnie ciche nagranie: bramka tła od poziomu samego nagrania - inaczej przy celu -14 całość (-46) była „tłem” i nic nie podciągało */ bool eqOn = EqOn; double ceil = Math.Pow(10, CeilingDb / 20), vol = Volume;
             if (double.IsNaN(vol) || vol < 0) vol = 1; else if (vol > 2) vol = 2;
@@ -463,7 +463,7 @@ namespace Velivo
                     {
                         bool fl = pr.Name == "auto-normal" && (FilmLong || tvP < 0); double dz = fl ? 1 : pr.Dead, am = fl ? 1 : pr.Amount;   // film w Normal: cała różnica, strefa ±1 dB (stabilne dzięki pomiarowi z całego filmu); TV - jak dotąd
                         double dev = Tg - basis; dev = Math.Sign(dev) * Math.Max(0, Math.Abs(dev) - dz);   // strefa komfortu wokół punktu odniesienia = głośność prawidłowa, bez zmian
-                        double xb = QuietOn && film > -70 && film < qB ? Math.Min(QuietMaxDb, Math.Max(0, Tg - film - pr.MaxBoost)) : 0;   // tyle ponad limit trybu, ile brakuje do celu (dawniej Tg−12−film: przy progu z ustawień mogło wyjść 0)
+                        double xb = QuietOn && film > -70 && film < qB ? Math.Min(Math.Min(12, QuietMaxDb), Math.Max(0, Tg - film - pr.MaxBoost)) : 0;   /* najwyżej +12 dB ponad limit trybu - +24 wyciągało szum */   // tyle ponad limit trybu, ile brakuje do celu (dawniej Tg−12−film: przy progu z ustawień mogło wyjść 0)
                         QuietNoise = false;   // 🔈 bez „bezpiecznika szumu”: liczył szum z najcichszych chwil nagrania i po kilkudziesięciu sekundach zjeżdżał z podbiciem do 0 (działało chwilę i przestawało); tło i tak nie jest podbijane (bramka 10 dB pod poziomem nagrania), szum wycisza ekspander kompresora
                         double want = Math.Max(-pr.MaxCut, Math.Min(pr.MaxBoost + xb, am * dev)); QuietNow = Math.Max(0, want - pr.MaxBoost);
                         if (pr.LimitOnly) want = Math.Min(0, want);
@@ -482,10 +482,11 @@ namespace Velivo
                     // 2) kompresor: szybki detektor mocy K (10 ms) po wyrównaniu, miękkie kolano 6 dB
                     double pl = p * Math.Pow(10, (levDb + fastDb) / 10);   // kompresor widzi już ściszony huk - warstwy nie ściszają tego samego dwa razy
                     detP = pl + detC * (detP - pl);
-                    double lev = AbMeter.Lufs(detP), thr = Tg + pr.ThrOff, over = lev - thr, want2 = 0;
-                    if (over > 3) want2 = -over * (1 - 1 / pr.Ratio);
-                    else if (over > -3) want2 = -(1 - 1 / pr.Ratio) * (over + 3) * (over + 3) / 12;
-                    if (over > 8) want2 -= (over - 8) * (1 / pr.Ratio - 0.05);   // powyżej progu + 8 dB prawie twarda granica (wybuchy nie przeskakują poziomu)
+                    // z włączonym kompresorem (za regulatorem) ten wewnętrzny jest tylko dalekim bezpiecznikiem (cel +12 dB, 4:1) - dwa kompresory w różnym tempie falowały (lektor)
+                    double rat = preOn ? 4 : pr.Ratio, lev = AbMeter.Lufs(detP), thr = Tg + (preOn ? 12 : pr.ThrOff), over = lev - thr, want2 = 0;
+                    if (over > 3) want2 = -over * (1 - 1 / rat);
+                    else if (over > -3) want2 = -(1 - 1 / rat) * (over + 3) * (over + 3) / 12;
+                    if (over > 8) want2 -= (over - 8) * (1 / rat - 0.05);   // powyżej progu + 8 dB prawie twarda granica (wybuchy nie przeskakują poziomu)
                     grDb = want2 < grDb ? want2 + aC * (grDb - want2) : want2 + rC * (grDb - want2);
                     // (korekta wyniku „corrDb” usunięta 2026-11-09: domykała pętlę na wyjściu i między zdaniami pchała głośność w górę i w dół - falowanie ±3 dB)
                     g = levDb + fastDb + grDb;
@@ -497,14 +498,13 @@ namespace Velivo
                     if (LekOn) { lekHold = (long)(0.8 * Fs); double rf = LekRef; double fl = LekFloorDb;
                         kWant = double.IsNaN(rf) ? fl : Math.Max(fl, Math.Min(0, rf - 10 - 10 * Math.Log10(kP + 1e-12) - (InDialogShare > 0.5 ? 2 : 0))); }   // lektor 10 dB nad filmem (12 przy dialogu w filmie)
                     else if (lekHold > 0) { lekHold--; kWant = LekDb; }
-                    LekDb += (kWant - LekDb) / ((kWant < LekDb ? 0.15 : 0.6) * Fs);
-                    g += LekDb;
+                    LekDb += (kWant - LekDb) / ((kWant < LekDb ? 0.15 : 0.6) * Fs);   // ściszenie pod lektora - dopiero ZA kompresorem (kompresor nie odrabia ściszenia)
                 }
                 // 🎚 kompresor PO wyrównaniu LUFS (jak w procesorach radiowych: wolne wyrównanie → kompresor → limiter): dostaje już wyrównany poziom,
                 //    więc jego próg trafia zawsze w to samo miejsce i nie dubluje pracy wyrównania (dawniej stał przed nim i sam podciągał cały film do celu)
                 double lin;
-                if (preOn) { double gl = Math.Pow(10, g / 20); l *= gl; r *= gl; Pre.Frame(ref l, ref r, preP); lin = vS; }
-                else lin = Math.Pow(10, g / 20) * vS;
+                if (preOn) { double gl = Math.Pow(10, g / 20); l *= gl; r *= gl; Pre.Frame(ref l, ref r, preP); lin = Math.Pow(10, LekDb / 20) * vS; }
+                else lin = Math.Pow(10, (g + LekDb) / 20) * vS;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami
                 double tp = tpIn.Push(l * lin, r * lin), rq = tp > ceil ? ceil / tp : 1;
                 // minimum w oknie La (kolejka monotoniczna)

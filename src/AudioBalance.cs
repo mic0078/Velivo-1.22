@@ -568,7 +568,7 @@ namespace Velivo
             var qOn = new CheckBox { Content = L.T("🔈 Bardzo ciche nagrania – wszędzie"), Foreground = fg, IsChecked = AbQuietGlobal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             var qVal = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 70, Margin = new Thickness(6, 0, 0, 0) };
             _abQuietNow = new TextBlock { Foreground = AbCyan, VerticalAlignment = VerticalAlignment.Center, Width = 90 };
-            var qSl = new Slider { Minimum = 0, Maximum = 24, Value = AbProc.QuietMaxDb, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
+            var qSl = new Slider { Minimum = 0, Maximum = 12, Value = AbProc.QuietMaxDb, TickFrequency = 1, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
             qVal.Text = L.T("do +") + qSl.Value.ToString("0") + " dB";
             qOn.Click += (s, e) => { SetPref("ab-cichy", qOn.IsChecked == true ? "1" : "0"); AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); };
             qSl.ValueChanged += (s, e) => { AbProc.QuietMaxDb = qSl.Value; SetPref("ab-cichy-db", qSl.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)); qVal.Text = L.T("do +") + qSl.Value.ToString("0") + " dB"; };

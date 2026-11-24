@@ -69,6 +69,7 @@ namespace Velivo
         // 🎯 próg automatyczny współpracuje z wyrównaniem LUFS (właściciel): typowy poziom filmu jest doprowadzany do celu LUFS - bardzo cichy film w górę,
         // głośny w dół; regulator LUFS za kompresorem dostaje dźwięk już blisko celu i tylko dopracowuje. AutoTargetDb ustawia Audio Balance (cel LUFS).
         public volatile float AutoTargetDb = float.NaN, AutoLiftDb, MakeupNowDb;
+        public volatile float RefDb = float.NaN;   // cel LUFS regulatora przed kompresorem - próg automatyczny = cel + „Nad celem” (stały); NaN - bez regulatora: od poziomu filmu
         // 🗣 lektor Velivo czyta kwestię (znak od Velivo): typowy poziom programu jest wtedy zamrożony - głos lektora nie jest „nowym, głośniejszym programem”,
         // więc film nie jest ściszany na czas kwestii ani podciągany po niej (bez pompowania); bezpiecznik zostaje, z większym zapasem
         public volatile bool Hold;
@@ -90,7 +91,7 @@ namespace Velivo
             double t = thr, r = Math.Max(1, p.Ratio), w = Math.Max(0, p.KneeDb), d = x - t, g = 0;
             if (w > 0 && Math.Abs(d) <= w / 2) g = (1 / r - 1) * (d + w / 2) * (d + w / 2) / (2 * w);   // miękkie kolano - płynne wejście kompresji
             else if (d > 0) g = (1 / r - 1) * d;
-            if (x < expThr && x > -100 && p.ExpanderRatio > 1) g += Math.Max(-12, (x - expThr) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół (najwyżej 12 dB; było 40 - w filmach z lektorem bramkował cichy głos między słowami: „głos jak robot”, wskaźnik -40 dB na nagraniu właściciela 2026-11-22)
+            if (x < expThr && x > -100 && p.ExpanderRatio > 1) g += Math.Max(-6, (x - expThr) * (p.ExpanderRatio - 1));   // ekspander: szum w ciszy łagodnie w dół (najwyżej 6 dB - konsultacja 2026-11-24; wcześniej 12, a jeszcze wcześniej 40 - w filmach z lektorem bramkował cichy głos między słowami: „głos jak robot”, wskaźnik -40 dB na nagraniu właściciela 2026-11-22)
             return g;
         }
 
@@ -115,12 +116,12 @@ namespace Velivo
             if (!ReferenceEquals(p, cp))
             {
                 cp = p; ca = Math.Exp(-1000.0 / (Math.Max(0.5, p.AttackMs) * fs)); cr = Math.Exp(-1000.0 / (Math.Max(10, p.ReleaseMs) * fs));
-                cRms = 1 - Math.Exp(-1000.0 / (20.0 * fs)); cAvg = 1 - Math.Exp(-1.0 / (3.0 * fs)); cs = 1 - Math.Exp(-1000.0 / (50.0 * fs));
+                cRms = 1 - Math.Exp(-1000.0 / (60.0 * fs));   /* RMS z ok. 60 ms (było 20 - szarpał na sylabach) */ cAvg = 1 - Math.Exp(-1.0 / (3.0 * fs)); cs = 1 - Math.Exp(-1000.0 / (50.0 * fs));
             }
             // detekcja: wspólna dla obu kanałów (panorama zostaje)
             double lvl;
             if (p.DetectionMode == DynDetection.Peak) lvl = Math.Max(Math.Abs(l), Math.Abs(r));
-            else { double e = (l * l + r * r) * 0.5; env += (e - env) * cRms; lvl = Math.Sqrt(env); }   // RMS z ok. 20 ms
+            else { double e = (l * l + r * r) * 0.5; env += (e - env) * cRms; lvl = Math.Sqrt(env); }   // RMS z ok. 60 ms
             double xDb = lvl > 1e-9 ? 20 * Math.Log10(lvl) : -180;
             if ((mtrN & 63) == 0 && xDb > -70)   // mierzone zawsze (nie tylko z zaznaczonym progiem automatycznym) - po zaznaczeniu próg od razu na właściwym miejscu, bez zależności od chwili kliknięcia
             {   // typowy poziom filmu: średnia w dB z ok. 10 s, cisza (-20 dB poniżej) pominięta, głośne liczą się najwyżej +3 dB - wybuch nie podnosi progu
@@ -149,7 +150,7 @@ namespace Velivo
                 else if (++progN < 3 * fs / 64) progDb += (xDb - progDb) / (0.5 * fs / 64);   // pierwsze 3 s filmu: szybko do jego poziomu (bez ograniczeń)
                 else if (!fastLvl && xDb > progDb - 20) progDb += (Math.Min(xDb, progDb + 3) - progDb) / ((progN < 30 * fs / 64 ? 10.0 : 60.0) * fs / 64);   // po 30 s średnia z ok. 60 s - próg stoi, nie jeździ za uderzeniami i frazami muzyki (falowanie zgłoszone przez właściciela)
             }
-            double thr = p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
+            double rf = RefDb, thr = p.AutoThreshold && !double.IsNaN(rf) ? Math.Max(-60, Math.Min(0, rf + p.AutoOffsetDb)) : p.AutoThreshold && !double.IsNaN(progDb) ? Math.Max(-60, Math.Min(0, progDb + p.AutoOffsetDb)) : p.ThresholdDb;
             // próg ciszy zawsze co najmniej 20 dB poniżej typowego poziomu filmu - w cichym filmie ekspander nie bierze dialogów za szum (nagranie właściciela: The Occupant, dialogi -56 dB)
             double expThr = double.IsNaN(progDb) ? p.ExpanderThresholdDb : Math.Min(p.ExpanderThresholdDb, progDb - 30);   // 30 dB pod typowym poziomem filmu - cichy lektor / szept to nie szum
             EffThresholdDb = (float)thr; EffExpanderDb = (float)expThr;

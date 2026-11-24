@@ -59,13 +59,13 @@
     <!-- 📖 pełny słownik polski klawiatury (Hunspell pl_PL z sjp.pl, Apache 2.0 / MPL / LGPL) -->
     <EmbeddedResource Include="hunspell-pl.aff.gz" />
     <EmbeddedResource Include="hunspell-pl.dic.gz" />
-    <None Include="filters.txt" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="UbolExtension\**\*" Condition="Exists('UbolExtension\manifest.json')">
+    <None Include="filters.txt" CopyToOutputDirectory="PreserveNewest" Condition="'$(Wariant)' != 'Odtwarzacz' And '$(Wariant)' != 'Klawiatura' And '$(Wariant)' != 'Serwer'" />
+    <Content Include="UbolExtension\**\*" Condition="Exists('UbolExtension\manifest.json') And '$(Wariant)' != 'Odtwarzacz' And '$(Wariant)' != 'Klawiatura' And '$(Wariant)' != 'Serwer'">
       <Link>Dodatki\uBlock Origin Lite\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- pdf.js (Mozilla, Apache-2.0): tekst z PDF do trybu czytania i czytania na glos -->
-    <Content Include="PdfJs\**\*">
+    <Content Include="PdfJs\**\*" Condition="'$(Wariant)' != 'Odtwarzacz' And '$(Wariant)' != 'Klawiatura' And '$(Wariant)' != 'Serwer'">
       <Link>pdfjs\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -75,7 +75,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="QuickAccessExtension\**\*">
+    <!-- 🌐 dodatki przeglądarki (Szybki Dostęp, uBlock, pdf.js, filtry reklam) tylko tam, gdzie są karty: pełne Velivo i Przeglądarka -->
+    <Content Include="QuickAccessExtension\**\*" Condition="'$(Wariant)' != 'Odtwarzacz' And '$(Wariant)' != 'Klawiatura' And '$(Wariant)' != 'Serwer'">
       <Link>Dodatki\Szybki Dostęp\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

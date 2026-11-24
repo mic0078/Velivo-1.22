@@ -1772,30 +1772,34 @@ namespace Velivo
                 b.Content = sp; b.Width = double.NaN; b.Padding = new Thickness(8, 0, 8, 0);
             };
             withLabel(subs, L.T("Napisy")); withLabel(lector, L.T("Lektor")); withLabel(audio, L.T("Dźwięk")); withLabel(aspect, L.T("Proporcje")); withLabel(snap, L.T("Zrzut"));
-            var toolsRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left,   // bez zawijania - WrapPanel + zmniejszanie paska (fitBar) przeliczały się w kółko
-                Margin = new Thickness(4, 2, 4, 0), Visibility = GetPref("pasek-narzedzia") == "1" ? Visibility.Visible : Visibility.Collapsed };
-            // ⚙ cztery zwijane grupy: Obraz, Dźwięk, Napisy, Kontroler (stan zapamiętany)
+            // ⚙ Obraz, Dźwięk, Napisy, Kontroler - okienko nad przyciskiem ⚙ (jak ustawienia w YouTube), nie osobne piętro paska (makieta-pasek-odtwarzacza-6.html)
+            var toolsGrid = new Grid { Margin = new Thickness(8) };
+            toolsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); toolsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var padBtn = textBtn("🎮 " + L.T("Przypisania"), L.T("Kontroler: co robi każdy przycisk, własne układy, przywróć domyślne")); padBtn.FontSize = 12;
             padBtn.Click += (s, e) => ShowPadMapDialog(win);
             var couchBtn = textBtn("🛋 " + L.T("Kanapa"), L.T("Tryb Kanapa – duże kafelki do obsługi kontrolerem (przycisk Menu ≡ na kontrolerze)")); couchBtn.FontSize = 12;
             couchBtn.Click += (s, e) => ShowKanapa();
-            foreach (var cat in new (string Key, string Name, string Tip, UIElement[] Items)[] {
-                ("obraz", L.T("Obraz"), L.T("Obraz: proporcje i skalowanie, zrzut klatki"), new UIElement[] { aspect, snap }),
-                ("dzwiek", L.T("Dźwięk"), L.T("Dźwięk: ścieżka dźwięku i urządzenie"), new UIElement[] { audio }),
-                ("napisy", L.T("Napisy"), L.T("Napisy: wybór, przesunięcie, wygląd, położenie i lektor"), new UIElement[] { subs, lector }),
-                ("kontroler", L.T("Kontroler"), L.T("Kontroler: przypisania przycisków i tryb Kanapa"), new UIElement[] { padBtn, couchBtn }) })
+            foreach (var cat in new (string Name, UIElement[] Items)[] {
+                (L.T("Obraz"), new UIElement[] { aspect, snap }), (L.T("Dźwięk"), new UIElement[] { audio }),
+                (L.T("Napisy"), new UIElement[] { subs, lector }), (L.T("Kontroler"), new UIElement[] { padBtn, couchBtn }) })
             {
-                var inner = new StackPanel { Orientation = Orientation.Horizontal, Visibility = GetPref("pasek-kat-" + cat.Key) == "0" ? Visibility.Collapsed : Visibility.Visible };
-                foreach (var it in cat.Items) inner.Children.Add(it);
-                var head = textBtn((inner.Visibility == Visibility.Visible ? "▾ " : "▸ ") + cat.Name, cat.Tip + "\n" + L.T("Kliknij, aby zwinąć / rozwinąć")); head.FontSize = 12; head.FontWeight = FontWeights.SemiBold;
-                var key = cat.Key; var name = cat.Name;
-                head.Click += (s, e) => { bool on = inner.Visibility != Visibility.Visible; inner.Visibility = on ? Visibility.Visible : Visibility.Collapsed; head.Content = (on ? "▾ " : "▸ ") + name; SetPref("pasek-kat-" + key, on ? "1" : "0"); };
-                var box = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 10, 0) };
-                box.Children.Add(head); box.Children.Add(inner);
-                toolsRow.Children.Add(new Border { Background = new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)), CornerRadius = new CornerRadius(8), Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 6, 0), Child = box });
+                int r = toolsGrid.RowDefinitions.Count; toolsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var cap0 = new TextBlock { Text = cat.Name, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brushes.Silver, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 12, 0) };
+                var row0 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+                foreach (var it in cat.Items) row0.Children.Add(it);
+                Grid.SetRow(cap0, r); Grid.SetRow(row0, r); Grid.SetColumn(row0, 1);
+                toolsGrid.Children.Add(cap0); toolsGrid.Children.Add(row0);
             }
-            var tools = glyphBtn("tune", L.T("Ustawienia odtwarzacza – Obraz, Dźwięk, Napisy, Kontroler (pokaż / schowaj rząd)"));
-            tools.Click += (s, e) => { bool on = toolsRow.Visibility != Visibility.Visible; toolsRow.Visibility = on ? Visibility.Visible : Visibility.Collapsed; SetPref("pasek-narzedzia", on ? "1" : "0"); };
+            var tools = glyphBtn("tune", L.T("Ustawienia odtwarzacza – Obraz, Dźwięk, Napisy, Kontroler"));
+            var toolsPop = new System.Windows.Controls.Primitives.Popup
+            {
+                Child = new Border { Child = toolsGrid, Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x1C, 0x1C, 0x1C)), CornerRadius = new CornerRadius(10), BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1) },
+                PlacementTarget = tools, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = true, AllowsTransparency = true, VerticalOffset = -6,
+            };
+            // StaysOpen: menu napisów / dźwięku otwierane z okienka nie może go zamykać; zamyka ⚙, klik w obraz, przejście do innego okna
+            tools.Click += (s, e) => toolsPop.IsOpen = !toolsPop.IsOpen;
+            win.PreviewMouseDown += (s, e) => { if (toolsPop.IsOpen && !tools.IsMouseOver) toolsPop.IsOpen = false; };
+            win.Deactivated += (s, e) => toolsPop.IsOpen = false; win.Closed += (s, e) => toolsPop.IsOpen = false;
             // przełącznik TV ↔ Filmy: przy telewizji „🎬 Filmy” (biblioteka), przy filmie „📺 TV” (kanały) - zawsze w tym samym miejscu
             var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
             bool swapTv = false;   // true = przycisk prowadzi do telewizji
@@ -1807,7 +1811,7 @@ namespace Velivo
             var controls = new StackPanel { Background = barBg(int.TryParse(GetPref("pasek-alfa"), out var ba) ? ba : 15), VerticalAlignment = VerticalAlignment.Bottom };
             // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
             var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };   // do dolu - rzad przyciskow w jednej linii z szybkimi ikonami
-            mainCol.Children.Add(toolsRow); mainCol.Children.Add(btnRow);   // pasek postępu - osobno, nad całym paskiem (ctlRow)
+            mainCol.Children.Add(btnRow);   // pasek postępu - osobno, nad całym paskiem (ctlRow)
             // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
             // szybkie ikony z prawej - ten sam rysowany styl i wysokosc co przyciski obok
             Func<string, string, Button> qBtn = glyphBtn;
@@ -1844,8 +1848,11 @@ namespace Velivo
             var sofaC = capt(sofa, L.T("Kanapa"));
             // 🎞 długi przycisk „Serwer” nad TV i Kanapą (makieta-przycisk-serwer.html): czy mój serwer filmów w sieci domowej działa; klik - jego filmy (Kanapa → Serwer)
             // własny wygląd (Border): zwykły przycisk Windows robił się biały po najechaniu; szerokość równa TV + Kanapa; zielona kropka = serwer działa
-            var srvTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-            var srvBtn = new Border { Child = srvTxt, Height = 24, Margin = new Thickness(0, 0, 0, 3), Padding = new Thickness(6, 0, 6, 0), CornerRadius = new CornerRadius(6), Cursor = System.Windows.Input.Cursors.Hand };
+            // karta w tym samym rzędzie co TV i Kanapa (makieta-pasek-odtwarzacza-6.html) - dawny pasek nad TV podnosił cały pasek i ucinał nazwę
+            var srvTxt = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+            var srvSub = new TextBlock { FontSize = 10.5, Opacity = 0.85, TextTrimming = TextTrimming.CharacterEllipsis };
+            var srvCol0 = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; srvCol0.Children.Add(srvTxt); srvCol0.Children.Add(srvSub);
+            var srvBtn = new Border { Child = srvCol0, Height = 40, MaxWidth = 170, Margin = new Thickness(3, 0, 3, 0), Padding = new Thickness(10, 0, 10, 0), CornerRadius = new CornerRadius(10), Cursor = System.Windows.Input.Cursors.Hand };
             var srvOn = new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), Color.FromRgb(0x06, 0xB6, 0xD4), 0); var srvOff = new SolidColorBrush(Color.FromRgb(0x2A, 0x33, 0x50));
             List<LanPeerInfo> SrvList() => SendTargets().Where(p => !(p.Device ?? "").StartsWith("📱", StringComparison.Ordinal)).GroupBy(p => p.Device, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
             LanPeerInfo SrvNow() { var l = SrvList(); var want = GetPref("serwer-wybrany"); return l.FirstOrDefault(p => string.Equals(p.Device, want, StringComparison.OrdinalIgnoreCase)) ?? l.FirstOrDefault(); }
@@ -1855,8 +1862,10 @@ namespace Velivo
                 bool jest = sv != null || tuSerwer;
                 srvTxt.Inlines.Clear();
                 srvTxt.Inlines.Add(new System.Windows.Documents.Run(jest ? "● " : "○ ") { Foreground = jest ? new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)) : new SolidColorBrush(Color.FromRgb(0x93, 0xA0, 0xBB)) });
-                srvTxt.Inlines.Add(new System.Windows.Documents.Run(sv != null ? L.T("Serwer: ") + sv.Device + (GetPref("kanapa-osoba-" + sv.Device) is string os0 && os0.Length > 0 ? " · " + os0 : "") : tuSerwer ? L.T("Serwer: ten komputer") : L.T("Serwer: brak w sieci")));
-                srvBtn.Background = jest ? (Brush)srvOn : srvOff; srvTxt.Foreground = jest ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x93, 0xA0, 0xBB)); srvBtn.Opacity = 1;
+                srvTxt.Inlines.Add(new System.Windows.Documents.Run(sv != null ? sv.Device : tuSerwer ? L.T("ten komputer") : L.T("brak w sieci")));
+                var os1 = sv != null ? GetPref("kanapa-osoba-" + sv.Device) ?? "" : "";
+                srvSub.Text = os1.Length > 0 ? os1 : jest ? L.T("filmy – kliknij") : L.T("wyłączony");
+                srvBtn.Background = jest ? (Brush)srvOn : srvOff; srvTxt.Foreground = srvSub.Foreground = jest ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x93, 0xA0, 0xBB)); srvBtn.Opacity = 1;
                 srvBtn.ToolTip = sv != null || tuSerwer ? L.T("Filmy z mojego serwera w sieci domowej – kliknij. Prawy przycisk: odśwież, wybór serwera") : L.T("Nie widać serwera filmów: włącz Velivo Serwer filmów (albo Velivo Odtwarzacz) na drugim komputerze – ta sama sieć domowa i sparowane komputery (ten sam profil)");
             }
             srvBtn.MouseEnter += (s0, e0) => srvBtn.Opacity = 0.85; srvBtn.MouseLeave += (s0, e0) => srvBtn.Opacity = 1;   // najechanie - lekko przygaszony, bez bieli
@@ -1883,16 +1892,7 @@ namespace Velivo
                 if (l.Count > 1) { srvMenu.Items.Add(new Separator()); foreach (var p0 in l) { var p = p0; var mi = new MenuItem { Header = p.Device, IsChecked = p == cur }; mi.Click += (a, b) => { SetPref("serwer-wybrany", p.Device); SrvFill(); }; srvMenu.Items.Add(mi); } }
             };
             SrvFill(); var srvTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) }; srvTm.Tick += (s0, e0) => SrvFill(); srvTm.Start(); win.Closed += (s0, e0) => srvTm.Stop();
-            var pair = new StackPanel { Orientation = Orientation.Horizontal }; pair.Children.Add(swapC); pair.Children.Add(sofaC);
-            var srvCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; srvCol.Children.Add(srvBtn); srvCol.Children.Add(pair);
-            // dokładnie od lewej krawędzi TV do prawej krawędzi Kanapy (bez wychodzenia poza nie przy długiej nazwie serwera)
-            pair.LayoutUpdated += (s0, e0) =>
-            {
-                if (!swap.IsLoaded || !sofa.IsLoaded) return;
-                double l = swap.TranslatePoint(new Point(0, 0), pair).X, rr = sofa.TranslatePoint(new Point(sofa.ActualWidth, 0), pair).X;
-                if (rr - l > 10 && (double.IsNaN(srvBtn.Width) || Math.Abs(srvBtn.Width - (rr - l)) > 0.5 || Math.Abs(srvBtn.Margin.Left - l) > 0.5)) { srvBtn.Width = rr - l; srvBtn.Margin = new Thickness(l, 0, 0, 3); srvBtn.HorizontalAlignment = HorizontalAlignment.Left; }
-            };
-            right.Children.Add(srvCol);
+            right.Children.Add(capt(srvBtn, L.T("Serwer"))); right.Children.Add(swapC); right.Children.Add(sofaC);
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
             quick.Children.Add(new Border { Width = 1, Height = 36, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(4, 0, 8, 18), VerticalAlignment = VerticalAlignment.Bottom });
             var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
@@ -2274,7 +2274,7 @@ namespace Velivo
             hideTimer.Tick += (s, e) =>
             {
                 hideTimer.Stop();
-                if (barSec() <= 0 || !mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
+                if (barSec() <= 0 || !mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || toolsPop.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
                 if (miniBar.IsMouseOver) { hideTimer.Start(); return; }
                 controls.Visibility = Visibility.Collapsed; miniBar.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None;
             };
@@ -3890,7 +3890,7 @@ namespace Velivo
                 var swC = isTv ? "🎬 " + L.T("Filmy") : "📺 " + L.T("TV");
                 if ((swap.Content as string) != swC) swap.ToolTip = isTv ? L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy") : L.T("Przełącz na telewizję – lista kanałów\nPrawy przycisk: ostatnio oglądane kanały");
                 if ((swap.Content as string) != swC) swap.Content = swC;   // tylko przy zmianie - bez przerysowania paska co 2 s
-                tools.Visibility = vis(!narrow); toolsRow.Visibility = vis(!narrow && GetPref("pasek-narzedzia") == "1");
+                tools.Visibility = vis(!narrow); if (narrow) toolsPop.IsOpen = false;
             };
             updMode = updQuick;
             var qTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };

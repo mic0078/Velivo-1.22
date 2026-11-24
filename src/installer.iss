@@ -202,6 +202,12 @@ Type: files; Name: "{autodesktop}\Przeglądarka.lnk"
 Type: files; Name: "{autoprograms}\Przeglądarka.lnk"
 Type: files; Name: "{autodesktop}\Tarcza.lnk"
 Type: files; Name: "{autoprograms}\Tarcza.lnk"
+#ifdef NieStrony
+; dodatki przeglądarki (Szybki Dostęp, uBlock, pdf.js, filtry) z dawnych wersji Odtwarzacza / Klawiatury / Serwera - należą tylko do przeglądarki
+Type: filesandordirs; Name: "{app}\Dodatki"
+Type: filesandordirs; Name: "{app}\pdfjs"
+Type: files; Name: "{app}\filters.txt"
+#endif
 ; tlumaczenia .NET na jezyki, ktorych Velivo nie uzywa (od wersji z SatelliteResourceLanguages=pl nie sa instalowane)
 Type: filesandordirs; Name: "{app}\cs"
 Type: filesandordirs; Name: "{app}\de"

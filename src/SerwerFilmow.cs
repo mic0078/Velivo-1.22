@@ -331,10 +331,10 @@ namespace Velivo
             var dol = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) }; DockPanel.SetDock(dol, Dock.Bottom); right.Children.Add(dol);
             dol.Children.Add(SBtnMake(L.T("🔄 Przejrzyj foldery i uzupełnij informacje"), () => SerwerSkanuj(true), SAccent));
             dol.Children.Add(SBtnMake(L.T("🔃 Odśwież listę"), () => { sig = null; fill(); }));
-            dol.Children.Add(SBtnMake(L.T("📁 Uporządkuj w foldery"), () =>
+            dol.Children.Add(SBtnMake(L.T("📁 Uporządkuj w foldery"), async () =>
             {   // filmy leżące luzem w folderze serwera → każdy w swoim folderze (razem z napisami, opisem i plakatem o tej samej nazwie)
-                if (MessageBox.Show(w, L.T("Każdy film leżący luzem w folderach serwera trafi do własnego folderu o nazwie filmu – razem z napisami, opisem (.nfo) i plakatem o tej samej nazwie.\n\nPostęp oglądania, ulubione i informacje zostają. Film, który teraz gra, zostanie pominięty.\n\nUporządkować?"), Wariant.Nazwa, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                var (ok, pom) = SerwerUporzadkuj(); sig = null; fill(); SerwerSkanuj(false);
+                if (MessageBox.Show(w, L.T("Każdy film leżący luzem w folderach serwera trafi do własnego folderu o nazwie filmu – razem z napisami, opisem (.nfo) i plakatem o tej samej nazwie.\n\nPostęp oglądania, ulubione i informacje zostają. Film, który teraz gra, zostanie zatrzymany i wznowiony z nowego miejsca (grany w innym programie Velivo – pominięty).\n\nUporządkować?"), Wariant.Nazwa, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                var (ok, pom) = await SerwerUporzadkuj(); sig = null; fill(); SerwerSkanuj(false);
                 ShowToast(L.T("📁 Uporządkowano filmy: ") + ok + (pom > 0 ? L.T(", pominięte (w użyciu): ") + pom : ""), null);
             }));
             dol.Children.Add(SBtnMake(L.T("🧹 Usuń brakujące pliki"), () =>

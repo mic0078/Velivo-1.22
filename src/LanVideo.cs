@@ -502,6 +502,7 @@ namespace Velivo
                     _remoteFilms[key] = new RemoteFilm { PeerId = peer.Id, Id = m.id, Title = m.title, Sub = key.StartsWith("http") ? m.sub : null, Pos = m.pos, Len = m.len, Prefs = m.prefs };
                     if (m.kind == "together") _together = new TogetherSession { PeerId = peer.Id, Session = m.session };
                     StartAt(m.kind == "together" ? m.startAt : 0, () => PlayVideos(new[] { key }, 0));
+                    if (m.kind == "play" && _skokPo.Id != null && _skokPo.Id == m.id) { SkokPo(_skokPo.Pos); _skokPo = default; }   // ▶ film przeniesiony na serwer - dalej od tego samego miejsca
                     if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
                     ShowToast((m.kind == "together" ? L.T("👥 Oglądacie razem z: ") : L.T("📺 Film z: ")) + peer.Device + " – " + m.title, null);
                     break;

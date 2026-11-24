@@ -1931,7 +1931,7 @@ namespace Velivo
             { " · ← → wybierz", " · ← → choose" },
             { "Dekodowanie: procesor", "Decoding: processor" },
             { "Dekodowanie: karta graficzna", "Decoding: graphics card" },
-            { "Kto dekoduje obraz: karta graficzna (lżej, domyślnie) albo procesor.\nGdy obraz się zacina, sprawdź drugą możliwość.\nZmiana działa po zamknięciu i ponownym otwarciu odtwarzacza.", "Who decodes the picture: graphics card (lighter, default) or processor.\nIf the picture stutters, try the other option.\nThe change applies after closing and reopening the player." },
+            { "Kto dekoduje obraz: procesor (domyślnie, pewniej) albo karta graficzna (lżej dla procesora).\nGdy obraz się zacina, sprawdź drugą możliwość.\nZmiana działa po zamknięciu i ponownym otwarciu odtwarzacza.", "Who decodes the picture: processor (default, more reliable) or graphics card (lighter for the processor).\nIf the picture stutters, try the other option.\nThe change applies after closing and reopening the player." },
             { "🖥 Zmiana dekodowania – zamknij odtwarzacz i otwórz go ponownie", "🖥 Decoding changed – close the player and open it again" },
             { "Oznacz jako obejrzany", "Mark as watched" },
             { "Oznacz jako nieobejrzany", "Mark as unwatched" },

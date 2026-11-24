@@ -1310,7 +1310,7 @@ namespace Velivo
 
         bool EnsureLibVlc()
         {
-            var args = new List<string> { "--no-video-title-show", GetPref("vlc-sprzet") == "0" ? "--avcodec-hw=none" : "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
+            var args = new List<string> { "--no-video-title-show", GetPref("vlc-sprzet") != "1" ? "--avcodec-hw=none" : "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
@@ -1418,6 +1418,9 @@ namespace Velivo
             { "tune", "M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z" },
             { "eye", "M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" },
             { "film", "M18,4L20,8H17L15,4H13L15,8H12L10,4H8L10,8H7L5,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V4H18Z" },
+            { "chip", "M6,4H18V5H21V7H18V9H21V11H18V13H21V15H18V17H21V19H18V20H6V19H3V17H6V15H3V13H6V11H3V9H6V7H3V5H6V4M11,15V18H12V15H11M13,15V18H14V15H13M15,15V18H16V15H15Z" },
+            { "gamepad", "M7.97,16L5,19C4.67,19.3 4.23,19.5 3.75,19.5A1.75,1.75 0 0,1 2,17.75V17.5L3,10.12C3.21,7.81 5.14,6 7.5,6H16.5C18.86,6 20.79,7.81 21,10.12L22,17.5V17.75A1.75,1.75 0 0,1 20.25,19.5C19.77,19.5 19.33,19.3 19,19L16.03,16H7.97M7,8V10H5V11H7V13H8V11H10V10H8V8H7M16.5,8A0.75,0.75 0 0,0 15.75,8.75A0.75,0.75 0 0,0 16.5,9.5A0.75,0.75 0 0,0 17.25,8.75A0.75,0.75 0 0,0 16.5,8M14.75,9.75A0.75,0.75 0 0,0 14,10.5A0.75,0.75 0 0,0 14.75,11.25A0.75,0.75 0 0,0 15.5,10.5A0.75,0.75 0 0,0 14.75,9.75M18.25,9.75A0.75,0.75 0 0,0 17.5,10.5A0.75,0.75 0 0,0 18.25,11.25A0.75,0.75 0 0,0 19,10.5A0.75,0.75 0 0,0 18.25,9.75M16.5,11.5A0.75,0.75 0 0,0 15.75,12.25A0.75,0.75 0 0,0 16.5,13A0.75,0.75 0 0,0 17.25,12.25A0.75,0.75 0 0,0 16.5,11.5Z" },
+            { "sofa", "M7,6H17A2,2 0 0,1 19,8V10.27C18.4,10.62 18,11.26 18,12V14H6V12C6,11.26 5.6,10.62 5,10.27V8A2,2 0 0,1 7,6M20,11A1,1 0 0,1 21,12V17A1,1 0 0,1 20,18H4A1,1 0 0,1 3,17V12A1,1 0 0,1 4,11A1,1 0 0,1 5,12V16H19V12A1,1 0 0,1 20,11M5,18H7V20H5V18M17,18H19V20H17V18Z" },
         };
 
         internal static System.Windows.Shapes.Path PlayerIcon(string name)
@@ -1775,14 +1778,14 @@ namespace Velivo
             // ⚙ Obraz, Dźwięk, Napisy, Kontroler - okienko nad przyciskiem ⚙ (jak ustawienia w YouTube), nie osobne piętro paska (makieta-pasek-odtwarzacza-6.html)
             var toolsGrid = new Grid { Margin = new Thickness(8) };
             toolsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); toolsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var padBtn = textBtn("🎮 " + L.T("Przypisania"), L.T("Kontroler: co robi każdy przycisk, własne układy, przywróć domyślne")); padBtn.FontSize = 12;
+            var padBtn = glyphBtn("gamepad", L.T("Kontroler: co robi każdy przycisk, własne układy, przywróć domyślne")); withLabel(padBtn, L.T("Przypisania"));
             padBtn.Click += (s, e) => ShowPadMapDialog(win);
-            var couchBtn = textBtn("🛋 " + L.T("Kanapa"), L.T("Tryb Kanapa – duże kafelki do obsługi kontrolerem (przycisk Menu ≡ na kontrolerze)")); couchBtn.FontSize = 12;
+            var couchBtn = glyphBtn("sofa", L.T("Tryb Kanapa – duże kafelki do obsługi kontrolerem (przycisk Menu ≡ na kontrolerze)")); withLabel(couchBtn, L.T("Kanapa"));
             couchBtn.Click += (s, e) => ShowKanapa();
             // 🖥 dekodowanie sprzętowe (karta graficzna) - wyłącznik do sprawdzenia zacinania obrazu; działa od następnego otwarcia odtwarzacza
-            Func<string> hwTxt = () => (GetPref("vlc-sprzet") == "0" ? "🖥 " + L.T("Dekodowanie: procesor") : "🖥 " + L.T("Dekodowanie: karta graficzna"));
-            var hwBtn = textBtn(hwTxt(), L.T("Kto dekoduje obraz: karta graficzna (lżej, domyślnie) albo procesor.\nGdy obraz się zacina, sprawdź drugą możliwość.\nZmiana działa po zamknięciu i ponownym otwarciu odtwarzacza.")); hwBtn.FontSize = 12;
-            hwBtn.Click += (s, e) => { SetPref("vlc-sprzet", GetPref("vlc-sprzet") == "0" ? "1" : "0"); hwBtn.Content = hwTxt(); ShowToast(L.T("🖥 Zmiana dekodowania – zamknij odtwarzacz i otwórz go ponownie"), null); };
+            Func<string> hwTxt = () => GetPref("vlc-sprzet") != "1" ? L.T("Dekodowanie: procesor") : L.T("Dekodowanie: karta graficzna");
+            var hwBtn = glyphBtn("chip", L.T("Kto dekoduje obraz: procesor (domyślnie, pewniej) albo karta graficzna (lżej dla procesora).\nGdy obraz się zacina, sprawdź drugą możliwość.\nZmiana działa po zamknięciu i ponownym otwarciu odtwarzacza.")); withLabel(hwBtn, hwTxt()); var hwLbl = ((StackPanel)hwBtn.Content).Children.OfType<TextBlock>().First();
+            hwBtn.Click += (s, e) => { SetPref("vlc-sprzet", GetPref("vlc-sprzet") != "1" ? "1" : "0"); hwLbl.Text = hwTxt(); ShowToast(L.T("🖥 Zmiana dekodowania – zamknij odtwarzacz i otwórz go ponownie"), null); };
             foreach (var cat in new (string Name, UIElement[] Items)[] {
                 (L.T("Obraz"), new UIElement[] { aspect, snap, hwBtn }), (L.T("Dźwięk"), new UIElement[] { audio }),
                 (L.T("Napisy"), new UIElement[] { subs, lector }), (L.T("Kontroler"), new UIElement[] { padBtn, couchBtn }) })
@@ -3199,7 +3202,7 @@ namespace Velivo
                     if (stream && _ytAudio.TryGetValue(path, out var ytA)) media.AddSlave(MediaSlaveType.Audio, 4, ytA);   // ▶ YouTube: dźwięk osobnym strumieniem (yt-dlp)
                     if (tv != null && curRecFile == null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
                     if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
-                    if (GetPref("vlc-sprzet") == "0") { media.AddOption(":avcodec-hw=none"); media.AddOption(":codec=avcodec,any"); }   // 🖥 dekodowanie procesorem: samo --avcodec-hw=none przy starcie VLC nie wystarczyło (w vlc.log dalej d3d11va, NUCBOX 2026-11-24)
+                    if (GetPref("vlc-sprzet") != "1") { media.AddOption(":avcodec-hw=none"); media.AddOption(":codec=avcodec,any"); }   // 🖥 dekodowanie procesorem (domyślnie; karta graficzna na NUCBOX zacinała TV - stałe ~0,6 s spóźnione klatki): samo --avcodec-hw=none przy starcie VLC nie wystarczyło (w vlc.log dalej d3d11va, NUCBOX 2026-11-24)
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && !stream && IsAviFile(path)) { media.AddOption(":demux=avformat,any"); VlcLogLine("velivo", "Info", "AVI - czytnik FFmpeg (avformat)"); }
                     _aoutFailed = false;

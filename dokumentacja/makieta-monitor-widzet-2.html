@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monitor – widżet</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1000px}
+.row{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.desk{background:linear-gradient(135deg,#2b4a6b,#5b3d6b 60%,#7a4a3a);padding:22px;border-radius:10px;width:300px;min-height:150px;display:flex;align-items:center;justify-content:center}
+.cap{color:#ECE8FF;font-weight:600;margin-top:8px;max-width:300px}.dim{color:#8A93A3;font-size:11.5px;max-width:300px}
+.w{background:#141821;border:1px solid #2A3240;border-radius:9px;color:#E8EBF0;font-family:"Segoe UI";transform:scale(1.5);transform-origin:center}
+.y{color:#F5C518}.g{color:#4ADE80}.b{color:#7C9CFF}.t{color:#2ED3C6}.s{color:#8A93A3}.o{color:#FACC15}
+.num{font-weight:600;font-variant-numeric:tabular-nums}
+svg{display:block}
+</style></head><body>
+<h1>Velivo Monitor – widżet na pulpicie (warianty)</h1>
+<p class="o">Teraz: liczby leżą na przygaszonym wykresie, strzałki ↑ ↓ ledwo widać, jednostki „K” bez „B/s”, dolny wiersz Audio Balance z dziwnym znakiem. Każdy wariant pokazuje to samo (sieć, procesor, Audio Balance) – powiększone 1,5×; na pulpicie będzie mniejszy.</p>
+<div class="row">
+
+<div><div class="desk"><div class="w" style="width:200px;padding:4px 7px;font-size:11.5px">
+ <div style="position:relative;height:22px"><svg width="186" height="22" style="position:absolute;opacity:.3"><polygon points="0,11 20,9 40,10 60,6 80,9 100,10 120,8 140,10 160,4 186,9 186,11" fill="#4ADE80"/><polygon points="0,11 30,13 60,12 90,15 120,12 150,13 186,12 186,11" fill="#F5C518"/></svg>
+ <div style="position:relative;display:flex;justify-content:space-between;line-height:22px" class="num"><span><span class="y">↑14.1K</span> <span class="g">↓5.7K</span></span><span class="b">1.42 GHz 9%</span></div></div>
+ <div style="height:1px;background:#2A3240;margin:3px 0"></div>
+ <div style="display:flex;justify-content:space-between;line-height:22px" class="num"><span class="s">🔊 <span class="g">-29.1 dB</span></span><span class="s">▲+3</span></div>
+</div></div><div class="cap">Teraz</div></div>
+
+<div><div class="desk"><div class="w" style="width:210px;padding:7px 9px;font-size:11.5px">
+ <div style="display:grid;grid-template-columns:62px 1fr 56px;align-items:center;row-gap:5px" class="num">
+  <span class="s">Sieć</span><span><span class="g">↓ 5,7 KB/s</span><br><span class="y">↑ 14 KB/s</span></span><svg width="56" height="22"><polyline points="0,18 8,16 16,17 24,10 32,15 40,16 48,6 56,12" fill="none" stroke="#4ADE80" stroke-width="1.5"/><polyline points="0,20 14,19 28,20 42,18 56,19" fill="none" stroke="#F5C518" stroke-width="1.2"/></svg>
+  <span class="s">Procesor</span><span class="b">1,42 GHz · 9%</span><svg width="56" height="16"><polyline points="0,13 8,12 16,13 24,9 32,12 40,13 48,5 56,11" fill="none" stroke="#7C9CFF" stroke-width="1.5"/></svg>
+  <span class="s">Dźwięk</span><span class="t">-29 LUFS <span class="s">+3 dB</span></span><svg width="56" height="16"><polyline points="0,8 8,6 16,9 24,7 32,10 40,6 48,8 56,7" fill="none" stroke="#2ED3C6" stroke-width="1.5"/></svg>
+ </div>
+</div></div><div class="cap">A – Czysta tabelka</div><div class="dim">Nazwa · wartość · mały wykres obok (nie pod liczbami). Pełne jednostki (KB/s), przecinek po polsku. Najczytelniejszy.</div></div>
+
+<div><div class="desk"><div class="w" style="width:226px;padding:6px;font-size:11px;display:flex;gap:5px">
+ <div style="flex:1;background:#1b2133;border-radius:6px;padding:4px 5px"><div class="s" style="font-size:9.5px">SIEĆ</div><div class="num g" style="font-size:12.5px">↓5,7K</div><div class="num y" style="font-size:10.5px">↑14K</div><svg width="58" height="12"><polyline points="0,10 10,9 20,10 30,5 40,8 50,3 58,7" fill="none" stroke="#4ADE80" stroke-width="1.3"/></svg></div>
+ <div style="flex:1;background:#1b2133;border-radius:6px;padding:4px 5px"><div class="s" style="font-size:9.5px">PROCESOR</div><div class="num b" style="font-size:12.5px">1,42 GHz</div><div class="num s" style="font-size:10.5px">9 %</div><svg width="58" height="12"><polyline points="0,10 10,9 20,10 30,7 40,9 50,4 58,8" fill="none" stroke="#7C9CFF" stroke-width="1.3"/></svg></div>
+ <div style="flex:1;background:#1b2133;border-radius:6px;padding:4px 5px"><div class="s" style="font-size:9.5px">DŹWIĘK</div><div class="num t" style="font-size:12.5px">-29</div><div class="num s" style="font-size:10.5px">LUFS +3</div><svg width="58" height="12"><polyline points="0,6 10,5 20,7 30,6 40,8 50,5 58,6" fill="none" stroke="#2ED3C6" stroke-width="1.3"/></svg></div>
+</div></div><div class="cap">B – Trzy kafelki</div><div class="dim">Każda rzecz w swoim kafelku z podpisem i wykresem. Wyraźny podział, trochę szerszy.</div></div>
+
+<div><div class="desk"><div class="w" style="padding:5px 9px;font-size:12px;white-space:nowrap" class="num">
+ <span class="g num">↓5,7K</span> <span class="y num">↑14K</span> <span class="s">·</span> <span class="b num">1,42 GHz 9%</span> <span class="s">·</span> <span class="t num">🔊 -29</span>
+</div></div><div class="cap">C – Jedna linia</div><div class="dim">Najmniejszy, same liczby bez wykresów (wykresy po najechaniu myszą w podpowiedzi).</div></div>
+
+<div><div class="desk"><div class="w" style="width:200px;padding:7px 9px;font-size:11px">
+ <div style="display:flex;justify-content:space-between" class="num"><span class="s">Procesor</span><span class="b">1,42 GHz · 9%</span></div>
+ <div style="height:5px;background:#2A3240;border-radius:3px;margin:3px 0 6px"><div style="width:9%;height:5px;border-radius:3px;background:linear-gradient(90deg,#7C3AED,#06B6D4)"></div></div>
+ <div style="display:flex;justify-content:space-between" class="num"><span class="s">Sieć</span><span><span class="g">↓5,7 KB/s</span> <span class="y">↑14 KB/s</span></span></div>
+ <div style="height:5px;background:#2A3240;border-radius:3px;margin:3px 0 6px;position:relative"><div style="width:22%;height:5px;border-radius:3px;background:#4ADE80"></div></div>
+ <div style="display:flex;justify-content:space-between" class="num"><span class="s">Dźwięk</span><span class="t">-29 LUFS · +3 dB</span></div>
+ <div style="height:5px;background:#2A3240;border-radius:3px;margin:3px 0 0;position:relative"><div style="position:absolute;left:30%;width:40%;height:5px;border-radius:3px;background:#2ED3C6;opacity:.8"></div></div>
+</div></div><div class="cap">D – Paski</div><div class="dim">Zamiast wykresów z minuty – pasek „ile teraz” (jak w Menedżerze zadań). Spokojny, nic nie miga.</div></div>
+
+</div>
+<p class="o" style="margin-top:18px">We wszystkich wariantach: przeciąganie, kółko myszy = przezroczystość, prawy przycisk = menu (co pokazywać) – jak teraz. Dźwięk tylko, gdy działa Audio Balance.</p>
+</body></html>

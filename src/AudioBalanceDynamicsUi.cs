@@ -26,7 +26,9 @@ namespace Velivo
         }
         // czy kompresor może być potrzebny (domyślnie albo dla któregoś filmu / kanału) - wtedy dźwięk idzie przez procesor Velivo
         static bool? _abPreAnyOn;   // zapamiętane - AbWanted woła to nawet 50×/s; liczone od nowa po każdym zapisie ustawień
-        internal static bool AbPreAnyOn { get { if (_abPreAnyOn == null) { bool any = DynParams.Load(GetPref("ab-kompresor")).IsEnabled; if (!any) foreach (var v in AbPreSrcLoad().Values) if (DynParams.Load(v).IsEnabled) { any = true; break; } _abPreAnyOn = any; } return _abPreAnyOn.Value; } }
+        internal static bool AbPreAnyOn { get { if (_abPreAnyOn == null) { bool any = AbPreDef().IsEnabled; if (!any) foreach (var v in AbPreSrcLoad().Values) if (DynParams.Load(v).IsEnabled) { any = true; break; } _abPreAnyOn = any; } return _abPreAnyOn.Value; } }
+        // 🎚 kompresor domyślny: zapisany albo (czyste ustawienia) ten z wybranego trybu Lekko / Normalnie / Noc; włączony od razu tylko w Audio Balance for Windows
+        static DynParams AbPreDef() { var s = GetPref("ab-kompresor"); return string.IsNullOrWhiteSpace(s) ? DynParams.ForSila(GetPref("ab-sila") ?? "normal", AbPreDefOn) : DynParams.Load(s); }
         static void AbPreSetDefault(DynParams p) { SetPref("ab-kompresor", p.Save()); _abPreAnyOn = null; }
         // 🎚 wybór trybu Lekko / Normalnie / Noc ustawia też kompresor (domyślny; własne ustawienia filmu / kanału zostają); otwarty panel pokazuje nowe wartości
         internal static Action<DynParams, string> _abPreUi;
@@ -40,7 +42,7 @@ namespace Velivo
         {
             _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv;
             string own = null; _abPreSrcOwn = _abPreSrc != null && AbPreSrcLoad().TryGetValue(_abPreSrc, out own);
-            AbProc.Pre.Params = DynParams.Load(_abPreSrcOwn ? own : GetPref("ab-kompresor"));
+            AbProc.Pre.Params = (_abPreSrcOwn ? DynParams.Load(own) : AbPreDef());
             AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc);   // 🔈 bardzo ciche nagrania: wszędzie (włącznik) albo tylko dla zapamiętanych filmów / kanałów / programów
         }
         // 🔈 lista materiałów, które potrzebują „Bardzo ciche nagrania” (domyślnie wyłączone - włączane dla konkretnego filmu / kanału / programu)
@@ -251,10 +253,10 @@ namespace Velivo
             {
                 if (_abPreSrc == null) return; var d = AbPreSrcLoad();
                 if (ownSrc.IsChecked == true) { d[_abPreSrc] = AbProc.Pre.Params.Save(); _abPreSrcOwn = true; }   // od teraz zmiany zapisują się dla tego źródła
-                else { d.Remove(_abPreSrc); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); }
+                else { d.Remove(_abPreSrc); _abPreSrcOwn = false; AbProc.Pre.Params = AbPreDef(); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); }
                 AbPreSrcSave(d); SrcUi();
             };
-            toDef.Click += (s, e) => { if (_abPreSrc == null) return; var d = AbPreSrcLoad(); d.Remove(_abPreSrc); AbPreSrcSave(d); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); };
+            toDef.Click += (s, e) => { if (_abPreSrc == null) return; var d = AbPreSrcLoad(); d.Remove(_abPreSrc); AbPreSrcSave(d); _abPreSrcOwn = false; AbProc.Pre.Params = AbPreDef(); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); };
             setDef.Click += (s, e) => { AbPreSetDefault(AbProc.Pre.Params); ShowToast(L.T("★ Ustawienia kompresora zapisane jako domyślne"), null); };
             SrcUi();
             listBtn.Click += (s, e) =>
@@ -281,7 +283,7 @@ namespace Velivo
                         var del = mk(L.T("🗑 Usuń"), () =>
                         {
                             var dd = AbPreSrcLoad(); dd.Remove(key); AbPreSrcSave(dd);
-                            if (key.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase)) { _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); }
+                            if (key.Equals(_abPreSrc, StringComparison.OrdinalIgnoreCase)) { _abPreSrcOwn = false; AbProc.Pre.Params = AbPreDef(); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); }
                             Fill();
                         });
                         del.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(del, 1);
@@ -291,7 +293,7 @@ namespace Velivo
                 var delAll = mk(L.T("Usuń wszystkie"), () =>
                 {
                     if (MessageBox.Show(w, L.T("Usunąć własne ustawienia kompresora wszystkich filmów i kanałów? Wrócą do ustawień domyślnych."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                    AbPreSrcSave(new Dictionary<string, string>()); _abPreSrcOwn = false; AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor")); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); Fill();
+                    AbPreSrcSave(new Dictionary<string, string>()); _abPreSrcOwn = false; AbProc.Pre.Params = AbPreDef(); Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params); SrcUi(); Fill();
                 });
                 var close = mk(L.T("Zamknij"), () => w.Close());
                 bottom.Children.Add(delAll); bottom.Children.Add(close);

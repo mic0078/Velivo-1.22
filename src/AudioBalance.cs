@@ -329,7 +329,7 @@ namespace Velivo
             AbProc.Target = float.TryParse(GetPref("ab-cel"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0f;
             AbProc.EqOn = AbEqOn; AbProc.Dialog = AbDialog; AbProc.Bypass = AbBypass;
             AbProc.QuietOn = AbQuietGlobal || AbQuietFor(_abPreSrc); AbProc.QuietBelow = double.TryParse(GetPref("ab-cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qpr) ? qpr : -35; AbProc.QuietMaxDb = double.TryParse(GetPref("ab-cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
-            AbProc.Pre.Params = DynParams.Load(GetPref("ab-kompresor"));   // 🎚 kompresor wstępny (domyślnie wył.)
+            AbProc.Pre.Params = AbPreDef();   // 🎚 kompresor wstępny (domyślnie wył.)
             var g = (GetPref("ab-eq-db") ?? "").Split(',').Select(x => double.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0).ToList();
             while (g.Count < 10) g.Add(0);
             AbProc.SetEq(g.Take(10).ToArray());
@@ -392,6 +392,7 @@ namespace Velivo
         static string AbSilaName => GetPref("ab-sila") is string x && AbSilas.Contains(x) ? x : "normal";
         static string AbSilaLabel(string s) => s == "light" ? "Light" : s == "strong" ? "Strong" : "Normal";
         static string AbSilaTip(string s) => s == "light" ? L.T("Light – delikatna korekta.") : s == "strong" ? L.T("Strong – mocniejsze wyrównywanie, np. nocą.") : L.T("Normal – standardowe wyrównywanie.");
+        const bool AbPreDefOn = false;   // Velivo: kompresor domyślnie wyłączony
         void AbSetSila(string sila) { SetPref("ab-sila", sila); AbProc.Profile = AbProfile.ByName(AbProfileName, sila); AbSilaKompresor(sila); }   // tryb ustawia też kompresor
         static string AbProfileLabel(string p) => p == "auto" ? "Auto Level" : p == "limit" ? "Limit Only" : L.T("Wył.");
         static string AbProfileShort(string p) => p == "auto" ? "A" + AbSilaLabel(AbSilaName)[0] : p == "limit" ? "Lim" + AbSilaLabel(AbSilaName)[0] : "⏻";

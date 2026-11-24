@@ -28,6 +28,14 @@ namespace Velivo
         static bool? _abPreAnyOn;   // zapamiętane - AbWanted woła to nawet 50×/s; liczone od nowa po każdym zapisie ustawień
         internal static bool AbPreAnyOn { get { if (_abPreAnyOn == null) { bool any = DynParams.Load(GetPref("ab-kompresor")).IsEnabled; if (!any) foreach (var v in AbPreSrcLoad().Values) if (DynParams.Load(v).IsEnabled) { any = true; break; } _abPreAnyOn = any; } return _abPreAnyOn.Value; } }
         static void AbPreSetDefault(DynParams p) { SetPref("ab-kompresor", p.Save()); _abPreAnyOn = null; }
+        // 🎚 wybór trybu Lekko / Normalnie / Noc ustawia też kompresor (domyślny; własne ustawienia filmu / kanału zostają); otwarty panel pokazuje nowe wartości
+        internal static Action<DynParams, string> _abPreUi;
+        internal static void AbSilaKompresor(string sila)
+        {
+            var p = DynParams.ForSila(sila, AbProc.Pre.Params.IsEnabled); var n = sila == "light" ? L.T("Lekko") : sila == "strong" ? L.T("Noc") : L.T("Normalnie");
+            if (_abPreUi != null) { _abPreUi(p, n); return; }
+            AbPreSetDefault(p); SetPref("ab-kompresor-nazwa", n); if (!_abPreSrcOwn) AbProc.Pre.Params = p;
+        }
         internal static void AbPreApplyFor(string src, bool tv)
         {
             _abPreSrc = string.IsNullOrWhiteSpace(src) ? null : src.Trim(); _abPreSrcTv = tv;
@@ -291,6 +299,8 @@ namespace Velivo
             };
             Show(AbProc.Pre.Params); DrawCurve(AbProc.Pre.Params);
             manual = () => { if (!string.IsNullOrEmpty(GetPref("ab-kompresor-nazwa"))) SetName(null); };
+            _abPreUi = (p, n) => { AbPreSetDefault(p); if (!_abPreSrcOwn) { AbProc.Pre.Params = p; Show(p); DrawCurve(p); } SetName(n); };
+            exp.Unloaded += (s, e) => _abPreUi = null;
             var lastName = GetPref("ab-kompresor-nazwa"); SetName(string.IsNullOrEmpty(lastName) ? null : lastName);
             var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             tm.Tick += (s, e) =>

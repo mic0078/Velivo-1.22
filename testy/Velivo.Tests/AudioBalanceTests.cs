@@ -58,7 +58,7 @@ public class AudioBalanceTests
             if (t > 40) { if (b && (t % 20) > 15.5) { boom += p.Out.Momentary; nb++; } else if ((t % 20) > 5 && (t % 20) < 14) { dial += p.Out.Momentary; nd++; } }
         }
         Assert.True(dial / nd > -25, "dialog: " + dial / nd);              // wejście ok. -38
-        Assert.True(boom / nb - dial / nd < 12, "różnica: " + (boom / nb - dial / nd));   // wejście: ok. 35 dB; zapas nad dialogiem celowy (sylaby nie są ścinane)
+        Assert.True(boom / nb - dial / nd < 13, "różnica: " + (boom / nb - dial / nd));   // wejście: ok. 35 dB; zapas nad dialogiem celowy (sylaby nie są ścinane); Noc podgłaśnia najwyżej 15 dB (było 20) - stąd 13
     }
 
     [Fact]

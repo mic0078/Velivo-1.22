@@ -31,6 +31,15 @@ namespace Velivo
         // 🔈 bardzo cicho nagrane filmy (dialog ledwo słyszalny): mocne podbicie cichego, ekspander niżej (szum nie rośnie); dalej wyrównanie LUFS dociąga do celu
         public static DynParams VeryQuiet() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -52, Ratio = 4, AttackMs = 15, ReleaseMs = 300, KneeDb = 12, MakeupGainDb = 22, ExpanderThresholdDb = -68, ExpanderRatio = 1.5f, MixPercent = 100 };
         public static DynParams Night() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Rms, ThresholdDb = -42, Ratio = 6, AttackMs = 20, ReleaseMs = 250, KneeDb = 10, MakeupGainDb = 12, ExpanderThresholdDb = -50, MixPercent = 100 };
+        // 🎚 kompresor dobrany do trybu Lekko / Normalnie / Noc (konsultacja GPT i Gemini): stały próg od celu LUFS, łagodny stopień, długi powrót (bez falowania lektora),
+        //    ekspander w Lekko wyłączony, w pozostałych bardzo łagodny; włączony / wyłączony - zostaje jak wybrał użytkownik
+        public static DynParams ForSila(string sila, bool on)
+        {
+            int k = sila == "light" ? 0 : sila == "strong" ? 2 : 1;
+            return new DynParams { IsEnabled = on, DetectionMode = DynDetection.Rms, AutoThreshold = true, AutoOffsetDb = new[] { 6f, 4, 2 }[k], ThresholdDb = -28, Ratio = new[] { 2f, 2.5f, 3 }[k],
+                AttackMs = new[] { 30f, 25, 20 }[k], ReleaseMs = new[] { 600f, 750, 900 }[k], KneeDb = new[] { 8f, 10, 12 }[k], MakeupGainDb = 0, MixPercent = 100,
+                ExpanderThresholdDb = new[] { -60f, -60, -58 }[k], ExpanderRatio = new[] { 1f, 1.2f, 1.3f }[k] };
+        }
         public static DynParams Parallel() => new DynParams { IsEnabled = true, DetectionMode = DynDetection.Peak, ThresholdDb = -20, Ratio = 4, AttackMs = 10, ReleaseMs = 150, KneeDb = 6, MakeupGainDb = 2, MixPercent = 60 };
 
         // zapis w ustawieniach Velivo: jedna linia, kropka dziesiętna

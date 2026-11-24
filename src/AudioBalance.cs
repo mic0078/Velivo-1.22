@@ -392,7 +392,7 @@ namespace Velivo
         static string AbSilaName => GetPref("ab-sila") is string x && AbSilas.Contains(x) ? x : "normal";
         static string AbSilaLabel(string s) => s == "light" ? "Light" : s == "strong" ? "Strong" : "Normal";
         static string AbSilaTip(string s) => s == "light" ? L.T("Light – delikatna korekta.") : s == "strong" ? L.T("Strong – mocniejsze wyrównywanie, np. nocą.") : L.T("Normal – standardowe wyrównywanie.");
-        void AbSetSila(string sila) { SetPref("ab-sila", sila); AbProc.Profile = AbProfile.ByName(AbProfileName, sila); }
+        void AbSetSila(string sila) { SetPref("ab-sila", sila); AbProc.Profile = AbProfile.ByName(AbProfileName, sila); AbSilaKompresor(sila); }   // tryb ustawia też kompresor
         static string AbProfileLabel(string p) => p == "auto" ? "Auto Level" : p == "limit" ? "Limit Only" : L.T("Wył.");
         static string AbProfileShort(string p) => p == "auto" ? "A" + AbSilaLabel(AbSilaName)[0] : p == "limit" ? "Lim" + AbSilaLabel(AbSilaName)[0] : "⏻";
 

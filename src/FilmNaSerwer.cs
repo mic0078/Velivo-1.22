@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -79,7 +79,7 @@ namespace Velivo
         {
             var w = new Window { Title = L.T("🗄 Wyślij film na serwer"), Width = 560, SizeToContent = SizeToContent.Height, Owner = owner, Topmost = owner?.Topmost ?? false, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = SBg, ResizeMode = ResizeMode.NoResize };
             var st = new StackPanel { Margin = new Thickness(14) }; w.Content = st;
-            long suma = pliki.Sum(p => { try { return new FileInfo(p).Length; } catch (Exception) { return 0L; } });
+            long suma = pliki.Sum(p => { try { return PlikiFilmu(p).Pliki.Sum(x => new FileInfo(x.Pelna).Length); } catch (Exception) { return 0L; } });   // z napisami / całym folderem filmu
             st.Children.Add(new TextBlock { Text = (pliki.Count == 1 ? Path.GetFileName(pliki[0]) : pliki.Count + L.T(" filmów")) + " · " + Rozmiar(suma), Foreground = SDim, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
             ListBox Lista(double h) => new ListBox { Height = h, Background = SCard, Foreground = SFg, BorderBrush = SLine, Margin = new Thickness(0, 4, 0, 10) };
             st.Children.Add(new TextBlock { Text = L.T("Serwer"), Foreground = SFg, FontWeight = FontWeights.SemiBold });
@@ -132,11 +132,89 @@ namespace Velivo
             if (w.IsVisible) info.Text = lista.Count == 0 ? L.T("Nie znaleziono serwera filmów – włącz Velivo Serwer filmów na komputerze w sieci domowej i dodaj w nim foldery.") : L.T("Wybierz serwer i folder. Po wysłaniu serwer sam pobierze opis, plakat i obsadę.");
         }
 
-        // ---------- postęp wysyłania (małe okienko, można dalej oglądać) ----------
-        sealed class Wysylka { public Window W; public TextBlock Txt; public ProgressBar Pas; public string Plik; public bool Move; public DateTime Start = DateTime.UtcNow; }
-        readonly ConcurrentDictionary<string, Wysylka> _wysylki = new ConcurrentDictionary<string, Wysylka>();
+        // ---------- 📁 co wysłać: film w swoim folderze (cały folder - napisy, opis, plakat) albo sam plik → nowy folder o nazwie filmu ----------
+        // folder „filmu”: dokładnie jeden duży film (>100 MB) w środku, do 200 plików, reszta razem < 1 GB, nie Pulpit / Pobrane / Wideo / Dokumenty / katalog dysku
+        static bool FolderFilmu(string dir, string plik)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(dir) || Path.GetPathRoot(dir)?.TrimEnd('\\') == dir.TrimEnd('\\')) return false;
+                var prof = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var spec = new[] { Environment.GetFolderPath(Environment.SpecialFolder.Desktop), Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), prof, Path.Combine(prof, "Downloads") };
+                if (spec.Any(x => string.Equals(x?.TrimEnd('\\'), dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))) return false;
+                if (SerwerFolderyTeraz().Any(f => string.Equals(f.TrimEnd('\\'), dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))) return false;
+                var all = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Take(201).ToList();
+                if (all.Count > 200) return false;
+                if (all.Count(f => IsVlcVideoFile(f) && !IsAudioFile(f) && new FileInfo(f).Length > 100L << 20) != 1) return false;
+                return all.Where(f => !string.Equals(f, plik, StringComparison.OrdinalIgnoreCase)).Sum(f => new FileInfo(f).Length) < 1L << 30;
+            }
+            catch (Exception) { return false; }
+        }
+        // (pełna ścieżka, ścieżka w folderze serwera „Folder/plik”) + folder źródłowy (do usunięcia przy „Przenieś”, gdy cały pusty)
+        static (List<(string Pelna, string Wzgl)> Pliki, string Zrodlo) PlikiFilmu(string plik)
+        {
+            var dir = Path.GetDirectoryName(plik) ?? ""; var nazwa = Path.GetFileNameWithoutExtension(plik);
+            var l = new List<(string, string)>();
+            if (FolderFilmu(dir, plik))
+            {
+                var cel = new DirectoryInfo(dir).Name;
+                foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Where(f => !f.EndsWith(".velivo-part", StringComparison.OrdinalIgnoreCase)))
+                    l.Add((f, cel + "/" + Path.GetRelativePath(dir, f).Replace('\\', '/')));
+                return (l, dir);
+            }
+            l.Add((plik, nazwa + "/" + Path.GetFileName(plik)));   // sam plik: nowy folder o nazwie filmu, obok napisy / opis / plakat o tej samej nazwie
+            try { foreach (var f in Directory.EnumerateFiles(dir, nazwa + "*").Where(f => !string.Equals(f, plik, StringComparison.OrdinalIgnoreCase) && (SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant()) || f.EndsWith(".nfo", StringComparison.OrdinalIgnoreCase) || Path.GetFileNameWithoutExtension(f).EndsWith("-poster", StringComparison.OrdinalIgnoreCase)))) l.Add((f, nazwa + "/" + Path.GetFileName(f))); } catch (Exception) { }
+            return (l, null);
+        }
+        // ścieżka docelowa na serwerze: tylko wewnątrz folderu serwera, nazwy bez znaków niedozwolonych; null = taki plik (ta sama wielkość) już jest
+        static string CelNaSerwerze(string folder, string wzgl, long len, out string istnieje)
+        {
+            istnieje = null;
+            var seg = (wzgl ?? "").Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).Select(x => string.Concat(x.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim()).ToList();
+            if (seg.Count == 0 || seg.Any(x => x.Length == 0 || x == "." || x == "..")) throw new IOException("zła nazwa pliku");
+            var dir = Path.GetFullPath(Path.Combine(new[] { folder }.Concat(seg.Take(seg.Count - 1)).ToArray()));
+            if (!(dir + "\\").StartsWith(Path.GetFullPath(folder).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)) throw new IOException("zła ścieżka");
+            Directory.CreateDirectory(dir);
+            var cel = WolnaNazwa(dir, seg.Last(), len);
+            if (cel == null) istnieje = Path.Combine(dir, seg.Last());
+            return cel;
+        }
 
-        Wysylka OknoPostepu(Window owner, string tytul, string plik, bool move)
+        // 📁 porządek w folderach serwera: film z katalogu głównego folderu → „Folder/Nazwa filmu/” (napisy, .nfo, plakat o tej samej nazwie też);
+        //    biblioteka dostaje nowe ścieżki (postęp, ulubione zostają; informacje o filmie są po nazwie pliku - też zostają)
+        (int Ok, int Pominiete) SerwerUporzadkuj()
+        {
+            int ok = 0, pom = 0; var zmiany = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var folder in SerwerFoldery().Where(Directory.Exists))
+                foreach (var film in Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly).Where(f => IsVlcVideoFile(f) && !IsAudioFile(f)).ToList())
+                {
+                    var nazwa = Path.GetFileNameWithoutExtension(film); var dir = Path.Combine(folder, nazwa.Trim().TrimEnd('.'));
+                    var razem = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly).Where(f => !string.Equals(f, film, StringComparison.OrdinalIgnoreCase) && Path.GetFileName(f).StartsWith(nazwa, StringComparison.OrdinalIgnoreCase)
+                        && (SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant()) || f.EndsWith(".nfo", StringComparison.OrdinalIgnoreCase) || Path.GetFileNameWithoutExtension(f).EndsWith("-poster", StringComparison.OrdinalIgnoreCase))).ToList();
+                    try
+                    {
+                        Directory.CreateDirectory(dir);
+                        var cel = Path.Combine(dir, Path.GetFileName(film)); if (File.Exists(cel)) { pom++; continue; }
+                        File.Move(film, cel); zmiany[film] = cel; ok++;
+                        foreach (var f in razem) try { var c = Path.Combine(dir, Path.GetFileName(f)); if (!File.Exists(c)) File.Move(f, c); } catch (Exception) { }
+                    }
+                    catch (Exception ex) { pom++; App.LogInfo("Serwer filmów – porządek: " + film + " – " + ex.Message); }   // film otwarty (gra) - zostaje
+                }
+            if (zmiany.Count > 0) { var l = LoadLibrary(); foreach (var v in l) if (zmiany.TryGetValue(v.Path, out var nowa)) v.Path = nowa; SaveLibrary(l); _sharedCache = null; _libRefresh?.Invoke(); }
+            return (ok, pom);
+        }
+
+        // ---------- postęp wysyłania (małe okienko, można dalej oglądać) ----------
+        sealed class Wysylka
+        {
+            public Window W; public TextBlock Txt; public ProgressBar Pas; public bool Move; public DateTime Start = DateTime.UtcNow; public string Zrodlo; public long Suma; public int Zostalo;
+            public readonly ConcurrentDictionary<string, long> Poz = new ConcurrentDictionary<string, long>();
+            public readonly ConcurrentDictionary<string, string> Sumy = new ConcurrentDictionary<string, string>();   // plik tutaj → suma pliku na serwerze
+            public string Blad;
+        }
+        readonly ConcurrentDictionary<string, (Wysylka G, string Plik)> _wysylki = new ConcurrentDictionary<string, (Wysylka, string)>();
+
+        Wysylka OknoPostepu(Window owner, string tytul, bool move, string zrodlo, long suma, int n)
         {
             var st = new StackPanel { Margin = new Thickness(14) };
             var txt = new TextBlock { Foreground = SDim, TextWrapping = TextWrapping.Wrap, Text = L.T("Łączę z serwerem…") };
@@ -144,36 +222,42 @@ namespace Velivo
             st.Children.Add(new TextBlock { Text = tytul, Foreground = SFg, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap }); st.Children.Add(pas); st.Children.Add(txt);
             var w = new Window { Title = L.T("🗄 Wysyłanie na serwer"), Width = 440, SizeToContent = SizeToContent.Height, Background = SBg, Content = st, Owner = owner != null && owner.IsLoaded ? owner : null, Topmost = owner?.Topmost ?? false, ShowActivated = false, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             w.Show();
-            return new Wysylka { W = w, Txt = txt, Pas = pas, Plik = plik, Move = move };
+            return new Wysylka { W = w, Txt = txt, Pas = pas, Move = move, Zrodlo = zrodlo, Suma = Math.Max(1, suma), Zostalo = n };
         }
 
-        void Postep(Wysylka u, long pos, long len)
+        void Postep(Wysylka u)
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (len <= 0) return; u.Pas.Value = 1000.0 * pos / len;
+                long pos = Math.Min(u.Suma, u.Poz.Values.Sum()), len = u.Suma; u.Pas.Value = 1000.0 * pos / len;
                 double s = (DateTime.UtcNow - u.Start).TotalSeconds, v = s > 1 ? pos / s : 0;
                 u.Txt.Text = Rozmiar(pos) + L.T(" z ") + Rozmiar(len) + (v > 0 ? " · " + (v / (1 << 20)).ToString("0") + " MB/s · " + L.T("zostało ok. ") + TimeSpan.FromSeconds(Math.Max(0, (len - pos) / v)).ToString(@"m\:ss") : "") + L.T(" · można dalej oglądać");
             }));
         }
 
-        void Koniec(Wysylka u, bool ok, string tekst, string hashSerwera)
+        // jeden plik gotowy (albo nie); po ostatnim - wynik i przy „Przenieś” oryginały do Kosza (każdy dopiero po zgodnej sumie)
+        void PlikGotowy(Wysylka u, string plik, bool ok, string sumaNaSerwerze, string blad, string koniecTxt)
         {
+            if (ok) u.Sumy[plik] = sumaNaSerwerze ?? ""; else u.Blad ??= blad;
+            if (Interlocked.Decrement(ref u.Zostalo) > 0) return;
             Dispatcher.BeginInvoke(new Action(async () =>
             {
-                u.Pas.Value = ok ? 1000 : u.Pas.Value; u.Txt.Text = tekst; u.Txt.Foreground = ok ? new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)) : new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
-                if (ok && u.Move)
-                {   // przeniesienie: oryginał do Kosza dopiero, gdy suma pliku na serwerze = suma oryginału
+                bool dobrze = u.Blad == null; var tekst = dobrze ? koniecTxt : L.T("✖ Nie udało się: ") + u.Blad;
+                u.Pas.Value = dobrze ? 1000 : u.Pas.Value; u.Txt.Text = tekst; u.Txt.Foreground = dobrze ? new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)) : new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                if (dobrze && u.Move)
+                {
                     u.Txt.Text = tekst + "\n" + L.T("Sprawdzam kopię na serwerze…");
-                    var moj = await Task.Run(() => SumaPliku(u.Plik));
-                    if (moj != null && string.Equals(moj, hashSerwera, StringComparison.OrdinalIgnoreCase))
+                    int zostaly = 0;
+                    foreach (var kv in u.Sumy)
                     {
-                        try { Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(u.Plik, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin); u.Txt.Text = tekst + "\n" + L.T("🗑 Oryginał przeniesiony do Kosza."); }
-                        catch (Exception ex) { u.Txt.Text = tekst + "\n" + L.T("Oryginał został (nie dało się go usunąć: ") + ex.Message + ")"; }
+                        var moj = await Task.Run(() => SumaPliku(kv.Key));
+                        if (moj == null || !string.Equals(moj, kv.Value, StringComparison.OrdinalIgnoreCase)) { zostaly++; continue; }
+                        try { Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(kv.Key, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin); } catch (Exception) { zostaly++; }
                     }
-                    else u.Txt.Text = tekst + "\n" + L.T("⚠ Kopia na serwerze różni się od oryginału – oryginał zostaje.");
+                    try { if (u.Zrodlo != null && Directory.Exists(u.Zrodlo) && !Directory.EnumerateFiles(u.Zrodlo, "*", SearchOption.AllDirectories).Any()) Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(u.Zrodlo, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin); } catch (Exception) { }
+                    u.Txt.Text = tekst + "\n" + (zostaly == 0 ? L.T("🗑 Oryginał przeniesiony do Kosza.") : L.T("⚠ Kopia na serwerze różni się od oryginału – oryginał zostaje."));
                 }
-                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(ok ? 15 : 60) }; t.Tick += (s, e) => { t.Stop(); try { u.W.Close(); } catch (Exception) { } }; t.Start();
+                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(dobrze ? 15 : 60) }; t.Tick += (s, e) => { t.Stop(); try { u.W.Close(); } catch (Exception) { } }; t.Start();
             }));
         }
 
@@ -186,24 +270,31 @@ namespace Velivo
         // ten komputer: kopia do folderu serwera z postępem, potem przegląd folderów przez Serwer filmów
         void KopiujLokalnie(Window owner, string plik, string folder, bool move)
         {
-            var u = OknoPostepu(owner, Path.GetFileName(plik) + " → " + folder, plik, move);
+            var (pliki, zrodlo) = PlikiFilmu(plik);
+            long suma = pliki.Sum(x => new FileInfo(x.Pelna).Length);
+            var u = OknoPostepu(owner, pliki[0].Wzgl.Split('/')[0] + " → " + folder, move, zrodlo, suma, pliki.Count);
             Task.Run(() =>
             {
-                try
+                foreach (var (pelna, wzgl) in pliki)
                 {
-                    var cel = WolnaNazwa(folder, Path.GetFileName(plik), new FileInfo(plik).Length); if (cel == null) { Koniec(u, true, L.T("✔ Ten film już jest w tym folderze."), u.Move ? SumaPliku(Path.Combine(folder, Path.GetFileName(plik))) : null); return; }
-                    var part = cel + ".velivo-part"; long len = new FileInfo(plik).Length, pos = 0; var buf = new byte[1 << 20]; var last = DateTime.MinValue;
-                    using (var a = new FileStream(plik, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20)) using (var b = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20))
-                    { int n; while ((n = a.Read(buf, 0, buf.Length)) > 0) { b.Write(buf, 0, n); pos += n; if ((DateTime.UtcNow - last).TotalMilliseconds > 500) { last = DateTime.UtcNow; Postep(u, pos, len); } } }
-                    File.Move(part, cel);
-                    SerwerPrzegladnij();
-                    Koniec(u, true, L.T("✔ Gotowe – Serwer filmów pobiera opis, plakat i obsadę."), u.Move ? SumaPliku(cel) : null);
+                    try
+                    {
+                        long len = new FileInfo(pelna).Length;
+                        var cel = CelNaSerwerze(folder, wzgl, len, out var ist);
+                        if (cel == null) { u.Poz[pelna] = len; Postep(u); PlikGotowy(u, pelna, true, u.Move ? SumaPliku(ist) : null, null, L.T("✔ Gotowe – Serwer filmów pobiera opis, plakat i obsadę.")); continue; }
+                        var part = cel + ".velivo-part"; long pos = 0; var buf = new byte[1 << 20]; var last = DateTime.MinValue;
+                        using (var a = new FileStream(pelna, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20)) using (var b = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20))
+                        { int n; while ((n = a.Read(buf, 0, buf.Length)) > 0) { b.Write(buf, 0, n); pos += n; u.Poz[pelna] = pos; if ((DateTime.UtcNow - last).TotalMilliseconds > 500) { last = DateTime.UtcNow; Postep(u); } } }
+                        File.Move(part, cel);
+                        PlikGotowy(u, pelna, true, u.Move ? SumaPliku(cel) : null, null, L.T("✔ Gotowe – Serwer filmów pobiera opis, plakat i obsadę."));
+                    }
+                    catch (Exception ex) { PlikGotowy(u, pelna, false, null, Path.GetFileName(pelna) + ": " + ex.Message, null); }
                 }
-                catch (Exception ex) { Koniec(u, false, L.T("✖ Nie udało się skopiować: ") + ex.Message, null); }
+                SerwerPrzegladnij();
             });
         }
 
-        // nazwa w folderze serwera: ten sam plik (ta sama wielkość) = już jest (null); inny o tej samej nazwie - „(2)”
+        // nazwa w folderze: ten sam plik (ta sama wielkość) = już jest (null); inny o tej samej nazwie - „(2)”
         static string WolnaNazwa(string folder, string nazwa, long len)
         {
             nazwa = string.Concat(Path.GetFileName(nazwa ?? "film").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
@@ -216,16 +307,21 @@ namespace Velivo
             return cel;
         }
 
-        // komputer w sieci domowej: serwer pobiera plik z tego komputera (udostępniony tylko jemu, 12 h, z wznawianiem)
+        // komputer w sieci domowej: serwer pobiera każdy plik z tego komputera (udostępniony tylko jemu, 12 h, z wznawianiem)
         void WyslijNaSerwer(Window owner, LanPeerInfo peer, string plik, string folder, bool move)
         {
-            var url = ShareFilm(plik, peer);
-            if (url == null) { ShowToast(L.T("🗄 Nie udało się udostępnić filmu serwerowi (sieć / port)"), null); return; }
-            var id = Guid.NewGuid().ToString("N");
-            var u = OknoPostepu(owner, Path.GetFileName(plik) + " → " + peer.Device + " · " + folder, plik, move); _wysylki[id] = u;
-            u.W.Closed += (s, e) => _wysylki.TryRemove(id, out _);
-            SendFilmMsg(peer, new LanFilmMsg { kind = "upload", req = id, url = url, act = folder, title = Path.GetFileName(plik), len = new FileInfo(plik).Length });
-            Task.Delay(20000).ContinueWith(_ => { if (_wysylki.TryGetValue(id, out var w0) && w0.Pas.Dispatcher.Invoke(() => w0.Pas.Value) == 0) Koniec(w0, false, L.T("✖ Serwer nie odpowiada – sprawdź, czy ma najnowsze Velivo i działa Serwer filmów."), null); });
+            var (pliki, zrodlo) = PlikiFilmu(plik);
+            var wpisy = pliki.Select(x => (x.Pelna, x.Wzgl, Url: ShareFilm(x.Pelna, peer))).ToList();
+            if (wpisy.Any(x => x.Url == null)) { ShowToast(L.T("🗄 Nie udało się udostępnić filmu serwerowi (sieć / port)"), null); return; }
+            var u = OknoPostepu(owner, pliki[0].Wzgl.Split('/')[0] + " → " + peer.Device + " · " + folder, move, zrodlo, pliki.Sum(x => new FileInfo(x.Pelna).Length), pliki.Count);
+            var ids = new List<string>();
+            foreach (var x in wpisy)
+            {
+                var id = Guid.NewGuid().ToString("N"); ids.Add(id); _wysylki[id] = (u, x.Pelna);
+                SendFilmMsg(peer, new LanFilmMsg { kind = "upload", req = id, url = x.Url, act = folder, title = x.Wzgl, len = new FileInfo(x.Pelna).Length });
+            }
+            u.W.Closed += (s, e) => { foreach (var id in ids) _wysylki.TryRemove(id, out _); };
+            Task.Delay(20000).ContinueWith(_ => { if (u.Poz.IsEmpty && u.Zostalo > 0) Dispatcher.BeginInvoke(new Action(() => { u.Txt.Text = L.T("✖ Serwer nie odpowiada – sprawdź, czy ma najnowsze Velivo i działa Serwer filmów."); u.Txt.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)); })); });
         }
 
         // ---------- odbiór (LanVideo): foldery serwera, pobieranie pliku, postęp i wynik ----------
@@ -242,11 +338,11 @@ namespace Velivo
                     _ = Task.Run(() => PobierzOdKlienta(peer, m));
                     return;
                 case "upst":
-                    if (m.req != null && _wysylki.TryGetValue(m.req, out var u)) Postep(u, m.pos, m.len);
+                    if (m.req != null && _wysylki.TryGetValue(m.req, out var u)) { u.G.Poz[u.Plik] = m.pos; Postep(u.G); }
                     return;
                 case "upok":
-                    if (m.req != null && _wysylki.TryGetValue(m.req, out var u2))
-                        Koniec(u2, m.done, m.done ? L.T("✔ Gotowe – ") + peer.Device + L.T(" pobiera opis, plakat i obsadę.") : L.T("✖ Nie udało się: ") + m.title, m.done ? m.title : null);
+                    if (m.req != null && _wysylki.TryRemove(m.req, out var u2))   // raz (pakiet przychodzi kilkoma drogami)
+                    { if (m.done) { u2.G.Poz[u2.Plik] = new FileInfo(u2.Plik).Length; Postep(u2.G); } PlikGotowy(u2.G, u2.Plik, m.done, m.done ? m.title : null, Path.GetFileName(u2.Plik) + ": " + m.title, L.T("✔ Gotowe – ") + peer.Device + L.T(" pobiera opis, plakat i obsadę.")); }
                     return;
             }
         }
@@ -260,8 +356,8 @@ namespace Velivo
                 var folder = SerwerFolderyTeraz().FirstOrDefault(f => string.Equals(f.TrimEnd('\\'), (m.act ?? "").TrimEnd('\\'), StringComparison.OrdinalIgnoreCase));
                 if (folder == null || !Directory.Exists(folder)) { Odp(false, L.T("to nie jest folder tego serwera")); return; }
                 if (m.url == null || !m.url.StartsWith("http://")) { Odp(false, L.T("zły adres")); return; }
-                var cel = WolnaNazwa(folder, m.title, m.len);
-                if (cel == null) { var ist = Path.Combine(folder, Path.GetFileName(m.title)); Odp(true, SumaPliku(ist) ?? ""); return; }   // już jest
+                var cel = CelNaSerwerze(folder, m.title, m.len, out var ist);   // „Folder filmu/plik” - zawsze wewnątrz folderu serwera
+                if (cel == null) { Odp(true, SumaPliku(ist) ?? ""); return; }   // już jest
                 var part = cel + ".velivo-part";
                 App.LogInfo("Serwer filmów: pobieram od " + peer.Device + " – " + Path.GetFileName(cel) + " (" + Rozmiar(m.len) + ")");
                 var last = DateTime.MinValue; var buf = new byte[1 << 20];

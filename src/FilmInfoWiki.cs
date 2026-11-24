@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -133,7 +133,7 @@ namespace Velivo
         // wybrany wynik -> informacje: z TMDb tytuł, rok, opis, plakat; obsada, reżyseria, gatunek z Wikidanych (po numerze IMDb / TMDb)
         async Task<MovieInfo> PobierzFilm(FilmWynik w, string path, MovieInfo cur)
         {
-            if (w.WdId != null) return await WikiFilm(w.WdId, path, cur);
+            if (w.WdId != null) { var mw = await WikiFilm(w.WdId, path, cur); if (mw.People == null || mw.People.Count == 0) mw.People = await ObsadaWiki(w.WdId, mw.Name ?? w.Label, mw.Year); return mw; }
             string wd = null;
             try
             {
@@ -153,10 +153,54 @@ namespace Velivo
             m.Name = w.Label ?? m.Name; if (w.Year > 0) m.Year = w.Year;
             if (!string.IsNullOrWhiteSpace(w.Desc)) m.Overview = w.Desc;   // opis z TMDb (po polsku, gdy Jellyfin ma język polski)
             if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = " ";
+            if (m.People == null || m.People.Count == 0) m.People = await ObsadaWiki(wd, m.Original ?? w.Label, m.Year);   // 🎭 Wikidane bez obsady (nowe filmy) - z tabelki artykułu Wikipedii
             if (w.Img != null)
                 try { using (var http = WikiHttp()) { var b = await http.GetByteArrayAsync(w.Img); Directory.CreateDirectory(PosterDir); var f = "reczny-" + Math.Abs(MetaKey(path).GetHashCode()) + ".jpg"; File.WriteAllBytes(Path.Combine(PosterDir, f), b); m.Poster = f; } }
                 catch (Exception ex) { App.LogInfo("Plakat (TMDb): " + ex.Message); }
             return m;
+        }
+
+        // 🎭 obsada z tabelki (infobox) artykułu Wikipedii: „starring” (angielska), „obsada” / „występują” (polska) - nowe filmy często mają ją tam, a w Wikidanych jeszcze nie
+        internal static async Task<List<string>> ObsadaWiki(string wd, string tytul, int rok)
+        {
+            var wynik = new List<string>();
+            try
+            {
+                using (var http = WikiHttp())
+                {
+                    var art = new List<(string Lang, string Title)>();
+                    if (wd != null)
+                    {
+                        var e = JsonDocument.Parse(await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&ids=" + wd)).RootElement.GetProperty("entities").GetProperty(wd);
+                        foreach (var lang in new[] { "en", "pl" }) { var t = WdStr(e, "sitelinks", lang + "wiki", "title"); if (t != null) art.Add((lang, t)); }
+                    }
+                    if (art.Count == 0 && !string.IsNullOrWhiteSpace(tytul))
+                        foreach (var lang in new[] { "en", "pl" })
+                        {
+                            var js = await http.GetStringAsync("https://" + lang + ".wikipedia.org/w/api.php?action=query&format=json&list=search&srlimit=1&srsearch=" + Uri.EscapeDataString(tytul + (rok > 0 ? " " + rok : "") + " film"));
+                            var hits = JsonDocument.Parse(js).RootElement.GetProperty("query").GetProperty("search");
+                            if (hits.GetArrayLength() > 0) art.Add((lang, WdStr(hits[0], "title")));
+                        }
+                    foreach (var (lang, title) in art)
+                    {
+                        var js = await http.GetStringAsync("https://" + lang + ".wikipedia.org/w/api.php?action=parse&format=json&prop=wikitext&section=0&redirects=1&page=" + Uri.EscapeDataString(title));
+                        var txt = WdStr(JsonDocument.Parse(js).RootElement, "parse", "wikitext", "*") ?? "";
+                        var pole = System.Text.RegularExpressions.Regex.Match(txt, @"\|\s*(?:starring|obsada|występują|główne role)\s*=(.*?)(?=\n\s*\|\s*[\w ]+=|\n\}\})", System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        if (!pole.Success) continue;
+                        var v = System.Text.RegularExpressions.Regex.Replace(pole.Groups[1].Value, @"<ref[^>]*/>|<ref.*?</ref>|<!--.*?-->", "", System.Text.RegularExpressions.RegexOptions.Singleline);
+                        v = System.Text.RegularExpressions.Regex.Replace(v, @"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", "$1");   // [[Osoba|Nazwa]] → Nazwa
+                        v = System.Text.RegularExpressions.Regex.Replace(v, @"\{\{(?:plainlist|plain list|ubl|unbulleted list|flatlist)\s*\|?", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Replace("}}", "").Replace("{{", "");
+                        foreach (var cz in System.Text.RegularExpressions.Regex.Split(v, @"<br\s*/?>|\n|\||\*|,"))
+                        {
+                            var n = cz.Trim().Trim('\'', ' ');
+                            if (n.Length > 2 && n.Length < 60 && !n.Contains("=") && char.IsLetter(n[0]) && !wynik.Contains(n)) wynik.Add(n);
+                        }
+                        if (wynik.Count > 0) break;
+                    }
+                }
+            }
+            catch (Exception ex) { App.LogInfo("Obsada z Wikipedii – „" + tytul + "”: " + ex.Message); }
+            return wynik.Take(12).ToList();
         }
 
         async Task<MovieInfo> WikiFilm(string id, string path, MovieInfo cur)

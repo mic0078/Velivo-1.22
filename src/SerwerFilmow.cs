@@ -69,6 +69,17 @@ namespace Velivo
                     catch (Exception ex) { App.LogInfo("Serwer filmów – informacje o „" + v.Title + "”: " + ex.Message); break; }   // brak internetu - spróbujemy przy następnym przeglądzie
                     await Task.Delay(1000);   // Wikimedia - grzecznie, po jednym
                 }
+                // 🎭 filmy z opisem, ale bez obsady (np. nowe - Wikidane jeszcze jej nie mają): obsada z Wikipedii, najwyżej raz na 7 dni dla filmu
+                foreach (var v in LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path)).ToList())
+                {
+                    var mi = LookupMeta(Meta, v.Path); var klucz = MetaKey(v.Path);
+                    if (mi == null || mi.People != null && mi.People.Count > 0 || DateTime.TryParse(GetPref("serwer-obsada|" + klucz), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var by) && (DateTime.Now - by).TotalDays < 7) continue;
+                    SetPref("serwer-obsada|" + klucz, DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
+                    var ob = await ObsadaWiki(null, mi.Original ?? mi.Name, mi.Year);
+                    if (ob.Count == 0) continue;
+                    mi.People = ob; var man = LoadManual(); man[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++;
+                    await Task.Delay(1000);
+                }
                 if (opis > 0) _libRefresh?.Invoke();
                 if (pokaz || nowe > 0 || opis > 0) ShowToast(L.T("🎞 Serwer filmów: nowe filmy ") + nowe + L.T(", uzupełnione informacje ") + opis + (bez.Count > opis ? L.T(", bez informacji ") + (bez.Count - opis) : ""), null);
             }

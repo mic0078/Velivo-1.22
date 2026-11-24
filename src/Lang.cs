@@ -1928,6 +1928,7 @@ namespace Velivo
             { "Dzienniki", "Logs" },
             { "Szukaj w tej tabeli", "Search this table" },
             { "Tab – wstaw", "Tab – insert" },
+            { " · ← → wybierz", " · ← → choose" },
             { "Oznacz jako obejrzany", "Mark as watched" },
             { "Oznacz jako nieobejrzany", "Mark as unwatched" },
             { "🌍 Dostęp przez internet", "🌍 Internet access" },

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -15,7 +15,7 @@ namespace Velivo
     {
         static Window _pod; static StackPanel _podRow; static System.Windows.Threading.DispatcherTimer _podTm;
         static volatile List<string> _podSug; static volatile bool _podDone; static volatile string _podWord;   // to, co pokazuje pasek (czytane w wątku klawiatury)
-        static int _podIdx; static long _podTabAt;
+        static int _podIdx; static long _podTabAt; static readonly List<TextBlock> _podChips = new List<TextBlock>();
         internal static bool PodOn => GetPref("klawiatura-podpowiedzi") != "0";
 
         [StructLayout(LayoutKind.Sequential)] struct GuiInfo { public int Size, Flags; public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret; public RECT Rc; }
@@ -37,11 +37,25 @@ namespace Velivo
             PodEnsure(); _podTm.Interval = TimeSpan.FromSeconds(3);
             _podRow.Children.Clear();
             TextBlock Chip(string t, bool on) => new TextBlock { Text = t, Foreground = Brushes.White, FontSize = 13, Padding = new Thickness(9, 3, 9, 3), Margin = new Thickness(0, 0, 3, 0),
-                Background = on ? new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), Color.FromRgb(0x06, 0xB6, 0xD4), 0) : Brushes.Transparent };
-            for (int i = 0; i < Math.Min(3, sug.Count); i++) _podRow.Children.Add(Chip(sug[i], i == 0));
+                Background = on ? PodOnBrush : Brushes.Transparent };
+            _podChips.Clear();
+            for (int i = 0; i < Math.Min(3, sug.Count); i++)
+            {   // ← → wybór, klik myszą - wstaw to słowo (jak Tab)
+                var c = Chip(sug[i], i == 0); int k = i; c.Cursor = System.Windows.Input.Cursors.Hand;
+                c.MouseEnter += (s0, e0) => PodMark(k); c.MouseLeftButtonUp += (s0, e0) => { e0.Handled = true; PodInsert(k); };
+                _podChips.Add(c); _podRow.Children.Add(c);
+            }
             if (rest != null) _podRow.Children.Add(Chip("… " + (rest.Length > 40 ? rest.Substring(0, 40) + "…" : rest.TrimStart()), sug.Count == 0));
-            _podRow.Children.Add(new TextBlock { Text = (sug.Count > 0 ? L.T("Tab – wstaw") : "") + (sug.Count > 0 && rest != null ? " · " : "") + (rest != null ? L.T("Ctrl+Spacja – reszta zdania") : ""), Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA3)), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) });
+            _podRow.Children.Add(new TextBlock { Text = (sug.Count > 0 ? L.T("Tab – wstaw") + (sug.Count > 1 ? L.T(" · ← → wybierz") : "") : "") + (sug.Count > 0 && rest != null ? " · " : "") + (rest != null ? L.T("Ctrl+Spacja – reszta zdania") : ""), Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA3)), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) });
             PodPlace();
+        }
+        static readonly Brush PodOnBrush = new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), Color.FromRgb(0x06, 0xB6, 0xD4), 0);
+        // wątek okna: podświetlenie wybranej podpowiedzi (strzałki / najechanie myszą); pasek zostaje dłużej
+        static void PodMark(int i)
+        {
+            _podIdx = i;
+            for (int j = 0; j < _podChips.Count; j++) _podChips[j].Background = j == i ? PodOnBrush : Brushes.Transparent;
+            _podTm?.Stop(); _podTm?.Start();
         }
         // krótki komunikat w tym samym pasku (np. Ctrl+Spacja: dodano / już jest w słowniku) - 2,5 s
         internal static void PodMsg(string text)
@@ -57,8 +71,8 @@ namespace Velivo
             _podRow = new StackPanel { Orientation = Orientation.Horizontal };
             _pod = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false, Topmost = true, ShowActivated = false, Focusable = false, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize,
                 Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF5, 0x14, 0x18, 0x21)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x3F, 0x6B)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(4), Child = _podRow } };
-            _pod.SourceInitialized += (s, e) => { var h = new System.Windows.Interop.WindowInteropHelper(_pod).Handle; SetWindowLongPtr(h, -20, (IntPtr)(GetWindowLongPtr(h, -20).ToInt64() | 0x08000000 | 0x80 | 0x20)); };   // bez aktywacji, poza Alt+Tab, przezroczysty dla myszy
-            _podTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; _podTm.Tick += (s, e) => PodHide();
+            _pod.SourceInitialized += (s, e) => { var h = new System.Windows.Interop.WindowInteropHelper(_pod).Handle; SetWindowLongPtr(h, -20, (IntPtr)(GetWindowLongPtr(h, -20).ToInt64() | 0x08000000 | 0x80)); };   // bez aktywacji (kursor zostaje w programie), poza Alt+Tab; klik myszą wybiera podpowiedź
+            _podTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) }; _podTm.Tick += (s, e) => { if (_pod.IsMouseOver) return; PodHide(); };   // mysz nad paskiem - zostaje
         }
         static void PodPlace()
         {
@@ -86,6 +100,11 @@ namespace Velivo
         {
             var sug = _podSug;
             if (vk == 0x1B) { if (sug != null) Application.Current?.Dispatcher.BeginInvoke(new Action(PodHide)); return false; }
+            if ((vk == 0x25 || vk == 0x27) && !ctrl && !alt && !sh && sug != null && sug.Count > 1)
+            {   // ← → przy pasku: wybór podpowiedzi zamiast ruchu kursora (pasek znika po 3 s bez ruchu albo po Esc - wtedy strzałki jak zawsze)
+                int n = Math.Min(3, sug.Count), i = (_podIdx + (vk == 0x27 ? 1 : n - 1)) % n;
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() => PodMark(i))); _podIdx = i; return true;
+            }
             if (vk != 0x09 || ctrl || alt || sh) return false;
             long now = Environment.TickCount64; bool again = _podCycle != null && now - _podTabAt < 700;
             if (!again && (sug == null || sug.Count == 0)) return false;   // bez paska Tab działa jak zawsze
@@ -97,7 +116,7 @@ namespace Velivo
             }
             else
             {
-                _podCycle = sug; _podIdx = 0; w = sug[0]; var typed = _podWord ?? "";
+                _podCycle = sug; w = sug[Math.Min(_podIdx, sug.Count - 1)]; var typed = _podWord ?? "";   // wybrana strzałkami (domyślnie pierwsza)
                 if (_podDone) { ins.AddRange(TextIn(w + " ")); _podDel = w.Length + 1; }
                 else { if (typed.Length > 0 && char.IsUpper(typed[0]) && w.Length > 0) w = char.ToUpper(w[0]) + w.Substring(1);   // „Wsz” → „Wszystko”
                     ins.AddRange(Enumerable.Range(0, typed.Length).SelectMany(_ => KeyIn(0x08, '\0'))); ins.AddRange(TextIn(w + " ")); _podDel = w.Length + 1; }   // całe słowo od nowa (wielkość liter z podpowiedzi)
@@ -108,6 +127,13 @@ namespace Velivo
             System.Threading.Tasks.Task.Delay(750).ContinueWith(_ => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { if (_podTabAt == at) { _podCycle = null; PodShow(ww, true); } })));   // po chwili - co dalej
             Application.Current?.Dispatcher.BeginInvoke(new Action(() => _pod?.Hide()));
             return true;
+        }
+        // wątek okna: klik myszą w podpowiedź - jak Tab na wybranej (kursor tekstu został w programie, bo pasek się nie aktywuje)
+        static void PodInsert(int i)
+        {
+            if (_podSug == null || i >= _podSug.Count) return;
+            _podIdx = i; _podCycle = null; _podTabAt = 0;
+            System.Threading.Tasks.Task.Run(() => PodKey(0x09, false, false, false));
         }
     }
 }

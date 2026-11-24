@@ -1310,7 +1310,7 @@ namespace Velivo
 
         bool EnsureLibVlc()
         {
-            var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
+            var args = new List<string> { "--no-video-title-show", GetPref("vlc-sprzet") == "0" ? "--avcodec-hw=none" : "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
@@ -1779,8 +1779,12 @@ namespace Velivo
             padBtn.Click += (s, e) => ShowPadMapDialog(win);
             var couchBtn = textBtn("🛋 " + L.T("Kanapa"), L.T("Tryb Kanapa – duże kafelki do obsługi kontrolerem (przycisk Menu ≡ na kontrolerze)")); couchBtn.FontSize = 12;
             couchBtn.Click += (s, e) => ShowKanapa();
+            // 🖥 dekodowanie sprzętowe (karta graficzna) - wyłącznik do sprawdzenia zacinania obrazu; działa od następnego otwarcia odtwarzacza
+            Func<string> hwTxt = () => (GetPref("vlc-sprzet") == "0" ? "🖥 " + L.T("Dekodowanie: procesor") : "🖥 " + L.T("Dekodowanie: karta graficzna"));
+            var hwBtn = textBtn(hwTxt(), L.T("Kto dekoduje obraz: karta graficzna (lżej, domyślnie) albo procesor.\nGdy obraz się zacina, sprawdź drugą możliwość.\nZmiana działa po zamknięciu i ponownym otwarciu odtwarzacza.")); hwBtn.FontSize = 12;
+            hwBtn.Click += (s, e) => { SetPref("vlc-sprzet", GetPref("vlc-sprzet") == "0" ? "1" : "0"); hwBtn.Content = hwTxt(); ShowToast(L.T("🖥 Zmiana dekodowania – zamknij odtwarzacz i otwórz go ponownie"), null); };
             foreach (var cat in new (string Name, UIElement[] Items)[] {
-                (L.T("Obraz"), new UIElement[] { aspect, snap }), (L.T("Dźwięk"), new UIElement[] { audio }),
+                (L.T("Obraz"), new UIElement[] { aspect, snap, hwBtn }), (L.T("Dźwięk"), new UIElement[] { audio }),
                 (L.T("Napisy"), new UIElement[] { subs, lector }), (L.T("Kontroler"), new UIElement[] { padBtn, couchBtn }) })
             {
                 int r = toolsGrid.RowDefinitions.Count; toolsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

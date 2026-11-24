@@ -72,7 +72,7 @@ namespace Velivo
         // 🗣 lektor Velivo czyta kwestię (znak od Velivo): typowy poziom programu jest wtedy zamrożony - głos lektora nie jest „nowym, głośniejszym programem”,
         // więc film nie jest ściszany na czas kwestii ani podciągany po niej (bez pompowania); bezpiecznik zostaje, z większym zapasem
         public volatile bool Hold;
-        bool fastLvl; double stP, fP; int hiN, loN, bigN, trk; double mMx = -200, mMn = 200;   // mMx/mMn - zakres poziomu z ok. 0,6 s: mowa i muzyka „falują” (≥ 8 dB), szum tła w pauzie stoi   // 🔀 zmiana programu / kanału: moc z ok. 0,2 s i licznik „dłużej głośniej / ciszej niż typowy poziom” - szybkie przejście na nowy poziom
+        bool fastLvl; double stP, fP; int hiN, loN, bigN, trk;   // 🔀 zmiana programu / kanału: moc z ok. 0,2 s i licznik „dłużej głośniej / ciszej niż typowy poziom” - szybkie przejście na nowy poziom
         double liftS, progP = double.NaN;   // progP - typowa MOC dźwięku (ta sama bramka co progDb) - do celu LUFS liczy się moc, nie średnia z dB
         int mtrN, progN; double progDb = double.NaN;   // progDb - typowy poziom filmu (dB, ok. 10 s, bez ciszy) dla progu automatycznego
         double env, grDb, avgGr, mkS = double.NaN, mixS = double.NaN;
@@ -80,7 +80,7 @@ namespace Velivo
 
         public VelivoDynamicsProcessor(double sampleRate = 48000) { fs = sampleRate; }
         public bool KeepLevel;   // dźwięk Windows na żywo: ponowny start toru (zmiana urządzenia, przerwa) to dalej ten sam materiał - zmierzony poziom i podbicie „do celu” zostają (bez nagłego ściszenia)
-        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; stP = 0; fP = 0; hiN = loN = bigN = trk = 0; mMx = -200; mMn = 200; liftS = 0; AutoLiftDb = 0; }
+        public void Reset() { cp = null; env = 0; grDb = 0; avgGr = 0; mkS = double.NaN; mixS = double.NaN; CurrentGainReductionDb = 0; InputDb = OutputDb = -120; if (KeepLevel && !double.IsNaN(progP)) return; progDb = double.NaN; progP = double.NaN; progN = 0; stP = 0; fP = 0; hiN = loN = bigN = trk = 0; liftS = 0; AutoLiftDb = 0; }
 
         // charakterystyka (statyczna): poziom wejścia (dB) → zmiana wzmocnienia (dB)
         public static double GainComputer(double x, DynParams p) => GainComputer(x, p, p.ThresholdDb, p.ExpanderThresholdDb);
@@ -138,8 +138,8 @@ namespace Velivo
                     // raz zaczęte przejście trwa, aż typowy poziom dojdzie do nowego (2 dB) - nie zatrzymuje się w połowie drogi
                     // 🧠 cichszy PROGRAM czy PAUZA? Treść (mowa, muzyka) zmienia poziom o ≥ 8 dB w ułamku sekundy - podciągana po 0,3 s;
                     // równy szum tła (pauza między zdaniami, cisza sceny) - dopiero po 3 s, żeby pauzy nie „oddychały” szumem
-                    double dec = 15.0 * 64 / fs; mMx = Math.Max(fDb0, mMx - dec); mMn = Math.Min(fDb0, mMn + dec); bool tresc = mMx - mMn >= 8;
-                    if (hiN > 1.5 * fs / 64 || bigN > 0.2 * fs / 64) trk = 1; else if (loN > (tresc ? 0.3 : 3.0) * fs / 64) trk = -1;
+                    // ciszej: dopiero po 3 s - cichszy rozmówca / scena (różnice 8–12 dB w zwykłej rozmowie) to nie inny program; po 0,3 s dialogi „pompowały” (2026-11-24, właściciel)
+                    if (hiN > 1.5 * fs / 64 || bigN > 0.2 * fs / 64) trk = 1; else if (loN > 3.0 * fs / 64) trk = -1;
                     if (trk > 0 && sDb < pDb + 2 || trk < 0 && (sDb > pDb - 2 || sDb < -60)) trk = 0;
                     double tc = trk == 0 ? 0 : bigN > 0.2 * fs / 64 ? 0.05 : trk > 0 ? 0.7 : 0.1;
                     if (tc > 0) { double np = progP + (stP - progP) / (tc * fs / 64); progDb += 10 * Math.Log10((np + 1e-20) / (progP + 1e-20)); progP = np; fastLvl = true; }
@@ -161,8 +161,8 @@ namespace Velivo
             double tgA = AutoTargetDb; bool toTarget = p.AutoThreshold && !double.IsNaN(progP) && progP > 1e-12 && !double.IsNaN(tgA);
             double liftWant = toTarget ? Math.Max(-20, Math.Min(30, tgA - (10 * Math.Log10(progP) + 2.3) - avgGr)) : 0;
             // 🛡 bezpiecznik: wynik z ostatnich 0,1 s nigdy więcej niż 8 dB ponad cel - przełączenie na głośniejszy program / reklama ściszane od razu, bez czekania na pomiar
-            if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + (Hold ? 16 : 8) - (10 * Math.Log10(fP) + 2.3));
-            liftS += Math.Max(-400 / fs, Math.Min(20 / fs, liftWant - liftS));
+            if (toTarget && fP > 1e-12) liftWant = Math.Min(liftWant, tgA + (Hold ? 16 : 12) - (10 * Math.Log10(fP) + 2.3));   // 12 dB: krzyk / trzaśnięcie w dialogu nie ścisza całości (przy 8 dB - pompowanie)
+            liftS += Math.Max(-400 / fs, Math.Min(6 / fs, liftWant - liftS));   // w górę 6 dB/s (było 20 - ciche dialogi „wyskakiwały”), w dół szybko
             double mkWant = toTarget ? liftS : p.AutoThreshold ? -avgGr : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS,   /* próg automatyczny bez celu (kompresor po wyrównaniu LUFS): oddaje tyle, ile średnio ściszył - głośność dialogu zostaje, ściszone są tylko głośne fragmenty */ mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
             mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * (mkWant < mkS - 3 ? cs * 10 : cs);   /* duże ściszenie (bezpiecznik) w ok. 5 ms, reszta płynnie 50 ms */ mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;

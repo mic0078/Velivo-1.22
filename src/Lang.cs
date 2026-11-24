@@ -1929,6 +1929,7 @@ namespace Velivo
             { "Szukaj w tej tabeli", "Search this table" },
             { "Tab – wstaw", "Tab – insert" },
             { " · ← → wybierz", " · ← → choose" },
+            { "Obsada", "Cast" },
             { "Pobieraj informacje także z Jellyfin (za zgodą)", "Also fetch information from Jellyfin (with permission)" },
             { "Wyłączone: serwer szuka opisu, plakatu i obsady sam (Wikidane, Wikipedia) – Jellyfin niepotrzebny.\nWłączone: najpierw TMDb przez Twój Jellyfin (więcej danych, obsada filmów z jego biblioteki), potem sam.", "Off: the server finds the description, poster and cast itself (Wikidata, Wikipedia) – Jellyfin not needed.\nOn: first TMDb via your Jellyfin (more data, cast of films in its library), then itself." },
             { "🗄 Trwa przenoszenie – film zostanie wznowiony z nowej lokalizacji (z serwera), od tego samego miejsca.", "🗄 Moving in progress – the film will resume from the new location (the server), from the same place." },

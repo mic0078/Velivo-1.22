@@ -66,7 +66,7 @@ namespace Velivo
                 int opis = 0;
                 foreach (var v in bez)
                 {
-                    try { if (await SerwerOpis(v)) opis++; else SetPref("serwer-brak|" + MetaKey(v.Path), DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture)); }   // nie znaleziono - nie co 10 min od nowa
+                    try { if (await SerwerOpis(v)) { opis++; var mo = LookupMeta(Meta, v.Path); foreach (var o in mo?.People?.Take(12) ?? Enumerable.Empty<string>()) await AktorZdjecie(o); } else SetPref("serwer-brak|" + MetaKey(v.Path), DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture)); }   // nie znaleziono - nie co 10 min od nowa; znaleziono - od razu zdjęcia obsady
                     catch (Exception ex) { App.LogInfo("Serwer filmów – informacje o „" + v.Title + "”: " + ex.Message); break; }   // brak internetu - spróbujemy przy następnym przeglądzie
                     await Task.Delay(1000);   // Wikimedia - grzecznie, po jednym
                 }
@@ -196,7 +196,7 @@ namespace Velivo
         //    graj("wznow" | "poczatek" | null) - odtwarzanie wybrane przez wołającego (plik, film z serwera)
         internal void FilmSzczegoly(Window owner, string tytul, MovieInfo m, ImageSource plakat, long len, long pos, bool done, Action<string> graj, List<(string Txt, Action Act)> wiecej = null)
         {
-            var w = new Window { Title = tytul, Width = 940, Height = 600, WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen, Owner = owner, Topmost = owner?.Topmost ?? false,
+            var w = new Window { Title = tytul, Width = 940, Height = m?.People?.Count > 0 ? 720 : 600, WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen, Owner = owner, Topmost = owner?.Topmost ?? false,
                 Background = SBg, Foreground = SFg, FontFamily = STekstFont, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize };
             w.SourceInitialized += (s, e) => { try { int on = 1; DwmSetWindowAttribute(new System.Windows.Interop.WindowInteropHelper(w).Handle, 20, ref on, 4); } catch (Exception) { } };   // ciemny pasek tytułu
             w.Uid = "own-theme";   // własne ciemne kolory - motyw Velivo nie przemalowuje tła na białe (biały tekst na białym w Kanapie)
@@ -212,7 +212,6 @@ namespace Velivo
                 m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null }.Where(x => !string.IsNullOrEmpty(x));
             var mt = STxt(string.Join("   ·   ", meta), 14, SDim); mt.Margin = new Thickness(0, 8, 0, 0); top.Children.Add(mt);
             if (!string.IsNullOrEmpty(m?.Director)) { var r0 = STxt(L.T("Reżyseria: ") + m.Director, 13.5, SDim); r0.Margin = new Thickness(0, 6, 0, 0); top.Children.Add(r0); }
-            if (m?.People?.Count > 0) { var p0 = STxt(L.T("Obsada: ") + string.Join(", ", m.People.Take(12)), 13.5, SDim); p0.Margin = new Thickness(0, 4, 0, 0); top.Children.Add(p0); }
             var btn = new WrapPanel { Margin = new Thickness(0, 18, 0, 0) }; top.Children.Add(btn);
             Action<string> start = how => { w.Close(); graj(how); };
             bool wznow = pos > 0 && !done && len > 0;
@@ -222,6 +221,21 @@ namespace Velivo
             if (wznow) { var pr = new ProgressBar { Height = 5, Maximum = len, Value = pos, Margin = new Thickness(0, 4, 0, 0), Foreground = SAccent, Background = SLine, BorderThickness = new Thickness(0) }; top.Children.Add(pr); }
             var ov = STxt(string.IsNullOrWhiteSpace(m?.Overview) ? L.T("Brak opisu – „🔎 Wyszukaj informacje” pobierze opis, obsadę i plakat.") : m.Overview, 15, string.IsNullOrWhiteSpace(m?.Overview) ? SDim : SFg);
             ov.VerticalAlignment = VerticalAlignment.Top; ov.LineHeight = 22;
+            if (m?.People?.Count > 0)
+            {   // 🎭 obsada jak w Jellyfin: karty ze zdjęciem (Wikidane / Wikimedia, pobierane w tle i zapamiętane) oraz imieniem i nazwiskiem
+                var ob = new StackPanel { Margin = new Thickness(0, 12, 0, 0) }; DockPanel.SetDock(ob, Dock.Bottom); d.Children.Add(ob);
+                ob.Children.Add(STxt(L.T("Obsada"), 15, null, true));
+                var rz = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+                ob.Children.Add(new ScrollViewer { Content = rz, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
+                foreach (var osoba in m.People.Take(12))
+                {
+                    var ramka = new Border { Width = 92, Height = 122, CornerRadius = new CornerRadius(8), Background = SLine, ClipToBounds = true, Child = new TextBlock { Text = "👤", FontSize = 34, Foreground = SDim, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                    var karta = new StackPanel { Width = 92, Margin = new Thickness(0, 0, 10, 6), ToolTip = osoba }; karta.Children.Add(ramka);
+                    var n0 = STxt(osoba, 12, null, true); n0.Margin = new Thickness(0, 4, 0, 0); n0.TextAlignment = TextAlignment.Center; karta.Children.Add(n0);
+                    rz.Children.Add(karta);
+                    var os = osoba; _ = Task.Run(async () => { var f = await AktorZdjecie(os); if (f != null) Dispatcher.BeginInvoke(new Action(() => { var img = LoadLogo(f, 244); if (img != null) ramka.Child = new Image { Source = img, Stretch = Stretch.UniformToFill }; })); });
+                }
+            }
             d.Children.Add(new ScrollViewer { Content = ov, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 18, 0, 0) });
             w.Content = g; w.Loaded += (s, e) => b0.Focus(); w.Show(); w.Activate();
         }

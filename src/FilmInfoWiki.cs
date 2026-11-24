@@ -203,6 +203,53 @@ namespace Velivo
             return null;
         }
 
+        // 🎭 zdjęcie aktora: Wikidane (osoba z zawodem aktor) → obrazek z Wikimedia Commons (240 px), zapisany raz w folderze informacji („aktorzy”),
+        //    brak zdjęcia - znacznik .brak, ponowna próba po 30 dniach. Bez Jellyfin i bez klucza.
+        static readonly System.Threading.SemaphoreSlim _aktSem = new System.Threading.SemaphoreSlim(2);
+        static readonly string[] AktorZawody = { "Q33999", "Q10800557", "Q2405480", "Q10798782", "Q2259451", "Q4610556", "Q11481802" };   // aktor, filmowy, głosowy, telewizyjny, teatralny, model, dubbingowy
+        internal static async Task<string> AktorZdjecie(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var dir = Path.Combine(MetaDir, "aktorzy");
+            string h; using (var sha = System.Security.Cryptography.SHA1.Create()) h = Convert.ToHexString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(name.Trim().ToLowerInvariant()))).Substring(0, 16);
+            var f = Path.Combine(dir, h + ".jpg"); var brak = Path.Combine(dir, h + ".brak");
+            if (File.Exists(f)) return f;
+            if (File.Exists(brak) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(brak)).TotalDays < 30) return null;
+            await _aktSem.WaitAsync();
+            try
+            {
+                if (File.Exists(f)) return f;
+                Directory.CreateDirectory(dir);
+                using (var http = WikiHttp())
+                {
+                    var js = await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&type=item&limit=7&language=en&search=" + Uri.EscapeDataString(name.Trim()));
+                    var ids = JsonDocument.Parse(js).RootElement.GetProperty("search").EnumerateArray().Select(x => WdStr(x, "id")).Where(x => x != null).ToList();
+                    string plik = null;
+                    if (ids.Count > 0)
+                    {
+                        var ent = JsonDocument.Parse(await http.GetStringAsync("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=" + string.Join("|", ids))).RootElement.GetProperty("entities");
+                        foreach (var id in ids)
+                        {
+                            if (!ent.TryGetProperty(id, out var e) || !e.TryGetProperty("claims", out var cl) || !WdIds(cl, "P31").Contains("Q5")) continue;   // tylko człowiek
+                            var img = cl.TryGetProperty("P18", out var p18) && p18.GetArrayLength() > 0 ? WdStr(p18[0], "mainsnak", "datavalue", "value") : null;
+                            if (img == null) continue;
+                            bool aktor = WdIds(cl, "P106").Any(o => AktorZawody.Contains(o));
+                            if (aktor) { plik = img; break; } plik ??= img;
+                        }
+                    }
+                    if (plik != null)
+                    {
+                        var b = await http.GetByteArrayAsync("https://commons.wikimedia.org/wiki/Special:FilePath/" + Uri.EscapeDataString(plik) + "?width=240");
+                        if (b.Length > 500) { File.WriteAllBytes(f, b); return f; }
+                    }
+                }
+                File.WriteAllText(brak, "");
+            }
+            catch (Exception ex) { App.LogInfo("Zdjęcie aktora „" + name + "”: " + ex.Message); }
+            finally { _aktSem.Release(); }
+            return null;
+        }
+
         // 🎭 obsada z tabelki (infobox) artykułu Wikipedii: „starring” (angielska), „obsada” / „występują” (polska) - nowe filmy często mają ją tam, a w Wikidanych jeszcze nie
         internal static async Task<List<string>> ObsadaWiki(string wd, string tytul, int rok)
         {

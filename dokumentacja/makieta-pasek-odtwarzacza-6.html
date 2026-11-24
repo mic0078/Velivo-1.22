@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pasek odtwarzacza – niższy</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 6px;color:#ECE8FF}p.o{color:#aab;max-width:1100px;margin:4px 0}
+.film{background:linear-gradient(180deg,#26303f,#3b2a20);height:120px;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;color:#889}
+.scr{background:#1C1C1C;border-radius:0 0 8px 8px;padding:4px 10px 4px;overflow-x:auto;position:relative}
+.line{display:flex;align-items:flex-end;gap:6px;white-space:nowrap}
+.g{display:flex;flex-direction:column;align-items:center}
+.c{display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.12);border-radius:10px;height:40px;padding:0 4px}
+.b{min-width:32px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:16px;padding:0 3px}
+.b.t{font-size:12px;color:#ddd;gap:6px;padding:0 8px}.b.on{background:#3b4a70}
+.cap{font-size:11px;color:#bbb;margin-top:1px}
+.prog{display:flex;align-items:center;gap:10px;margin:2px 0 4px;font-size:12px}.bar{flex:1;height:4px;background:#555;border-radius:2px;position:relative}.bar i{position:absolute;left:0;top:0;bottom:0;background:#7C3AED;border-radius:2px}
+.tv{background:#1D4ED8;color:#fff;border-radius:8px;height:40px;display:flex;align-items:center;padding:0 12px;font-weight:600}
+.sofa{background:#F5B544;color:#1A1204;border-radius:8px;height:40px;width:44px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.srv{border-radius:10px;height:40px;display:flex;flex-direction:column;justify-content:center;padding:0 10px;background:linear-gradient(90deg,#7C3AED,#06B6D4);font-size:12px;line-height:1.25}
+.small{font-size:10.5px;opacity:.85}
+.pop{position:absolute;left:330px;bottom:62px;background:#151a26;border:1px solid #44507a;border-radius:10px;padding:8px;box-shadow:0 8px 24px #000a;display:grid;grid-template-columns:auto auto;gap:6px 14px;font-size:12px}
+.pop b{color:#ECE8FF;font-size:11px;grid-column:span 2;margin-top:2px}.pop span{background:rgba(255,255,255,.1);border-radius:6px;padding:5px 9px}
+.h{color:#F5B544;font-weight:600}
+ul{margin:6px 0 0 18px;color:#cdd;max-width:1100px}li{margin:3px 0}
+</style></head><body>
+<h1>Pasek odtwarzacza – niższy, bez pustego miejsca (propozycja)</h1>
+<p class="o">Teraz pasek ma 3 piętra (postęp, rząd ⚙, przyciski) i schodek nad TV (Serwer) – ok. <span class="h">150 px</span> wysokości, a rząd ⚙ zajmuje pół szerokości, reszta pusta. Propozycja: <span class="h">2 piętra, ok. 75 px</span> – film widać o połowę więcej.</p>
+
+<h2>Propozycja – zwykły widok</h2>
+<div class="film">film</div>
+<div class="scr">
+ <div class="prog"><span>0:41:12</span><div class="bar"><i style="width:38%"></i></div><span>1:48:00</span></div>
+ <div class="line">
+  <div class="g"><div class="c"><span class="b">⏮</span><span class="b">⏸</span><span class="b">⏹</span><span class="b">⏭</span><span class="b t">−10 s</span><span class="b t">+10 s</span><span class="b t">1×</span><span class="b">🕘</span><span class="b">🌙</span></div><div class="cap">Odtwarzanie</div></div>
+  <div class="g"><div class="c"><span class="b">☰</span><span class="b">≡</span></div><div class="cap">Film</div></div>
+  <div class="g"><div class="c"><span class="b">⚙</span><span class="b">⧉</span><span class="b">▭</span><span class="b">⛶</span><span class="b">🔊</span><span class="b t">━━━● 100%</span></div><div class="cap">Obraz i dźwięk</div></div>
+  <div class="g"><div class="c"><span class="b">☆</span><span class="b t">☆ Kanały</span><span class="b t">☆ Filmy</span></div><div class="cap">Ulubione</div></div>
+  <div class="g"><div class="c"><span class="b">ⓘ</span><span class="b">👁</span></div><div class="cap">Widok</div></div>
+  <div class="g"><div class="srv"><span><span style="color:#4ADE80">●</span> NUCBOX</span><span class="small">Michał</span></div><div class="cap">Serwer</div></div>
+  <div class="g"><div class="tv">📺 TV</div><div class="cap">Przełącz</div></div>
+  <div class="g"><div class="sofa">🛋</div><div class="cap">Kanapa</div></div>
+  <div class="g" style="margin-left:8px"><div style="height:40px;display:flex;flex-direction:column;justify-content:center"><b style="font-size:20px">11:14</b><span class="small">wt. 24.11</span></div><div class="cap">&nbsp;</div></div>
+ </div>
+</div>
+
+<h2>Propozycja – po kliknięciu ⚙ (okienko nad przyciskiem, zamyka się kliknięciem obok)</h2>
+<div class="film">film</div>
+<div class="scr">
+ <div class="pop">
+  <b>Obraz</b><span>🖼 Proporcje</span><span>📷 Zrzut klatki</span>
+  <b>Dźwięk</b><span>🎵 Ścieżka i wyjście</span><span>🔊− / 🔊+ przesunięcie</span>
+  <b>Napisy</b><span>CC Wybór i wygląd</span><span>🗣 Lektor</span>
+  <b>Kontroler</b><span>🎮 Przypisania</span><span>🛋 Tryb Kanapa</span>
+ </div>
+ <div class="prog"><span>0:41:12</span><div class="bar"><i style="width:38%"></i></div><span>1:48:00</span></div>
+ <div class="line">
+  <div class="g"><div class="c"><span class="b">⏮</span><span class="b">⏸</span><span class="b">⏹</span><span class="b">⏭</span><span class="b t">−10 s</span><span class="b t">+10 s</span><span class="b t">1×</span></div><div class="cap">Odtwarzanie</div></div>
+  <div class="g"><div class="c"><span class="b on">⚙</span><span class="b">⧉</span><span class="b">⛶</span><span class="b">🔊</span><span class="b t">━━━● 100%</span></div><div class="cap">Obraz i dźwięk</div></div>
+  <div class="g"><div class="c"><span class="b">☆</span><span class="b t">☆ Kanały</span></div><div class="cap">Ulubione</div></div>
+ </div>
+</div>
+<ul>
+ <li><b>Rząd ⚙ znika z paska</b> – Obraz, Dźwięk, Napisy, Kontroler w okienku nad ⚙ (jak menu ustawień w YouTube/Netflix). Jedno piętro mniej.</li>
+ <li><b>Serwer w tym samym rzędzie</b> (karta z podpisem) – bez schodka nad TV, który podnosił cały pasek.</li>
+ <li><b>Sieć</b> (wykres) – tylko gdy jest miejsce; przy wąskim oknie chowa się pierwsza (jak ustaliliśmy wcześniej). Godzina zostaje.</li>
+ <li>Pasek postępu cieńszy margines; czasy przy końcach paska.</li>
+ <li>Przy TV na żywo: „NA ŻYWO” i postęp audycji zamiast „0:00 … 0:00”.</li>
+</ul>
+</body></html>

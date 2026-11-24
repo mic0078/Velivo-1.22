@@ -224,9 +224,20 @@ namespace Velivo
             if (m?.People?.Count > 0)
             {   // 🎭 obsada jak w Jellyfin: karty ze zdjęciem (Wikidane / Wikimedia, pobierane w tle i zapamiętane) oraz imieniem i nazwiskiem
                 var ob = new StackPanel { Margin = new Thickness(0, 12, 0, 0) }; DockPanel.SetDock(ob, Dock.Bottom); d.Children.Add(ob);
-                ob.Children.Add(STxt(L.T("Obsada"), 15, null, true));
                 var rz = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-                ob.Children.Add(new ScrollViewer { Content = rz, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
+                var sv = new ScrollViewer { Content = rz, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Cursor = System.Windows.Input.Cursors.Hand };
+                // przesuwanie jak w Jellyfin: ‹ › (o 3 karty), kółko myszy, przeciąganie myszą
+                void Przesun(double dx) => sv.ScrollToHorizontalOffset(Math.Max(0, Math.Min(sv.ScrollableWidth, sv.HorizontalOffset + dx)));
+                var naglowek = new DockPanel(); var lewo = SBtnMake("‹", () => Przesun(-306)); var prawo = SBtnMake("›", () => Przesun(306));
+                lewo.ToolTip = L.T("Poprzedni aktorzy"); prawo.ToolTip = L.T("Następni aktorzy"); lewo.Margin = prawo.Margin = new Thickness(6, 0, 0, 0);
+                DockPanel.SetDock(prawo, Dock.Right); DockPanel.SetDock(lewo, Dock.Right); naglowek.Children.Add(prawo); naglowek.Children.Add(lewo); naglowek.Children.Add(STxt(L.T("Obsada"), 15, null, true));
+                ob.Children.Add(naglowek); ob.Children.Add(sv);
+                sv.ScrollChanged += (s0, e0) => { lewo.IsEnabled = sv.HorizontalOffset > 1; prawo.IsEnabled = sv.HorizontalOffset < sv.ScrollableWidth - 1; lewo.Opacity = lewo.IsEnabled ? 1 : 0.35; prawo.Opacity = prawo.IsEnabled ? 1 : 0.35; };
+                sv.PreviewMouseWheel += (s0, e0) => { if (sv.ScrollableWidth <= 0) return; Przesun(-e0.Delta); e0.Handled = true; };
+                Point? chwyt = null; double odX = 0;
+                sv.PreviewMouseLeftButtonDown += (s0, e0) => { chwyt = e0.GetPosition(sv); odX = sv.HorizontalOffset; };
+                sv.PreviewMouseMove += (s0, e0) => { if (chwyt == null || e0.LeftButton != System.Windows.Input.MouseButtonState.Pressed) { chwyt = null; return; } var dx = e0.GetPosition(sv).X - chwyt.Value.X; if (Math.Abs(dx) > 4) { if (!sv.IsMouseCaptured) sv.CaptureMouse(); sv.ScrollToHorizontalOffset(Math.Max(0, odX - dx)); } };
+                sv.PreviewMouseLeftButtonUp += (s0, e0) => { chwyt = null; if (sv.IsMouseCaptured) sv.ReleaseMouseCapture(); };
                 foreach (var osoba in m.People.Take(12))
                 {
                     var ramka = new Border { Width = 92, Height = 122, CornerRadius = new CornerRadius(8), Background = SLine, ClipToBounds = true, Child = new TextBlock { Text = "👤", FontSize = 34, Foreground = SDim, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };

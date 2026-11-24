@@ -13,7 +13,6 @@ namespace Velivo
         internal static AbMain Host; internal static bool AbPreNoSrc, AbPreApps;
         static AbProcessor AbProc => Host.Eng.Proc;
         const bool AbPreDefOn = true;   // Audio Balance for Windows: kompresor domyślnie włączony (jak dawniej Film)
-        internal static DynParams AbPreDefPub() => AbPreDef();
         static string GetPref(string k) => Host.Get(k.StartsWith("ab-") ? k.Substring(3) : k);
         static void SetPref(string k, string v) => Host.Put(k.StartsWith("ab-") ? k.Substring(3) : k, v);
         static bool AbFlowing() => Host.Eng.Running && !AbProc.Bypass;

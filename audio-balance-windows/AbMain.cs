@@ -280,7 +280,7 @@ namespace Velivo
             p.EqOn = Get("eq") == "1"; p.SetEq(EqDb());
             p.QuietOn = Get("cichy") == "1" || MainWindow.AbQuietFor(MainWindow.AbQuietSrc); p.QuietMaxDb = double.TryParse(Get("cichy-db"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qd) ? qd : 15;
             p.QuietBelow = double.TryParse(Get("cichy-prog"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var qp) ? qp : -35;
-            p.Pre.Params = MainWindow.AbPreDefPub();
+            var pre = Get("kompresor"); p.Pre.Params = string.IsNullOrWhiteSpace(pre) ? DynParams.ForSila(Get("sila") ?? "normal", true) : DynParams.Load(pre);   // bez MainWindow - przy starcie okna panelu jeszcze nie ma
         }
 
         TextBlock cableTxt; bool cableBusy;

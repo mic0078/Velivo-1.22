@@ -334,7 +334,7 @@ namespace Velivo
                 var fq = szukaj.Text.Trim();
                 var filmy = LoadLibrary().Where(v => File.Exists(v.Path) && WFolderze(v.Path) && (fq.Length == 0 || ShownTitle(v, MetaFor(v.Path)).IndexOf(fq, StringComparison.CurrentCultureIgnoreCase) >= 0)).GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase).ToList();
                 var teraz = SendTargets().Select(p => p.Device).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                kto.Text = Environment.MachineName + L.T(" · udostępnia filmów: ") + filmy.Count + " · " + (teraz.Count == 0 ? L.T("w sieci teraz: żaden Twój komputer z Velivo") : L.T("w sieci teraz: ") + string.Join(", ", teraz));
+                kto.Text = Environment.MachineName + L.T(" · udostępnia filmów: ") + filmy.Count + " · " + (teraz.Count == 0 ? (_lanLead == null ? L.T("sieć domową prowadzi inny program Velivo na tym komputerze (np. Odtwarzacz) – filmy są udostępniane") : L.T("w sieci teraz: żaden Twój komputer z Velivo")) : L.T("w sieci teraz: ") + string.Join(", ", teraz));
                 kto.ToolTip = teraz.Count == 0 ? L.T("Włącz Velivo na innym komputerze; musi być sparowany i w tym samym profilu.") : null;
                 var nowy = string.Join("|", foldery) + "#" + wybrany + "#" + fq + "#" + string.Join("|", filmy.Select(v => { var m0 = LookupMeta(Meta, v.Path); return v.Path + "?" + m0?.Poster + "?" + (m0 != null); }));
                 if (nowy == sig) return; sig = nowy;   // przebudowa tylko przy zmianie

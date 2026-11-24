@@ -1929,6 +1929,7 @@ namespace Velivo
             { "Szukaj w tej tabeli", "Search this table" },
             { "Tab – wstaw", "Tab – insert" },
             { " · ← → wybierz", " · ← → choose" },
+            { "sieć domową prowadzi inny program Velivo na tym komputerze (np. Odtwarzacz) – filmy są udostępniane", "the home network is run by another Velivo program on this computer (e.g. Player) – films are shared" },
             { " pobiera opis, plakat i obsadę.", " is fetching the description, poster and cast." },
             { " · można dalej oglądać", " · you can keep watching" },
             { "Bez wyboru – po 20 s znika, nic nie dodane. Zmiana: ⚙ → Biblioteka → Nowy film.", "No choice – disappears after 20 s, nothing added. Change: ⚙ → Library → New film." },

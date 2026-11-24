@@ -1364,9 +1364,7 @@ namespace Velivo
             _playlist = files.ToList();
             if (_settings.VlcLector) SupertonicWarm();   // lektor gotowy, zanim pojawi się pierwszy napis
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));
-            // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC); film z rozmowy komunikatora - nie
-            var lib = LoadLibrary();
-            if (library && AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f) && !IsAudioFile(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
+            if (library) FilmObcy(files);   // ➕ film spoza biblioteki: pytanie w rogu odtwarzacza (moja / wspólna / na serwer / nie) - już nie dodawany sam; komunikator - bez pytania
             if (_vlcWin == null) BuildVlcWindow();
             MetaObokFilmu(_playlist[_playIndex]);   // 📁 opis i plakat do folderu filmu, z którego gra
             _vlcLoad(_playIndex);
@@ -1786,9 +1784,13 @@ namespace Velivo
             Func<string> hwTxt = () => GetPref("vlc-sprzet") != "1" ? L.T("Dekodowanie: procesor") : L.T("Dekodowanie: karta graficzna");
             var hwBtn = glyphBtn("chip", L.T("Kto dekoduje obraz: procesor (domyślnie, pewniej) albo karta graficzna (lżej dla procesora).\nGdy obraz się zacina, sprawdź drugą możliwość.\nZmiana działa po zamknięciu i ponownym otwarciu odtwarzacza.")); withLabel(hwBtn, hwTxt()); var hwLbl = ((StackPanel)hwBtn.Content).Children.OfType<TextBlock>().First();
             hwBtn.Click += (s, e) => { SetPref("vlc-sprzet", GetPref("vlc-sprzet") != "1" ? "1" : "0"); hwLbl.Text = hwTxt(); ShowToast(L.T("🖥 Zmiana dekodowania – zamknij odtwarzacz i otwórz go ponownie"), null); };
+            // ➕ film z innego źródła (dysk, Eksplorator, torrent): pytaj / dodawaj sam / nie dodawaj
+            Func<string> obcyTxt = () => FilmObcyTryb == "sam" ? L.T("Nowy film: dodawaj sam") : FilmObcyTryb == "nie" ? L.T("Nowy film: nie dodawaj") : L.T("Nowy film: pytaj");
+            var obcyBtn = glyphBtn("library", L.T("Film z innego źródła (dysk, Eksplorator, torrent, pobrany):\npytaj – w rogu odtwarzacza: moja / wspólna biblioteka / na serwer / nie\ndodawaj sam – jak dawniej, do mojej biblioteki\nnie dodawaj – film tylko gra")); withLabel(obcyBtn, obcyTxt()); var obcyLbl = ((StackPanel)obcyBtn.Content).Children.OfType<TextBlock>().First();
+            obcyBtn.Click += (s, e) => { SetPref("film-obcy", FilmObcyTryb == "pytaj" ? "sam" : FilmObcyTryb == "sam" ? "nie" : "pytaj"); obcyLbl.Text = obcyTxt(); };
             foreach (var cat in new (string Name, UIElement[] Items)[] {
                 (L.T("Obraz"), new UIElement[] { aspect, snap, hwBtn }), (L.T("Dźwięk"), new UIElement[] { audio }),
-                (L.T("Napisy"), new UIElement[] { subs, lector }), (L.T("Kontroler"), new UIElement[] { padBtn, couchBtn }) })
+                (L.T("Napisy"), new UIElement[] { subs, lector }), (L.T("Kontroler"), new UIElement[] { padBtn, couchBtn }), (L.T("Biblioteka"), new UIElement[] { obcyBtn }) })
             {
                 int r = toolsGrid.RowDefinitions.Count; toolsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 var cap0 = new TextBlock { Text = cat.Name, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brushes.Silver, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 12, 0) };

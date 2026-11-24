@@ -512,6 +512,8 @@ namespace Velivo
                     if (m.act == "join") ShowToast(L.T("👥 Dołączył ponownie: ") + peer.Device, null);
                     _vlcRemoteCtl?.Invoke(m.act, m.pos);
                     break;
+                case "folders": case "upload": case "upst": case "upok":   // 🗄 film na serwer (FilmNaSerwer.cs)
+                    FilmSerwerMsg(m, peer); break;
                 case "fav":   // ❤ ulubiony z drugiego komputera - wspólna lista serwera (osoba - jej własna)
                     if (!(Wariant.Serwer && UserFav(NetUserByName(m.usr), m.id, m.fv))) SrvUlubSet(m.id, m.fv); break;
                 case "prog":   // postep ogladania filmu z tej biblioteki na drugim komputerze

@@ -355,3 +355,9 @@ Lokalnie, bez chmury i bez modelu AI – pomiar sygnału i pamięć Twoich ustaw
 * **Wskaźnik:** 🟢 lektor dobrze słyszalny / 🟡 częściowo zagłuszany / 🔴 zagłuszany przez film. Liczony z 10 ostatnich kwestii: lektor i film porównane w paśmie zrozumiałości mowy (1–4 kHz), z uwzględnieniem ściszenia filmu pod lektora i dialogów w filmie.
 * **Propozycje** (przycisk „✔ Zastosuj” albo „Nie teraz”): gdy lektor często ginie – mocniej ściszać film podczas czytania; gdy filmu nie da się już bardziej ściszyć – podnieść głośność lektora albo wybrać wyraźniejszy głos.
 * **Twoje przyzwyczajenia:** dla każdego głosu Velivo pamięta, jak ustawiasz głośność lektora i „Film podczas czytania” (`lektor-glosy.json`). Po zmianie głosu proponuje Twoje zwykłe ustawienie dla tego głosu.
+
+## ➕ Film z innego źródła i wysyłanie na serwer
+
+Film otwarty z dysku, Eksploratora, torrenta albo pobrany **nie trafia już sam do biblioteki**. Gra od razu, a w prawym dolnym rogu odtwarzacza pojawia się pytanie: **🔒 Moja (ten komputer)**, **📚 Wspólna**, **🗄 Na serwer…** albo **Nie**. Bez wyboru znika po 20 s (nic nie dodane). „Nie pytaj o filmy z tego folderu” – zapamiętane dla folderu. Ustawienie: ⚙ → Biblioteka → „Nowy film: pytaj / dodawaj sam (jak dawniej) / nie dodawaj”.
+
+**🗄 Na serwer…** – wybierasz serwer (ten komputer albo komputer w sieci domowej z Velivo Serwer filmów) i jego folder (te z okna Serwera filmów, z wolnym miejscem), potem **Kopiuj** albo **Przenieś**. Serwer sam pobiera plik z tego komputera (przerwa w sieci – wznowienie od miejsca przerwania), potem przegląda foldery: opis, plakat, obsada. Postęp w małym okienku – można dalej oglądać. „Przenieś” wyrzuca oryginał do Kosza dopiero, gdy suma pliku na serwerze zgadza się z oryginałem. Oba komputery muszą mieć najnowsze Velivo.

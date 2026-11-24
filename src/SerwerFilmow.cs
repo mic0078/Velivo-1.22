@@ -47,6 +47,7 @@ namespace Velivo
             _serwerTm.Tick += (s, e) => SerwerSkanuj(false);
             _serwerTm.Start();
             NetSerwerStart();   // 🌍 filmy przez internet (gdy włączone)
+            SerwerSygnalStart();   // 🗄 film wysłany na serwer przez inny program Velivo - przegląd folderów od razu
             Dispatcher.BeginInvoke(new Action(() => SerwerSkanuj(false)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 

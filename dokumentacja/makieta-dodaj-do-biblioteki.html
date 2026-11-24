@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dodaj do biblioteki</title>
+<style>
+body{margin:0;background:#0b0e14;color:#E8EBF0;font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px;color:#ECE8FF}p.o{color:#aab;max-width:1050px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.player{width:620px;height:330px;background:linear-gradient(160deg,#1f2a3a,#3a2a22);border-radius:8px;position:relative;overflow:hidden}
+.toast{position:absolute;right:14px;bottom:70px;width:330px;background:rgba(20,24,33,.96);border:1px solid #3B3F6B;border-radius:10px;padding:10px 12px}
+.bar{position:absolute;left:0;right:0;bottom:0;height:52px;background:rgba(28,28,28,.9)}
+.btn{display:inline-block;border:1px solid #44507a;background:#2a3350;border-radius:6px;padding:4px 10px;margin:6px 6px 0 0}
+.pri{background:linear-gradient(90deg,#7C3AED,#06B6D4);border:none}
+.dim{color:#8A93A3;font-size:11.5px}.ok{color:#4ADE80}
+.win{width:520px;background:#151a26;border:1px solid #2A3240;border-radius:10px;padding:14px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{padding:6px 4px;border-bottom:1px solid #2a3350;text-align:left}th{color:#8A93A3;font-weight:normal}
+.sel{background:#2a3350}
+.cap{color:#ECE8FF;font-weight:600;margin-top:6px;max-width:620px}
+.prog{height:6px;background:#2A3240;border-radius:3px;margin:6px 0}.prog i{display:block;height:6px;width:62%;border-radius:3px;background:linear-gradient(90deg,#7C3AED,#06B6D4)}
+</style></head><body>
+<h1>Odtwarzacz – film z innego źródła: zapytaj, zamiast dodawać sam (propozycja)</h1>
+<p class="o">Teraz każdy film otwarty z dysku, Eksploratora, torrenta czy pobrany trafia sam do Twojej biblioteki. Propozycja: film gra od razu, a w rogu pojawia się małe pytanie – nie zatrzymuje filmu i znika samo po 20 s (= nic nie dodano). Filmy z biblioteki, serwera, Jellyfin, TV i komunikatora – bez pytania, jak teraz.</p>
+
+<h2>1. Pytanie w odtwarzaczu (film już gra)</h2>
+<div class="row"><div><div class="player">
+ <div class="toast"><b>➕ Dodać „Kraina Lodu 2” do biblioteki?</b>
+  <div class="dim">Film z: D:\Pobrane\Kraina.Lodu.2.mkv</div>
+  <span class="btn">🔒 Moja (ten komputer)</span><span class="btn">📚 Wspólna</span><br>
+  <span class="btn pri">🗄 Na serwer…</span><span class="btn">Nie</span>
+  <div class="dim" style="margin-top:6px">☐ Nie pytaj o filmy z tego folderu</div></div>
+ <div class="bar"></div>
+</div><div class="cap">Bez wyboru po 20 s – pytanie znika, nic nie dodane. Ustawienie w ⚙ odtwarzacza: „Film z innego źródła: pytaj / dodawaj sam (jak dawniej) / nie dodawaj”.</div></div></div>
+
+<h2>2. „Na serwer…” – który serwer i który folder</h2>
+<div class="row"><div><div class="win">
+ <b style="font-size:15px">🗄 Wyślij film na serwer</b>
+ <div class="dim" style="margin:4px 0 8px">Kraina.Lodu.2.mkv · 4,2 GB</div>
+ <b>Serwer</b>
+ <table><tr class="sel"><td>● NUCBOX</td><td class="dim">w sieci domowej</td></tr><tr><td>● Ten komputer (RYZENMIC)</td><td class="dim">Serwer filmów działa tutaj</td></tr></table>
+ <b style="display:block;margin-top:10px">Folder na serwerze</b>
+ <table><tr><th>Folder</th><th>Wolne</th></tr><tr><td>D:\Filmy</td><td>210 GB</td></tr><tr class="sel"><td>F:\Bajki</td><td>96 GB</td></tr><tr><td>E:\Seriale</td><td>1,1 TB</td></tr></table>
+ <div style="margin-top:10px">◉ Kopiuj (oryginał zostaje) &nbsp; ○ Przenieś (oryginał usunięty po udanym przesłaniu)</div>
+ <span class="btn pri">Wyślij</span><span class="btn">Anuluj</span>
+</div><div class="cap">Foldery = te, które ustawiłeś w oknie Velivo Serwer filmów na tym serwerze</div></div>
+
+<div><div class="win" style="width:420px">
+ <b>🗄 Wysyłanie na NUCBOX → F:\Bajki</b>
+ <div class="prog"><i></i></div>
+ <div class="dim">2,6 z 4,2 GB · 84 MB/s · zostało ok. 20 s · można dalej oglądać</div>
+ <div style="margin-top:12px" class="ok">✔ Gotowe – serwer pobiera opis, plakat, obsadę (TMDb, jak przy „Przejrzyj foldery”)</div>
+ <div class="dim">Film pojawi się w bibliotece serwera z informacjami; na tym komputerze – w „🎞 Mój serwer filmów”.</div>
+</div><div class="cap">Postęp w małym okienku; przerwanie sieci = wznowienie od miejsca przerwania; „Przenieś” kasuje oryginał dopiero po sprawdzeniu sumy pliku na serwerze</div></div></div>
+</body></html>

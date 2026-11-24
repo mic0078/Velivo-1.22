@@ -67,6 +67,8 @@ pl.CSrv=Velivo Serwer filmów (biblioteka dla moich komputerów)
 en.CSrv=Velivo Movie Server (library for my computers)
 pl.ObceKonto=Uruchomiono jako administrator – programy Velivo zainstalują się dla konta: %1 (nie dla konta, na którym pracujesz, jeśli wpisano hasło innego konta).%n%nKażde konto ma własne Velivo. Uruchom instalator zwykłym dwuklikiem, bez „Uruchom jako administrator”.%n%nInstalować mimo to dla konta %1?
 pl.Inst=Instaluję: %1…
+pl.Odinst=Odinstaluj wszystkie programy Velivo i posprzątaj (najpierw pyta, proponuje kopię danych)
+en.Odinst=Uninstall all Velivo programs and clean up (asks first, offers a data backup)
 en.ObceKonto=Started as administrator – Velivo will be installed for the account: %1 (not for the account you are working on, if another account’s password was entered).%n%nEach account has its own Velivo. Start the installer with a normal double-click, without “Run as administrator”.%n%nInstall anyway for the account %1?
 en.Inst=Installing: %1…
 
@@ -106,7 +108,13 @@ Source: "{#Src}Velivo-Serwer-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components:
 
 ; 🎞 FFmpeg (kodery i dekodery: napisy wbudowane dla lektora, pobieranie filmów, MP3) - obowiązkowo z każdym programem z filmami;
 ; do folderu narzędzi Velivo (ten sam, do którego program pobierał go sam); istniejący zostaje
+; 🧹 „Odinstaluj Velivo” - bezpieczne odinstalowanie wszystkich programów Velivo i porządki, z propozycją kopii danych (skrót na pulpicie)
+Source: "..\odinstaluj-velivo.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build\dodatki\ffmpeg.exe"; DestDir: "{code:NarzDir}"; Components: velivo osobne\odtwarzacz osobne\serwer; Flags: onlyifdoesntexist
+
+[Icons]
+Name: "{autodesktop}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{sys}\shell32.dll"; IconIndex: 31; Comment: "{cm:Odinst}"
+Name: "{autoprograms}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{sys}\shell32.dll"; IconIndex: 31; Comment: "{cm:Odinst}"
 
 [Run]
 ; każdy po kolei, po cichu; zadania jak domyślnie w jego własnym instalatorze (zapora, skróty, start z Windows)

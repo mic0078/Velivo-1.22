@@ -60,7 +60,7 @@ function Kopia {
     $wolne = (Get-PSDrive -Name $zip.Substring(0, 1) -ErrorAction SilentlyContinue).Free
     if ($wolne -and $wolne -lt $suma + 200MB) { Zapisz ('Za malo miejsca na kopie: potrzeba ok. ' + [math]::Round($suma / 1GB, 2) + ' GB, wolne ' + [math]::Round($wolne / 1GB, 2) + ' GB') Red; return $false }
     Zapisz ('Kopia danych: ' + $pliki.Count + ' plikow, ' + [math]::Round($suma / 1MB) + ' MB -> ' + $zip) Cyan
-    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
     $ok = 0; $zle = 0
     try {
         $fs = [System.IO.File]::Open($zip, 'Create'); $za = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
@@ -75,12 +75,12 @@ function Kopia {
         $za.Dispose(); $fs.Dispose()
     } catch { Zapisz ('Kopia nie powiodla sie: ' + $_.Exception.Message) Red; try { $za.Dispose(); $fs.Dispose() } catch { }; return $false }
     # sprawdzenie: plik da się otworzyć i ma tyle wpisów, ile skopiowano
-    try { $r = [System.IO.Compression.ZipFile]::OpenRead($zip) } catch { Add-Type -AssemblyName System.IO.Compression.FileSystem; $r = [System.IO.Compression.ZipFile]::OpenRead($zip) }
+    $r = [System.IO.Compression.ZipFile]::OpenRead($zip)
     $n = $r.Entries.Count; $r.Dispose()
     if ($n -ne $ok) { Zapisz ('Kopia niekompletna: w pliku ' + $n + ' z ' + $ok) Red; return $false }
     $script:kopia = $zip
     Zapisz ('Kopia gotowa: ' + $zip + ' (' + $ok + ' plikow' + $(if ($zle) { ', ' + $zle + ' pominietych - lista w dzienniku' } else { '' }) + ')') Green
-    if ($zle -gt 0 -and (Pytaj ($zle.ToString() + ' plików nie dało się skopiować (lista w dzienniku na pulpicie).`n`nKontynuować odinstalowanie?') 'YesNo' 'Warning') -ne 'Yes') { return $false }
+    if ($zle -gt 0 -and (Pytaj ($zle.ToString() + " plików nie dało się skopiować (lista w dzienniku na pulpicie).`n`nKontynuować odinstalowanie?") 'YesNo' 'Warning') -ne 'Yes') { return $false }
     return $true
 }
 if (-not $Proba -and -not $Tak) {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -295,9 +295,9 @@ namespace Velivo
             get
             {
                 if (_meta != null) return _meta;
-                try { _meta = File.Exists(MetaFile) ? JsonSerializer.Deserialize<Dictionary<string, MovieInfo>>(File.ReadAllText(MetaFile)) : null; } catch (Exception ex) { App.LogError(ex); }
+                try { _meta = (!Wariant.Serwer || SerwerJfInfo) && File.Exists(MetaFile) ? JsonSerializer.Deserialize<Dictionary<string, MovieInfo>>(File.ReadAllText(MetaFile)) : null; } catch (Exception ex) { App.LogError(ex); }
                 _meta = new Dictionary<string, MovieInfo>(_meta ?? new Dictionary<string, MovieInfo>(), StringComparer.OrdinalIgnoreCase);
-                foreach (var kv in LoadManual()) _meta[kv.Key] = kv.Value;   // informacje wpisane recznie maja pierwszenstwo
+                foreach (var kv in LoadManual()) _meta[kv.Key] = kv.Value;   // informacje wpisane recznie maja pierwszenstwo   // 🎞 Serwer filmów - baza Jellyfin tylko za zgodą (serwer-jf-info)
                 foreach (var m in _meta.Where(kv => !kv.Key.StartsWith("ty:") && !kv.Key.StartsWith("t:")).Select(kv => kv.Value).Distinct().ToList()) AddTitleKeys(_meta, m);   // tytul + rok od razu, bez ponownej synchronizacji
                 return _meta;
             }

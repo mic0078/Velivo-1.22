@@ -92,7 +92,7 @@ namespace Velivo
         async Task<List<FilmWynik>> SzukajFilmu(string q, string rok)
         {
             var r = new List<FilmWynik>(); int.TryParse(rok, out var y);
-            var c = LoadJellyfinConf();
+            var c = Wariant.Serwer && !SerwerJfInfo ? null : LoadJellyfinConf();   // 🎞 Velivo Serwer filmów - samodzielny (Wikidane, Wikipedia); Jellyfin tylko za zgodą
             if (c != null && !string.IsNullOrEmpty(c.Url) && !string.IsNullOrEmpty(c.Key))
                 try
                 {
@@ -126,6 +126,7 @@ namespace Velivo
                     }
                     if (r.Count > przed) break;
                 }
+            if (Wariant.Serwer) r = r.Where(f => f.WdId != null).Concat(r.Where(f => f.WdId == null)).ToList();   // 🎞 serwer: własne źródła (Wikidane) przed Jellyfin
             if (y > 0) r = r.OrderByDescending(f => f.Year == y || f.Year == 0 && (f.Desc ?? "").Contains(rok)).ToList();
             return r;
         }
@@ -153,11 +154,53 @@ namespace Velivo
             m.Name = w.Label ?? m.Name; if (w.Year > 0) m.Year = w.Year;
             if (!string.IsNullOrWhiteSpace(w.Desc)) m.Overview = w.Desc;   // opis z TMDb (po polsku, gdy Jellyfin ma język polski)
             if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = " ";
+            if ((m.People == null || m.People.Count == 0) && Wariant.Serwer) m.People = await ObsadaWiki(wd, m.Original ?? w.Label, m.Year);   // 🎞 serwer: najpierw własne źródło (Wikipedia), Jellyfin dopiero potem
+            if ((m.People == null || m.People.Count == 0) && (!Wariant.Serwer || SerwerJfInfo))
+            {   // 🎭 obsada z TMDb przez Jellyfin (film o tym samym numerze TMDb / IMDb w jego bibliotece) - na serwerze tylko za zgodą
+                var jf = await JellyfinFilm(w.Tmdb, w.Imdb, w.Label, w.Year);
+                if (jf != null) { if (jf.People.Count > 0) m.People = jf.People; if (string.IsNullOrEmpty(m.Director)) m.Director = jf.Director; if (m.Genres == null || m.Genres.Count == 0) m.Genres = jf.Genres; if (m.Rating == 0) m.Rating = jf.Rating; }
+            }
             if (m.People == null || m.People.Count == 0) m.People = await ObsadaWiki(wd, m.Original ?? w.Label, m.Year);   // 🎭 Wikidane bez obsady (nowe filmy) - z tabelki artykułu Wikipedii
             if (w.Img != null)
                 try { using (var http = WikiHttp()) { var b = await http.GetByteArrayAsync(w.Img); Directory.CreateDirectory(PosterDir); var f = "reczny-" + Math.Abs(MetaKey(path).GetHashCode()) + ".jpg"; File.WriteAllBytes(Path.Combine(PosterDir, f), b); m.Poster = f; } }
                 catch (Exception ex) { App.LogInfo("Plakat (TMDb): " + ex.Message); }
             return m;
+        }
+
+        internal static bool SerwerJfInfo => GetPref("serwer-jf-info") == "1";
+        // 🎭 film z biblioteki Jellyfin: po numerze TMDb / IMDb (pewne), a bez numeru - po tytule i roku; obsada, reżyseria, gatunek, ocena
+        internal async Task<MovieInfo> JellyfinFilm(string tmdb, string imdb, string nazwa, int rok)
+        {
+            var c = LoadJellyfinConf(); if (c == null || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key)) return null;
+            string N(string x) => new string((x ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+            try
+            {
+                var url = await JellyfinReach(c) ?? c.Url;
+                using (var http = JellyfinClient(new JellyfinConf { Url = url, Key = c.Key }))
+                {
+                    const string f = "Fields=People,Genres,ProviderIds,OriginalTitle&IncludeItemTypes=Movie&Recursive=true&Limit=20";
+                    var zap = new List<string>();
+                    if (tmdb != null) zap.Add("Items?" + f + "&AnyProviderIdEquals=" + Uri.EscapeDataString("Tmdb." + tmdb));
+                    if (imdb != null) zap.Add("Items?" + f + "&AnyProviderIdEquals=" + Uri.EscapeDataString("Imdb." + imdb));
+                    if (!string.IsNullOrWhiteSpace(nazwa)) zap.Add("Items?" + f + "&SearchTerm=" + Uri.EscapeDataString(nazwa) + (rok > 0 ? "&Years=" + rok : ""));
+                    foreach (var q in zap)
+                    {
+                        var resp = await http.GetAsync(q); if (!resp.IsSuccessStatusCode) continue;
+                        var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement;
+                        if (!doc.TryGetProperty("Items", out var items)) continue;
+                        foreach (var it in items.EnumerateArray())
+                        {
+                            var pid = it.TryGetProperty("ProviderIds", out var p) ? p : default; string P(string k) => pid.ValueKind == JsonValueKind.Object ? WdStr(pid, k) : null;
+                            var m = ParseJellyfinItem(it);
+                            bool zgodny = tmdb != null && P("Tmdb") == tmdb || imdb != null && P("Imdb") == imdb
+                                || tmdb == null && imdb == null && (rok == 0 || m.Year == rok) && (N(m.Name) == N(nazwa) || N(m.Original) == N(nazwa));
+                            if (zgodny) return m;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { App.LogInfo("Obsada z Jellyfin – „" + nazwa + "”: " + ex.Message); }
+            return null;
         }
 
         // 🎭 obsada z tabelki (infobox) artykułu Wikipedii: „starring” (angielska), „obsada” / „występują” (polska) - nowe filmy często mają ją tam, a w Wikidanych jeszcze nie

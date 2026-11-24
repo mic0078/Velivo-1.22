@@ -61,7 +61,8 @@ namespace Velivo
                 var fol = SerwerFoldery().Where(Directory.Exists).ToList();
                 int nowe = 0;
                 if (fol.Count > 0) { var l = LoadLibrary(); var pom = SerwerPominiete(); nowe = await Task.Run(() => AddToLibrary(l, fol, true)); nowe -= l.RemoveAll(v => pom.Contains(v.Path)); if (nowe > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }   // usunięte z serwera nie wracają przy przeglądaniu
-                var bez = LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path) && LookupMeta(Meta, v.Path) == null && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
+                var reczne = LoadManual();   // 🎞 własna baza serwera ma pierwszeństwo - film tylko z bazy Jellyfin też dostaje własne informacje
+                var bez = LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path) && !reczne.ContainsKey(MetaKey(v.Path)) && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
                 int opis = 0;
                 foreach (var v in bez)
                 {
@@ -75,7 +76,8 @@ namespace Velivo
                     var mi = LookupMeta(Meta, v.Path); var klucz = MetaKey(v.Path);
                     if (mi == null || mi.People != null && mi.People.Count > 0 || DateTime.TryParse(GetPref("serwer-obsada|" + klucz), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var by) && (DateTime.Now - by).TotalDays < 7) continue;
                     SetPref("serwer-obsada|" + klucz, DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
-                    var ob = await ObsadaWiki(null, mi.Original ?? mi.Name, mi.Year);
+                    var ob = SerwerJfInfo ? (await JellyfinFilm(null, null, mi.Name, mi.Year))?.People ?? new List<string>() : new List<string>();   // Jellyfin - tylko za zgodą
+                    if (ob.Count == 0) ob = await ObsadaWiki(null, mi.Original ?? mi.Name, mi.Year);
                     if (ob.Count == 0) continue;
                     mi.People = ob; var man = LoadManual(); man[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++;
                     await Task.Delay(1000);
@@ -285,7 +287,11 @@ namespace Velivo
             auto.Click += (s, e) => WriteAutostart(auto.IsChecked == true, 30);
             var jf = new CheckBox { Content = STxt(L.T("Udostępniaj też filmy z Jellyfin"), 13), IsChecked = GetPref("serwer-jellyfin") == "1", Foreground = SFg };
             jf.Click += (s, e) => { SetPref("serwer-jellyfin", jf.IsChecked == true ? "1" : "0"); _sharedCache = null; };
-            left.Children.Add(auto); left.Children.Add(jf);
+            // 🎭 informacje o filmach: serwer sam (Wikidane, Wikipedia); Jellyfin tylko za zgodą (TMDb: opis, plakat, obsada filmów z jego biblioteki)
+            var jfInfo = new CheckBox { Content = STxt(L.T("Pobieraj informacje także z Jellyfin (za zgodą)"), 13), IsChecked = SerwerJfInfo, Foreground = SFg, Margin = new Thickness(0, 4, 0, 0),
+                ToolTip = L.T("Wyłączone: serwer szuka opisu, plakatu i obsady sam (Wikidane, Wikipedia) – Jellyfin niepotrzebny.\nWłączone: najpierw TMDb przez Twój Jellyfin (więcej danych, obsada filmów z jego biblioteki), potem sam.") };
+            jfInfo.Click += (s, e) => { SetPref("serwer-jf-info", jfInfo.IsChecked == true ? "1" : "0"); _meta = null; };
+            left.Children.Add(auto); left.Children.Add(jf); left.Children.Add(jfInfo);
             // 🌍 dostęp przez internet - jak Jellyfin: adres domu + hasło serwera
             var net = STxt(L.T("🌍 Dostęp przez internet"), 14.5, null, true); net.Margin = new Thickness(0, 18, 0, 6); left.Children.Add(net);
             left.Children.Add(STxt(L.T("Oglądaj swoje filmy poza domem (komputer, telefon): wpisz tam adres domu z portem ") + NetFilmPort + L.T(", swoje imię i hasło. Każda osoba ma własny postęp, ulubione i dostęp do folderów. Wszystko szyfrowane."), 12, SDim));

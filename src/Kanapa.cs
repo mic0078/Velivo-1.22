@@ -438,6 +438,9 @@ namespace Velivo
             // strzałki: przejście do sąsiedniego kafelka (ScrollViewer nie przewija sam); Enter - jak klik; Esc - Start, potem wyjście
             w.PreviewKeyDown += (s, e) =>
             {
+                // 🔊 klawisze głośności przy grającym filmie (okienko pod Kanapą): tylko odtwarzacz, nie cały system - jak w odtwarzaczu
+                if (_vlcPilotCmd != null && (e.Key == Key.VolumeUp || e.Key == Key.VolumeDown || e.Key == Key.VolumeMute))
+                { if (e.Key == Key.VolumeMute) _vlcPilotCmd("mute", null, 0); else _vlcPilotCmd("vol", null, _settings.VlcVolume + (e.Key == Key.VolumeUp ? 5 : -5)); e.Handled = true; return; }
                 bool inBox = Keyboard.FocusedElement is TextBox;
                 if (inBox && (e.Key == Key.Left || e.Key == Key.Right || e.Key == Key.Back || e.Key == Key.Space || e.Key == Key.Home)) return;
                 if (inBox && e.Key == Key.Escape && szukaj.Text.Length > 0) { szukaj.Clear(); e.Handled = true; return; }

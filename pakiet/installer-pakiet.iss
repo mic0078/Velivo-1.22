@@ -57,6 +57,8 @@ pl.CProc=Velivo Procesor (cicho, wydajnie – sam dobiera moc procesora)
 en.CProc=Velivo Processor (quiet, efficient – adjusts CPU power itself)
 pl.CCen=Velivo Centrum (wszystkie programy w jednym miejscu)
 en.CCen=Velivo Centre (all programs in one place)
+pl.CKop=Velivo Kopia (kopia i przywracanie wszystkich programów, kopia sama)
+en.CKop=Velivo Backup (backup and restore of all programs, automatic backups)
 pl.CSep=Programy Velivo (każdy działa sam)
 en.CSep=Velivo programs (each works on its own)
 pl.COdt=Velivo Odtwarzacz (sam odtwarzacz)
@@ -90,6 +92,7 @@ Name: "monitor"; Description: "{cm:CMon}"; Types: pelny typowy
 Name: "kursory"; Description: "{cm:CKur}"; Types: pelny
 Name: "procesor"; Description: "{cm:CProc}"; Types: pelny typowy
 Name: "centrum"; Description: "{cm:CCen}"; Types: pelny typowy
+Name: "kopia"; Description: "{cm:CKop}"; Types: pelny typowy
 Name: "osobne"; Description: "{cm:CSep}"; Types: pelny typowy
 Name: "osobne\odtwarzacz"; Types: pelny typowy; Description: "{cm:COdt}"; Flags: dontinheritcheck
 Name: "osobne\przegladarka"; Types: pelny typowy; Description: "{cm:CPrz}"; Flags: dontinheritcheck
@@ -108,6 +111,7 @@ Source: "{#Src}Velivo-Monitor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: mo
 Source: "{#Src}Velivo-Kursory-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: kursory; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Procesor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: procesor; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Centrum-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: centrum; Flags: deleteafterinstall
+Source: "{#Src}Velivo-Kopia-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: kopia; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\odtwarzacz; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Przegladarka-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\przegladarka; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Klawiatura-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\klawiatura; Flags: deleteafterinstall
@@ -118,11 +122,12 @@ Source: "{#Src}Velivo-Serwer-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components:
 ; do folderu narzędzi Velivo (ten sam, do którego program pobierał go sam); istniejący zostaje
 ; 🧹 „Odinstaluj Velivo” - bezpieczne odinstalowanie wszystkich programów Velivo i porządki, z propozycją kopii danych (skrót na pulpicie)
 Source: "..\odinstaluj-velivo.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "odinstaluj.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build\dodatki\ffmpeg.exe"; DestDir: "{code:NarzDir}"; Components: velivo osobne\odtwarzacz osobne\serwer; Flags: onlyifdoesntexist
 
 [Icons]
-Name: "{autodesktop}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{sys}\shell32.dll"; IconIndex: 31; Comment: "{cm:Odinst}"
-Name: "{autoprograms}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{sys}\shell32.dll"; IconIndex: 31; Comment: "{cm:Odinst}"
+Name: "{autodesktop}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{app}\odinstaluj.ico"; Comment: "{cm:Odinst}"
+Name: "{autoprograms}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{app}\odinstaluj.ico"; Comment: "{cm:Odinst}"
 
 [Dirs]
 ; 📋 dziennik każdej instalacji z pakietu (co zostało zamknięte, podmienione, uruchomione) - przyczyna bez zgadywania
@@ -136,6 +141,7 @@ Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPP
 Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Kursory.log"" /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
 Filename: "{tmp}\Velivo-Procesor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Procesor.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Procesor}"; Components: procesor
 Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Centrum.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
+Filename: "{tmp}\Velivo-Kopia-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Kopia.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Kopia}"; Components: kopia
 Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Odtwarzacz.log"" /TASKS=""desktopicon,firewall,autostart,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
 Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Przegladarka.log"" /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
 Filename: "{tmp}\Velivo-Klawiatura-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Klawiatura.log"" /TASKS=""desktopicon,autostart"""; StatusMsg: "{cm:Inst,Klawiatura}"; Components: osobne\klawiatura
@@ -159,7 +165,7 @@ end;
 
 // 🧹 przed instalacją WSZYSTKIE programy Velivo zamknięte (właściciel 2026-11-25): zadanie Procesora z uprawnieniami zatrzymane, każdy proces z podrzędnymi
 //    (WebView2, odtwarzacz) zakończony, czekanie aż naprawdę znikną (do 15 s) - potem czysta podmiana plików; dane użytkownika zostają
-const VelivoProcs = 'Velivo.exe VelivoOdtwarzacz.exe VelivoPrzegladarka.exe VelivoKlawiatura.exe VelivoSerwer.exe VelivoKomunikator.exe VelivoAudioBalance.exe VelivoMonitor.exe VelivoKursory.exe VelivoProcesor.exe VelivoCentrum.exe';
+const VelivoProcs = 'Velivo.exe VelivoOdtwarzacz.exe VelivoPrzegladarka.exe VelivoKlawiatura.exe VelivoSerwer.exe VelivoKomunikator.exe VelivoAudioBalance.exe VelivoMonitor.exe VelivoKursory.exe VelivoProcesor.exe VelivoCentrum.exe VelivoKopia.exe';
 // tylko programy z listy (instalator pakietu też ma „Velivo” w nazwie - nie może czekać sam na siebie)
 function VelivoDziala: Boolean;
 var L, S, R: Variant; Lista, N, Q: String;
@@ -235,6 +241,7 @@ begin
   if Installed('{5B8E2F14-3C7A-4D91-A6E0-VELIVOKURSOR}') then S := S + ',kursory';
   if Installed('{6D2B9F41-8C3A-4E75-A0D1-VELIVOPROCES}') then S := S + ',procesor';
   if Installed('{8B4D2F63-AE5C-4A97-C2F3-VELIVOCENTR1}') then S := S + ',centrum';
+  if Installed('{3E7A9C15-B2D4-4F68-9E01-VELIVOKOPIA1}') then S := S + ',kopia';
   if Installed('{6E4C2B7A-3F1D-4C8E-9A51-ODTWARZACZ01}') then S := S + ',osobne\odtwarzacz';
   if Installed('{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA02}') then S := S + ',osobne\przegladarka';
   if Installed('{6E4C2B7A-3F1D-4C8E-9A51-KLAWIATURA1}') then S := S + ',osobne\klawiatura';

@@ -55,6 +55,7 @@ namespace VelivoCentrum
             new Prog("VelivoKlawiatura", "Velivo Klawiatura", "klawiatura ekranowa i poprawianie pisania", "VelivoKlawiatura", "Velivo Klawiatura"),
             new Prog("VelivoKursory", "Velivo Kursory", "kursory myszy w stylu Velivo", "VelivoKursory", "Velivo Kursory"),
             new Prog("VelivoProcesor", "Velivo Procesor", "inteligentne zarządzanie procesorem", "VelivoProcesor", "Velivo Procesor"),
+            new Prog("VelivoKopia", "Velivo Kopia", "kopia i przywracanie wszystkich programów", "VelivoKopia", "Velivo Kopia"),
         };
         static readonly string ExePath = System.Reflection.Assembly.GetEntryAssembly().Location;
 

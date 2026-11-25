@@ -49,7 +49,7 @@ if ($UsunDane) { Zapisz ('UWAGA: folder danych pojdzie do Kosza: ' + $dane) Yell
 
 # 💾 kopia danych (zip na pulpicie) - pliki czytane bez blokowania, pamięć podręczna stron pominięta (odtwarza się sama)
 function Kopia {
-    foreach ($n in 'Velivo', 'VelivoOdtwarzacz', 'VelivoPrzegladarka', 'VelivoKlawiatura', 'VelivoSerwer', 'VelivoKomunikator', 'VelivoCentrum') { Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    foreach ($n in 'Velivo', 'VelivoOdtwarzacz', 'VelivoPrzegladarka', 'VelivoKlawiatura', 'VelivoSerwer', 'VelivoKomunikator', 'VelivoCentrum', 'VelivoKopia') { Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     Start-Sleep 2   # programy Velivo zamknięte - pliki danych się nie zmieniają w trakcie kopii (zapis Velivo jest „wszystko albo nic”)
     $pomin = @('Cache', 'Code Cache', 'GPUCache', 'GrShaderCache', 'ShaderCache', 'DawnCache', 'DawnGraphiteCache', 'DawnWebGPUCache', 'Crashpad', 'component_crx_cache')
     $pliki = @(Get-ChildItem -LiteralPath $velivoDir -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object {

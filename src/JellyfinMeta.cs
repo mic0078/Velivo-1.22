@@ -187,6 +187,7 @@ namespace Velivo
             var win = new Window { Title = L.T("🔎 Wyszukaj informacje o filmie"), Width = 720, Height = 560, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var ym = System.Text.RegularExpressions.Regex.Match(fileTitle ?? "", @"^(.+) \((\d{4})\)$");
+            if (!ym.Success) ym = System.Text.RegularExpressions.Regex.Match(Path.GetFileNameWithoutExtension(path ?? ""), @"^(.+?)[ .(]+((?:19|20)\d{2})\)?");   // rok z nazwy pliku, gdy pokazany tytuł go nie ma
             var qName = new TextBox { Text = ym.Success ? ym.Groups[1].Value : fileTitle, Padding = new Thickness(4), Width = 380 };
             var qYear = new TextBox { Text = ym.Success ? ym.Groups[2].Value : "", Padding = new Thickness(4), Width = 70, Margin = new Thickness(6, 0, 6, 0) };
             var status = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(12, 4, 12, 4) };

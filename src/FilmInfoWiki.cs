@@ -58,6 +58,7 @@ namespace Velivo
             var win = new Window { Title = L.T("🔎 Wyszukaj informacje o filmie"), Width = 720, Height = 560, Owner = owner, Topmost = owner?.Topmost == true, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             Independent(win);
             var ym = System.Text.RegularExpressions.Regex.Match(fileTitle ?? "", @"^(.+?)[ .(]+((?:19|20)\d{2})\)?");
+            if (!ym.Success) ym = System.Text.RegularExpressions.Regex.Match(Path.GetFileNameWithoutExtension(path ?? ""), @"^(.+?)[ .(]+((?:19|20)\d{2})\)?");   // pokazany tytuł bez roku („Affinity”) - rok z nazwy pliku („Affinity(2025)”)
             var qName = new TextBox { Text = ym.Success ? ym.Groups[1].Value.Replace('.', ' ').Trim() : fileTitle, Padding = new Thickness(4), Width = 380 };
             var qYear = new TextBox { Text = ym.Success ? ym.Groups[2].Value : "", Padding = new Thickness(4), Width = 70, Margin = new Thickness(6, 0, 6, 0), ToolTip = L.T("Rok (pomaga wybrać właściwy film)") };
             var status = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(12, 4, 12, 4), TextWrapping = TextWrapping.Wrap };

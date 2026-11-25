@@ -18,7 +18,7 @@ namespace Velivo
         static readonly string[] PlikiFilmow = { ".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".webm", ".wmv", ".flv", ".mpg", ".mpeg", ".m2ts", ".mp3", ".m4a", ".flac", ".aac", ".ogg" };
         Window _dlWin;
 
-        internal void ShowUrlDownload(string current, Window owner, string folderNa = null, Action<string> poPobraniu = null)
+        internal void ShowUrlDownload(string current, Window owner, string folderNa = null, Action<string> poPobraniu = null, string nazwa = null)   // nazwa - tytuł pozycji z listy (adres od dostawcy ma w nazwie sam numer)
         {
             if (_dlWin != null) { _dlWin.Activate(); return; }
             string clip = null; try { if (Clipboard.ContainsText()) clip = Clipboard.GetText().Trim(); } catch (Exception) { }
@@ -28,6 +28,7 @@ namespace Velivo
             string Tytul(string u)
             {
                 if (string.IsNullOrEmpty(u)) return "";
+                if (!string.IsNullOrWhiteSpace(nazwa) && u == current) return nazwa;
                 if (_iptvPlaying.TryGetValue(u, out var ch) && !string.IsNullOrWhiteSpace(ch.Name)) return ch.Name;
                 try { var v = LoadLibrary().FirstOrDefault(x => x.Path == u); if (v != null) return ShownTitle(v, MetaFor(v.Path)); } catch (Exception) { }
                 try { return Uri.UnescapeDataString(Path.GetFileNameWithoutExtension(new Uri(u).AbsolutePath)); } catch (Exception) { return ""; }

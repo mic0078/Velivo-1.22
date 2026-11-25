@@ -1071,7 +1071,16 @@ namespace Velivo
                 add(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => _pipShow?.Invoke(r.Ch), r != null && _pipShow != null && _vlcWin != null);
                 add(L.T("✏ Edytuj kanał (nazwa, ikona)…"), () => EditChannel(r.Ch, win, () => fillList()), r != null);
                 add(L.T("📋 Kopiuj adres kanału"), () => { try { Clipboard.SetText(r.Ch.Url); } catch (Exception) { } }, r != null);
-                add(L.T("📥 Pobierz z adresu…"), () => ShowUrlDownload(r.Ch.Url, win), r != null);   // filmy od dostawcy na dysk - to samo okno co w odtwarzaczu
+                add(L.T("📥 Pobierz z adresu…"), () => ShowUrlDownload(r.Ch.Url, win, null, null, r.Ch.Name), r != null);   // filmy od dostawcy na dysk - to samo okno co w odtwarzaczu
+                // 🗄 na mój serwer: folder serwera mediów → podfolder o nazwie pliku (do zmiany - nie zmienia nazwy pliku ani wyszukiwania informacji), po pobraniu serwer przegląda foldery i uzupełnia dane
+                add(L.T("🗄 Pobierz i dodaj do mojego serwera…"), () =>
+                {
+                    var fol = SerwerFolderyTeraz();
+                    if (fol.Count == 0) { InfoBox(win, L.T("Serwer mediów nie ma folderu z filmami – dodaj go w oknie Velivo Serwer filmów.")); return; }
+                    var nf = Prompt(L.T("Nazwa folderu na serwerze (") + fol[0] + L.T(") – zmiana nie zmienia nazwy pliku ani wyszukiwania informacji:"), string.Join(" ", r.Ch.Name.Split(Path.GetInvalidFileNameChars())).Trim(), win);
+                    nf = string.Join(" ", (nf ?? "").Split(Path.GetInvalidFileNameChars())).Trim(); if (nf.Length == 0) return;
+                    ShowUrlDownload(r.Ch.Url, win, Path.Combine(fol[0], nf), f => { SerwerPrzegladnij(); ShowToast(L.T("🗄 Pobrano na serwer: ") + Path.GetFileName(f), f); }, r.Ch.Name);
+                }, r != null);
                 add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); if (_iptvPl != null) ApplyEpgMap(_iptvPl); _iptvEpg = null; LoadIptvInBackground(() => Dispatcher.BeginInvoke(new Action(() => { fillList(); fillEpg(); }))); } }, r != null && _iptvEpg != null);   // w pamięci tylko kanały z listy - program nowo przypisanego doczytany w tle
                 menu.Items.Add(new Separator());
                 if (r != null && IsRecording(r.Ch.Url)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(r.Ch.Url), true);

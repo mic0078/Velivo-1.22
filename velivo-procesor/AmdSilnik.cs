@@ -65,7 +65,11 @@ namespace VelivoProcesor
             try
             {
                 using (var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
-                { var o = p.StandardOutput.ReadToEnd(); p.WaitForExit(3000); w.AddRange(o.Split('\n')); }
+                {   // najwyżej 5 s - zawieszony RyzenAdj (np. sterownik zablokowany) nie może zatrzymać pętli programu
+                    var t = p.StandardOutput.ReadToEndAsync();
+                    if (!t.Wait(5000)) { try { p.Kill(); } catch (Exception) { } return w; }
+                    p.WaitForExit(1000); w.AddRange(t.Result.Split('\n'));
+                }
             }
             catch (Exception) { }
             return w;

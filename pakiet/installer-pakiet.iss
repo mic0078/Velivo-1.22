@@ -124,19 +124,23 @@ Source: "..\build\dodatki\ffmpeg.exe"; DestDir: "{code:NarzDir}"; Components: ve
 Name: "{autodesktop}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{sys}\shell32.dll"; IconIndex: 31; Comment: "{cm:Odinst}"
 Name: "{autoprograms}\Odinstaluj Velivo"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\odinstaluj-velivo.ps1"""; IconFilename: "{sys}\shell32.dll"; IconIndex: 31; Comment: "{cm:Odinst}"
 
+[Dirs]
+; 📋 dziennik każdej instalacji z pakietu (co zostało zamknięte, podmienione, uruchomione) - przyczyna bez zgadywania
+Name: "{localappdata}\Velivo\Instalacja"
+
 [Run]
 ; każdy po kolei, po cichu; zadania jak domyślnie w jego własnym instalatorze (zapora, skróty, start z Windows)
-Filename: "{tmp}\Velivo-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""{code:VelivoTasks}"""; StatusMsg: "{cm:Inst,Velivo}"; Components: velivo
-Filename: "{tmp}\Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,vbcable,autostart"""; StatusMsg: "{cm:Inst,Audio Balance}"; Components: ab
-Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Monitor}"; Components: monitor
-Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
-Filename: "{tmp}\Velivo-Procesor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Procesor}"; Components: procesor
-Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
-Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
-Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
-Filename: "{tmp}\Velivo-Klawiatura-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,autostart"""; StatusMsg: "{cm:Inst,Klawiatura}"; Components: osobne\klawiatura
-Filename: "{tmp}\Velivo-Komunikator-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Komunikator}"; Components: osobne\komunikator
-Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall{code:SrvAuto}"""; StatusMsg: "{cm:Inst,Serwer}"; Components: osobne\serwer
+Filename: "{tmp}\Velivo-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo.log"" /TASKS=""{code:VelivoTasks}"""; StatusMsg: "{cm:Inst,Velivo}"; Components: velivo
+Filename: "{tmp}\Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-AudioBalance-for-Windows.log"" /TASKS=""desktopicon,vbcable,autostart"""; StatusMsg: "{cm:Inst,Audio Balance}"; Components: ab
+Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Monitor.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Monitor}"; Components: monitor
+Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Kursory.log"" /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
+Filename: "{tmp}\Velivo-Procesor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Procesor.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Procesor}"; Components: procesor
+Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Centrum.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
+Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Odtwarzacz.log"" /TASKS=""desktopicon,firewall,autostart,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
+Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Przegladarka.log"" /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
+Filename: "{tmp}\Velivo-Klawiatura-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Klawiatura.log"" /TASKS=""desktopicon,autostart"""; StatusMsg: "{cm:Inst,Klawiatura}"; Components: osobne\klawiatura
+Filename: "{tmp}\Velivo-Komunikator-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Komunikator.log"" /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Komunikator}"; Components: osobne\komunikator
+Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Serwer.log"" /TASKS=""desktopicon,firewall{code:SrvAuto}"""; StatusMsg: "{cm:Inst,Serwer}"; Components: osobne\serwer
 
 [Code]
 

@@ -37,6 +37,8 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
 pl.DesktopIcon=Skrót na pulpicie
+pl.Auto=Uruchamiaj razem z Windows (w tle, ikona przy zegarze)
+en.Auto=Start with Windows (in the background, tray icon)
 en.DesktopIcon=Desktop shortcut
 pl.Network=Sieć:
 en.Network=Network:
@@ -52,6 +54,7 @@ en.StillRunning=Velivo Komunikator is still running and the installer cannot clo
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"
 Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
+Name: "autostart"; Description: "{cm:Auto}"
 
 #ifdef WspolnyNet
 [InstallDelete]
@@ -78,9 +81,12 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\VelivoKomunikator"; ValueType: str
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; ▶ start z Windows: program włącza go sam przy pierwszym uruchomieniu (domyślnie), wyłącznik w menu programu - aktualizacja nie włącza go z powrotem; przy odinstalowaniu wpis znika
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Velivo Komunikator"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Velivo Komunikator"; ValueData: """{app}\VelivoKomunikator.exe"" --autostart"; Tasks: autostart; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\VelivoKomunikator.exe"; Description: "{cm:RunApp}"; Flags: nowait postinstall skipifsilent
+; ciche instalowanie z pakietu: rusza od razu w tle (ikona przy zegarze, bez okna)
+Filename: "{app}\VelivoKomunikator.exe"; Parameters: "--autostart"; Flags: nowait runasoriginaluser; Tasks: autostart; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoKomunikator.exe"; Flags: runhidden; RunOnceId: "ZamknijKomunikator"

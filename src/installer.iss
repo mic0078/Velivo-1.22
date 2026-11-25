@@ -155,6 +155,8 @@ en.GetWebView=Downloading and installing Microsoft Edge WebView2 Runtime…
 pl.NeedWebView=Nie wykryto Microsoft Edge WebView2 Runtime (zwykle jest w Windows 11).%nBez niego przeglądarka nie wyświetli stron. Otworzyć stronę pobierania?
 pl.KlawAuto=Uruchamiaj klawiaturę razem z Windows (ikona w zasobniku)
 en.KlawAuto=Start the keyboard with Windows (tray icon)
+pl.AppAuto=Uruchamiaj razem z Windows (w tle, bez okna – ikona przy zegarze)
+en.AppAuto=Start with Windows (in the background, no window – tray icon)
 pl.SerwerAuto=Uruchamiaj serwer filmów razem z Windows (działa w tle – Twoje komputery widzą bibliotekę)
 en.SerwerAuto=Start the movie server with Windows (runs in the background – your computers see the library)
 en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included in Windows 11).%nWithout it the browser cannot display pages. Open the download page?
@@ -173,6 +175,8 @@ Name: "firewall"; Description: "{cm:Firewall}"; GroupDescription: "{cm:Network}"
 #endif
 #ifdef Serwer
 Name: "autostart"; Description: "{cm:SerwerAuto}"; GroupDescription: "{cm:Shortcuts}"
+#elif !defined(Klawiatura)
+Name: "autostart"; Description: "{cm:AppAuto}"; GroupDescription: "{cm:Shortcuts}"
 #endif
 #ifdef Odtwarzacz
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"
@@ -252,9 +256,8 @@ Root: HKCU; Subkey: "Software\Velivo\Programy\{#Pid}"; ValueType: string; ValueN
 Root: HKCU; Subkey: "Software\Velivo"; ValueType: string; ValueName: "Dane"; ValueData: "{localappdata}\Velivo\Dane"
 ; autostart wlaczany w Ustawieniach Velivo - przy odinstalowaniu wpis znika (ValueType none = instalator go nie tworzy)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#Pid}"; Flags: uninsdeletevalue
-#if defined(Klawiatura) || defined(Serwer)
+; ▶ start z Windows wybrany w instalatorze (pakiet: zawsze, serwer filmów - na pytanie) - wcześniej tylko klawiatura i serwer; reszta dopiero po pierwszym ręcznym uruchomieniu
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#Pid}"; ValueData: """{app}\{#Exe}"" --autostart 10"; Tasks: autostart; Flags: uninsdeletevalue
-#endif
 ; rejestracja jako przegladarka (pojawia sie na liscie "Aplikacje domyslne"); wybor robi uzytkownik w Ustawieniach
 #ifndef NieStrony
 Root: HKCU; Subkey: "Software\Classes\{#Pid}HTML"; ValueType: string; ValueName: ""; ValueData: "Velivo HTML Document"; Flags: uninsdeletekey
@@ -343,6 +346,8 @@ Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueN
 Filename: "{app}\{#Exe}"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowait postinstall skipifsilent
 ; ciche instalowanie (aktualizacja serwera) - Velivo, które działało przed instalacją, wraca samo (serwer nie zostaje wyłączony)
 Filename: "{app}\{#Exe}"; Flags: nowait runasoriginaluser; Check: WizardSilent and WasRunning
+; ciche instalowanie z pakietu: program rusza od razu w tle (bez okna, tylko ikona przy zegarze) - gotowy do użycia bez ponownego uruchomienia komputera
+Filename: "{app}\{#Exe}"; Parameters: "--autostart 0"; Flags: nowait runasoriginaluser; Tasks: autostart; Check: WizardSilent and not WasRunning
 
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"

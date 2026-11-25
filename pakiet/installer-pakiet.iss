@@ -31,6 +31,8 @@ Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
+pl.SrvAuto=Uruchamiaj Serwer filmów razem z Windows (w tle – Twoje komputery i telefon widzą bibliotekę)
+en.SrvAuto=Start the Movie server with Windows (in the background – your computers and phone see the library)
 pl.TFull=Pełny – wszystkie programy Velivo
 en.TFull=Full – all Velivo programs
 pl.TTyp=Typowy – programy do codziennej pracy (bez Kursorów i Serwera filmów)
@@ -93,6 +95,10 @@ Name: "osobne\klawiatura"; Types: pelny typowy; Description: "{cm:CKla}"; Flags:
 Name: "osobne\komunikator"; Types: pelny typowy; Description: "{cm:CKom}"; Flags: dontinheritcheck
 Name: "osobne\serwer"; Types: pelny; Description: "{cm:CSrv}"; Flags: dontinheritcheck
 
+[Tasks]
+; ▶ wszystkie programy startują z Windows same i cicho (w tle, bez okien); pytanie tylko o serwer filmów (właściciel 2026-11-25)
+Name: "serwerauto"; Description: "{cm:SrvAuto}"; Components: osobne\serwer
+
 [Files]
 Source: "{#Src}Velivo-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: velivo; Flags: deleteafterinstall
 Source: "{#Src}Velivo-AudioBalance-for-Windows-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: ab; Flags: deleteafterinstall
@@ -124,11 +130,11 @@ Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPP
 Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
 Filename: "{tmp}\Velivo-Procesor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Procesor}"; Components: procesor
 Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
-Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
-Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
+Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
+Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
 Filename: "{tmp}\Velivo-Klawiatura-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,autostart"""; StatusMsg: "{cm:Inst,Klawiatura}"; Components: osobne\klawiatura
-Filename: "{tmp}\Velivo-Komunikator-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall"""; StatusMsg: "{cm:Inst,Komunikator}"; Components: osobne\komunikator
-Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Serwer}"; Components: osobne\serwer
+Filename: "{tmp}\Velivo-Komunikator-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Komunikator}"; Components: osobne\komunikator
+Filename: "{tmp}\Velivo-Serwer-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=""desktopicon,firewall{code:SrvAuto}"""; StatusMsg: "{cm:Inst,Serwer}"; Components: osobne\serwer
 
 [Code]
 
@@ -144,9 +150,14 @@ function InitializeSetup: Boolean;
 begin
   Result := KontoOk;
 end;
+// serwer filmów z Windows - tylko gdy zaznaczone na stronie zadań pakietu
+function SrvAuto(P: String): String;
+begin
+  if WizardIsTaskSelected('serwerauto') then Result := ',autostart' else Result := ',!autostart';
+end;
 function VelivoTasks(P: String): String;
 begin
-  Result := 'desktopicon,komunikatoricon,kanapaicon,klawiaturaicon,firewall,videoplayer';   // odtwarzacz filmów (kodeki VLC) zawsze
+  Result := 'desktopicon,komunikatoricon,kanapaicon,klawiaturaicon,firewall,autostart,videoplayer';   // odtwarzacz filmów (kodeki VLC) zawsze
   if WizardIsComponentSelected('velivo\player\iptv') then Result := Result + ',videoplayer\iptv' else Result := Result + ',!videoplayer\iptv';
 end;
 

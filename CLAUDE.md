@@ -510,7 +510,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 Claude zawsze podaje kod kompilacji do PowerShell (cały blok poniżej, ostatnia linia z przełącznikami tylko dla zmienionych aplikacji). Na końcu odpowiedzi napisz, co zbudować:
 
 ```
-cd "C:\Users\andro\Desktop\Velivo 1.22 z github"
+cd "C:\Users\andro\Desktop\Velivo 1.23 z github"
 git checkout rozwoj
 git pull origin rozwoj
 .\zbuduj-wszystko.ps1 <przełączniki: -TylkoWindows / -Przegladarka / -Klawiatura / -Komunikator>

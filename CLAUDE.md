@@ -413,6 +413,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-25: „Najniższy zegar” (podłoga we wszystkich trybach) usunąłem po audycie innego AI, a przywracając zmieniłem jego znaczenie na „najwyższy w Cichym” – Intel schodził poniżej minimum właściciela. Nigdy nie zmieniaj znaczenia ustawienia właściciela; przywracając – dokładnie jak było (git show).
 
+* 2026-11-25: informacje o filmie „szukały 2 minuty”, wcześniej od razu – moja „ochrona” Wikimedia (lejek) przy 429 czekała do 2 min i blokowała całe wyszukiwanie; serwer od 24.11 szukał najpierw w Wikidanych także ze zgodą na Jellyfin (wolniej niż TMDb). Teraz czekanie ≤ 3 s, ze zgodą TMDb najpierw. Ochrona przed limitem nie może zatrzymać głównej czynności – limit krótki, reszta pomijana.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

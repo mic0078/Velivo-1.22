@@ -275,14 +275,14 @@ namespace VelivoProcesor
         }
 
         // ---------- sterowanie ----------
-        (double Stapm, double Fast, double Slow, double Tctl) zadane; int blad;
+        (double Stapm, double Fast, double Slow, double Tctl) zadane, przyjete; int blad; bool sprawdz;   // przyjete - co procesor naprawdę ustawił (SMU obcina za wysokie wartości do swojego maksimum, NUCBOX: 40 → 38 W)
         public string Blad = "";
         public void Ustaw(Tryb t, bool wymus = false)
         {
             tryb = t; if (!Dziala || !Skalibrowany) return;
             var c = Cel(t); if (!wymus && ustawione && c == zadane) return;
             bool ok = Wyslij(c);
-            if (ok) { zadane = c; ustawione = true; Zapisz(true); blad = 0; Blad = ""; }
+            if (ok) { zadane = c; przyjete = c; sprawdz = true; ustawione = true; Zapisz(true); blad = 0; Blad = ""; }
             else if (++blad >= 3) { Dziala = false; Blad = "PawnIO przestał odpowiadać – moc AMD jak ustawił producent, reszta sterowania działa."; }
         }
         bool Wyslij((double Stapm, double Fast, double Slow, double Tctl) c)
@@ -307,7 +307,9 @@ namespace VelivoProcesor
             Reguluj();
             if (!ustawione || zadane.Stapm <= 0) return;   // po ponownym uruchomieniu programu: zadane dopiero przy pierwszej decyzji o trybie
             bool R(double a, double b) => Math.Abs(a - b) < 0.6;
-            bool rozne = !R(s.StapmL, zadane.Stapm) || !R(s.FastL, zadane.Fast) || !R(s.SlowL, zadane.Slow) || !R(s.TempL, zadane.Tctl);
+            // pierwszy odczyt po ustawieniu: wartość niższa od zadanej (ale nie powrót do BIOS) = maksimum procesora, nie nadpisanie - od teraz pilnuję tej
+            if (sprawdz) { sprawdz = false; if (s.StapmL <= zadane.Stapm + 0.6 && s.FastL <= zadane.Fast + 0.6 && s.SlowL <= zadane.Slow + 0.6 && s.TempL <= zadane.Tctl + 0.6 && !(R(s.StapmL, FStapm) && R(s.FastL, FFast) && R(s.SlowL, FSlow))) przyjete = (s.StapmL, s.FastL, s.SlowL, s.TempL); }
+            bool rozne = !R(s.StapmL, przyjete.Stapm) || !R(s.FastL, przyjete.Fast) || !R(s.SlowL, przyjete.Slow) || !R(s.TempL, przyjete.Tctl);
             if (!rozne) { nadpisane = false; return; }
             while (ponowienia.Count > 0 && (DateTime.UtcNow - ponowienia.Peek()).TotalMinutes > 10) ponowienia.Dequeue();
             if (ponowienia.Count < 3) { ponowienia.Enqueue(DateTime.UtcNow); Ustaw(tryb, true); } else nadpisane = true;

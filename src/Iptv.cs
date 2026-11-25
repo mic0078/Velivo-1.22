@@ -1071,6 +1071,7 @@ namespace Velivo
                 add(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => _pipShow?.Invoke(r.Ch), r != null && _pipShow != null && _vlcWin != null);
                 add(L.T("✏ Edytuj kanał (nazwa, ikona)…"), () => EditChannel(r.Ch, win, () => fillList()), r != null);
                 add(L.T("📋 Kopiuj adres kanału"), () => { try { Clipboard.SetText(r.Ch.Url); } catch (Exception) { } }, r != null);
+                add(L.T("📥 Pobierz z adresu…"), () => ShowUrlDownload(r.Ch.Url, win), r != null);   // filmy od dostawcy na dysk - to samo okno co w odtwarzaczu
                 add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); if (_iptvPl != null) ApplyEpgMap(_iptvPl); _iptvEpg = null; LoadIptvInBackground(() => Dispatcher.BeginInvoke(new Action(() => { fillList(); fillEpg(); }))); } }, r != null && _iptvEpg != null);   // w pamięci tylko kanały z listy - program nowo przypisanego doczytany w tle
                 menu.Items.Add(new Separator());
                 if (r != null && IsRecording(r.Ch.Url)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(r.Ch.Url), true);

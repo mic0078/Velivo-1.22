@@ -834,7 +834,12 @@ namespace Velivo
 
         // film gra - biblioteka schowana (nie zamknięta); po zamknięciu odtwarzacza wraca z tą samą listą, od razu do wyboru następnego
         void LibAway(Window w) { if (w == _libWin) w.Hide(); else w.Close(); }
-        void LibBack() { if (_libWin != null && _libWin.IsLoaded && !_libWin.IsVisible && !_mainClosing) { _libWin.Show(); _libWin.Activate(); } }
+        void LibBack()
+        {   // biblioteka albo lista TV, z której włączono film / kanał, wraca po zamknięciu odtwarzacza
+            if (_mainClosing) return;
+            if (_libWin != null && _libWin.IsLoaded && !_libWin.IsVisible) { _libWin.Show(); _libWin.Activate(); }
+            if (_tvWin != null && _tvWin.IsLoaded && !_tvWin.IsVisible) { _tvWin.Show(); _tvWin.Activate(); }
+        }
 
         void ShowVideoLibrary(Window owner)
         {

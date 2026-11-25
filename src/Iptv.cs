@@ -985,6 +985,7 @@ namespace Velivo
                 st.Recent.Remove(r.Ch.Url); st.Recent.Insert(0, r.Ch.Url); if (st.Recent.Count > 30) st.Recent.RemoveRange(30, st.Recent.Count - 30);
                 SaveIptv(st);
                 PlayVideos(rows.Select(x => x.Ch.Url).ToArray(), rows.IndexOf(r));
+                win.Hide();   // kanał gra - lista schowana (nie wisi za obrazem), wraca po zamknięciu odtwarzacza (LibBack)
             };
             autoPlay = () =>
             {

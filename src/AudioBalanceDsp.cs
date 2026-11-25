@@ -429,7 +429,7 @@ namespace Velivo
                     double all = dM + dSide, share = dS / (all + 1e-15);   // udział mowy (środek, pasmo mowy) w całym dźwięku
                     double want = all < 1e-7 || share < 0.25 ? 0 : dMax * Math.Max(0, Math.Min(1, (0.8 - share) / 0.45));   // brak mowy / mowa wyraźna = 0, mowa przykryta = więcej
                     dG = want > dG ? want + dAtt * (dG - want) : want + dRel * (dG - want);
-                    double add = Math.Pow(10, dG / 20) - 1; l += add * spc; r += add * spc; DialogDb = dG;
+                    double add = Math.Exp(dG * 0.11512925464970228) - 1; l += add * spc; r += add * spc; DialogDb = dG;
                 }
                 else DialogDb = 0;
                 double p = In.Push(l, r);
@@ -481,7 +481,7 @@ namespace Velivo
                     fastDb = fastWant < fastDb ? Math.Max(fastWant, fastDb - pr.FastDownDbS * FastMul / Fs) : Math.Min(fastWant, fastDb + pr.FastDownDbS / 5 / Fs);
                     if (fastDb < FastMinDb) FastMinDb = fastDb;
                     // 2) kompresor: szybki detektor mocy K (10 ms) po wyrównaniu, miękkie kolano 6 dB
-                    double pl = p * Math.Pow(10, (levDb + fastDb) / 10);   // kompresor widzi już ściszony huk - warstwy nie ściszają tego samego dwa razy
+                    double pl = p * Math.Exp((levDb + fastDb) * 0.23025850929940458);   // kompresor widzi już ściszony huk - warstwy nie ściszają tego samego dwa razy
                     detP = pl + detC * (detP - pl);
                     // z włączonym kompresorem (za regulatorem) ten wewnętrzny jest tylko dalekim bezpiecznikiem (cel +12 dB, 4:1) - dwa kompresory w różnym tempie falowały (lektor)
                     double rat = preOn ? 4 : pr.Ratio, lev = AbMeter.Lufs(detP), thr = Tg + (preOn ? 12 : pr.ThrOff), over = lev - thr, want2 = 0;
@@ -494,7 +494,7 @@ namespace Velivo
                     if (pr.LimitOnly && g > 0) g = 0;   // Limit Only: bezwzględnie żadnego podgłośnienia - niezależnie od nauki, korekty, startu źródła
                 }
                 {   // 🗣 inteligentny lektor: film w paśmie mowy (300 ms, po wyrównaniu) → potrzebne ściszenie; atak 0,15 s, powrót 0,6 s, przytrzymanie 0,8 s
-                    double km = (l + r) * 0.5 * Math.Pow(10, g / 20) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs);
+                    double km = (l + r) * 0.5 * Math.Exp(g * 0.11512925464970228) * vS, kb = kLp.L(kHp.L(km)); kP += (kb * kb - kP) / (0.3 * Fs);
                     double kWant = 0;
                     if (LekOn) { lekHold = (long)(0.8 * Fs); double rf = LekRef; double fl = LekFloorDb;
                         kWant = double.IsNaN(rf) ? fl : Math.Max(fl, Math.Min(0, rf - 10 - 10 * Math.Log10(kP + 1e-12) - (InDialogShare > 0.5 ? 2 : 0))); }   // lektor 10 dB nad filmem (12 przy dialogu w filmie)
@@ -504,8 +504,9 @@ namespace Velivo
                 // 🎚 kompresor PO wyrównaniu LUFS (jak w procesorach radiowych: wolne wyrównanie → kompresor → limiter): dostaje już wyrównany poziom,
                 //    więc jego próg trafia zawsze w to samo miejsce i nie dubluje pracy wyrównania (dawniej stał przed nim i sam podciągał cały film do celu)
                 double lin;
-                if (preOn) { double gl = Math.Pow(10, g / 20); l *= gl; r *= gl; Pre.Frame(ref l, ref r, preP); lin = Math.Pow(10, LekDb / 20) * vS; }
-                else lin = Math.Pow(10, (g + LekDb) / 20) * vS;
+                const double DbLin = 0.11512925464970228;   // ln(10)/20: 10^(dB/20) = e^(dB·DbLin) - szybciej niż Math.Pow (dla każdej próbki)
+                if (preOn) { double gl = Math.Exp(g * DbLin); l *= gl; r *= gl; Pre.Frame(ref l, ref r, preP); lin = Math.Exp(LekDb * DbLin) * vS; }
+                else lin = Math.Exp((g + LekDb) * DbLin) * vS;
                 // 3) limiter True Peak: wymagane wzmocnienie z punktów między próbkami
                 double tp = tpIn.Push(l * lin, r * lin), rq = tp > ceil ? ceil / tp : 1;
                 // minimum w oknie La (kolejka monotoniczna)

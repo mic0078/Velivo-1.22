@@ -176,7 +176,7 @@ namespace Velivo
             double mkWant = toTarget ? liftS : p.AutoThreshold ? -avgGr : p.MakeupGainDb + (p.AutoMakeup ? -avgGr : 0) + liftS,   /* próg automatyczny bez celu (kompresor po wyrównaniu LUFS): oddaje tyle, ile średnio ściszył - głośność dialogu zostaje, ściszone są tylko głośne fragmenty */ mixWant = p.MixPercent / 100.0;
             // podbicie i Mix zmieniane płynnie (50 ms) - bez trzasków przy przesuwaniu suwaków
             mkS = double.IsNaN(mkS) ? mkWant : mkS + (mkWant - mkS) * (mkWant < mkS - 3 ? cs * 10 : cs);   /* duże ściszenie (bezpiecznik) w ok. 5 ms, reszta płynnie 50 ms */ mixS = double.IsNaN(mixS) ? mixWant : mixS + (mixWant - mixS) * cs;
-            double gw = Math.Pow(10, (grDb + mkS) / 20);
+            double gw = Math.Exp((grDb + mkS) * 0.11512925464970228);   // 10^(dB/20)
             l = l * (1 - mixS) + l * gw * mixS; r = r * (1 - mixS) + r * gw * mixS;   // równoległa: suchy (bez zmian) + skompresowany
             CurrentGainReductionDb = (float)grDb;
             if ((++mtrN & 63) == 0) { AutoLiftDb = (float)liftS; MakeupNowDb = (float)(mkS * mixS); InputDb = (float)Math.Max(-120, xDb); OutputDb = (float)Math.Max(-120, xDb + 20 * Math.Log10(Math.Max(1e-6, 1 - mixS + mixS * gw))); }   // mierniki co 64 próbki (bez kosztu w każdej próbce)

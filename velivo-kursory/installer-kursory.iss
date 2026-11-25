@@ -1,7 +1,7 @@
 ﻿; Instalator „Velivo Kursory” - animowane kursory myszy w stylu Velivo. Samodzielny, bez Velivo.
 ; Kompilacja: ISCC.exe installer-kursory.iss (po dotnet build do ..\build\kursory)
 #define AppName "Velivo Kursory"
-#define AppVer "1.22"
+#define AppVer "1.23"
 #ifndef SrcDir
   #define SrcDir "..\build\kursory"
 #endif

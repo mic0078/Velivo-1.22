@@ -12,7 +12,7 @@ function Krok($opis, $blok) {
     & $blok
     if ($LASTEXITCODE -ne 0) { Write-Host "$opis - nie powiodlo sie. Reszta nie zostala zbudowana." -ForegroundColor Red; exit 1 }
 }
-# 1.23 najpierw: pakiet 1.22 buduje potem programy od nowa (te same nazwy plików Monitora, Kursorów i Centrum)
+# 1.23 najpierw; pakiet 1.22 buduje potem od nowa tylko swoje programy (Monitor, Kursory, Centrum, Procesor, Kopia - zawsze 1.23)
 Krok "Wersja 1.23 (wspolny .NET): programy i pakiet" { & (Join-Path $repo 'zbuduj-pakiet.ps1') -WspolnyNet -Wszystko }
 Krok "Wersja 1.22 (wbudowany .NET): programy i pakiet" { & (Join-Path $repo 'zbuduj-pakiet.ps1') -Wszystko }
 if (-not $BezAndroida) { Krok "Aplikacje Android (przegladarka, odtwarzacz, klawiatura, komunikator)" { & (Join-Path $repo 'zbuduj-wszystko.ps1') -TylkoAndroid -Wszystko } }

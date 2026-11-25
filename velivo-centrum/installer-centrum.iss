@@ -1,7 +1,7 @@
 ﻿; Instalator „Velivo Centrum” - jedna ikona przy zegarze i lista programów Velivo. Samodzielny, bez Velivo.
 ; Kompilacja: ISCC.exe installer-centrum.iss (po dotnet publish do ..\build\centrum)
 #define AppName "Velivo Centrum"
-#define AppVer "1.22"
+#define AppVer "1.23"
 #ifndef SrcDir
   #define SrcDir "..\build\centrum"
 #endif

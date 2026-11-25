@@ -2,7 +2,7 @@
 ; Kompilacja: ISCC.exe installer-procesor.iss (po dotnet publish do ..\build\procesor)
 #define AppName "Velivo Procesor"
 #ifndef AppVer
-  #define AppVer "1.22"
+  #define AppVer "1.23"
 #endif
 #ifndef SrcDir
   #define SrcDir "..\build\procesor"

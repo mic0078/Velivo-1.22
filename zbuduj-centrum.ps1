@@ -13,12 +13,12 @@ dotnet build velivo-centrum\VelivoCentrum.csproj -c Release -o build\centrum   #
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Centrum nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 Write-Host "3/3 Instalator..." -ForegroundColor Cyan
 # otwarty instalator z poprzedniej próby trzyma plik - budowa nie może go nadpisać (to nie antywirus)
-while (Get-Process -Name "Velivo-Centrum-Setup-1.22", "Velivo-Centrum-Setup-1.22.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-Centrum-Setup-1.22 z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }
+while (Get-Process -Name "Velivo-Centrum-Setup-1.23", "Velivo-Centrum-Setup-1.23.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-Centrum-Setup-1.23 z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 $outDir = Join-Path $repo 'build\instalator'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" velivo-centrum\installer-centrum.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam ($i/6)..." -ForegroundColor Yellow; Start-Sleep ($i * 3) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Velivo Centrum nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
-Write-Host "Gotowe: build\instalator\Velivo-Centrum-Setup-1.22.exe" -ForegroundColor Green
+Write-Host "Gotowe: build\instalator\Velivo-Centrum-Setup-1.23.exe" -ForegroundColor Green
 Start-Process $outDir

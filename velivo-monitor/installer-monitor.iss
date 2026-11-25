@@ -1,7 +1,7 @@
 ﻿; Instalator „Velivo Monitor” - sieć ↑↓ i procesor na pasku zadań + widżet na pulpicie. Samodzielny, bez Velivo.
 ; Kompilacja: ISCC.exe installer-monitor.iss (po dotnet publish do ..\build\monitor)
 #define AppName "Velivo Monitor"
-#define AppVer "1.22"
+#define AppVer "1.23"
 #ifndef SrcDir
   #define SrcDir "..\build\monitor"
 #endif

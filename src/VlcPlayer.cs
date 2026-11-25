@@ -56,6 +56,7 @@ namespace Velivo
 
         LibVLC _libVlc;
         Window _vlcWin;
+        static bool _nadOdtwHook; readonly List<Window> _nadOdtw = new List<Window>();   // okna podniesione nad odtwarzacz na wierzchu
         Button _filmBtn, _playerBtn;
         bool _hiddenForPlayer;
         Func<IptvChannel, bool> _pipShow;
@@ -1809,6 +1810,15 @@ namespace Velivo
             tools.Click += (s, e) => toolsPop.IsOpen = !toolsPop.IsOpen;
             win.PreviewMouseDown += (s, e) => { if (toolsPop.IsOpen && !tools.IsMouseOver) toolsPop.IsOpen = false; };
             win.Deactivated += (s, e) => toolsPop.IsOpen = false; win.Closed += (s, e) => toolsPop.IsOpen = false;
+            foreach (var b0 in new[] { padBtn, couchBtn, snap }) b0.Click += (s, e) => toolsPop.IsOpen = false;   // przycisk otwiera okno / robi zrzut - okienko ⚙ znika (nie zasłania nowego okna)
+            // 🔝 okno otwarte, gdy odtwarzacz jest na wierzchu (pełny ekran) - też na wierzchu, inaczej chowało się pod obrazem; po zamknięciu odtwarzacza wraca do zwykłego
+            if (!_nadOdtwHook)
+            {
+                _nadOdtwHook = true;
+                EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((o, e) =>
+                { if (o is Window w0 && _vlcWin != null && w0 != _vlcWin && _vlcWin.IsLoaded && _vlcWin.Topmost && !w0.Topmost) { w0.Topmost = true; _nadOdtw.Add(w0); } }));
+            }
+            win.Closed += (s, e) => { foreach (var w0 in _nadOdtw) try { w0.Topmost = false; } catch (Exception) { } _nadOdtw.Clear(); };
             // przełącznik TV ↔ Filmy: przy telewizji „🎬 Filmy” (biblioteka), przy filmie „📺 TV” (kanały) - zawsze w tym samym miejscu
             var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
             bool swapTv = false;   // true = przycisk prowadzi do telewizji

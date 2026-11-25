@@ -4492,6 +4492,10 @@ namespace Velivo
                     case Key.Right: jump(10000); break;
                     case Key.Up: setVol(vol.Value + 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
                     case Key.Down: setVol(vol.Value - 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
+                    // 🔊 klawisze głośności klawiatury / pilota przy odtwarzaczu na wierzchu: tylko odtwarzacz (obsłużone = Windows nie ścisza całego systemu)
+                    case Key.VolumeUp: setVol(vol.Value + 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
+                    case Key.VolumeDown: setVol(vol.Value - 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
+                    case Key.VolumeMute: toggleMute(); break;
                     case Key.F: case Key.F11: toggleFull(); break;
                     case Key.I: showInfo(true); break;
                     case Key.L: showChannels(chPanel.Visibility != Visibility.Visible); break;

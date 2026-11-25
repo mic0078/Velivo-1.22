@@ -28,8 +28,8 @@ namespace Velivo
             Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 0, 4), Padding = new Thickness(4), Width = 200 };
             var hours = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 190, ToolTip = L.T("Jak często odświeżać listę i program TV") };
-            var hoursOpts = new[] { 3, 6, 12, 24, 48, 168, 0 };
-            foreach (var t in new[] { "co 3 godziny", "co 6 godzin", "co 12 godzin", "codziennie", "co 2 dni", "co tydzień", "tylko ręcznie" }) hours.Items.Add(L.T("Odświeżanie: ") + L.T(t));
+            var hoursOpts = new[] { 3, 6, 12, 24, 48, 72, 168, 0 };
+            foreach (var t in new[] { "co 3 godziny", "co 6 godzin", "co 12 godzin", "codziennie", "co 2 dni", "co 3 dni", "co tydzień", "tylko ręcznie" }) hours.Items.Add(L.T("Odświeżanie: ") + L.T(t));
             var group = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 200, ToolTip = L.T("Grupa kanałów") };
             var sort = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 170 };
             var sortOpts = new[] { "nr", "az", "za" };

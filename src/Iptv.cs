@@ -55,7 +55,7 @@ namespace Velivo
             public string Url { get; set; }   // adres listy albo sciezka pliku
             public string Epg { get; set; }   // adres programu TV (opcjonalnie)
             public long Updated { get; set; }
-            public int Hours { get; set; } = 12;   // odswiezanie listy i programu co tyle godzin; 0 = tylko recznie
+            public int Hours { get; set; } = 72;   // odswiezanie listy i programu co tyle godzin; 0 = tylko recznie
         }
 
         sealed class IptvState
@@ -65,6 +65,7 @@ namespace Velivo
             public List<string> Recent { get; set; } = new List<string>();   // ostatnio ogladane (najnowsze pierwsze)
             public List<string> Hist { get; set; } = new List<string>();     // historia przelaczania kanalow na zywo (najstarszy pierwszy, najwyzej 20) - przyciski powrotu
             public string Last { get; set; }
+            public bool Odsw3d { get; set; }   // 2026-11-25: domyślne 12 h → co 3 dni (raz, tylko źródła z dawną domyślną wartością)
             public List<IptvJob> Jobs { get; set; } = new List<IptvJob>();   // zaplanowane nagrania i przelaczenia
             public string RecDir { get; set; }   // folder nagran (puste = Wideo\Velivo TV)
             public string Win { get; set; }
@@ -376,7 +377,15 @@ namespace Velivo
 
         IptvState LoadIptv()
         {
-            try { if (File.Exists(IptvStateFile)) return JsonSerializer.Deserialize<IptvState>(File.ReadAllText(IptvStateFile)) ?? new IptvState(); }
+            try
+            {
+                if (File.Exists(IptvStateFile))
+                {
+                    var st = JsonSerializer.Deserialize<IptvState>(File.ReadAllText(IptvStateFile)) ?? new IptvState();
+                    if (!st.Odsw3d) { st.Odsw3d = true; foreach (var x in st.Sources) if (x.Hours == 12) x.Hours = 72; SaveIptv(st); }   // właściciel: domyślnie co 3 dni (wybrane inne wartości zostają)
+                    return st;
+                }
+            }
             catch (Exception ex) { App.LogError(ex); }
             return new IptvState();
         }
@@ -939,9 +948,9 @@ namespace Velivo
                 p.Children.Add(browse);
                 var epg = field(L.T("Adres programu TV – EPG XMLTV (opcjonalnie; puste = z listy):"), src.Epg);
                 p.Children.Add(new TextBlock { Text = L.T("Odświeżanie listy i programu TV:"), Margin = new Thickness(0, 6, 0, 2) });
-                var hoursOpts = new[] { 3, 6, 12, 24, 48, 168, 0 };
+                var hoursOpts = new[] { 3, 6, 12, 24, 48, 72, 168, 0 };
                 var hours = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left, Width = 220 };
-                foreach (var t in new[] { "co 3 godziny", "co 6 godzin", "co 12 godzin", "codziennie", "co 2 dni", "co tydzień", "tylko ręcznie (🔄 Odśwież)" }) hours.Items.Add(L.T(t));
+                foreach (var t in new[] { "co 3 godziny", "co 6 godzin", "co 12 godzin", "codziennie", "co 2 dni", "co 3 dni", "co tydzień", "tylko ręcznie (🔄 Odśwież)" }) hours.Items.Add(L.T(t));
                 hours.SelectedIndex = Math.Max(0, Array.IndexOf(hoursOpts, src.Hours));
                 p.Children.Add(hours);
                 var ok = new Button { Content = "OK", Width = 90, Height = 28, IsDefault = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };

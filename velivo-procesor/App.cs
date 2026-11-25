@@ -22,6 +22,8 @@ namespace VelivoProcesor
         [STAThread]
         static void Main(string[] args)
         {
+            // 🐞 każda awaria do pliku (folder danych: bledy.txt) - przyczyna widoczna bez Podglądu zdarzeń
+            AppDomain.CurrentDomain.UnhandledException += (o, e) => { try { System.IO.Directory.CreateDirectory(Silnik.Dir); System.IO.File.AppendAllText(System.IO.Path.Combine(Silnik.Dir, "bledy.txt"), DateTime.Now + " " + e.ExceptionObject + Environment.NewLine + Environment.NewLine); } catch (Exception) { } };
             if (args.Contains("--przywroc")) { new Silnik().PrzywrocWindows(); return; }   // deinstalator
             if (args.Contains("--zadanie")) { Zadanie(); return; }   // uruchomione jako administrator tylko po to
             using (var one = new Mutex(true, @"Local\VelivoProcesor", out bool first))
@@ -365,7 +367,7 @@ namespace VelivoProcesor
             bool studio = s.StudioProg != null && tryb != "windows";
             tStan.Text = tryb == "pauza" ? "⏸ wstrzymany" : tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
             tWhy.Text = "💡 " + s.Dlaczego + (s.Auto && s.Get("tryb") == "auto" ? (s.ZAi ? " · decyduje: AI" : " · decyduje: zasady" + (s.Glosow < 2 ? " (AI jeszcze się uczy – " + s.Glosow + " z 4 głosów)" : "")) : "") + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
-            tSub.Text = "  " + s.ProcesorNazwa + (s.Hybrydowy ? " · rdzenie wydajne + oszczędne (sterowane oba rodzaje)" : "") + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" + (s.AmdE.Biblioteka ? "" : " (program, odczyt co 10 s)") : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
+            tSub.Text = "  " + s.ProcesorNazwa + (s.Hybrydowy ? " · rdzenie wydajne + oszczędne (sterowane oba rodzaje)" : "") + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
                 + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak") + (s.RyzenDziala ? "\n  🔥 " + s.AmdE.Opis : "");
             tSub.ToolTip = s.RyzenDziala ? "Silnik AMD: " + s.AmdE.Fabryczne + ". Cichy – bez skoków mocy i granica temperatury 5 °C niżej; Zrównoważony – moc długotrwała do fabrycznej średniej (sam zmniejsza, gdy gorąco); Turbo – do tego granica temperatury +5 °C (najwyżej 90 °C). Prąd i moc chwilowa nigdy ponad fabryczne." : null;
             bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;

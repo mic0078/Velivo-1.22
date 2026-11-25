@@ -13,36 +13,15 @@ namespace VelivoProcesor
     // - nigdy ponad fabryczne: moc chwilowa (Fast), średnia (Slow), prąd (TDC/EDC); moc długotrwała (STAPM) najwyżej do fabrycznej średniej (Slow);
     //   granica temperatury najwyżej fabryczna + 5 °C (i nie ponad 90 °C) - tylko w Turbo (pomiar NUCBOX 2026-11-25: 15 → 20 W = +12 % zegaru wielu rdzeni, wentylator stabilny);
     // - zegar i boost zostają dla procesora (CPPC) - silnik pilnuje tylko budżetu mocy i temperatury;
-    // - telemetria co 1 s przez libryzenadj.dll (bez uruchamiania procesu), zapasowo ryzenadj.exe co 10 s;
+    // - telemetria co 10 s przez ryzenadj.exe;
     // - ponowne ustawienie po wybudzeniu i gdy BIOS / inny program nadpisze (najwyżej 3 razy w 10 min - bez walki);
     // - przy zamknięciu, wylogowaniu, deinstalacji: fabryczne wartości wszystkich zmienionych parametrów.
     sealed class AmdSilnik
     {
-        // ---------- dostęp: biblioteka w procesie albo program ----------
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr LoadLibraryEx(string path, IntPtr h, uint flags);
-        [DllImport("libryzenadj.dll")] static extern IntPtr init_ryzenadj();
-        [DllImport("libryzenadj.dll")] static extern int init_table(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern int refresh_table(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_stapm_limit(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_stapm_value(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_fast_limit(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_fast_value(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_slow_limit(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_slow_value(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_vrm_current(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_vrm_current_value(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_vrmmax_current(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_vrmmax_current_value(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_tctl_temp(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern float get_tctl_temp_value(IntPtr ry);
-        [DllImport("libryzenadj.dll")] static extern int set_stapm_limit(IntPtr ry, uint v);
-        [DllImport("libryzenadj.dll")] static extern int set_fast_limit(IntPtr ry, uint v);
-        [DllImport("libryzenadj.dll")] static extern int set_slow_limit(IntPtr ry, uint v);
-        [DllImport("libryzenadj.dll")] static extern int set_tctl_temp(IntPtr ry, uint v);
+        // ---------- dostęp: ryzenadj.exe (biblioteka w procesie wywracała program z uprawnieniami administratora - 2026-11-25, NUCBOX) ----------
 
-        readonly string exe; IntPtr ry; readonly object zamek = new object();
+        readonly string exe; readonly object zamek = new object();
         public bool Dziala { get; private set; }   // RyzenAdj odpowiada (administrator, obsługiwany procesor)
-        public bool Biblioteka => ry != IntPtr.Zero;
         public AmdSilnik(string exePath) { exe = exePath; }
 
         public void Start()
@@ -51,17 +30,7 @@ namespace VelivoProcesor
             {
                 Dziala = false;
                 if (exe == null) return;
-                try
-                {
-                    // zależności biblioteki (WinRing0x64.dll, inpoutx64.dll) leżą obok niej - ładowanie ze ścieżką folderu RyzenAdj
-                    if (LoadLibraryEx(Path.Combine(Path.GetDirectoryName(exe), "libryzenadj.dll"), IntPtr.Zero, 0x8) != IntPtr.Zero)
-                    {
-                        ry = init_ryzenadj();
-                        if (ry != IntPtr.Zero && (init_table(ry) != 0 || refresh_table(ry) != 0 || !(get_stapm_limit(ry) > 0))) ry = IntPtr.Zero;   // bez tabeli pomiarów - program
-                    }
-                }
-                catch (Exception) { ry = IntPtr.Zero; }
-                Dziala = Biblioteka || Odczyt() != null;
+                Dziala = Odczyt() != null;
             }
             if (Dziala) Kalibruj();
         }
@@ -76,12 +45,6 @@ namespace VelivoProcesor
             {
                 try
                 {
-                    if (Biblioteka)
-                    {
-                        if (refresh_table(ry) != 0) return null;
-                        return new Stan { Stapm = get_stapm_value(ry), StapmL = get_stapm_limit(ry), Fast = get_fast_value(ry), FastL = get_fast_limit(ry), Slow = get_slow_value(ry), SlowL = get_slow_limit(ry),
-                            Tdc = get_vrm_current_value(ry), TdcL = get_vrm_current(ry), Edc = get_vrmmax_current_value(ry), EdcL = get_vrmmax_current(ry), Temp = get_tctl_temp_value(ry), TempL = get_tctl_temp(ry) };
-                    }
                     var d = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
                     foreach (var l in Wywolaj("--info"))
                     {   // | STAPM LIMIT         |    15.000 | stapm-limit |
@@ -108,11 +71,11 @@ namespace VelivoProcesor
             return w;
         }
 
-        // co 1 s z pętli (biblioteka - odczyt pamięci; program - co 10 s); zwraca temperaturę albo -1
+        // co 1 s z pętli, odczyt co 10 s (osobny program); zwraca temperaturę albo -1
         public double Krok()
         {
             if (!Dziala) return -1;
-            if (!Biblioteka && Ost != null && (DateTime.UtcNow - odczytAt).TotalSeconds < 10) return Ost.Temp;
+            if (Ost != null && (DateTime.UtcNow - odczytAt).TotalSeconds < 10) return Ost.Temp;
             var s = Odczyt(); if (s == null) return -1;
             Ost = s; odczytAt = DateTime.UtcNow;
             Hist(s); Pilnuj(s);
@@ -130,7 +93,7 @@ namespace VelivoProcesor
                 : s.StapmL > 0 && s.Stapm >= s.StapmL * 0.97 ? "moc długotrwała (" + s.StapmL.ToString("0") + " W)" : "";
             ogrN = teraz == ogrBylo ? ogrN + 1 : 1; ogrBylo = teraz;
             if (ogrN >= 2) ogr = teraz;
-            tempSr = tempSr <= 0 ? s.Temp : tempSr + (s.Temp - tempSr) / (Biblioteka ? 60 : 6);   // średnia z ok. 1 min
+            tempSr = tempSr <= 0 ? s.Temp : tempSr + (s.Temp - tempSr) / 6;   // średnia z ok. 1 min
         }
         public string Opis
         {
@@ -224,8 +187,6 @@ namespace VelivoProcesor
             {
                 try
                 {
-                    if (Biblioteka)
-                        return set_stapm_limit(ry, W(c.Stapm)) == 0 & set_fast_limit(ry, W(c.Fast)) == 0 & set_slow_limit(ry, W(c.Slow)) == 0 & set_tctl_temp(ry, (uint)Math.Round(c.Tctl)) == 0;
                     var o = Wywolaj("--stapm-limit=" + W(c.Stapm) + " --fast-limit=" + W(c.Fast) + " --slow-limit=" + W(c.Slow) + " --tctl-temp=" + (uint)Math.Round(c.Tctl));
                     return o.Count > 0 && !o.Any(l => l.IndexOf("unable", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("fail", StringComparison.OrdinalIgnoreCase) >= 0);
                 }

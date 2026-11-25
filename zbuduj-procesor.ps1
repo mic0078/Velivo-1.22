@@ -13,12 +13,12 @@ dotnet build velivo-procesor\VelivoProcesor.csproj -c Release -o build\procesor 
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Procesor nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
 # ⚡ RyzenAdj (moc procesorów AMD) - oficjalne wydanie z GitHub (FlyGoat/RyzenAdj), raz; bez niego program działa (bez sterowania mocą AMD)
 $ra = Join-Path $repo 'build\dodatki\RyzenAdj'
-# program (ryzenadj.exe) i biblioteka (libryzenadj.dll - silnik AMD czyta pomiary co sekundę bez uruchamiania programu) są w dwóch osobnych archiwach wydania
-if (-not (Test-Path (Join-Path $ra 'ryzenadj.exe')) -or -not (Test-Path (Join-Path $ra 'libryzenadj.dll'))) {
+# program ryzenadj.exe jest w archiwum ryzenadj-win64.zip (libryzenadj-win64.zip to sama biblioteka - bez programu)
+if (-not (Test-Path (Join-Path $ra 'ryzenadj.exe'))) {
     try {
         New-Item -ItemType Directory -Force -Path $ra | Out-Null
         $rel = Invoke-RestMethod 'https://api.github.com/repos/FlyGoat/RyzenAdj/releases/latest' -Headers @{ 'User-Agent' = 'Velivo' }
-        foreach ($n in 'ryzenadj-win64.zip', 'libryzenadj-win64.zip') {
+        foreach ($n in @('ryzenadj-win64.zip')) {
             $asset = $rel.assets | Where-Object { $_.name -eq $n } | Select-Object -First 1
             if (-not $asset) { continue }
             $zip = Join-Path $ra $n; Invoke-WebRequest $asset.browser_download_url -OutFile $zip -UseBasicParsing

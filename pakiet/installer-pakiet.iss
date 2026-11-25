@@ -33,6 +33,8 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 pl.SrvAuto=Uruchamiaj Serwer filmów razem z Windows (w tle – Twoje komputery i telefon widzą bibliotekę)
 en.SrvAuto=Start the Movie server with Windows (in the background – your computers and phone see the library)
+pl.NieZamkniete=Nie udało się zamknąć wszystkich programów Velivo (prawdopodobnie któryś działa jako administrator). Uruchom komputer ponownie i zainstaluj jeszcze raz.
+en.NieZamkniete=Could not close all Velivo programs (one is probably running as administrator). Restart the computer and install again.
 pl.TFull=Pełny – wszystkie programy Velivo
 en.TFull=Full – all Velivo programs
 pl.TTyp=Typowy – programy do codziennej pracy (bez Kursorów i Serwera filmów)
@@ -149,6 +151,46 @@ end;
 function InitializeSetup: Boolean;
 begin
   Result := KontoOk;
+end;
+
+// 🧹 przed instalacją WSZYSTKIE programy Velivo zamknięte (właściciel 2026-11-25): zadanie Procesora z uprawnieniami zatrzymane, każdy proces z podrzędnymi
+//    (WebView2, odtwarzacz) zakończony, czekanie aż naprawdę znikną (do 15 s) - potem czysta podmiana plików; dane użytkownika zostają
+const VelivoProcs = 'Velivo.exe VelivoOdtwarzacz.exe VelivoPrzegladarka.exe VelivoKlawiatura.exe VelivoSerwer.exe VelivoKomunikator.exe VelivoAudioBalance.exe VelivoMonitor.exe VelivoKursory.exe VelivoProcesor.exe VelivoCentrum.exe';
+// tylko programy z listy (instalator pakietu też ma „Velivo” w nazwie - nie może czekać sam na siebie)
+function VelivoDziala: Boolean;
+var L, S, R: Variant; Lista, N, Q: String;
+begin
+  Result := False;
+  Lista := VelivoProcs + ' '; Q := '';
+  while Pos(' ', Lista) > 0 do
+  begin
+    N := Copy(Lista, 1, Pos(' ', Lista) - 1); Delete(Lista, 1, Pos(' ', Lista));
+    if N <> '' then begin if Q <> '' then Q := Q + ' OR '; Q := Q + 'Name = ''' + N + ''''; end;
+  end;
+  try
+    L := CreateOleObject('WbemScripting.SWbemLocator'); S := L.ConnectServer('.', 'root\CIMV2');
+    R := S.ExecQuery('SELECT ProcessId FROM Win32_Process WHERE ' + Q);
+    Result := R.Count > 0;
+  except
+  end;
+end;
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Code, I: Integer; Lista, N: String;
+begin
+  Result := '';
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/end /tn "Velivo Procesor"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  for I := 1 to 30 do
+  begin
+    Lista := VelivoProcs + ' ';
+    while Pos(' ', Lista) > 0 do
+    begin
+      N := Copy(Lista, 1, Pos(' ', Lista) - 1); Delete(Lista, 1, Pos(' ', Lista));
+      if N <> '' then Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM ' + N, '', SW_HIDE, ewWaitUntilTerminated, Code);
+    end;
+    Sleep(500);
+    if not VelivoDziala then break;
+  end;
+  if VelivoDziala then Result := CustomMessage('NieZamkniete');
 end;
 // serwer filmów z Windows - tylko gdy zaznaczone na stronie zadań pakietu
 function SrvAuto(P: String): String;

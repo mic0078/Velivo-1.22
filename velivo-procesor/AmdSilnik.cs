@@ -199,7 +199,7 @@ namespace VelivoProcesor
         void Pilnuj(Stan s)
         {
             Reguluj();
-            if (!ustawione) return;
+            if (!ustawione || zadane.Stapm <= 0) return;   // po ponownym uruchomieniu programu: zadane dopiero przy pierwszej decyzji o trybie
             bool R(double a, double b) => Math.Abs(a - b) < 0.6;
             bool rozne = !R(s.StapmL, zadane.Stapm) || !R(s.FastL, zadane.Fast) || !R(s.SlowL, zadane.Slow) || !R(s.TempL, zadane.Tctl);
             if (!rozne) { nadpisane = false; return; }

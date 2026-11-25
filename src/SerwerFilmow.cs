@@ -83,15 +83,17 @@ namespace Velivo
                     await Task.Delay(1000);
                 }
                 // 🖼 brak plakatu (np. Wikimedia chwilowo odmówiło - 429): sam plakat od nowa, najwyżej raz na dobę dla filmu; opis i obsada (także wpisane ręcznie) bez zmian
+                int plakN = 0; var manP = LoadManual();   // najwyżej 15 na przegląd - lejek Wikimedia zostaje wolny dla wyszukiwania
                 foreach (var v in LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path)).ToList())
                 {
-                    var mi = LookupMeta(Meta, v.Path); var klucz = MetaKey(v.Path);
-                    if (mi == null || mi.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster))
+                    var klucz = MetaKey(v.Path);
+                    if (plakN >= 15) break;
+                    if (!manP.TryGetValue(klucz, out var mi) || mi == null || mi.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster))   // tylko własne informacje serwera (Jellyfin - bez zmian)
                         || DateTime.TryParse(GetPref("serwer-plakat|" + klucz), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bp) && (DateTime.Now - bp).TotalDays < 1) continue;
-                    SetPref("serwer-plakat|" + klucz, DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
+                    SetPref("serwer-plakat|" + klucz, DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture)); plakN++;
                     MovieInfo nm; try { nm = await SerwerZnajdz(v); } catch (Exception ex) { App.LogInfo("Serwer filmów – plakat „" + v.Title + "”: " + ex.Message); break; }
                     if (nm?.Poster != null && File.Exists(Path.Combine(PosterDir, nm.Poster)))
-                    { mi.Poster = nm.Poster; var man = LoadManual(); man[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++; }
+                    { mi.Poster = nm.Poster; manP = LoadManual(); manP[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(manP)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++; }
                     await Task.Delay(1000);
                 }
                 if (opis > 0) _libRefresh?.Invoke();

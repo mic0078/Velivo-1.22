@@ -40,7 +40,12 @@ namespace VelivoProcesor
                     }
                 }
                 catch (Exception) { }
-            using (var one = new Mutex(true, @"Local\VelivoProcesor", out bool first))
+            // znacznik jednej kopii i sygnał „pokaż okno” dostępne też dla zwykłej kopii, gdy działa kopia z uprawnieniami administratora (kliknięcie ikony w menu Start)
+            var ms = new System.Security.AccessControl.MutexSecurity(); ms.AddAccessRule(new System.Security.AccessControl.MutexAccessRule(new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.AuthenticatedUserSid, null), System.Security.AccessControl.MutexRights.Synchronize | System.Security.AccessControl.MutexRights.Modify, System.Security.AccessControl.AccessControlType.Allow));
+            ms.AddAccessRule(new System.Security.AccessControl.MutexAccessRule(System.Security.Principal.WindowsIdentity.GetCurrent().User, System.Security.AccessControl.MutexRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            Mutex one0; bool first;
+            try { one0 = new Mutex(true, @"Local\VelivoProcesor", out first, ms); } catch (UnauthorizedAccessException) { return; }   // działa kopia z uprawnieniami (starsza wersja - bez dostępu dla zwykłej kopii)
+            using (var one = one0)
             {
                 if (!first) { try { using (var ev = EventWaitHandle.OpenExisting(@"Local\VelivoProcesor.Pokaz")) ev.Set(); } catch (Exception) { } return; }
                 var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -104,7 +109,9 @@ namespace VelivoProcesor
             tray.MouseClick += (a, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Pokaz(); };
             tray.ContextMenuStrip = MenuZasobnik();
             Velivo.CentrumZasobnik.Podlacz(tray, false);   // własna ikona przy zegarze zawsze (tryb i temperatura widać od razu), menu także z Centrum
-            var ev = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\VelivoProcesor.Pokaz");
+            var es = new System.Security.AccessControl.EventWaitHandleSecurity(); es.AddAccessRule(new System.Security.AccessControl.EventWaitHandleAccessRule(new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.AuthenticatedUserSid, null), System.Security.AccessControl.EventWaitHandleRights.Synchronize | System.Security.AccessControl.EventWaitHandleRights.Modify, System.Security.AccessControl.AccessControlType.Allow));
+            es.AddAccessRule(new System.Security.AccessControl.EventWaitHandleAccessRule(System.Security.Principal.WindowsIdentity.GetCurrent().User, System.Security.AccessControl.EventWaitHandleRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            var ev = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\VelivoProcesor.Pokaz", out _, es);
             new Thread(() => { while (ev.WaitOne()) win.Dispatcher.BeginInvoke(new Action(Pokaz)); }) { IsBackground = true }.Start();
             Microsoft.Win32.SystemEvents.SessionEnding += (a, e) => Koniec(false);
             Program.Zakoncz = () => Koniec(true);

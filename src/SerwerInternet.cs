@@ -196,9 +196,11 @@ namespace Velivo
                     NetUser usr; lock (NetUsers()) usr = _netUsers.FirstOrDefault(u => u.Id == dev.UserId);
                     if (usr == null) { Zle(); await HttpOdp(ssl, 403, "text/plain", null); return; }   // osoba usunięta - jej urządzenia odcięte
                     if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - dev.Seen > 60000) { dev.Seen = usr.Seen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); NetDevsSave(); }
-                    var lib = LoadLibrary().Where(v => File.Exists(v.Path) && SerwerUdostepnia(v) && UserWidzi(usr, v.Path)).GroupBy(v => FilmId(v.Path)).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();
+                    // pełna lista (sprawdzenie każdego pliku) tylko dla /lib; plakat, film, postęp - tylko ten jeden film (było: setki sprawdzeń plików przy każdym plakacie i przewinięciu)
+                    var wszystkie = LoadLibrary();
                     if (route == "/lib")
                     {
+                        var lib = wszystkie.Where(v => File.Exists(v.Path) && SerwerUdostepnia(v) && UserWidzi(usr, v.Path)).GroupBy(v => FilmId(v.Path)).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();
                         var items = lib.Select(v =>
                         {
                             var mi = LookupMeta(Meta, v.Path); MovieInfo info = null;
@@ -208,7 +210,8 @@ namespace Velivo
                         }).ToList();
                         await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(items)); return;
                     }
-                    var id = route.Length > 3 ? route.Substring(3) : ""; var film = lib.FirstOrDefault(v => FilmId(v.Path) == (route == "/prog" || route == "/fav" ? (q.TryGetValue("id", out var qi) ? qi : "") : id));
+                    var id = route.Length > 3 ? route.Substring(3) : ""; var szukane = route == "/prog" || route == "/fav" ? (q.TryGetValue("id", out var qi) ? qi : "") : id;
+                    var film = wszystkie.Where(v => FilmId(v.Path) == szukane && File.Exists(v.Path) && SerwerUdostepnia(v) && UserWidzi(usr, v.Path)).OrderByDescending(v => v.Last).FirstOrDefault();
                     if (film == null) { await HttpOdp(ssl, 404, "text/plain", null); return; }
                     if (route == "/fav") { bool on1 = q.TryGetValue("on", out var on) && on == "1"; if (!UserFav(usr, FilmId(film.Path), on1)) SrvUlubSet(FilmId(film.Path), on1); await HttpOdp(ssl, 200, "text/plain", null); return; }
                     if (route.StartsWith("/p/"))

@@ -51,10 +51,92 @@ namespace Velivo
             Dispatcher.BeginInvoke(new Action(() => SerwerSkanuj(false)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
+        // 📁 porządek sam (właściciel 2026-11-25): film wrzucony luzem do folderu serwera - gdy skończy się kopiować, trafia do własnego folderu o nazwie pliku
+        // (razem z napisami, .nfo i plakatem o tej samej nazwie), potem informacje jak zawsze; zmiana nazwy PLIKU w jego folderze - folder też zmienia nazwę,
+        // chyba że użytkownik nazwał folder po swojemu (nazwa folderu ≠ dawna nazwa pliku) - wtedy zostaje. Folder z kilkoma filmami - bez zmian.
+        readonly List<FileSystemWatcher> _serwerObs = new List<FileSystemWatcher>(); string _serwerObsSig;
+        System.Windows.Threading.DispatcherTimer _serwerPorzTm; bool _serwerPorzTrwa;
+        readonly Dictionary<string, long> _serwerRozm = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);   // rozmiar przy poprzednim sprawdzeniu - plik jeszcze rośnie?
+        void SerwerPilnuj()
+        {
+            var fol = SerwerFoldery().Where(Directory.Exists).ToList(); var sig = string.Join("|", fol);
+            if (sig == _serwerObsSig) return;   // te same foldery - obserwacja już działa
+            _serwerObsSig = sig; foreach (var o in _serwerObs) o.Dispose(); _serwerObs.Clear();
+            foreach (var f in fol)
+                try
+                {
+                    var o = new FileSystemWatcher(f) { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite, InternalBufferSize = 65536 };
+                    FileSystemEventHandler zm = (s, e) => { if (IsVlcVideoFile(e.FullPath)) Dispatcher.BeginInvoke(new Action(SerwerPorzadekZaChwile)); };
+                    o.Created += zm; o.Changed += zm;
+                    o.Renamed += (s, e) => { if (IsVlcVideoFile(e.FullPath)) Dispatcher.BeginInvoke(new Action(() => SerwerZmianaNazwy(e.OldFullPath, e.FullPath))); };
+                    o.EnableRaisingEvents = true; _serwerObs.Add(o);
+                }
+                catch (Exception ex) { App.LogInfo("Serwer filmów – obserwacja folderu " + f + ": " + ex.Message); }
+            SerwerPorzadekZaChwile();   // filmy leżące luzem od wcześniej - też
+        }
+        // sprawdzenie 30 s po ostatniej zmianie w folderach (kopiowanie dużego pliku - wiele zmian, jedno sprawdzenie)
+        void SerwerPorzadekZaChwile()
+        {
+            if (_serwerPorzTm == null) { _serwerPorzTm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) }; _serwerPorzTm.Tick += async (s, e) => { _serwerPorzTm.Stop(); await SerwerPorzadekTeraz(); }; }
+            _serwerPorzTm.Stop(); _serwerPorzTm.Start();
+        }
+        async Task SerwerPorzadekTeraz()
+        {
+            if (_serwerPorzTrwa) { SerwerPorzadekZaChwile(); return; }
+            _serwerPorzTrwa = true; int czeka = 0;
+            try
+            {
+                // skopiowany do końca: ten sam rozmiar co przy poprzednim sprawdzeniu i żaden program go nie trzyma (kopiowanie, odtwarzanie)
+                bool Gotowy(string f)
+                {
+                    long n; try { n = new FileInfo(f).Length; } catch (Exception) { czeka++; return false; }
+                    bool ten = _serwerRozm.TryGetValue(f, out var by) && by == n; _serwerRozm[f] = n;
+                    if (!ten) { czeka++; return false; }
+                    try { using (new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.None)) { } } catch (Exception) { czeka++; return false; }
+                    _serwerRozm.Remove(f); return true;
+                }
+                var (ok, _) = await SerwerUporzadkuj(Gotowy);
+                if (ok > 0) { ShowToast(L.T("📁 Serwer filmów: nowe filmy w swoich folderach: ") + ok, null); SerwerSkanuj(false); }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            finally { _serwerPorzTrwa = false; }
+            if (czeka > 0) SerwerPorzadekZaChwile();   // jeszcze się kopiuje - sprawdzenie za 30 s
+        }
+        // zmiana nazwy pliku filmu w jego folderze → folder dostaje tę samą nazwę (gdy nazywał się jak dawny plik); informacje szukane od nowa po nowej nazwie
+        void SerwerZmianaNazwy(string stary, string nowy)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(nowy) ?? "";
+                if (!string.Equals(Path.GetDirectoryName(stary), dir, StringComparison.OrdinalIgnoreCase)) return;   // przeniesienie, nie zmiana nazwy
+                var fol = SerwerFoldery();
+                if (fol.Any(f => string.Equals(f.TrimEnd('\\'), dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))) { SerwerPorzadekZaChwile(); return; }   // plik luzem w folderze serwera - zwykły porządek
+                var root = fol.FirstOrDefault(f => string.Equals(f.TrimEnd('\\'), (Path.GetDirectoryName(dir) ?? "").TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)); if (root == null) return;   // tylko foldery filmów bezpośrednio w folderze serwera
+                string sn = Path.GetFileNameWithoutExtension(stary).Trim().TrimEnd('.'), nn = Path.GetFileNameWithoutExtension(nowy).Trim().TrimEnd('.');
+                if (nn.Length == 0 || sn == nn || !string.Equals(Path.GetFileName(dir), sn, StringComparison.OrdinalIgnoreCase)) return;   // folder nazwany przez użytkownika - zostaje
+                if (Directory.EnumerateFiles(dir).Count(f => IsVlcVideoFile(f) && !IsAudioFile(f)) != 1) return;   // kilka filmów w jednym folderze - nie ruszam
+                var cel = Path.Combine(root, nn);
+                if (string.Equals(cel, dir, StringComparison.OrdinalIgnoreCase)) { var tmp = dir + ".velivo-zmiana"; Directory.Move(dir, tmp); Directory.Move(tmp, cel); }   // sama wielkość liter
+                else if (Directory.Exists(cel) || File.Exists(cel)) { App.LogInfo("Serwer filmów – folder " + cel + " już jest, nazwa folderu bez zmian"); return; }
+                else Directory.Move(dir, cel);
+                var l = LoadLibrary(); bool zm = false;   // biblioteka: nowa ścieżka filmu (postęp oglądania i ulubione zostają)
+                foreach (var v in l)
+                {
+                    var p = string.Equals(v.Path, stary, StringComparison.OrdinalIgnoreCase) ? nowy : v.Path;
+                    if (p.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase)) { v.Path = cel + p.Substring(dir.Length); zm = true; }
+                }
+                if (zm) { SaveLibrary(l); _sharedCache = null; _libRefresh?.Invoke(); }
+                ShowToast(L.T("📁 Serwer filmów: folder dostał nową nazwę filmu – ") + nn, null);
+                SerwerSkanuj(false);
+            }
+            catch (Exception ex) { App.LogInfo("Serwer filmów – nazwa folderu po zmianie nazwy filmu: " + ex.Message); }   // plik / folder w użyciu - zostaje jak jest
+        }
+
         // nowe pliki z folderów -> biblioteka (wspólna), potem informacje o filmach bez opisu
         async void SerwerSkanuj(bool pokaz)
         {
             if (_serwerSkan) { if (pokaz) ShowToast(L.T("🎞 Serwer już przegląda foldery…"), null); return; }
+            if (Wariant.Serwer) SerwerPilnuj();   // 📁 foldery serwera zmienione w oknie - obserwacja od nowa
             _serwerSkan = true;
             try
             {

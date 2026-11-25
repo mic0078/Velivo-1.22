@@ -1843,6 +1843,8 @@ namespace Velivo
             { "Nazwa folderu na serwerze (", "Folder name on the server (" },
             { ") – zmiana nie zmienia nazwy pliku ani wyszukiwania informacji:", ") – changing it does not change the file name or the information search:" },
             { "🗄 Pobrano na serwer: ", "🗄 Downloaded to the server: " },
+            { "📁 Serwer filmów: nowe filmy w swoich folderach: ", "📁 Movie server: new movies in their own folders: " },
+            { "📁 Serwer filmów: folder dostał nową nazwę filmu – ", "📁 Movie server: folder renamed to the new movie name – " },
             { "🔑 Przeniesienie kopii – hasło i klucze sprzętowe", "🔑 Backup transfer – password and hardware keys" },
             { "Dane szyfrowane kontem Windows (zapisane hasła stron, rozmowy i kontakty, słownik klawiatury, Jellyfin, synchronizacja) kopia zabezpiecza dodatkowo. Na nowym komputerze otworzysz je hasłem ALBO dowolnym z dodanych kluczy sprzętowych (także kluczami trybu bankowego). Dotyczy kopii robionych od teraz.", "Data encrypted with your Windows account (saved site passwords, chats and contacts, keyboard dictionary, Jellyfin, sync) is protected additionally in the backup. On a new computer you open it with the password OR any of the added hardware keys (bank mode keys too). Applies to backups made from now on." },
             { "⚠ Wyłączone – kopię z tymi danymi przywrócisz tylko na tym koncie Windows.", "⚠ Off – this data can be restored only on this Windows account." },

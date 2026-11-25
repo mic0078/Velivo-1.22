@@ -182,12 +182,14 @@ namespace Velivo
 
         // 📁 porządek w folderach serwera: film z katalogu głównego folderu → „Folder/Nazwa filmu/” (napisy, .nfo, plakat o tej samej nazwie też);
         //    biblioteka dostaje nowe ścieżki (postęp, ulubione zostają; informacje o filmie są po nazwie pliku - też zostają)
-        async Task<(int Ok, int Pominiete)> SerwerUporzadkuj()
+        // gotowy - który plik wolno już przenieść (porządek sam: skopiowany do końca); null - wszystkie (przycisk „📁 Uporządkuj w foldery”)
+        async Task<(int Ok, int Pominiete)> SerwerUporzadkuj(Func<string, bool> gotowy = null)
         {
             int ok = 0, pom = 0; var zmiany = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); string wznowCel = null; long wznow = 0;
             foreach (var folder in SerwerFoldery().Where(Directory.Exists))
                 foreach (var film in Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly).Where(f => IsVlcVideoFile(f) && !IsAudioFile(f)).ToList())
                 {
+                    if (gotowy != null && !gotowy(film)) continue;
                     var nazwa = Path.GetFileNameWithoutExtension(film); var dir = Path.Combine(folder, nazwa.Trim().TrimEnd('.'));
                     var razem = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly).Where(f => !string.Equals(f, film, StringComparison.OrdinalIgnoreCase) && Path.GetFileName(f).StartsWith(nazwa, StringComparison.OrdinalIgnoreCase)
                         && (SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant()) || f.EndsWith(".nfo", StringComparison.OrdinalIgnoreCase) || Path.GetFileNameWithoutExtension(f).EndsWith("-poster", StringComparison.OrdinalIgnoreCase))).ToList();

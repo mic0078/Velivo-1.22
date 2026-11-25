@@ -26,6 +26,20 @@ namespace VelivoProcesor
             AppDomain.CurrentDomain.UnhandledException += (o, e) => { try { System.IO.Directory.CreateDirectory(Silnik.Dir); System.IO.File.AppendAllText(System.IO.Path.Combine(Silnik.Dir, "bledy.txt"), DateTime.Now + " " + e.ExceptionObject + Environment.NewLine + Environment.NewLine); } catch (Exception) { } };
             if (args.Contains("--przywroc")) { new Silnik().PrzywrocWindows(); return; }   // deinstalator
             if (args.Contains("--zadanie")) { Zadanie(); return; }   // uruchomione jako administrator tylko po to
+            // 🔑 jest zadanie z uprawnieniami (sterowanie mocą AMD, czujniki), a ta kopia ruszyła bez nich (zwykły start z Windows / skrót - po instalacji wraca) - uruchamiam zadanie;
+            //    gdy w 10 s nie ruszy (wyłączone, usunięte) - ta kopia działa dalej jak dotąd
+            if (!Silnik.Admin() && ZadanieJest())
+                try
+                {
+                    using (var p = Process.Start(new ProcessStartInfo("schtasks.exe", "/run /tn \"Velivo Procesor\"") { UseShellExecute = false, CreateNoWindow = true })) p.WaitForExit(5000);
+                    for (int i = 0; i < 20; i++)
+                    {
+                        Thread.Sleep(500);
+                        bool jest; try { jest = Mutex.TryOpenExisting(@"Local\VelivoProcesor", out var m); m?.Dispose(); } catch (UnauthorizedAccessException) { jest = true; }   // kopia administratora - zwykła nie ma dostępu, ale wie, że działa
+                        if (jest) { if (!args.Contains("--zasobnik")) { Thread.Sleep(1500); try { using (var ev = EventWaitHandle.OpenExisting(@"Local\VelivoProcesor.Pokaz")) ev.Set(); } catch (Exception) { } } return; }
+                    }
+                }
+                catch (Exception) { }
             using (var one = new Mutex(true, @"Local\VelivoProcesor", out bool first))
             {
                 if (!first) { try { using (var ev = EventWaitHandle.OpenExisting(@"Local\VelivoProcesor.Pokaz")) ev.Set(); } catch (Exception) { } return; }

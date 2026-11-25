@@ -112,7 +112,10 @@ namespace VelivoProcesor
         // ---------- wartości fabryczne ----------
         // Odczyt po każdym uruchomieniu Windows (przy pierwszym starcie programu w tej sesji limity są jeszcze z BIOS) - zmiana w BIOS (np. tryb „Performance”) zostaje uwzględniona.
         // Zestawy starego Velivo (nadpisywały fabryczne, a przy zamknięciu zostawiały Turbo) - nie są brane za fabryczne.
-        public double FStapm, FFast, FSlow, FTctl; public bool Skalibrowany; string kalibracjaUwaga = "";
+        public double FStapm, FFast, FSlow, FTctl; public bool Skalibrowany;
+        // 🔝 najwyższe limity, jakie BIOS tego komputera kiedykolwiek ustawił (np. tryb „Performance”) - sprawdzone przez producenta dla tego sprzętu;
+        //    Zrównoważony i Turbo liczone od nich także przy BIOS „Balance” (RyzenAdj omija niższe ustawienie BIOS), Cichy i przywracanie - od bieżącego BIOS
+        public double MStapm, MFast, MSlow, MTctl; string kalibracjaUwaga = "";
         static string Plik => Path.Combine(Silnik.Dir, "amd-fabryczne.txt");
         [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
         static long Start_Windows() => (DateTime.UtcNow - TimeSpan.FromMilliseconds(GetTickCount64())).Ticks / TimeSpan.TicksPerMinute;
@@ -126,7 +129,7 @@ namespace VelivoProcesor
             var s = Odczyt();
             if (s != null && (!taSesja || !zmienione) && !StaryVelivo(s))
             {   // świeże limity z BIOS
-                FStapm = s.StapmL; FFast = s.FastL; FSlow = s.SlowL; FTctl = s.TempL; Skalibrowany = true; Zapisz(false);
+                FStapm = s.StapmL; FFast = s.FastL; FSlow = s.SlowL; FTctl = s.TempL; Skalibrowany = true;   // zapis niżej - razem z najwyższymi znanymi
             }
             else if (P("stapm") > 0)
             {   // ta sama sesja Windows po zmianach Velivo - wartości z pliku
@@ -134,6 +137,13 @@ namespace VelivoProcesor
             }
             else if (s != null) kalibracjaUwaga = "uruchom komputer ponownie, aby Velivo odczytało fabryczne limity (teraz są ustawione przez starszą wersję)";
             if (Skalibrowany && (FFast < FSlow || FSlow < FStapm * 0.5 || FTctl < 50 || FTctl > 105)) { Skalibrowany = false; kalibracjaUwaga = "nietypowe limity fabryczne – nie zmieniam mocy"; }
+            if (Skalibrowany)
+            {
+                double M(string k, double f) { var v = P(k); return v > 0 && v <= f * 2.5 ? Math.Max(v, f) : f; }   // zapis z bzdurną wartością - bez niego
+                MStapm = M("mstapm", FStapm); MFast = M("mfast", FFast); MSlow = M("mslow", FSlow); MTctl = Math.Min(95, M("mtctl", FTctl));
+                if (MFast < MSlow || MSlow < MStapm) { MStapm = FStapm; MFast = FFast; MSlow = FSlow; MTctl = FTctl; }
+                Zapisz(ustawione);
+            }
         }
         static bool StaryVelivo(Stan s)
         {
@@ -146,11 +156,11 @@ namespace VelivoProcesor
             try
             {
                 var ci = CultureInfo.InvariantCulture; Directory.CreateDirectory(Silnik.Dir);
-                File.WriteAllLines(Plik, new[] { "stapm=" + FStapm.ToString(ci), "fast=" + FFast.ToString(ci), "slow=" + FSlow.ToString(ci), "tctl=" + FTctl.ToString(ci), "start=" + Start_Windows(), "zmienione=" + (zmienione ? "1" : "0") });
+                File.WriteAllLines(Plik, new[] { "stapm=" + FStapm.ToString(ci), "fast=" + FFast.ToString(ci), "slow=" + FSlow.ToString(ci), "tctl=" + FTctl.ToString(ci), "mstapm=" + MStapm.ToString(ci), "mfast=" + MFast.ToString(ci), "mslow=" + MSlow.ToString(ci), "mtctl=" + MTctl.ToString(ci), "start=" + Start_Windows(), "zmienione=" + (zmienione ? "1" : "0") });
             }
             catch (Exception) { }
         }
-        public string Fabryczne => Skalibrowany ? "fabrycznie: długotrwała " + FStapm.ToString("0") + " W, średnia " + FSlow.ToString("0") + " W, chwilowa " + FFast.ToString("0") + " W, temperatura " + FTctl.ToString("0") + " °C" : kalibracjaUwaga;
+        public string Fabryczne => Skalibrowany ? "BIOS teraz: długotrwała " + FStapm.ToString("0") + " W, średnia " + FSlow.ToString("0") + " W, chwilowa " + FFast.ToString("0") + " W, temperatura " + FTctl.ToString("0") + " °C · najwyższe z BIOS tego komputera (Zrównoważony i Turbo): średnia " + MSlow.ToString("0") + " W, chwilowa " + MFast.ToString("0") + " W, temperatura " + MTctl.ToString("0") + " °C" : kalibracjaUwaga;
 
         // ---------- poziomy ----------
         // Cichy: moc długotrwała fabryczna, bez szpilek (chwilowa = średnia = długotrwała), granica temperatury −5 °C - procesor sam łagodnie zwalnia;
@@ -158,10 +168,10 @@ namespace VelivoProcesor
         // Turbo: jak Zrównoważony + granica temperatury +5 °C (nie ponad 90 °C) - wyższy zegar kilku rdzeni.
         public (double Stapm, double Fast, double Slow, double Tctl) Cel(Tryb t)
         {
-            double dl = Math.Max(FStapm, FSlow - obnizka);
+            double dl = Math.Max(FStapm, MSlow - obnizka);
             if (t == Tryb.Cichy) return (FStapm, FStapm, FStapm, FTctl - 5);
-            if (t == Tryb.Turbo) return (FSlow, FFast, FSlow, Math.Max(FTctl, Math.Min(FTctl + 5, 90)));
-            return (dl, FFast, FSlow, FTctl);
+            if (t == Tryb.Turbo) return (MSlow, MFast, MSlow, Math.Max(MTctl, Math.Min(MTctl + 5, 90)));
+            return (dl, MFast, MSlow, MTctl);
         }
         // 🌡 regulator kultury pracy (Zrównoważony): średnia temperatura z minuty ≥ granica − 3 °C → moc długotrwała −1 W (do fabrycznej); ≤ granica − 10 °C → z powrotem +1 W; najwyżej raz na minutę
         double tempSr, obnizka; DateTime regAt; Tryb tryb; bool ustawione;
@@ -169,7 +179,7 @@ namespace VelivoProcesor
         {
             if (!Skalibrowany || tryb != Tryb.Zrownowazony || (DateTime.UtcNow - regAt).TotalSeconds < 60 || tempSr <= 0) return;
             double o = obnizka;
-            if (tempSr >= FTctl - 3) o = Math.Min(Math.Max(0, FSlow - FStapm), o + 1); else if (tempSr <= FTctl - 10) o = Math.Max(0, o - 1);
+            if (tempSr >= MTctl - 3) o = Math.Min(Math.Max(0, MSlow - FStapm), o + 1); else if (tempSr <= MTctl - 10) o = Math.Max(0, o - 1);
             if (o != obnizka) { obnizka = o; regAt = DateTime.UtcNow; Ustaw(tryb, true); }
         }
 

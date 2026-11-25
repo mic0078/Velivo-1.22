@@ -12,7 +12,7 @@ namespace VelivoProcesor
     // 🔥 Silnik AMD (projekt: dokumentacja/velivo-procesor-silnik-amd-intel.md). Zasady:
     // - limity liczone od FABRYCZNYCH tego komputera (odczyt po każdym uruchomieniu Windows, zanim Velivo cokolwiek zmieni) - nigdy z góry wpisane waty;
     // - nigdy ponad fabryczne: moc chwilowa (Fast), średnia (Slow), prąd (TDC/EDC); moc długotrwała (STAPM) najwyżej do fabrycznej średniej (Slow);
-    //   wyjątek: 🚀 Turbo „na maxa” (właściciel) - moc bez praktycznego limitu: wszystkie trzy = najwyżej 1,8 × fabryczna chwilowa, nie mniej niż 40 W (NUCBOX: 40 W ustawione ręcznie przez właściciela działało), granica 90 °C;
+    //   wyjątek: 🚀 Turbo „na maxa” (właściciel) - moc bez praktycznego limitu: wszystkie trzy = najwyżej 1,8 × fabryczna chwilowa, nie mniej niż 45 W (NUCBOX: właściciel ustawiał ręcznie 35–45 W; procesor sam przycina do swojego maksimum), granica 90 °C;
     //   prąd (TDC/EDC) nigdy nie zmieniany - fabryczne limity prądu chronią procesor i zasilanie na płycie, granica temperatury - przed przegrzaniem;
     // - zegar i boost zostają dla procesora (CPPC) - silnik pilnuje tylko budżetu mocy i temperatury;
     // - telemetria co 10 s (tabela pomiarów SMU przez PawnIO);
@@ -256,12 +256,12 @@ namespace VelivoProcesor
         // ---------- poziomy ----------
         // Cichy: moc długotrwała fabryczna, bez szpilek (chwilowa = średnia = długotrwała), granica temperatury −5 °C - procesor sam łagodnie zwalnia;
         // Zrównoważony: długotrwała do fabrycznej średniej (krótkie i długie zadania tak samo szybkie), reszta fabryczna;
-        // Turbo: na maxa - moc ponad fabryczną (NUCBOX: 40 W długotrwale, średnio i chwilowo), granica temperatury 90 °C; hamują dopiero fabryczny prąd i temperatura.
+        // Turbo: na maxa - moc ponad fabryczną (NUCBOX: 45 W zadane, procesor przyjmuje swoje maksimum), granica temperatury 90 °C; hamują dopiero fabryczny prąd i temperatura.
         public (double Stapm, double Fast, double Slow, double Tctl) Cel(Tryb t)
         {
             double dl = Math.Max(FStapm, MSlow - obnizka);
             if (t == Tryb.Cichy) return (FStapm, FStapm, FStapm, FTctl - 5);
-            if (t == Tryb.Turbo) { double p = Math.Max(40, MFast * 1.8); return (p, p, p, Math.Max(MTctl, 90)); }
+            if (t == Tryb.Turbo) { double p = Math.Max(45, MFast * 1.8); return (p, p, p, Math.Max(MTctl, 90)); }
             return (dl, MFast, MSlow, MTctl);
         }
         // 🌡 regulator kultury pracy (Zrównoważony): średnia temperatura z minuty ≥ granica − 3 °C → moc długotrwała −1 W (do fabrycznej); ≤ granica − 10 °C → z powrotem +1 W; najwyżej raz na minutę

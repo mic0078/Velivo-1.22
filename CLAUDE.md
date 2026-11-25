@@ -456,6 +456,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-24: 🎚 Audio Balance po konsultacji GPT + Gemini (gałąź `audio-balance`): jeden kompresor z progiem od celu LUFS (`RefDb`), ściszanie lektora za kompresorem, tryby Lekko / Normalnie / Noc z nowymi liczbami ustawiają też kompresor (`DynParams.ForSila`, `AbSilaKompresor`), bardzo ciche najwyżej +12 dB. Właściciel: „o wiele lepiej niż było”. Bardzo cicho nagrany film (−35 LUFS) – włączyć „Bardzo ciche nagrania” (wybór właściciela zamiast +15 dB w Normalnie). Zalecany cel −20 LUFS.
 
+* 2026-11-25: 💾 Velivo Kopia (`velivo-kopia/`, osobny moduł, w pakietach 1.22 i 1.23, makieta `dokumentacja/makieta-kopia-velivo.html`): okno Zrób kopię / Przywróć, kopia sama wg harmonogramu (dzień, godzina, przyrostowa), przywracanie wybranego dnia. Kopię robi silnik Velivo (ten sam co 🧹 i Centrum); każdy folder w %LOCALAPPDATA%\Velivo trafia do kopii sam (`KopiaSkladniki.FolderyModulow`, bez zapisów tego komputera), start z Windows w kopii. Niesprawdzone na sprzęcie.
+
 ## Na potem (pomysły właściciela)
 
 * 2026-10-28: CHUWI jako zapas przekazuje wiadomości (właściciel) – po poprawkach 0aeb8b7 (porty 41920–41929), a368c4c (przedstawianie serwerów od nowa, nowy port), 6cd0f75 (serwer, który działa, zamiast pierwszego z listy). Która z nich rozstrzygnęła – niesprawdzone (brak dziennika). Do potwierdzenia: Ryzen jako zapas.

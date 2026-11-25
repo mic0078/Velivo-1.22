@@ -406,6 +406,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-23: Velivo Procesor AMD – skopiowałem z v40 „Balanced Max 99 %” i zegar stał na bazowym 2 GHz (Turbo tylko przy dużym obciążeniu całego procesora, a pojedynczy program go nie daje). Właściciel: „miałeś wyciągnąć wnioski, nie kopiować”. Cofnięte. Przed przeniesieniem ustawienia z innego programu sprawdź, czy reszta logiki Velivo działa tak samo (tam Turbo włączało się inaczej).
 
+* 2026-11-25: Procesor po restarcie „RyzenAdj nie odpowiada” mimo poprawek – przyczyna z dziennika Defendera (Get-MpThreatDetection): WinRing0 (sterownik RyzenAdj) blokowany jako VulnerableDriver, wyjątek nie pomaga; teraz PawnIO (podpisany, jak G-Helper). Zanim poprawisz „nie odpowiada” – sprawdź antywirus i dziennik systemu; kolejność testów właściciela: najpierw sam moduł, potem budowa całości; polecenie budowy z numerem wersji.
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

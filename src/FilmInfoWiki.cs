@@ -35,6 +35,7 @@ namespace Velivo
                         if ((int)r.StatusCode != 429 || proba > 0) return r;
                         var ra = r.Headers.RetryAfter?.Delta ?? (r.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow) ?? TimeSpan.FromSeconds(20);
                         nast = DateTime.UtcNow + (ra < TimeSpan.FromSeconds(2) ? TimeSpan.FromSeconds(2) : ra > TimeSpan.FromMinutes(2) ? TimeSpan.FromMinutes(2) : ra); r.Dispose();
+                        App.LogInfo("Wikimedia: za dużo zapytań (429) – czekam " + (int)(nast - DateTime.UtcNow).TotalSeconds + " s · " + req.RequestUri?.Host);   // przyczyna długiego czekania na informacje - w dzienniku
                     }
                 }
                 finally { jeden.Release(); }

@@ -148,7 +148,7 @@ namespace Velivo
                 int opis = 0;
                 foreach (var v in bez)
                 {
-                    try { if (await SerwerOpis(v)) { opis++; var mo = LookupMeta(Meta, v.Path); foreach (var o in mo?.People?.Take(12) ?? Enumerable.Empty<string>()) await AktorZdjecie(o); } else SetPref("serwer-brak|" + MetaKey(v.Path), DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture)); }   // nie znaleziono - nie co 10 min od nowa; znaleziono - od razu zdjęcia obsady
+                    try { if (await SerwerOpis(v)) { opis++; _libRefresh?.Invoke(); var mo = LookupMeta(Meta, v.Path); foreach (var o in mo?.People?.Take(12) ?? Enumerable.Empty<string>()) await AktorZdjecie(o); } else SetPref("serwer-brak|" + MetaKey(v.Path), DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture)); }   // nie znaleziono - nie co 10 min od nowa; znaleziono - od razu zdjęcia obsady
                     catch (Exception ex) { App.LogInfo("Serwer filmów – informacje o „" + v.Title + "”: " + ex.Message); break; }   // brak internetu - spróbujemy przy następnym przeglądzie
                     await Task.Delay(1000);   // Wikimedia - grzecznie, po jednym
                 }

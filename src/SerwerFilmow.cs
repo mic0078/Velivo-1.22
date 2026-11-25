@@ -82,6 +82,18 @@ namespace Velivo
                     mi.People = ob; var man = LoadManual(); man[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++;
                     await Task.Delay(1000);
                 }
+                // 🖼 brak plakatu (np. Wikimedia chwilowo odmówiło - 429): sam plakat od nowa, najwyżej raz na dobę dla filmu; opis i obsada (także wpisane ręcznie) bez zmian
+                foreach (var v in LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path)).ToList())
+                {
+                    var mi = LookupMeta(Meta, v.Path); var klucz = MetaKey(v.Path);
+                    if (mi == null || mi.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster))
+                        || DateTime.TryParse(GetPref("serwer-plakat|" + klucz), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bp) && (DateTime.Now - bp).TotalDays < 1) continue;
+                    SetPref("serwer-plakat|" + klucz, DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
+                    MovieInfo nm; try { nm = await SerwerZnajdz(v); } catch (Exception ex) { App.LogInfo("Serwer filmów – plakat „" + v.Title + "”: " + ex.Message); break; }
+                    if (nm?.Poster != null && File.Exists(Path.Combine(PosterDir, nm.Poster)))
+                    { mi.Poster = nm.Poster; var man = LoadManual(); man[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++; }
+                    await Task.Delay(1000);
+                }
                 if (opis > 0) _libRefresh?.Invoke();
                 if (pokaz || nowe > 0 || opis > 0) ShowToast(L.T("🎞 Serwer filmów: nowe filmy ") + nowe + L.T(", uzupełnione informacje ") + opis + (bez.Count > opis ? L.T(", bez informacji ") + (bez.Count - opis) : ""), null);
             }
@@ -90,7 +102,8 @@ namespace Velivo
         }
 
         // pierwszy pasujący film z Wikidanych (rok z nazwy pliku - pewniejszy wybór); zapis jak „📝 Uzupełnij informacje”
-        async Task<bool> SerwerOpis(LibraryVideo v)
+        // pierwszy pasujący film (opis, obsada, plakat) bez zapisu - albo null
+        async Task<MovieInfo> SerwerZnajdz(LibraryVideo v)
         {
             var t = CleanTitle(v.Title ?? Path.GetFileNameWithoutExtension(v.Path));
             var ym = System.Text.RegularExpressions.Regex.Match(t, @"^(.+?)[ .(]+((?:19|20)\d{2})\)?");
@@ -112,8 +125,12 @@ namespace Velivo
                         w = wyn.FirstOrDefault(x => x.WdId == id && id != null);
                     }
                 }
-            if (w == null) return false;
-            var m = await PobierzFilm(w, v.Path, null);
+            if (w == null) return null;
+            return await PobierzFilm(w, v.Path, null);
+        }
+        async Task<bool> SerwerOpis(LibraryVideo v)
+        {
+            var m = await SerwerZnajdz(v); if (m == null) return false;
             var key = MetaKey(v.Path); var man = LoadManual(); man[key] = m;
             Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
             Meta[key] = m; MetaObokFilmu(v.Path, true);   // 📁 też obok filmu

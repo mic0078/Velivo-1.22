@@ -239,3 +239,12 @@ Fabryczne (po restarcie): STAPM 15 W / okno 100 s, PPT Slow 20 W / okno 5 s, PPT
 | STAPM 20 W, 60–180 s | PPT Slow 20 W | 20 W | 70,4 → 71,6 °C (wolno rośnie) | ok. 3,0 GHz | stabilny |
 
 Wniosek: przy długiej pracy wielu rdzeni hamuje STAPM, temperatura ma zapas; STAPM 20 W (= fabryczny Slow) daje ok. +12 % zegaru wielu rdzeni przy ok. 8 °C zapasu do Tctl i stabilnym wentylatorze. Do potwierdzenia: test 10 min (czy temperatura się stabilizuje). Wyżej niż 20 W wymagałoby podniesienia PPT Slow i zostawia mniej zapasu temperatury – nieuzasadnione bez dalszego pomiaru.
+
+Kilka wątków (zadanie PowerShell), 30 s:
+
+| Tctl | Temperatura | Moc chwilowa | Zegar (Menedżer zadań) | Ogranicznik | Wentylator |
+|---|---|---|---|---|---|
+| 80 °C (fabryczne) | 79,8 °C | 15–20 W | 3,92 GHz | temperatura | – |
+| 85 °C | 80,2 °C | 25,6 W (limit 22 W) | 4,12 GHz | moc chwilowa | nie na maksimum |
+
+Ustalenia dla NUCBOX (właściciel 2026-11-25): STAPM 20 W, Tctl 85 °C w trybie Wydajnym (inne tryby 80 °C), PPT Fast / Slow, TDC / EDC fabryczne. Tctl 90 °C – bez sensu przy tym obciążeniu (temperatura nie dochodzi do 85 °C). Prawdziwy jeden wątek – niezmierzony (Menedżer zadań pokazuje zegar całego procesora).

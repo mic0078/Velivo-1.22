@@ -70,6 +70,7 @@ Filename: "{app}\VelivoProcesor.exe"; Description: "{cm:RunApp}"; Flags: nowait 
 Filename: "{app}\VelivoProcesor.exe"; Parameters: "--zasobnik"; Flags: nowait; Tasks: autostart; Check: WizardSilent
 
 [UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/end /tn ""Velivo Procesor"""; Flags: runhidden; RunOnceId: "ZatrzymajZadanie"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoProcesor.exe"; Flags: runhidden; RunOnceId: "ZamknijProcesor"
 ; ustawienia zasilania Windows sprzed programu wracają, zadanie startu z uprawnieniami (AMD) usuwane
 Filename: "{app}\VelivoProcesor.exe"; Parameters: "--przywroc"; Flags: runhidden waituntilterminated; RunOnceId: "PrzywrocWindows"
@@ -88,6 +89,10 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code, I: Integer;
 begin
   Result := '';
+  // program uruchomiony przez zadanie z uprawnieniami (moc AMD) - zwykly taskkill go nie zamknie (odmowa dostepu) i stary plik zostawal (2026-11-25);
+  // zadanie nalezy do tego konta - jego zatrzymanie konczy program
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/end /tn "Velivo Procesor"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Sleep(500);
   for I := 1 to 10 do
   begin
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM VelivoProcesor.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);

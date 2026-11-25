@@ -21,11 +21,30 @@ Bieżąca praca jest na gałęzi `audio-balance`, nie na `rozwoj`. Zanim cokolwi
 * Logika i przewidywanie (2026-10-27, właściciel): zanim zaproponujesz rozwiązanie, przemyśl je do końca jak inżynier – co się stanie przy awarii, przy dwóch naraz, po ponownym uruchomieniu, w innej sieci. Zapasowy serwer musi przejmować pracę; dwa działające jednocześnie – bez podwójnych kontaktów i wiadomości. Nie czekaj, aż właściciel to wytknie.
 * ADMINISTRATOR = PEŁNE UPRAWNIENIA (2026-11-04, właściciel): panel administratora to centrum ZARZĄDZANIA całym Velivo (wszystkie serwery, dane, użytkownicy, ustawienia, usługi, synchronizacja, backup, uprawnienia), nie panel monitoringowy. Każda czynność wykonywana naprawdę przez backend właściwego serwera (polecenia `p2p-admcmd`, podpisane, w dzienniku operacji); operacje krytyczne z potwierdzeniem i zapisem; czego jeszcze nie ma – oznaczone w panelu jako NIE ZAIMPLEMENTOWANE, nigdy udawane. Jeden panel ≠ jedna baza ani jeden serwer: 2–20 serwerów pracuje samodzielnie, administrator steruje wszystkimi z dowolnego. Wejście do panelu: klucz sprzętowy albo hasło administratora. Plan: `dokumentacja/architektura-panel-administratora.md`.
 * Szanuj czas i pieniądze właściciela (2026-11-10, właściciel): każda poprawka gotowa od razu za pierwszym razem, tak aby użytkownik był zadowolony – bez błędów, które on musi wyłapywać. Przed wysłaniem sprawdź efekt oczami użytkownika (wygląd w jasnym i ciemnym motywie, czytelność, czy działa), nie tylko kompilację. Każda poprawka po uwadze właściciela to stracony czas i pieniądze.
-* ZERO BŁĘDÓW, ZERO MARTWEGO KODU (2026-11-25, właściciel): nie dopisuj nowego, tylko naprawiaj istniejący; usuwaj nieużywany kod (sprawdzenie: analiza kompilatora IDE0051/IDE0052); każda zmiana – maksimum wydajności, szybkości i lekkości (bez pracy w pętli, której można uniknąć, bez zbędnych odczytów plików i zapytań sieciowych, mało pamięci).
 * ZALEŻNOŚCI PRZED KAŻDĄ ZMIANĄ (2026-11-25, właściciel: „jedno naprawione, to psujesz to co działało”): zanim wyślesz zmianę, wypisz, co jeszcze korzysta z tego samego (serwer zewnętrzny, plik, ustawienie, suwak, uprawnienia, kolejka) i sprawdź każde z tych miejsc; nie usuwaj niczego, czego właściciel używa; po zmianie przejrzyj diff jak recenzent (kod-review) i dopiero wtedy wysyłaj.
 * Nie można ludzi oszukiwać: bez bzdur i zgadywanek, zawsze piszesz, co sprawdziłeś, a czego nie. CLAUDE.md ma być wiarygodny i trzymasz się go.
 
 * Oszczędność (2026-11-15, właściciel): poprawki najkrótszą drogą – bez zbędnego czytania, długich odpowiedzi i powtórek; nie zjadaj niepotrzebnie tokenów.
+
+## Bezwzględne zasady rozwoju (2026-11-25, właściciel)
+
+1. Zero błędów – kod poprawny, stabilny, odporny na wyjątki.
+2. Zero martwego kodu – usuwaj nieużywane funkcje, zmienne, klasy, zależności i zbędne instrukcje (sprawdzenie: analiza kompilatora IDE0051/IDE0052).
+3. Naprawiaj, nie dokładaj – poprawa i optymalizacja istniejącego kodu zamiast nowych warstw, obejść i duplikatów.
+4. Maksymalna wydajność – minimum CPU, RAM, dysku i zasobów systemu.
+5. Maksymalna szybkość – bez zbędnych operacji, opóźnień, blokad i przetwarzania.
+6. Lekkość – proste, wydajne rozwiązania zamiast rozbudowanych mechanizmów.
+7. Bez prowizorek – żadnych tymczasowych obejść, atrap, pustych implementacji ani pozornych napraw.
+8. Bez duplikowania logiki – jedna odpowiedzialność, jedno rozwiązanie.
+9. Stabilność przede wszystkim – optymalizacja nie może pogarszać niezawodności.
+10. Weryfikacja – po każdej zmianie kompilacja, błędy, ostrzeżenia i wpływ na istniejące funkcje.
+11. Minimalizm zmian – tylko to, co konieczne; działających elementów nie przebudowuj bez uzasadnienia.
+12. Bez zgadywania – najpierw rzeczywista przyczyna, potem poprawka.
+13. Jakość produkcyjna – kod do codziennego użytku, nie tylko do przejścia testów.
+14. Brak regresji – każda zmiana zachowuje dotychczasowe funkcje i zgodność.
+15. Uczciwy raport – nie deklaruj naprawy ani optymalizacji bez sprawdzenia.
+
+Priorytet: najpierw jakość istniejącego kodu, potem optymalizacja; nie zwiększaj złożoności bez rzeczywistej potrzeby.
 
 ## Wnioski (pamięć 3–5 dni)
 

@@ -78,7 +78,8 @@ namespace Velivo
             _odtLekko = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _odtLekko.Tick += (s, e) =>
             {
-                if (Wariant.Odtwarzacz && (++_odtMin == 2 || _odtMin % 30 == 0)) PamiecLog();   // 🔬 co zajmuje pamięć (po 2 min i co 30 min)
+                if (Wariant.Odtwarzacz && (++_odtMin == 2 || _odtMin % 30 == 0)) PamiecLog();
+                if (Wariant.Odtwarzacz && _odtMin == 1 && _libVlc == null && VlcInstalled && !PlayerBusy) EnsureLibVlc();   // 🔥 odtwarzacz rozgrzany w tle (raz, minutę po starcie): pierwszy film / kanał startuje od razu   // 🔬 co zajmuje pamięć (po 2 min i co 30 min)
                 bool pauza = false; try { pauza = _playerMp != null && _playerMp.State == LibVLCSharp.Shared.VLCState.Paused; } catch (Exception) { }
                 if (PlayerBusy || pauza || _piperDriven.Count > 0) { _odtPusto = 0; return; }   // gra film / TV albo czyta lektor stron   // gra film / TV - lektor potrzebny
                 if (++_odtPusto != 2) return;   // 2 minuty bez odtwarzania (także z otwartym oknem odtwarzacza, biblioteką, Kanapą) - raz, do następnego filmu; model lektora (~400 MB) wraca w tle przy włączeniu filmu

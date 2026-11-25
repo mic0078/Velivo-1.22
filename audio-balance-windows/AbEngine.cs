@@ -288,10 +288,10 @@ namespace Velivo
         static class Diag
         {
             static readonly double tick = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-            static long capLast, outLast, start, samples; static double capMax, outMax, procMax; static int capLate, outLate; static int rate;
+            static long capLast, outLast, start, samples; static double capMax, outMax, procMax; static int capLate, outLate;
             public static void Cap(int frames, int sr)
             {
-                long now = System.Diagnostics.Stopwatch.GetTimestamp(); rate = sr;
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (capLast != 0) { double g = (now - capLast) * tick; if (g > capMax) capMax = g; if (g > 60) capLate++; } else start = now;
                 capLast = now; samples += frames;
                 if ((now - start) * tick >= 30000)

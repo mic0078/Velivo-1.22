@@ -111,12 +111,11 @@ namespace VelivoMonitor
         [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
         static readonly IntPtr Top = new IntPtr(-1);
 
-        Window bar; TextBlock barTxt, bUp, bDown, bGhz, bCpu, lUp, lDown; System.Windows.Threading.DispatcherTimer ledTm; readonly Random ledRnd = new Random(); bool ledLight;
+        Window bar; TextBlock bUp, bDown, bGhz, bCpu, lUp, lDown; System.Windows.Threading.DispatcherTimer ledTm; readonly Random ledRnd = new Random(); bool ledLight;
         void BuildBar()
         {
             bool light = false;
             try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"); light = (k?.GetValue("SystemUsesLightTheme") as int?) == 1; } catch (Exception) { }
-            barTxt = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = light ? Brushes.Black : Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
             bar = new Window { Title = "Velivo Monitor – pasek", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true, Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), ShowInTaskbar = false, Topmost = true, Width = BarW(), Height = 40, Content = BarContent(light),   /* stała szerokość - napis nie skacze */
                 ToolTip = "Velivo Monitor – przeciągnij w lewo/prawo, aby przesunąć; prawy przycisk – menu" };
             bar.ContextMenu = Menu();
@@ -146,7 +145,7 @@ namespace VelivoMonitor
             bAbCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 58, Visibility = Visibility.Collapsed }; bAbCol.Children.Add(bAb); bAbCol.Children.Add(bAbSub);
             var all = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             all.Children.Add(c1); all.Children.Add(c2); all.Children.Add(bAbCol);
-            barTxt = bUp; return all;
+            return all;
         }
         // 🧩 co pokazuje pasek (wybór w menu): wysyłanie, pobieranie, GHz, użycie procesora; szerokość tylko na wybrane kolumny
         bool Pok(string k) => Get("pasek-" + k, "1") == "1";

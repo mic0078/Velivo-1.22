@@ -13,8 +13,8 @@ namespace Velivo
     {
         static readonly Brush Track = new SolidColorBrush(Color.FromRgb(0x2A, 0x2D, 0x3A)), Well = new SolidColorBrush(Color.FromRgb(0x10, 0x12, 0x1A)),
             Red = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)), Teal = new SolidColorBrush(Color.FromRgb(0x2E, 0xD3, 0xC6)), Violet = new SolidColorBrush(Color.FromRgb(0x7C, 0x5C, 0xFF)),
-            Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)), Gold = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15)), Grey = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0xA8));
-        readonly AbEngine eng; readonly Brush fg, dim;
+            Green = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80)), Gold = new SolidColorBrush(Color.FromRgb(0xFA, 0xCC, 0x15));
+        readonly AbEngine eng; readonly Brush dim;
         public readonly StackPanel Root = new StackPanel();
         // zwykły priorytet (nie Render): przesuwanie okna i kliknięcia mają pierwszeństwo przed wskaźnikami
         readonly DispatcherTimer tm = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(40) };
@@ -32,7 +32,7 @@ namespace Velivo
 
         public AbLive(AbEngine e, Brush fg, Brush dim)
         {
-            eng = e; this.fg = fg; this.dim = dim;
+            eng = e; this.dim = dim;
             for (int i = 0; i <= NB; i++) edges[i] = 40 * Math.Pow(16000.0 / 40, i / (double)NB);
             for (int i = 0; i < HN; i++) hIn[i] = hOut[i] = -70;
             var hd = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
@@ -80,7 +80,6 @@ namespace Velivo
             Root.IsVisibleChanged += (s, a) => { if (Root.IsVisible) tm.Start(); else tm.Stop(); };   // tylko gdy Podgląd na ekranie
         }
 
-        TextBlock Cap(string s) => new TextBlock { Text = s, Foreground = dim, FontSize = 10, Margin = new Thickness(0, 4, 0, 2) };
         readonly System.Windows.Controls.Primitives.UniformGrid tiles = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4 };
         // kafelek: nazwa, duża liczba, cienki pasek (makieta)
         (Border, TextBlock, Grid) Bar(string name, Brush color, string tip)

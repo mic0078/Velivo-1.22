@@ -489,7 +489,8 @@ namespace VelivoProcesor
         // 🖥 ekran wyłączony (pilotem, 🌙 w odtwarzaczu): zmiana trybu = PowerSetActiveScheme, a to BUDZI monitor (film się skończył → ekran się włączał;
         // pusty pulpit → po minucie „Ekran wyłączony – cicho” → ekran się włączał, 2026-11-24 NUCBOX). Przy zgaszonym ekranie tryb zostaje do jego włączenia (oprócz przegrzania).
         Tryb Ustal(Tryb t) { bool st = StudioProg != null; if (st && t == Tryb.Cichy) t = Tryb.Zrownowazony;   // Studio: niski zegar przy dźwięku = trzaski
-            if (EkranWyl && zastosowany && !goracoTeraz && (t != Obecny || st != studioZast)) { Dlaczego += " (ekran wyłączony – zmiana trybu po jego włączeniu, inaczej Windows zapaliłby ekran)"; return Obecny; }
+            if (EkranWyl && !goracoTeraz && (t != Obecny || st != studioZast || !zastosowany)) {   // także po wybudzeniu komputera w nocy (PoWybudzeniu kasuje „zastosowany”) - plan od nowa dopiero przy włączonym ekranie
+                Dlaczego += " (ekran wyłączony – zmiana trybu po jego włączeniu, inaczej Windows zapaliłby ekran)"; return Obecny; }
             if (t != Obecny || !zastosowany || st != studioZast) { if (t != Obecny) ostZmiana = DateTime.UtcNow; Obecny = t; studioZast = st; Zastosuj(t); } return t; }
 
         // ---------- sterowanie ----------

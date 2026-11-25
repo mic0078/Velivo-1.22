@@ -44,13 +44,14 @@ en.RunApp=Launch Velivo Procesor
 Name: "autostart"; Description: "{cm:Auto}"
 
 [Files]
-Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "RyzenAdj\*"; Flags: ignoreversion recursesubdirs createallsubdirs
-; ⚡ RyzenAdj (moc AMD) - tylko na procesorach AMD; na Intelu zbędny (ma sterownik WinRing0, który Defender może oznaczać jako niebezpieczny)
-Source: "{#SrcDir}\RyzenAdj\*"; DestDir: "{app}\RyzenAdj"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Check: ProcesorAmd
+Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "PawnIO\*,RyzenAdj\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+; ⚡ PawnIO (moc AMD: podpisany sterownik + moduł RyzenSMU) - tylko na procesorach AMD; sterownik instaluje sam program (ma uprawnienia administratora)
+Source: "{#SrcDir}\PawnIO\*"; DestDir: "{app}\PawnIO"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Check: ProcesorAmd
 
 [InstallDelete]
-; Intel: RyzenAdj z poprzedniej wersji (instalowany wszędzie) - usuwany
-Type: filesandordirs; Name: "{app}\RyzenAdj"; Check: not ProcesorAmd
+; RyzenAdj z poprzednich wersji (sterownik WinRing0 blokowany przez Defender) - usuwany; plik uruchomionego sterownika usuwa program po jego zatrzymaniu
+Type: filesandordirs; Name: "{app}\RyzenAdj"
+Type: filesandordirs; Name: "{app}\PawnIO"; Check: not ProcesorAmd
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\VelivoProcesor.exe"

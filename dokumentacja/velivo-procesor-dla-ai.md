@@ -25,7 +25,7 @@ Osobno co 60 ms (wątek okna): ikona w zasobniku – kolor obciążenia (zielona
 | Zegar GHz | PDH `\Processor Information(_Total)\% Processor Performance` × `~MHz` z rejestru (`HARDWARE\DESCRIPTION\System\CentralProcessor\0`) |
 | Dysk | PDH `PhysicalDisk(_Total)`: `% Idle Time`, `Disk Bytes/sec`, `Current Disk Queue Length` (zajętość % na NVMe bywa fałszywa, dlatego decyzja używa MB/s i kolejki) |
 | Karta graficzna % | PDH `\GPU Engine(*engtype_3D)\Utilization Percentage` – suma wszystkich wystąpień, max 100 |
-| Temperatura | co 3 s (AMD z RyzenAdj co 10 s); źródła po kolei, wybrane raz: 1) RyzenAdj `--info` (THM VALUE), 2) WMI LibreHardwareMonitor / OpenHardwareMonitor (CPU Package / Tctl, inaczej najwyższy rdzeń; bez „Distance to TjMax”), 3) WMI `MSAcpi_ThermalZoneTemperature`, 4) PDH Thermal Zone. Czujnik płyty (ACPI), który nie zmienia się o 0,5 °C przez 10 min, uznany za „nie mierzy procesora” → temperatura nieznana (-1). Bez źródła – szukanie co minutę. |
+| Temperatura | co 3 s (AMD przez PawnIO co 10 s); źródła po kolei, wybrane raz: 1) tabela pomiarów SMU przez PawnIO (Tctl), 2) WMI LibreHardwareMonitor / OpenHardwareMonitor (CPU Package / Tctl, inaczej najwyższy rdzeń; bez „Distance to TjMax”), 3) WMI `MSAcpi_ThermalZoneTemperature`, 4) PDH Thermal Zone. Czujnik płyty (ACPI), który nie zmienia się o 0,5 °C przez 10 min, uznany za „nie mierzy procesora” → temperatura nieznana (-1). Bez źródła – szukanie co minutę. |
 | Program na wierzchu | `GetForegroundWindow` → nazwa procesu (aplikacje ze Sklepu: proces wewnątrz `ApplicationFrameHost`) |
 | Obciążenie samego programu | z ProBalance (czas procesu), w % jednego rdzenia |
 | Bateria | `GetSystemPowerStatus` (AC == 0) |
@@ -80,7 +80,7 @@ Poprawki po wyborze (nie dotyczą przegrzania i „zawsze ten tryb”):
 
 „Podłoga” = ten sam procent co Cichy (`cichy-ghz`, domyślnie 1,4 GHz) – żaden tryb nie schodzi poniżej. Procesory hybrydowe (Intel 12+ / Core Ultra, wykrywane przez `GetSystemCpuSetInformation` EfficiencyClass): te same max/min/EPP/limit także dla drugiej klasy rdzeni. Tryb autonomiczny AMD CPPC i „co ile ms Windows sprawdza obciążenie” (PerfCheck) – zawsze jak przed programem (u właściciela PerfCheck = 5000 ms, zostawione). Zapis pomijany, gdy wartość już taka. Suwak „Tryb zasilania” Windows 11 (nakładka) na czas sterowania ustawiany na Zrównoważony, potem wraca.
 
-**AMD – RyzenAdj** (gdy jest `RyzenAdj\ryzenadj.exe` i odpowiada „STAPM LIMIT”): STAPM / fast / slow (W) / tctl (°C): Cichy 12/28/15/75, Zrównoważony 15/28/22/80, Turbo 25/35/30/88 (zmienialne). 3 nieudane wywołania z rzędu → RyzenAdj wyłączony do restartu programu.
+**AMD – PawnIO** (2026-11-25: RyzenAdj/WinRing0 zastąpiony – Defender blokuje WinRing0 jako VulnerableDriver). Folder `PawnIO\` (PawnIO_setup.exe 2.2.0 + moduł RyzenSMU.bin 0.2.12, sumy SHA-256 w `zbuduj-procesor.ps1`); program jako administrator sam instaluje sterownik, gdy go brak, i usuwa stary WinRing0 z folderu Velivo. Odczyt: tabela pomiarów SMU (wersje 0x37…0x65); zapis: skrzynka MP1 0x14/0x15/0x16/0x19 (+ PSMU 0x31–0x34 na Renoir/Cezanne), jak G-Helper. Limity od fabrycznych BIOS (`AmdSilnik.cs`). 3 nieudane zapisy z rzędu → moc AMD wyłączona do restartu programu.
 
 **Bezpieczeństwo i porządek:**
 - Przed pierwszą zmianą zapis wartości Windows (`windows-przed.txt`); przy zamknięciu, wylogowaniu i deinstalacji (`--przywroc`) przywracane – **transakcyjnie**: wraca tylko to, co Velivo zapisało i czego nikt potem nie zmienił (`velivo-zapisy.txt`).

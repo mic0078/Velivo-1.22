@@ -55,7 +55,7 @@ namespace VelivoProcesor
             }
         }
 
-        // 🔑 sterowanie mocą AMD (RyzenAdj) wymaga administratora: zadanie Windows „Velivo Procesor” uruchamia program przy logowaniu z najwyższymi uprawnieniami (jedno „Tak”)
+        // 🔑 sterowanie mocą AMD (PawnIO) wymaga administratora: zadanie Windows „Velivo Procesor” uruchamia program przy logowaniu z najwyższymi uprawnieniami (jedno „Tak”)
         static void Zadanie()
         {
             try
@@ -103,7 +103,6 @@ namespace VelivoProcesor
         public void Start()
         {
             if (s.Get("autostart-ustawiony") == null) { if (!Program.Autostart) Program.Autostart = true; s.Put("autostart-ustawiony", 1); }   // domyślnie start z Windows (wyłączenie w oknie zostaje)
-            s.SprawdzRyzen();
             Zbuduj();
             tray = new System.Windows.Forms.NotifyIcon { Icon = Ikona(), Visible = true, Text = "Velivo Procesor" };
             tray.MouseClick += (a, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Pokaz(); };
@@ -126,7 +125,7 @@ namespace VelivoProcesor
             if (!ukryty) Pokaz();
         }
 
-        // co 1 s: pomiar, decyzja, okno (bez pracy w wątku okna - przełączenie trybu i RyzenAdj w tle)
+        // co 1 s: pomiar, decyzja, okno (bez pracy w wątku okna - przełączenie trybu i moc AMD w tle)
         void Petla()
         {
             while (true)
@@ -359,8 +358,8 @@ namespace VelivoProcesor
             dd.Children.Add(dc); Siatka(dd, "dd");
             Siatka(Suwak("🌙 Zegar w Cichym", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "W trybie Cichym zegar nie wyjdzie ponad tę wartość – cicho, np. w nocy przy filmie. Zrównoważony i Turbo bez ograniczeń"));
             Siatka(Suwak("🌡 Temperatura graniczna", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", "Powyżej – Cichy. Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
-            bAdmin = Btn(s.Amd && s.Ryzen != null ? "🔑 Włącz sterowanie mocą AMD i odczyt temperatury (jedno „Tak” administratora)" : "🔑 Włącz odczyt temperatury (jedno „Tak” administratora)", Program.ZadanieUtworz,
-                "Odczyt czujników (i moc AMD przez RyzenAdj) wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami – bez pytania przy każdym starcie.");
+            bAdmin = Btn(s.AmdE != null ? "🔑 Włącz sterowanie mocą AMD i odczyt temperatury (jedno „Tak” administratora)" : "🔑 Włącz odczyt temperatury (jedno „Tak” administratora)", Program.ZadanieUtworz,
+                "Odczyt czujników (i moc AMD przez PawnIO) wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami – bez pytania przy każdym starcie.");
             bAdmin.HorizontalAlignment = HorizontalAlignment.Left; bAdmin.Visibility = Visibility.Collapsed; us.Children.Add(bAdmin);
             tInfo = T("", 12, Warn); us.Children.Add(tInfo);
             root.Children.Add(Box(us));
@@ -389,10 +388,10 @@ namespace VelivoProcesor
             bool studio = s.StudioProg != null && tryb != "windows";
             tStan.Text = tryb == "pauza" ? "⏸ wstrzymany" : tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
             tWhy.Text = "💡 " + s.Dlaczego + (s.Auto && s.Get("tryb") == "auto" ? (s.ZAi ? " · decyduje: AI" : " · decyduje: zasady" + (s.Glosow < 2 ? " (AI jeszcze się uczy – " + s.Glosow + " z 4 głosów)" : "")) : "") + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
-            tSub.Text = "  " + s.ProcesorNazwa + (s.Hybrydowy ? " · rdzenie wydajne + oszczędne (sterowane oba rodzaje)" : "") + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : Silnik.Admin() ? " · moc AMD: RyzenAdj nie odpowiada – próbuję co minutę" + (s.AmdE?.Powod.Length > 0 ? " (" + s.AmdE.Powod + ")" : "") : " · moc AMD: wymaga zgody administratora") : "")
-                + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak") + (s.RyzenDziala ? "\n  🔥 " + s.AmdE.Opis : "");
-            tSub.ToolTip = s.RyzenDziala ? "Silnik AMD: " + s.AmdE.Fabryczne + ". Cichy – bez skoków mocy i granica temperatury 5 °C niżej; Zrównoważony – moc długotrwała do fabrycznej średniej (sam zmniejsza, gdy gorąco); Turbo – do tego granica temperatury +5 °C (najwyżej 90 °C). Prąd i moc chwilowa nigdy ponad fabryczne." : null;
-            bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;
+            tSub.Text = "  " + s.ProcesorNazwa + (s.Hybrydowy ? " · rdzenie wydajne + oszczędne (sterowane oba rodzaje)" : "") + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.AmdDziala ? " · moc AMD: PawnIO ✓" : s.AmdE == null ? " · moc AMD: brak modułu PawnIO" : Silnik.Admin() ? " · moc AMD: PawnIO nie odpowiada – próbuję co minutę" + (s.AmdE?.Powod.Length > 0 ? " (" + s.AmdE.Powod + ")" : "") : " · moc AMD: wymaga zgody administratora") : "")
+                + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak") + (s.AmdDziala ? "\n  🔥 " + s.AmdE.Opis : "");
+            tSub.ToolTip = s.AmdDziala ? "Silnik AMD: " + s.AmdE.Fabryczne + ". Cichy – bez skoków mocy i granica temperatury 5 °C niżej; Zrównoważony – moc długotrwała do fabrycznej średniej (sam zmniejsza, gdy gorąco); Turbo – do tego granica temperatury +5 °C (najwyżej 90 °C). Prąd i moc chwilowa nigdy ponad fabryczne." : null;
+            bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.AmdE != null && !s.AmdDziala) ? Visibility.Visible : Visibility.Collapsed;
             var keys = new[] { "auto", "cichy", "zrownowazony", "turbo", "pauza", "windows" };
             for (int i = 0; i < 6; i++)
             {

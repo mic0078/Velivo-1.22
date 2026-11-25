@@ -11,25 +11,26 @@ Write-Host "2/3 Kompilacja Velivo Procesor..." -ForegroundColor Cyan
 Remove-Item -Recurse -Force build\procesor -ErrorAction SilentlyContinue
 dotnet build velivo-procesor\VelivoProcesor.csproj -c Release -o build\procesor   # .NET Framework 4.8 (jest w Windows) - bez dołączania .NET, program ma kilkadziesiąt KB
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Velivo Procesor nie powiodla sie." -ForegroundColor Red; Read-Host 'Enter'; exit 1 }
-# ⚡ RyzenAdj (moc procesorów AMD) - oficjalne wydanie z GitHub (FlyGoat/RyzenAdj), raz; bez niego program działa (bez sterowania mocą AMD)
-$ra = Join-Path $repo 'build\dodatki\RyzenAdj'
-# program ryzenadj.exe jest w archiwum ryzenadj-win64.zip (libryzenadj-win64.zip to sama biblioteka - bez programu)
-if (-not (Test-Path (Join-Path $ra 'ryzenadj.exe'))) {
+# ⚡ PawnIO (moc procesorów AMD: podpisany sterownik zamiast WinRing0, który Defender blokuje) - oficjalne wydania z GitHub (namazso), przypięte wersje i sumy SHA-256; bez nich program działa (bez sterowania mocą AMD)
+$pw = Join-Path $repo 'build\dodatki\PawnIO'
+if (-not ((Test-Path (Join-Path $pw 'PawnIO_setup.exe')) -and (Test-Path (Join-Path $pw 'RyzenSMU.bin')))) {
     try {
-        New-Item -ItemType Directory -Force -Path $ra | Out-Null
-        $rel = Invoke-RestMethod 'https://api.github.com/repos/FlyGoat/RyzenAdj/releases/latest' -Headers @{ 'User-Agent' = 'Velivo' }
-        foreach ($n in @('ryzenadj-win64.zip')) {
-            $asset = $rel.assets | Where-Object { $_.name -eq $n } | Select-Object -First 1
-            if (-not $asset) { continue }
-            $zip = Join-Path $ra $n; Invoke-WebRequest $asset.browser_download_url -OutFile $zip -UseBasicParsing
-            Expand-Archive $zip -DestinationPath $ra -Force; Remove-Item $zip -Force
-        }
-        $exe = Get-ChildItem $ra -Recurse -Filter ryzenadj.exe | Select-Object -First 1
-        if ($exe -and $exe.DirectoryName -ne $ra) { Get-ChildItem $exe.DirectoryName | Move-Item -Destination $ra -Force }
-        Write-Host ("RyzenAdj " + $rel.tag_name + " pobrany") -ForegroundColor Green
-    } catch { Write-Host "RyzenAdj nie pobrany ($_) - program zbuduje sie bez sterowania moca AMD" -ForegroundColor Yellow }
+        New-Item -ItemType Directory -Force -Path $pw | Out-Null
+        $setup = Join-Path $pw 'PawnIO_setup.exe'
+        Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/download/2.2.0/PawnIO_setup.exe' -OutFile $setup -UseBasicParsing
+        if ((Get-FileHash $setup -Algorithm SHA256).Hash -ne '1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032') { Remove-Item $setup -Force; throw 'PawnIO_setup.exe: zla suma SHA-256' }
+        $zip = Join-Path $pw 'moduly.zip'
+        Invoke-WebRequest 'https://github.com/namazso/PawnIO.Modules/releases/download/0.2.12/release_0_2_12.zip' -OutFile $zip -UseBasicParsing
+        if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne '09698897CE19B92F1043A2E322CFCF0B1FE823E0B576971B178A65244FB0AF9D') { Remove-Item $zip -Force; throw 'moduly PawnIO: zla suma SHA-256' }
+        $tmp = Join-Path $pw 'moduly'; Expand-Archive $zip -DestinationPath $tmp -Force
+        $bin = Get-ChildItem $tmp -Recurse -Filter 'RyzenSMU.bin' | Select-Object -First 1
+        if (-not $bin) { throw 'w archiwum modulow PawnIO nie ma RyzenSMU.bin' }
+        Copy-Item $bin.FullName (Join-Path $pw 'RyzenSMU.bin') -Force
+        Remove-Item $zip, $tmp -Recurse -Force
+        Write-Host "PawnIO 2.2.0 + RyzenSMU 0.2.12 pobrane" -ForegroundColor Green
+    } catch { Write-Host "PawnIO nie pobrany ($_) - program zbuduje sie bez sterowania moca AMD" -ForegroundColor Yellow }
 }
-if (Test-Path (Join-Path $ra 'ryzenadj.exe')) { Copy-Item -Recurse -Force $ra 'build\procesor\RyzenAdj' }
+if ((Test-Path (Join-Path $pw 'PawnIO_setup.exe')) -and (Test-Path (Join-Path $pw 'RyzenSMU.bin'))) { Copy-Item -Recurse -Force $pw 'build\procesor\PawnIO' }
 Write-Host "3/3 Instalator..." -ForegroundColor Cyan
 # otwarty instalator z poprzedniej próby trzyma plik - budowa nie może go nadpisać (to nie antywirus)
 while (Get-Process -Name "Velivo-Procesor-Setup-1.22", "Velivo-Procesor-Setup-1.22.tmp" -ErrorAction SilentlyContinue) { Write-Host "Otwarte jest okno instalatora Velivo-Procesor-Setup-1.22 z poprzedniej proby - zamknij je (Anuluj / Przerwij instalacje), potem nacisnij Enter." -ForegroundColor Yellow; Read-Host | Out-Null }

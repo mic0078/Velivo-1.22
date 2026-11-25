@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace VelivoProcesor
 {
@@ -13,78 +14,161 @@ namespace VelivoProcesor
     // - nigdy ponad fabryczne: moc chwilowa (Fast), średnia (Slow), prąd (TDC/EDC); moc długotrwała (STAPM) najwyżej do fabrycznej średniej (Slow);
     //   granica temperatury najwyżej fabryczna + 5 °C (i nie ponad 90 °C) - tylko w Turbo (pomiar NUCBOX 2026-11-25: 15 → 20 W = +12 % zegaru wielu rdzeni, wentylator stabilny);
     // - zegar i boost zostają dla procesora (CPPC) - silnik pilnuje tylko budżetu mocy i temperatury;
-    // - telemetria co 10 s przez ryzenadj.exe;
+    // - telemetria co 10 s (tabela pomiarów SMU przez PawnIO);
     // - ponowne ustawienie po wybudzeniu i gdy BIOS / inny program nadpisze (najwyżej 3 razy w 10 min - bez walki);
     // - przy zamknięciu, wylogowaniu, deinstalacji: fabryczne wartości wszystkich zmienionych parametrów.
     sealed class AmdSilnik
     {
-        // ---------- dostęp: ryzenadj.exe (biblioteka w procesie wywracała program z uprawnieniami administratora - 2026-11-25, NUCBOX) ----------
+        // ---------- dostęp: PawnIO (podpisany sterownik) + moduł RyzenSMU - jak G-Helper i Handheld Companion ----------
+        // RyzenAdj używał WinRing0 - Windows Defender blokuje go od 2025 (VulnerableDriver:WinNT/Winring0, CVE-2020-14979; NUCBOX 2026-11-25:
+        // „Unable to get os_access Obj” po każdym starcie Windows, wyjątek w Defenderze nie pomaga)
 
-        readonly string exe; readonly object zamek = new object();
-        public bool Dziala { get; private set; }   // RyzenAdj odpowiada (administrator, obsługiwany procesor)
-        public AmdSilnik(string exePath) { exe = exePath; }
+        readonly string dir; readonly object zamek = new object();
+        public bool Dziala { get; private set; }   // PawnIO odpowiada (administrator, obsługiwany procesor)
+        public AmdSilnik(string pawnDir) { dir = pawnDir; }
 
-        public void Start()
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern IntPtr CreateFile(string n, uint acc, uint share, IntPtr sec, uint disp, uint fl, IntPtr tmpl);
+        [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+        [DllImport("kernel32.dll", SetLastError = true)] static extern bool DeviceIoControl(IntPtr dev, uint code, byte[] inB, uint inSz, byte[] outB, uint outSz, out uint ret, IntPtr ovl);
+        const uint IoLoad = 0xA1B22084, IoExec = 0xA1B22104;
+        IntPtr dev = IntPtr.Zero; int rodzina; uint mp1Cmd, mp1Rsp, mp1Arg;
+        bool instalowany;   // instalacja PawnIO najwyżej raz na uruchomienie programu
+        static readonly Mutex pci = new Mutex(false, @"Global\Access_PCI");   // wspólny z innymi programami PawnIO (zalecenie modułu RyzenSMU)
+
+        ulong[] Wykonaj(string fn, ulong[] we, int wyN)
+        {
+            var inB = new byte[32 + we.Length * 8]; var nb = System.Text.Encoding.ASCII.GetBytes(fn); Array.Copy(nb, inB, Math.Min(31, nb.Length));
+            for (int i = 0; i < we.Length; i++) BitConverter.GetBytes(we[i]).CopyTo(inB, 32 + i * 8);
+            var outB = new byte[Math.Max(8, wyN * 8)];
+            bool mam = false;
+            try { mam = pci.WaitOne(2000); } catch (AbandonedMutexException) { mam = true; }
+            try { if (!DeviceIoControl(dev, IoExec, inB, (uint)inB.Length, outB, (uint)(wyN * 8), out _, IntPtr.Zero)) return null; }
+            finally { if (mam) pci.ReleaseMutex(); }
+            var w = new ulong[wyN]; for (int i = 0; i < wyN; i++) w[i] = BitConverter.ToUInt64(outB, i * 8);
+            return w;
+        }
+        uint Rej(uint a) { var w = Wykonaj("ioctl_read_smu_register", new ulong[] { a }, 1); if (w == null) throw new IOException("odczyt SMU"); return (uint)w[0]; }
+        void Rej(uint a, uint v) { if (Wykonaj("ioctl_write_smu_register", new ulong[] { a, v }, 0) == null) throw new IOException("zapis SMU"); }
+        // skrzynka MP1 (limity mocy) - uzgodnienie jak w RyzenAdj / G-Helper: czekaj na gotowość, wyzeruj odpowiedź, argument, polecenie, czekaj na wynik (1 = OK)
+        bool Mp1(uint msg, uint arg)
+        {
+            var sw = Stopwatch.StartNew();
+            while (Rej(mp1Rsp) == 0) if (sw.ElapsedMilliseconds > 200) return false;
+            Rej(mp1Rsp, 0);
+            for (uint i = 0; i < 6; i++) Rej(mp1Arg + i * 4, i == 0 ? arg : 0);
+            Rej(mp1Cmd, msg);
+            sw.Restart(); uint r;
+            while ((r = Rej(mp1Rsp)) == 0) if (sw.ElapsedMilliseconds > 200) return false;
+            return r == 1;
+        }
+        // skrzynka PSMU (Renoir/Cezanne: drugi zestaw limitów) - przez polecenie modułu
+        bool Psmu(uint msg, uint arg) => Wykonaj("ioctl_send_smu_command", new ulong[] { msg, arg, 0, 0, 0, 0, 0 }, 6) != null;
+
+        // instaluj = brak PawnIO → instalacja (tylko z pętli programu, w tle; nie przy deinstalacji)
+        public void Start(bool instaluj = false)
         {
             lock (zamek)
             {
                 Dziala = false;
-                if (exe == null) return;
+                if (dir == null) return;
+                if (dev == IntPtr.Zero && !Otworz(instaluj)) return;
                 Dziala = Odczyt() != null;
             }
             if (Dziala) Kalibruj();
+        }
+        bool Otworz(bool instaluj)
+        {
+            UsunWinRing0();
+            dev = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+            if (dev == new IntPtr(-1))
+            {
+                int e = Marshal.GetLastWin32Error(); dev = IntPtr.Zero;
+                if ((e == 2 || e == 3) && instaluj && !instalowany && Silnik.Admin()) { instalowany = true; Powod = Instaluj(); if (Powod.Length == 0) return Otworz(false); return false; }
+                Powod = e == 5 ? "brak uprawnień administratora" : e == 2 || e == 3 ? "sterownik PawnIO nie jest zainstalowany" + (Powod.Length > 0 ? " – " + Powod : "") : "PawnIO: błąd " + e;
+                return false;
+            }
+            try
+            {
+                var blob = File.ReadAllBytes(Path.Combine(dir, "RyzenSMU.bin"));
+                if (!DeviceIoControl(dev, IoLoad, blob, (uint)blob.Length, null, 0, out _, IntPtr.Zero)) { Powod = "PawnIO: moduł RyzenSMU nie wczytał się – procesor AMD nieobsługiwany (błąd " + Marshal.GetLastWin32Error() + ")"; Zamknij(); return false; }
+                var cn = Wykonaj("ioctl_get_code_name", new ulong[0], 1);
+                rodzina = cn == null ? -1 : (int)cn[0];
+                // limity mocy (STAPM, chwilowa, średnia, temperatura) mają procesory przenośne: Renoir/Lucienne/Cezanne, Rembrandt…HawkPoint, Strix/Krackan
+                if (rodzina == 1 || rodzina == 13 || rodzina == 22) { mp1Cmd = 0x3B10528; mp1Rsp = 0x3B10564; mp1Arg = 0x3B10998; }
+                else if (rodzina == 10 || rodzina == 12 || rodzina == 19 || rodzina == 23 || rodzina == 24 || rodzina == 25 || rodzina == 30) { mp1Cmd = 0x3B10528; mp1Rsp = 0x3B10578; mp1Arg = 0x3B10998; }
+                else if (rodzina >= 31 && rodzina <= 34) { mp1Cmd = 0x3B10928; mp1Rsp = 0x3B10978; mp1Arg = 0x3B10998; }
+                else { Powod = "ten procesor AMD (rodzina " + rodzina + ") nie ma limitów mocy STAPM – zostają ustawienia producenta"; Zamknij(); return false; }
+                var t = Wykonaj("ioctl_resolve_pm_table", new ulong[0], 2);
+                uint hi = t == null ? 0 : (uint)(t[0] >> 16);
+                if (!(hi == 0x37 || hi == 0x3F || hi == 0x40 || hi == 0x45 || hi == 0x4C || hi == 0x5D || hi == 0x65)) { Powod = "nieznana tabela pomiarów procesora (0x" + (t == null ? 0 : t[0]).ToString("X") + ") – zostają ustawienia producenta"; Zamknij(); return false; }
+                return true;
+            }
+            catch (Exception ex) { Powod = "PawnIO: " + ex.Message; Zamknij(); return false; }
+        }
+        void Zamknij() { if (dev != IntPtr.Zero) CloseHandle(dev); dev = IntPtr.Zero; }
+        // PawnIO (pawnio.eu) - instalator z folderu programu, po cichu; gdy cicha instalacja nie wyjdzie - zwykłe okno instalatora (jedno „Zainstaluj”)
+        string Instaluj()
+        {
+            var setup = Path.Combine(dir, "PawnIO_setup.exe");
+            if (!File.Exists(setup)) return "brak instalatora PawnIO w folderze programu";
+            int kod = -1;
+            foreach (var arg in new[] { "-install -silent", "" })
+                try
+                {
+                    using (var p = Process.Start(new ProcessStartInfo(setup, arg) { UseShellExecute = false, CreateNoWindow = arg.Length > 0 }))
+                    { if (!p.WaitForExit(arg.Length > 0 ? 120000 : 600000)) return "instalator PawnIO nie skończył"; kod = p.ExitCode; }
+                    var h = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                    if (h != new IntPtr(-1)) { CloseHandle(h); return ""; }
+                }
+                catch (Exception ex) { return "instalator PawnIO: " + ex.Message; }
+            return "instalacja PawnIO nie udała się (kod " + kod + ")";
+        }
+        // 🧹 sterowniki starego RyzenAdj z folderu Velivo (WinRing0 - zgłaszany przez Defender, inpoutx64) - zatrzymane i wyrejestrowane, folder usunięty
+        static bool sprzatniete;
+        static void UsunWinRing0()
+        {
+            if (sprzatniete || !Silnik.Admin()) return; sprzatniete = true;
+            foreach (var u in new[] { "WinRing0_1_2_0", "inpoutx64" })
+                try
+                {
+                    string img; using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + u)) img = k?.GetValue("ImagePath") as string;
+                    if (img == null || img.IndexOf("Velivo Procesor", StringComparison.OrdinalIgnoreCase) < 0) continue;   // cudzy program - nie ruszam
+                    foreach (var a in new[] { "stop " + u, "delete " + u })
+                        using (var p = Process.Start(new ProcessStartInfo("sc.exe", a) { UseShellExecute = false, CreateNoWindow = true })) p.WaitForExit(10000);
+                }
+                catch (Exception) { }
+            try { var stary = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RyzenAdj"); if (Directory.Exists(stary)) Directory.Delete(stary, true); } catch (Exception) { }
         }
 
         // ---------- odczyt ----------
         public sealed class Stan { public double Stapm, StapmL, Fast, FastL, Slow, SlowL, Tdc, TdcL, Edc, EdcL, Temp, TempL; }
         public Stan Ost;   // ostatni odczyt
         DateTime odczytAt;
+        // tabela pomiarów SMU (wersje 0x37…0x65): limit i wartość na przemian - 0x00 STAPM, 0x08 chwilowa, 0x10 średnia, 0x20 TDC, 0x30 EDC, 0x40 temperatura
         Stan Odczyt()
         {
             lock (zamek)
             {
                 try
                 {
-                    var d = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-                    var wyj = Wywolaj("--info");
-                    foreach (var l in wyj)
-                    {   // | STAPM LIMIT         |    15.000 | stapm-limit |
-                        var a = l.Split('|'); if (a.Length < 3) continue;
-                        if (double.TryParse(a[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) d[a[1].Trim()] = v;
-                    }
-                    double G(string k) => d.TryGetValue(k, out var v) ? v : -1;
-                    if (!(G("STAPM LIMIT") > 0)) { if (d.Count == 0 && Powod.Length == 0) { var kom = string.Join(" ", wyj.Select(x => x.Trim()).Where(x => x.Length > 0).Take(2)); Powod = kom.Length > 0 ? "RyzenAdj: " + (kom.Length > 160 ? kom.Substring(0, 160) : kom) : "RyzenAdj nic nie wypisał"; } return null; }
+                    if (dev == IntPtr.Zero || Wykonaj("ioctl_update_pm_table", new ulong[0], 0) == null) { Powod = "PawnIO nie odpowiada"; return null; }
+                    var q = Wykonaj("ioctl_read_pm_table", new ulong[0], 9);
+                    if (q == null) { Powod = "PawnIO: brak tabeli pomiarów"; return null; }
+                    double F(int i) => BitConverter.ToSingle(BitConverter.GetBytes(q[i / 2]), (i % 2) * 4);
+                    if (!(F(0) > 0)) { Powod = "PawnIO: pusta tabela pomiarów"; return null; }
                     Powod = "";
-                    return new Stan { Stapm = G("STAPM VALUE"), StapmL = G("STAPM LIMIT"), Fast = G("PPT VALUE FAST"), FastL = G("PPT LIMIT FAST"), Slow = G("PPT VALUE SLOW"), SlowL = G("PPT LIMIT SLOW"),
-                        Tdc = G("TDC VALUE VDD"), TdcL = G("TDC LIMIT VDD"), Edc = G("EDC VALUE VDD"), EdcL = G("EDC LIMIT VDD"), Temp = G("THM VALUE CORE"), TempL = G("THM LIMIT CORE") };
+                    return new Stan { StapmL = F(0), Stapm = F(1), FastL = F(2), Fast = F(3), SlowL = F(4), Slow = F(5), TdcL = F(8), Tdc = F(9), EdcL = F(12), Edc = F(13), TempL = F(16), Temp = F(17) };
                 }
-                catch (Exception) { return null; }
+                catch (Exception ex) { Powod = "PawnIO: " + ex.Message; return null; }
             }
-        }
-        List<string> Wywolaj(string args)
-        {
-            var w = new List<string>();
-            try
-            {
-                // folder RyzenAdj jako bieżący (start z Windows dawał folder systemowy - sterownik szuka plików obok); komunikaty błędów też (powód w oknie)
-                using (var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetDirectoryName(exe) }))
-                {   // najwyżej 5 s - zawieszony RyzenAdj (np. sterownik zablokowany) nie może zatrzymać pętli programu
-                    var t = p.StandardOutput.ReadToEndAsync();
-                    if (!t.Wait(Dziala ? 5000 : 20000)) { try { p.Kill(); } catch (Exception) { } Powod = "RyzenAdj nie odpowiedział w " + (Dziala ? 5 : 20) + " s"; return w; }   // pierwszy odczyt po starcie Windows ładuje sterownik - dłużej
-                    var err = p.StandardError.ReadToEndAsync(); p.WaitForExit(1000); w.AddRange(t.Result.Split('\n'));
-                    if (err.Wait(500)) w.AddRange(err.Result.Split('\n'));
-                }
-            }
-            catch (Exception) { }
-            return w;
         }
 
         // co 1 s z pętli, odczyt co 10 s (osobny program); zwraca temperaturę albo -1
-        // RyzenAdj nie odpowiedział (np. zaraz po starcie Windows) - ponowna próba co minutę (było: wcale do restartu programu)
-        DateTime probaAt = DateTime.UtcNow; public string Powod = "";
+        // PawnIO nie odpowiedział (np. zaraz po starcie Windows) - ponowna próba co minutę
+        DateTime probaAt = DateTime.MinValue; public string Powod = "";   // pierwsza próba od razu w pętli (nie w wątku okna - instalacja PawnIO może potrwać)
         public double Krok()
         {
-            if (!Dziala) { if (exe == null || (DateTime.UtcNow - probaAt).TotalSeconds < 60) return -1; probaAt = DateTime.UtcNow; Start(); if (!Dziala) return -1; }
+            if (!Dziala) { if (dir == null || (DateTime.UtcNow - probaAt).TotalSeconds < 60) return -1; probaAt = DateTime.UtcNow; Start(true); if (!Dziala) return -1; }
             if (Ost != null && (DateTime.UtcNow - odczytAt).TotalSeconds < 10) return Ost.Temp;
             var s = Odczyt(); if (s == null) return -1;
             Ost = s; odczytAt = DateTime.UtcNow;
@@ -120,7 +204,7 @@ namespace VelivoProcesor
         // Zestawy starego Velivo (nadpisywały fabryczne, a przy zamknięciu zostawiały Turbo) - nie są brane za fabryczne.
         public double FStapm, FFast, FSlow, FTctl; public bool Skalibrowany;
         // 🔝 najwyższe limity, jakie BIOS tego komputera kiedykolwiek ustawił (np. tryb „Performance”) - sprawdzone przez producenta dla tego sprzętu;
-        //    Zrównoważony i Turbo liczone od nich także przy BIOS „Balance” (RyzenAdj omija niższe ustawienie BIOS), Cichy i przywracanie - od bieżącego BIOS
+        //    Zrównoważony i Turbo liczone od nich także przy BIOS „Balance” (limity przez SMU omijają niższe ustawienie BIOS), Cichy i przywracanie - od bieżącego BIOS
         public double MStapm, MFast, MSlow, MTctl; string kalibracjaUwaga = "";
         static string Plik => Path.Combine(Silnik.Dir, "amd-fabryczne.txt");
         [DllImport("kernel32.dll")] static extern ulong GetTickCount64();
@@ -198,7 +282,7 @@ namespace VelivoProcesor
             var c = Cel(t); if (!wymus && ustawione && c == zadane) return;
             bool ok = Wyslij(c);
             if (ok) { zadane = c; ustawione = true; Zapisz(true); blad = 0; Blad = ""; }
-            else if (++blad >= 3) { Dziala = false; Blad = "RyzenAdj przestał odpowiadać – moc AMD jak ustawił producent, reszta sterowania działa."; }
+            else if (++blad >= 3) { Dziala = false; Blad = "PawnIO przestał odpowiadać – moc AMD jak ustawił producent, reszta sterowania działa."; }
         }
         bool Wyslij((double Stapm, double Fast, double Slow, double Tctl) c)
         {
@@ -206,9 +290,10 @@ namespace VelivoProcesor
             lock (zamek)
             {
                 try
-                {
-                    var o = Wywolaj("--stapm-limit=" + W(c.Stapm) + " --fast-limit=" + W(c.Fast) + " --slow-limit=" + W(c.Slow) + " --tctl-temp=" + (uint)Math.Round(c.Tctl));
-                    return o.Count > 0 && !o.Any(l => l.IndexOf("unable", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("fail", StringComparison.OrdinalIgnoreCase) >= 0);
+                {   // Renoir/Lucienne/Cezanne: limity także w drugiej skrzynce (PSMU), jak RyzenAdj i G-Helper
+                    bool ok = Mp1(0x14, W(c.Stapm)) & Mp1(0x15, W(c.Fast)) & Mp1(0x16, W(c.Slow)) & Mp1(0x19, (uint)Math.Round(c.Tctl));
+                    if (rodzina == 1 || rodzina == 13 || rodzina == 22) ok &= Psmu(0x31, W(c.Stapm)) & Psmu(0x32, W(c.Fast)) & Psmu(0x33, W(c.Slow)) & Psmu(0x34, W(c.Slow));
+                    return ok;
                 }
                 catch (Exception) { return false; }
             }

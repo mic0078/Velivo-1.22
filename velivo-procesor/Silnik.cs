@@ -10,7 +10,7 @@ namespace VelivoProcesor
     // 🧠 Velivo Procesor - silnik: pomiar (procesor, karta graficzna, temperatura, dysk, program na wierzchu), decyzja z nauką i sterowanie.
     // Ta sama hierarchia co CPU Manager v40 (temperatura → wczytywanie → obciążenie / gra na karcie → znany program → spoczynek),
     // w jednym przejrzystym mechanizmie: szybko w górę (bez przycięć), powoli w dół (bez skakania trybów), nauka programów i pór dnia,
-    // przewidywanie temperatury z jej wzrostu, samodostrajanie progów. Sterowanie: plan zasilania Windows (Intel i AMD) + RyzenAdj (moc AMD).
+    // przewidywanie temperatury z jej wzrostu, samodostrajanie progów. Sterowanie: plan zasilania Windows (Intel i AMD) + PawnIO (moc AMD).
     enum Tryb { Cichy = 0, Zrownowazony = 1, Turbo = 2 }
 
     sealed class Pomiar
@@ -59,17 +59,16 @@ namespace VelivoProcesor
             catch (Exception) { }
             return false;
         }
-        public string Ryzen;   // ścieżka ryzenadj.exe (AMD) albo null
-        public AmdSilnik AmdE;   // 🔥 silnik AMD (AmdSilnik.cs) albo null
-        public bool RyzenDziala => AmdE != null && AmdE.Dziala;   // RyzenAdj odpowiada (uprawnienia administratora i obsługiwany procesor)
+        public AmdSilnik AmdE;   // 🔥 silnik AMD (AmdSilnik.cs, PawnIO) albo null
+        public bool AmdDziala => AmdE != null && AmdE.Dziala;   // PawnIO odpowiada (uprawnienia administratora i obsługiwany procesor)
 
         public Silnik()
         {
             try { foreach (var l in File.ReadAllLines(SetFile)) { int i = l.IndexOf('='); if (i > 0) set[l.Substring(0, i)] = l.Substring(i + 1); } } catch (Exception) { }
             try { using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0")) { ProcesorNazwa = (k?.GetValue("ProcessorNameString") as string ?? "").Trim(); BazaMhz = Convert.ToDouble(k?.GetValue("~MHz") ?? 0); } } catch (Exception) { ProcesorNazwa = "?"; }
             Amd = ProcesorNazwa.IndexOf("AMD", StringComparison.OrdinalIgnoreCase) >= 0;
-            var rp = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RyzenAdj", "ryzenadj.exe");
-            if (Amd && File.Exists(rp)) { Ryzen = rp; AmdE = new AmdSilnik(rp); }
+            var pd = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PawnIO");
+            if (Amd && File.Exists(Path.Combine(pd, "RyzenSMU.bin"))) AmdE = new AmdSilnik(pd);
             WczytajNauke();
         }
 
@@ -138,8 +137,8 @@ namespace VelivoProcesor
                 p.DyskMBs = Math.Max(0, Licznik(cDyskB)) / 1e6; p.DyskKol = Math.Max(0, Licznik(cDyskQ));
                 p.Gpu = Gpu();
             }
-            double ta = AmdE != null ? AmdE.Krok() : -1;   // także ponowna próba, gdy RyzenAdj nie odpowiadał   // 🔥 AMD: telemetria silnika (co 1 s z biblioteki; z programu co 10 s)
-            if (ta > 0) { tempOst = ta; TempZrodlo = "z procesora (RyzenAdj)"; }
+            double ta = AmdE != null ? AmdE.Krok() : -1;   // także ponowna próba, gdy PawnIO nie odpowiadał   // 🔥 AMD: telemetria silnika (co 1 s z biblioteki; z programu co 10 s)
+            if (ta > 0) { tempOst = ta; TempZrodlo = "z procesora (PawnIO)"; }
             else if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s
             p.Temp = tempOst;
             try
@@ -159,7 +158,7 @@ namespace VelivoProcesor
             return p;
         }
 
-        // temperatura: AMD - RyzenAdj (Tctl), inaczej LibreHardwareMonitor / OpenHardwareMonitor (gdy działa), zapasowo strefa ACPI; -1 = nieznana
+        // temperatura: AMD - PawnIO (Tctl), inaczej LibreHardwareMonitor / OpenHardwareMonitor (gdy działa), zapasowo strefa ACPI; -1 = nieznana
         public string TempZrodlo = "";   // skąd temperatura (słowami do okna)
         // źródło wybierane raz (potem tylko ono - bez zapytań WMI do nieistniejących źródeł co 3 s); bez wyniku - ponowne szukanie co minutę.
         // Czujnik płyty (ACPI), który stoi w miejscu ponad 10 min, nie mierzy procesora (laptopy: stałe 28 °C przy 4 GHz) - wtedy „nieznana”, bez fałszywej ochrony.
@@ -169,7 +168,7 @@ namespace VelivoProcesor
             if (tempZr < 0 && DateTime.UtcNow < tempSzukaj) return -1;
             for (int z = tempZr < 0 ? 0 : tempZr; z < 4; z++)
             {
-                double t = z == 0 ? TempRyzen() : z == 1 ? TempLhm() : z == 2 ? TempAcpiWmi() : TempAcpiPdh();
+                double t = z == 0 ? TempAmd() : z == 1 ? TempLhm() : z == 2 ? TempAcpiWmi() : TempAcpiPdh();
                 if (t > 0)
                 {
                     if (z >= 2)
@@ -183,10 +182,10 @@ namespace VelivoProcesor
             }
             tempZr = -1; tempSzukaj = DateTime.UtcNow.AddMinutes(1); TempZrodlo = "brak czujnika (szukam co minutę)"; return -1;
         }
-        double TempRyzen()
+        double TempAmd()
         {
-            var t = RyzenDziala ? AmdE.Ost?.Temp ?? -1 : -1;   // odczyt silnika AMD
-            if (t > 0) TempZrodlo = "z procesora (RyzenAdj)";
+            var t = AmdDziala ? AmdE.Ost?.Temp ?? -1 : -1;   // odczyt silnika AMD
+            if (t > 0) TempZrodlo = "z procesora (PawnIO)";
             return t > 0 ? t : -1;
         }
         double TempLhm()
@@ -577,7 +576,7 @@ namespace VelivoProcesor
         }
 
         // ↺ ustawienia domyślne Windows: aktywny plan zasilania wraca do wartości fabrycznych Windows (tylko ten plan), program przestaje sterować;
-        // AMD: limity mocy RyzenAdj wracają do fabrycznych po ponownym uruchomieniu komputera (do tego czasu pełna moc)
+        // AMD: limity mocy wracają do fabrycznych po ponownym uruchomieniu komputera (do tego czasu pełna moc)
         [DllImport("powrprof.dll")] static extern uint PowerRestoreIndividualDefaultPowerScheme(ref Guid s);
         public string DomyslneWindows()
         {
@@ -586,7 +585,7 @@ namespace VelivoProcesor
             try { var s = Aktywny(); e = PowerRestoreIndividualDefaultPowerScheme(ref s); PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear(); } catch (Exception) { }
             try { AmdE?.Przywroc(); } catch (Exception) { }
             zastosowany = false;
-            return e == 0 ? "Plan zasilania Windows przywrócony do ustawień domyślnych. Velivo Procesor nie steruje (wybierz tryb, aby znów sterował)." + (RyzenDziala ? " Moc AMD: fabryczne limity przywrócone." : "")
+            return e == 0 ? "Plan zasilania Windows przywrócony do ustawień domyślnych. Velivo Procesor nie steruje (wybierz tryb, aby znów sterował)." + (AmdDziala ? " Moc AMD: fabryczne limity przywrócone." : "")
                 : "Nie udało się przywrócić planu zasilania (kod " + e + ").";
         }
 
@@ -632,12 +631,11 @@ namespace VelivoProcesor
                      Blad = "Windows 3 razy odrzucił ustawienia zasilania – Velivo przestało sterować, działa zarządzanie Windows. Wybierz tryb, aby spróbować znowu."; return; }
             }
             catch (Exception ex) { Blad = ex.Message; }
-            if (RyzenDziala) { AmdE.Ustaw(t, wymusAmd); wymusAmd = false; if (AmdE.Blad.Length > 0) Blad = AmdE.Blad; }   // 🔥 budżet mocy i temperatury AMD (od fabrycznych)
+            if (AmdDziala) { AmdE.Ustaw(t, wymusAmd); wymusAmd = false; if (AmdE.Blad.Length > 0) Blad = AmdE.Blad; }   // 🔥 budżet mocy i temperatury AMD (od fabrycznych)
             zastosowany = true;
         }
 
         int bladZasilN; bool wymusAmd;
-        public void SprawdzRyzen() { try { AmdE?.Start(); } catch (Exception) { } }
         public void PoWybudzeniu() { wymusAmd = true; zastosowany = false; try { AmdE?.PoWybudzeniu(); } catch (Exception) { } }   // BIOS wraca po uśpieniu do swoich limitów
 
         public static bool Admin()

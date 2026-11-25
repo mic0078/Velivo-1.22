@@ -190,7 +190,8 @@ namespace Velivo
                 foreach (var film in Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly).Where(f => IsVlcVideoFile(f) && !IsAudioFile(f)).ToList())
                 {
                     if (gotowy != null && !gotowy(film)) continue;
-                    var nazwa = Path.GetFileNameWithoutExtension(film); var dir = Path.Combine(folder, nazwa.Trim().TrimEnd('.'));
+                    var nazwa = Path.GetFileNameWithoutExtension(film); var odc = Odcinek(film);
+                    var dir = odc != null ? Path.Combine(folder, odc.Value.Serial, "Sezon " + odc.Value.Sezon.ToString("00")) : Path.Combine(folder, nazwa.Trim().TrimEnd('.'));   // 📺 odcinek serialu: Serial\\Sezon 02
                     var razem = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly).Where(f => !string.Equals(f, film, StringComparison.OrdinalIgnoreCase) && Path.GetFileName(f).StartsWith(nazwa, StringComparison.OrdinalIgnoreCase)
                         && (SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant()) || f.EndsWith(".nfo", StringComparison.OrdinalIgnoreCase) || Path.GetFileNameWithoutExtension(f).EndsWith("-poster", StringComparison.OrdinalIgnoreCase))).ToList();
                     try

@@ -205,7 +205,7 @@ namespace Velivo
                         var items = lib.Select(v =>
                         {
                             var mi = LookupMeta(Meta, v.Path); MovieInfo info = null;
-                            if (mi != null) { var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…"; info = new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList() }; }
+                            if (mi != null) { var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…"; info = new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList(), Pl = PlTekst(v.Path) }; }
                             bool pl = mi?.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster));
                             return UserItem(usr, new LanFilmItem { i = FilmId(v.Path), fv = ulub.Contains(FilmId(v.Path)), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null });
                         }).ToList();

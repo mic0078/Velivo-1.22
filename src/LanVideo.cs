@@ -392,7 +392,7 @@ namespace Velivo
             {
                 var mi = LookupMeta(Meta, v.Path); if (mi == null) return null;
                 var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…";
-                return new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList(), People = (mi.People ?? new List<string>()).Take(12).ToList(), Poster = mi.Poster };
+                return new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList(), People = (mi.People ?? new List<string>()).Take(12).ToList(), Poster = mi.Poster, Pl = PlTekst(v.Path) };
             }
             var ulub = SrvUlub();   // ❤ raz na stronę (było: odczyt ustawień dla każdego filmu)
             return LibraryPage(SharedForPeers(), off, out more, v => { var mi = Info(v); return mi == null ? 0 : 200 + (mi.Overview?.Length ?? 0) * 2 + string.Join(",", mi.People).Length * 2; }).Select(v =>

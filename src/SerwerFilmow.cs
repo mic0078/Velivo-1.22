@@ -102,6 +102,57 @@ namespace Velivo
             finally { _serwerPorzTrwa = false; }
             if (czeka > 0) SerwerPorzadekZaChwile();   // jeszcze się kopiuje - sprawdzenie za 30 s
         }
+        // 📺 odcinek serialu w nazwie pliku: „Serial.S02E05…”, „Serial 2x05…” → (Serial, 2); tagi w nawiasach kwadratowych i kropki usunięte - ta sama nazwa serialu dla wszystkich odcinków
+        static readonly System.Text.RegularExpressions.Regex OdcRe = new System.Text.RegularExpressions.Regex(@"^(?<n>.*?)[ ._\-]*\b[Ss](?<s>\d{1,2})[ ._-]?[Ee](?<e>\d{1,3})\b|^(?<n>.*?)[ ._\-]+(?<s>\d{1,2})x(?<e>\d{2,3})\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        internal static (string Serial, int Sezon)? Odcinek(string path)
+        {
+            var m = OdcRe.Match(Path.GetFileNameWithoutExtension(path ?? "")); if (!m.Success || !int.TryParse(m.Groups["s"].Value, out var s)) return null;
+            var n = System.Text.RegularExpressions.Regex.Replace(m.Groups["n"].Value, @"\[[^\]]*\]", " ").Replace('.', ' ').Replace('_', ' ');
+            foreach (var c in Path.GetInvalidFileNameChars()) n = n.Replace(c, ' ');
+            n = string.Join(" ", n.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)).Trim(' ', '-');
+            return n.Length == 0 ? ((string, int)?)null : (n, s);
+        }
+        // 🇵🇱 polskie ścieżki w pliku (ffmpeg -i: język „pol”, tytuł ścieżki) i napisy obok filmu z oznaczeniem pl / pol / polski; null - nie da się odczytać
+        static string SciezkiPl(string film)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo(FfmpegPath) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true };
+                foreach (var a in new[] { "-hide_banner", "-i", film }) psi.ArgumentList.Add(a);
+                string err;
+                using (var p = System.Diagnostics.Process.Start(psi))
+                {
+                    var t = p.StandardError.ReadToEndAsync(); p.StandardOutput.ReadToEndAsync();
+                    if (!t.Wait(15000)) { try { p.Kill(); } catch (Exception) { } return null; }
+                    err = t.Result;
+                }
+                bool dzw = false, nap = false; string rodzaj = null; char typ = ' '; bool pol = false;
+                foreach (var l in err.Split('\n'))
+                {
+                    var x = l.Trim();
+                    if (x.StartsWith("Stream #")) { pol = x.Contains("(pol)"); typ = x.Contains(": Audio:") ? 'a' : x.Contains(": Subtitle:") ? 's' : ' '; if (pol && typ == 'a') dzw = true; if (pol && typ == 's') nap = true; continue; }
+                    if (typ == ' ' || !x.StartsWith("title", StringComparison.OrdinalIgnoreCase)) continue;
+                    var tt = x.Substring(x.IndexOf(':') + 1).ToLowerInvariant();
+                    bool plTytul = pol || tt.Contains("pl") || tt.Contains("polsk") || tt.Contains("polish");
+                    if (typ == 'a' && plTytul && tt.Contains("lektor")) { dzw = true; rodzaj = "Lektor PL"; }
+                    else if (typ == 'a' && plTytul && tt.Contains("dubbing")) { dzw = true; rodzaj ??= "Dubbing PL"; }
+                    else if (typ == 's' && (tt.Contains("polsk") || tt.Contains("polish"))) nap = true;
+                }
+                var baza = Path.GetFileNameWithoutExtension(film).ToLowerInvariant(); var dir = Path.GetDirectoryName(film);
+                if (!nap && dir != null)
+                    nap = Directory.EnumerateFiles(dir).Any(f => SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant()) && Path.GetFileName(f).ToLowerInvariant() is string n && n.StartsWith(baza)
+                        && (n.Contains(".pl.") || n.Contains(".pol.") || n.Contains("polsk") || n.Contains("polish") || n.Contains("_pl.") || n.Contains("-pl.")));
+                var w = new List<string>(); if (dzw) w.Add(rodzaj ?? "Dźwięk PL"); if (nap) w.Add("Napisy PL");
+                return string.Join(" · ", w);   // "" - sprawdzone, bez polskich ścieżek
+            }
+            catch (Exception ex) { App.LogInfo("Serwer filmów – ścieżki PL: " + ex.Message); return null; }
+        }
+        // znaczek z zapisu serwera (ten sam rozmiar pliku) - albo null
+        static string PlTekst(string film)
+        {
+            var w = GetPref("serwer-pl|" + (film ?? "").ToLowerInvariant()); int i = w?.IndexOf('|') ?? -1;
+            var t = i >= 0 ? w.Substring(i + 1) : null; return string.IsNullOrEmpty(t) ? null : t;
+        }
         // folder nazwany przez serwer (nie przez użytkownika) - wolno mu zmieniać nazwę
         static bool FolderAuto(string dir) => GetPref("serwer-folder-auto|" + dir.TrimEnd('\\').ToLowerInvariant()) == "1";
         static void FolderAuto(string dir, bool on) => SetPref("serwer-folder-auto|" + dir.TrimEnd('\\').ToLowerInvariant(), on ? "1" : null);
@@ -183,7 +234,7 @@ namespace Velivo
                 int nowe = 0;
                 if (fol.Count > 0) { var l = LoadLibrary(); var pom = SerwerPominiete(); nowe = await Task.Run(() => AddToLibrary(l, fol, true)); nowe -= l.RemoveAll(v => pom.Contains(v.Path)); if (nowe > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }   // usunięte z serwera nie wracają przy przeglądaniu
                 var reczne = LoadManual();   // 🎞 własna baza serwera ma pierwszeństwo - film tylko z bazy Jellyfin też dostaje własne informacje
-                var bez = LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path) && !reczne.ContainsKey(MetaKey(v.Path)) && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
+                var bez = LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path) && Odcinek(v.Path) == null && !reczne.ContainsKey(MetaKey(v.Path)) && !(DateTime.TryParse(GetPref("serwer-brak|" + MetaKey(v.Path)), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var bb) && DateTime.Now - bb < TimeSpan.FromDays(7))).ToList();   // nieznaleziony - ponownie po tygodniu
                 int opis = 0;
                 foreach (var v in bez)
                 {
@@ -217,6 +268,15 @@ namespace Velivo
                     { mi.Poster = nm.Poster; manP = LoadManual(); manP[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(manP)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++; }
                     await Task.Delay(1000);
                 }
+                // 🇵🇱 polskie ścieżki (lektor / dubbing / napisy) - raz na plik (nowy albo zmieniony rozmiar), w tle
+                if (File.Exists(FfmpegPath))
+                    foreach (var v in LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path)).ToList())
+                    {
+                        long sz; try { sz = new FileInfo(v.Path).Length; } catch (Exception) { continue; }
+                        var by = GetPref("serwer-pl|" + v.Path.ToLowerInvariant()); if (by != null && by.StartsWith(sz + "|")) continue;
+                        var p = v.Path; var wyn = await Task.Run(() => SciezkiPl(p)); if (wyn == null) continue;
+                        SetPref("serwer-pl|" + p.ToLowerInvariant(), sz + "|" + wyn); opis++;
+                    }
                 bool folderWg = false;
                 // 📁 folder filmu nazwany wg informacji: „Polski (Oryginalny) (rok)” - tylko folder nazwany automatycznie; plik zostaje z nazwą użytkownika
                 foreach (var v in LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path)).ToList())
@@ -353,7 +413,7 @@ namespace Velivo
             top.Children.Add(STxt(m?.Name ?? tytul, 26, null, true));
             if (!string.IsNullOrEmpty(m?.Original) && m.Original != m.Name) { var o = STxt(m.Original, 14, SDim); o.FontStyle = FontStyles.Italic; top.Children.Add(o); }
             var meta = new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, len > 0 ? (len / 60000) + L.T(" min") : null, m?.Age,
-                m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null }.Where(x => !string.IsNullOrEmpty(x));
+                m?.Genres?.Count > 0 ? string.Join(", ", m.Genres) : null, string.IsNullOrEmpty(m?.Pl) ? null : "🇵🇱 " + m.Pl }.Where(x => !string.IsNullOrEmpty(x));
             var mt = STxt(string.Join("   ·   ", meta), 14, SDim); mt.Margin = new Thickness(0, 8, 0, 0); top.Children.Add(mt);
             if (!string.IsNullOrEmpty(m?.Director)) { var r0 = STxt(L.T("Reżyseria: ") + m.Director, 13.5, SDim); r0.Margin = new Thickness(0, 6, 0, 0); top.Children.Add(r0); }
             var btn = new WrapPanel { Margin = new Thickness(0, 18, 0, 0) }; top.Children.Add(btn);
@@ -560,6 +620,7 @@ namespace Velivo
                     tl.Inlines.Add(new System.Windows.Documents.Run(mi?.Name ?? ShownTitle(v, mi)) { FontWeight = FontWeights.SemiBold, FontSize = 14.5, Foreground = SFg });
                     if (mi?.Year > 0) tl.Inlines.Add(new System.Windows.Documents.Run(" (" + mi.Year + ")") { Foreground = SDim, FontSize = 14 });
                     if (mi?.Rating > 0) tl.Inlines.Add(new System.Windows.Documents.Run(" · ★ " + mi.Rating.ToString("0.0")) { Foreground = SDim, FontSize = 14 });
+                    if (PlTekst(v.Path) is string plT) tl.Inlines.Add(new System.Windows.Documents.Run("  🇵🇱 " + plT) { Foreground = SOk, FontSize = 13 });
                     txt.Children.Add(tl);
                     if (mi != null && (mi.Genres?.Count > 0 || !string.IsNullOrEmpty(mi.Director))) { var g = STxt(string.Join(", ", mi.Genres ?? new List<string>()) + (string.IsNullOrEmpty(mi.Director) ? "" : L.T(" · reż. ") + mi.Director), 12.5, SDim); g.TextWrapping = TextWrapping.NoWrap; g.TextTrimming = TextTrimming.CharacterEllipsis; txt.Children.Add(g); }
                     if (mi == null) txt.Children.Add(STxt(L.T("⚠ brak informacji – kliknij „🔎 Informacje”"), 12.5, SWarn));

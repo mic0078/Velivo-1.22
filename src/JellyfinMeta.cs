@@ -24,6 +24,7 @@ namespace Velivo
             public string Id { get; set; }
             public string Name { get; set; }
             public string Original { get; set; }
+            public string Pl { get; set; }   // polskie ścieżki w pliku (serwer): „Lektor PL · Napisy PL” - znaczek przy filmie u wszystkich
             public string En { get; set; }   // tytuł angielski (Wikidane) - nazwa folderu na serwerze „Polski (English) (rok)”
             public int Year { get; set; }
             public string Overview { get; set; }

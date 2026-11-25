@@ -46,13 +46,14 @@ namespace VelivoProcesor
                 try
                 {
                     var d = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var l in Wywolaj("--info"))
+                    var wyj = Wywolaj("--info");
+                    foreach (var l in wyj)
                     {   // | STAPM LIMIT         |    15.000 | stapm-limit |
                         var a = l.Split('|'); if (a.Length < 3) continue;
                         if (double.TryParse(a[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) d[a[1].Trim()] = v;
                     }
                     double G(string k) => d.TryGetValue(k, out var v) ? v : -1;
-                    if (!(G("STAPM LIMIT") > 0)) { if (d.Count == 0 && Powod.Length == 0) Powod = "brak wyniku – sterownik RyzenAdj zablokowany albo nieobsługiwany procesor"; return null; }
+                    if (!(G("STAPM LIMIT") > 0)) { if (d.Count == 0 && Powod.Length == 0) { var kom = string.Join(" ", wyj.Select(x => x.Trim()).Where(x => x.Length > 0).Take(2)); Powod = kom.Length > 0 ? "RyzenAdj: " + (kom.Length > 160 ? kom.Substring(0, 160) : kom) : "RyzenAdj nic nie wypisał"; } return null; }
                     Powod = "";
                     return new Stan { Stapm = G("STAPM VALUE"), StapmL = G("STAPM LIMIT"), Fast = G("PPT VALUE FAST"), FastL = G("PPT LIMIT FAST"), Slow = G("PPT VALUE SLOW"), SlowL = G("PPT LIMIT SLOW"),
                         Tdc = G("TDC VALUE VDD"), TdcL = G("TDC LIMIT VDD"), Edc = G("EDC VALUE VDD"), EdcL = G("EDC LIMIT VDD"), Temp = G("THM VALUE CORE"), TempL = G("THM LIMIT CORE") };
@@ -65,11 +66,13 @@ namespace VelivoProcesor
             var w = new List<string>();
             try
             {
-                using (var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
+                // folder RyzenAdj jako bieżący (start z Windows dawał folder systemowy - sterownik szuka plików obok); komunikaty błędów też (powód w oknie)
+                using (var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetDirectoryName(exe) }))
                 {   // najwyżej 5 s - zawieszony RyzenAdj (np. sterownik zablokowany) nie może zatrzymać pętli programu
                     var t = p.StandardOutput.ReadToEndAsync();
                     if (!t.Wait(Dziala ? 5000 : 20000)) { try { p.Kill(); } catch (Exception) { } Powod = "RyzenAdj nie odpowiedział w " + (Dziala ? 5 : 20) + " s"; return w; }   // pierwszy odczyt po starcie Windows ładuje sterownik - dłużej
-                    p.WaitForExit(1000); w.AddRange(t.Result.Split('\n'));
+                    var err = p.StandardError.ReadToEndAsync(); p.WaitForExit(1000); w.AddRange(t.Result.Split('\n'));
+                    if (err.Wait(500)) w.AddRange(err.Result.Split('\n'));
                 }
             }
             catch (Exception) { }

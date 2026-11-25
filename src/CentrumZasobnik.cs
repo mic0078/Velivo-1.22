@@ -27,7 +27,15 @@ namespace Velivo
             if (_menuOn) return; _menuOn = true;   // jeden znak na program (dwie ikony w jednym procesie - jeden wątek)
             try
             {
-                var ev = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Velivo.Menu." + Proc);
+                // dostęp dla zalogowanych: program działający jako administrator (Velivo Procesor - moc AMD) inaczej był dla zwykłego Centrum niedostępny i Centrum pokazywało zastępcze menu
+                var sec = new System.Security.AccessControl.EventWaitHandleSecurity();
+                sec.AddAccessRule(new System.Security.AccessControl.EventWaitHandleAccessRule(new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.AuthenticatedUserSid, null), System.Security.AccessControl.EventWaitHandleRights.Synchronize | System.Security.AccessControl.EventWaitHandleRights.Modify, System.Security.AccessControl.AccessControlType.Allow));
+                sec.AddAccessRule(new System.Security.AccessControl.EventWaitHandleAccessRule(System.Security.Principal.WindowsIdentity.GetCurrent().User, System.Security.AccessControl.EventWaitHandleRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+#if NETFRAMEWORK
+                var ev = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Velivo.Menu." + Proc, out _, sec);
+#else
+                var ev = EventWaitHandleAcl.Create(false, EventResetMode.AutoReset, @"Local\Velivo.Menu." + Proc, out _, sec);
+#endif
                 new Thread(() => { while (ev.WaitOne()) sc?.Post(_ => Menu(_menuTray), null); }) { IsBackground = true, Name = "Velivo Centrum menu" }.Start();
             }
             catch (Exception) { }

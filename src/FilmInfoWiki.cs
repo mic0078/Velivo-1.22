@@ -34,7 +34,8 @@ namespace Velivo
                         nast = DateTime.UtcNow.AddMilliseconds(300);
                         if ((int)r.StatusCode != 429 || proba > 0) return r;
                         var ra = r.Headers.RetryAfter?.Delta ?? (r.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow) ?? TimeSpan.FromSeconds(20);
-                        nast = DateTime.UtcNow + (ra < TimeSpan.FromSeconds(2) ? TimeSpan.FromSeconds(2) : ra > TimeSpan.FromMinutes(2) ? TimeSpan.FromMinutes(2) : ra); r.Dispose();
+                        // najwyżej 3 s (było do 2 min - całe wyszukiwanie stało, właściciel 2026-11-25: „czekałem 2 minuty”); nadal 429 - odpowiedź wraca, wyszukiwanie idzie dalej bez tego jednego zdjęcia / strony
+                        nast = DateTime.UtcNow + (ra < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : ra > TimeSpan.FromSeconds(3) ? TimeSpan.FromSeconds(3) : ra); r.Dispose();
                         App.LogInfo("Wikimedia: za dużo zapytań (429) – czekam " + (int)(nast - DateTime.UtcNow).TotalSeconds + " s · " + req.RequestUri?.Host);   // przyczyna długiego czekania na informacje - w dzienniku
                     }
                 }
@@ -119,7 +120,8 @@ namespace Velivo
         async Task<List<FilmWynik>> SzukajFilmu(string q, string rok)
         {
             var r = new List<FilmWynik>(); int.TryParse(rok, out var y);
-            var c = Wariant.Serwer && !SerwerJfInfo ? null : LoadJellyfinConf();   // 🎞 Velivo Serwer filmów - samodzielny (Wikidane, Wikipedia); Jellyfin tylko za zgodą
+            // 🎞 Velivo Serwer filmów: bez zgody - samodzielny (Wikidane, Wikipedia); za zgodą („Pobieraj informacje także z Jellyfin”) - TMDb przez klucz Jellyfin najpierw, jak w Odtwarzaczu (szybko; było: Wikidane najpierw także ze zgodą - wolno)
+            var c = Wariant.Serwer && !SerwerJfInfo ? null : LoadJellyfinConf();
             if (c != null && !string.IsNullOrEmpty(c.Url) && !string.IsNullOrEmpty(c.Key))
                 try
                 {
@@ -153,7 +155,6 @@ namespace Velivo
                     }
                     if (r.Count > przed) break;
                 }
-            if (Wariant.Serwer) r = r.Where(f => f.WdId != null).Concat(r.Where(f => f.WdId == null)).ToList();   // 🎞 serwer: własne źródła (Wikidane) przed Jellyfin
             if (y > 0) r = r.OrderByDescending(f => f.Year == y || f.Year == 0 && (f.Desc ?? "").Contains(rok)).ToList();
             return r;
         }
@@ -181,7 +182,7 @@ namespace Velivo
             m.Name = w.Label ?? m.Name; if (w.Year > 0) m.Year = w.Year;
             if (!string.IsNullOrWhiteSpace(w.Desc)) m.Overview = w.Desc;   // opis z TMDb (po polsku, gdy Jellyfin ma język polski)
             if (string.IsNullOrWhiteSpace(m.Overview)) m.Overview = " ";
-            if ((m.People == null || m.People.Count == 0) && Wariant.Serwer) m.People = await ObsadaWiki(wd, m.Original ?? w.Label, m.Year);   // 🎞 serwer: najpierw własne źródło (Wikipedia), Jellyfin dopiero potem
+            if ((m.People == null || m.People.Count == 0) && Wariant.Serwer && !SerwerJfInfo) m.People = await ObsadaWiki(wd, m.Original ?? w.Label, m.Year);   // 🎞 serwer bez zgody na Jellyfin: obsada z Wikipedii
             if ((m.People == null || m.People.Count == 0) && (!Wariant.Serwer || SerwerJfInfo))
             {   // 🎭 obsada z TMDb przez Jellyfin (film o tym samym numerze TMDb / IMDb w jego bibliotece) - na serwerze tylko za zgodą
                 var jf = await JellyfinFilm(w.Tmdb, w.Imdb, w.Label, w.Year);

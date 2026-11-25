@@ -408,6 +408,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * 2026-11-25: Procesor po restarcie „RyzenAdj nie odpowiada” mimo poprawek – przyczyna z dziennika Defendera (Get-MpThreatDetection): WinRing0 (sterownik RyzenAdj) blokowany jako VulnerableDriver, wyjątek nie pomaga; teraz PawnIO (podpisany, jak G-Helper). Zanim poprawisz „nie odpowiada” – sprawdź antywirus i dziennik systemu; kolejność testów właściciela: najpierw sam moduł, potem budowa całości; polecenie budowy z numerem wersji.
 
+* 2026-11-25: „Najniższy zegar” (podłoga we wszystkich trybach) usunąłem po audycie innego AI, a przywracając zmieniłem jego znaczenie na „najwyższy w Cichym” – Intel schodził poniżej minimum właściciela. Nigdy nie zmieniaj znaczenia ustawienia właściciela; przywracając – dokładnie jak było (git show).
+
 ## Zrobione (pamięć)
 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.

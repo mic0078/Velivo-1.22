@@ -356,7 +356,7 @@ namespace VelivoProcesor
             dc.SelectedIndex = Math.Max(0, opcje.FindIndex(o => o.Klucz == s.Get("dioda", "*")));
             dc.SelectionChanged += (a, e) => { var k = opcje[Math.Max(0, dc.SelectedIndex)].Klucz; s.Put("dioda", k); dioda.Dysk(k); };
             dd.Children.Add(dc); Siatka(dd, "dd");
-            Siatka(Suwak("🌙 Zegar w Cichym", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "W trybie Cichym zegar nie wyjdzie ponad tę wartość – cicho, np. w nocy przy filmie. Zrównoważony i Turbo bez ograniczeń"));
+            Siatka(Suwak("🌙 Najniższy zegar", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Cichy stoi na nim, inne tryby nie schodzą niżej. Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
             Siatka(Suwak("🌡 Temperatura graniczna", "temp-limit", 70, 98, 90, 1, v => v.ToString("0") + " °C", s.AmdE != null ? "AMD: przy tej temperaturze procesor sam zwalnia (Turbo – dokładnie ta; Zrównoważony najwyżej fabryczna; Cichy 5 °C niżej). Procesor przyjmuje najwyżej swoje maksimum" : "Powyżej – Cichy. Program zwalnia też wcześniej, gdy temperatura szybko rośnie"));
             bAdmin = Btn(s.AmdE != null ? "🔑 Włącz sterowanie mocą AMD i odczyt temperatury (jedno „Tak” administratora)" : "🔑 Włącz odczyt temperatury (jedno „Tak” administratora)", Program.ZadanieUtworz,
                 "Odczyt czujników (i moc AMD przez PawnIO) wymaga uprawnień administratora. Program będzie startował z Windows przez zadanie z najwyższymi uprawnieniami – bez pytania przy każdym starcie.");

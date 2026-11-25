@@ -36,7 +36,7 @@ namespace VelivoProcesor
             }
         }
         public bool Auto => Get("tryb", "auto") == "auto";
-        public double CichyGhz => GetD("cichy-ghz", 1.4);   // 🌙 najwyższy zegar w trybie Cichym (cisza w nocy - właściciel ustawia suwakiem); inne tryby bez ograniczeń
+        public double CichyGhz => GetD("cichy-ghz", 1.4);   // 🌙 najniższy zegar (suwak): Cichy stoi na nim, inne tryby nie schodzą niżej (może być poniżej bazowego - jak v40)
         public double TempLimit => GetD("temp-limit", 90);
 
         public readonly string ProcesorNazwa; public readonly bool Amd; public readonly double BazaMhz;
@@ -597,16 +597,15 @@ namespace VelivoProcesor
             try
             {
                 var s = Aktywny(); ZapamietajWindows(s);
-                // 🪽 bez obcinania skrzydeł (2026-11-25, audyt): zegar i boost wybiera procesor (Speed Shift / CPPC) we wszystkich trybach - tryb ustawia tylko skłonność (EPP) i boost;
-                //    Cichy: boost efektywny + EPP oszczędne (na AMD do tego niższy budżet mocy i temperatury - AmdSilnik); bez stałego minimum zegaru (było 1,4 GHz = pobór przy lekkiej pracy)
-                // 🌙 Cichy: zegar najwyżej do suwaka „Zegar w Cichym” i bez boostu (cisza w nocy - wróciło 2026-11-25 na prośbę właściciela); minimum zostaje jak w Windows
-                uint maxC = (uint)Math.Max(5, Math.Min(100, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100)));
-                uint max = t == Tryb.Cichy ? maxC : 100;
+                // 🌙 najniższy zegar użytkownika (suwak) we WSZYSTKICH trybach: Cichy stoi dokładnie na nim (bez boostu - cisza w nocy), Zrównoważony i Turbo nie schodzą poniżej
+                //    (właściciel 2026-11-25: „skacze poniżej ustalonego minimum” - wcześniej usunąłem tę podłogę, to był błąd); ponad nim zegar i boost wybiera procesor (Speed Shift / CPPC)
+                uint podloga = (uint)Math.Max(5, Math.Min(100, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100)));
+                uint max = t == Tryb.Cichy ? podloga : 100;
                 // EPP (preferencja energia ↔ wydajność) w Windows: 0–100 % (0 = wydajność, 100 = oszczędność); było 200 (poza zakresem - Windows odrzucał)
                 // i 100 w Zrównoważonym (najbardziej oszczędne - Intel ze Speed Shift ociągał się z zegarem). Teraz jak Windows: Zrównoważony 33
                 uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 80u : t == Tryb.Turbo ? 0u : 33u;
                 uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
-                uint min = Math.Min(max, oryg.TryGetValue(Min, out var om) ? om.Ac : 5u);   // minimum jak w Windows przed programem (bez sztucznej podłogi w Zrównoważonym i Turbo)
+                uint min = t == Tryb.Cichy ? podloga : Math.Max(t == Tryb.Turbo ? 30u : 5u, podloga);
                 // ⚡ reakcja (próg w %, czas w okresach sprawdzania ~30 ms, podnoszenie: 0 stopniowo, 1 o krok, 2 od razu do pełna): Cichy leniwie (ciszej), Turbo od razu;
                 // 🎚 Studio (muzyka): zegar w górę przy najmniejszym obciążeniu, w dół bardzo powoli, wszystkie rdzenie czuwają - bez opóźnień budzenia (trzaski)
                 bool st = StudioProg != null;

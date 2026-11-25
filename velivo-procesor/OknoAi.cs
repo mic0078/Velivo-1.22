@@ -63,9 +63,9 @@ namespace VelivoProcesor
             var pg = new Grid(); for (int i = 0; i < 4; i++) pg.RowDefinitions.Add(new RowDefinition { Height = i == 2 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
             var tyt = T("🎓 Nauka skutków – programy", 13, Fg, FontWeights.SemiBold); pg.Children.Add(tyt);
             var narz = new DockPanel { Margin = new Thickness(0, 6, 0, 6) }; Grid.SetRow(narz, 1); pg.Children.Add(narz);
-            var lv = new ListView { Background = Card, Foreground = Fg, BorderBrush = Line, ItemContainerStyle = WierszStyl() }; Grid.SetRow(lv, 2); pg.Children.Add(lv);
+            var lv = new ListView { Background = Card, Foreground = Fg, BorderBrush = Line, ItemContainerStyle = WierszStyl(), SelectionMode = SelectionMode.Extended }; Grid.SetRow(lv, 2); pg.Children.Add(lv);
             string sig = null;
-            var b1 = Btn("🗑 Zapomnij zaznaczony", () => { if (lv.SelectedItem is AiRow r) { s.ZapomnijOcene(r.Prog); sig = null; aiOdswiez(); } }, "Program uczy się od nowa"); b1.Margin = new Thickness(6, 0, 0, 0);
+            var b1 = Btn("🗑 Zapomnij zaznaczone", () => { var zz = lv.SelectedItems.OfType<AiRow>().Select(r => r.Prog).ToList(); if (zz.Count == 0) return; foreach (var g in zz) s.ZapomnijOcene(g); sig = null; aiOdswiez(); }, "Zaznaczone programy uczą się od nowa (Ctrl / Shift – kilka naraz)"); b1.Margin = new Thickness(6, 0, 0, 0);
             var b2 = Btn("↺ Wyzeruj trafność", () => { s.ZerujTrafnosc(); aiOdswiez(); }, "Głosy zaczynają z równą trafnością"); b2.Margin = new Thickness(6, 0, 0, 0);
             DockPanel.SetDock(b2, Dock.Right); DockPanel.SetDock(b1, Dock.Right); narz.Children.Add(b2); narz.Children.Add(b1);
             var szukaj = new TextBox { Background = B(0x0F, 0x13, 0x1B), Foreground = Fg, CaretBrush = Fg, BorderBrush = Line, Padding = new Thickness(6, 3, 6, 3), ToolTip = "🔍 Szukaj programu (nazwa)" };
@@ -106,7 +106,7 @@ namespace VelivoProcesor
                 var q = szukaj.Text.Trim();
                 var ns = q + "|" + string.Join("|", a.Programy.Select(x => x.Prog + x.N / 30));
                 if (ns == sig) return;
-                sig = ns; var zazn = (lv.SelectedItem as AiRow)?.Prog;
+                sig = ns; var zazn = new HashSet<string>(lv.SelectedItems.OfType<AiRow>().Select(r => r.Prog));
                 var rows = a.Programy.Where(x => q.Length == 0 || x.Prog.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0).Select(x =>
                 {
                     int b = 0; for (int i = 1; i < 3; i++) if (x.Q[i] > x.Q[b] + 0.2) b = i;
@@ -118,7 +118,7 @@ namespace VelivoProcesor
                 var lst = (malej ? rows.OrderByDescending(key) : rows.OrderBy(key)).ToList();
                 lv.ItemsSource = lst;
                 tyt.Text = "🎓 Nauka skutków – programy (" + lst.Count + (q.Length > 0 ? " z " + a.Programy.Count : "") + ")";
-                if (zazn != null) lv.SelectedItem = lst.FirstOrDefault(r => r.Prog == zazn);
+                foreach (var r0 in lst) if (zazn.Contains(r0.Prog)) lv.SelectedItems.Add(r0);
             };
             aiWin.Closed += (o, e) => { aiWin = null; aiOdswiez = null; };
             aiWin.Loaded += (o, e) => aiOdswiez();

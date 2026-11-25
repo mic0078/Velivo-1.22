@@ -240,7 +240,7 @@ namespace VelivoProcesor
         // priorytet, który program dostaje: wybrany, a w trybie Studio domyślnie Wysoki
         public int PriorytetDla(string n) { lock (Studio) return Priorytet.TryGetValue(n, out var v) ? v : Studio.Contains(n) ? 1 : 0; }
         public bool BezPbDla(string n) { lock (Studio) return BezPb.Contains(n); }
-        public void Zapomnij(string n) { lock (programy) { programy.Remove(n); ocena.Remove(n); ostatnio.Remove(n); } lock (Studio) { Reczne.Remove(n); Priorytet.Remove(n); Studio.Remove(n); BezPb.Remove(n); } ZapiszNauke(); }
+        public void Zapomnij(string n) { if (string.Equals(ostProgram, n, StringComparison.OrdinalIgnoreCase)) ostProgram = ""; lock (programy) { programy.Remove(n); ocena.Remove(n); ostatnio.Remove(n); } lock (Studio) { Reczne.Remove(n); Priorytet.Remove(n); Studio.Remove(n); BezPb.Remove(n); } ZapiszNauke(); }
         public double ProgWysoki = 70, ProgNiski = 20;   // samodostrajane
         DateTime naukaZapis = DateTime.UtcNow;
 
@@ -369,15 +369,17 @@ namespace VelivoProcesor
         string ostProgram = ""; DateTime wyjscieCichy; string poprzedniNaWierzchu = ""; DateTime startDo;
         public Tryb Decyduj(Pomiar p)
         {
-            if (Obserwacja.Contains(p.Program ?? "") || Powloka.Contains(p.Program ?? "")) { p.Program = ostProgram; p.ProgCpu = -1; } else ostProgram = p.Program ?? "";
-            Ucz(p);
+            // okno, na które tylko patrzysz (Velivo Procesor, pulpit…): decyzja dla programu pod spodem, ale BEZ nauki - inaczej zapomniany program wracał od razu (2026-11-25)
+            bool podglad = Obserwacja.Contains(p.Program ?? "") || Powloka.Contains(p.Program ?? "");
+            if (podglad) { p.Program = ostProgram; p.ProgCpu = -1; } else ostProgram = p.Program ?? "";
+            if (!podglad) Ucz(p);
             StudioCzynne(p);
             if (Get("tryb") == "pauza") { Dlaczego = "Wstrzymany – steruje inny program. Velivo Procesor tylko mierzy i pokazuje (ProBalance też wstrzymany). Wybierz tryb, aby znów sterował."; return Obecny; }
             if (Get("tryb") == "windows") { Dlaczego = "Steruje Windows (ustawienia domyślne) – Velivo Procesor tylko pokazuje pomiary."; return Obecny; }
             if (Get("tryb") != trybOst) { trybOst = Get("tryb"); trybOd = DateTime.UtcNow; }
             // ręczny wybór uczy tylko przez 2 min po kliknięciu (decyzja przy tym programie) - „zawsze Cichy” na cały dzień nie zapisuje Cichego wszystkim programom
-            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; if ((DateTime.UtcNow - trybOd).TotalMinutes < 2) Ocen(p, r, true); Dlaczego = "Wybrany ręcznie." + ((DateTime.UtcNow - trybOd).TotalMinutes < 2 && !string.IsNullOrEmpty(p.Program) ? " AI zapamiętuje ten wybór dla " + p.Program + "." : ""); return Ustal(r); }
-            Ocen(p, Obecny, false);
+            if (!Auto) { var r = Get("tryb") == "cichy" ? Tryb.Cichy : Get("tryb") == "turbo" ? Tryb.Turbo : Tryb.Zrownowazony; if ((DateTime.UtcNow - trybOd).TotalMinutes < 2 && !podglad) Ocen(p, r, true); Dlaczego = "Wybrany ręcznie." + ((DateTime.UtcNow - trybOd).TotalMinutes < 2 && !string.IsNullOrEmpty(p.Program) ? " AI zapamiętuje ten wybór dla " + p.Program + "." : ""); return Ustal(r); }
+            if (!podglad) Ocen(p, Obecny, false);
             if (p.Temp > 0) { tempHist.Enqueue(p.Temp); while (tempHist.Count > 10) tempHist.Dequeue(); }
             double trend = tempHist.Count >= 5 ? (tempHist.Last() - tempHist.First()) / (tempHist.Count - 1) : 0;   // °C na sekundę
             wysokoN = p.Cpu > ProgWysoki ? wysokoN + 1 : 0; niskoN = p.Cpu < ProgNiski ? niskoN + 1 : 0;

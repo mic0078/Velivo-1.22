@@ -450,13 +450,15 @@ namespace VelivoProcesor
             return b;
         }
 
-        ContextMenu MenuProgramu(string prog)
+        // menu jednego programu albo kilku zaznaczonych w pełnej liście (zmiana dla wszystkich naraz)
+        ContextMenu MenuProgramu(string prog, IList<string> zazn = null)
         {
+            var progi = zazn != null && zazn.Count > 1 ? zazn.ToList() : new List<string> { prog };
             var cm = new ContextMenu();
             cm.Opened += (a, e) => menuOtwarte = true;
             cm.Closed += (a, e) => { menuOtwarte = false; wybrany = null; listaSig = ""; Odswiez(); };
             void Zmien(Action a) { a(); s.ZapiszNauke(); listaSig = ""; Odswiez(); WszystkieOdswiez(); }
-            cm.Items.Add(new MenuItem { Header = prog, IsEnabled = false });
+            cm.Items.Add(new MenuItem { Header = progi.Count > 1 ? "Zaznaczone programy: " + progi.Count : prog, IsEnabled = false });
             cm.Items.Add(new Separator());
             bool z = s.Reczne.TryGetValue(prog, out var rt);
             var mt = new MenuItem { Header = "Tryb" };
@@ -465,26 +467,26 @@ namespace VelivoProcesor
             {
                 var tt = t; var mi = new MenuItem { Header = "Zawsze: " + Silnik.Nazwa(t) + (stp && t == Tryb.Turbo ? " – miks, dużo wtyczek" : stp && t == Tryb.Zrownowazony ? " – nagrywanie, ciszej" : ""), IsChecked = z && rt == t };
                 if (stp && t == Tryb.Cichy) { mi.IsEnabled = false; mi.Header = "Zawsze: Cichy – niedostępny w trybie Studio (trzaski)"; }
-                mi.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne[prog] = tt; }); mt.Items.Add(mi);
+                mi.Click += (a, e) => Zmien(() => { lock (s.Studio) foreach (var g in progi) if (!(tt == Tryb.Cichy && s.Studio.Contains(g))) s.Reczne[g] = tt; }); mt.Items.Add(mi);
             }
-            var ml = new MenuItem { Header = "Ucz się sam", IsChecked = !z, IsEnabled = !stp, ToolTip = stp ? "W trybie Studio tryb jest stały – najpierw wyłącz Studio" : null }; ml.Click += (a, e) => Zmien(() => { lock (s.Studio) s.Reczne.Remove(prog); }); mt.Items.Add(ml);
+            var ml = new MenuItem { Header = "Ucz się sam", IsChecked = !z, IsEnabled = !stp, ToolTip = stp ? "W trybie Studio tryb jest stały – najpierw wyłącz Studio" : null }; ml.Click += (a, e) => Zmien(() => { lock (s.Studio) foreach (var g in progi) if (!s.Studio.Contains(g)) s.Reczne.Remove(g); }); mt.Items.Add(ml);
             cm.Items.Add(mt);
             int pr = s.PriorytetDla(prog);   // obowiązujący (w Studio bez wyboru - Wysoki)
             var mp = new MenuItem { Header = "Priorytet" };
             foreach (var (v, n) in new[] { (1, "⬆ Wysoki"), (0, "Normalny (bez zmian)"), (-1, "⬇ Niski") })
-            { var mi = new MenuItem { Header = n + (v == 1 && stp && !s.Priorytet.ContainsKey(prog) ? " (Studio)" : ""), IsChecked = pr == v }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (v == 0 && !s.Studio.Contains(prog)) s.Priorytet.Remove(prog); else s.Priorytet[prog] = v; } }); mp.Items.Add(mi); }   // Normalny w Studio zapisany wprost (inaczej Studio daje Wysoki)
+            { var mi = new MenuItem { Header = n + (v == 1 && stp && !s.Priorytet.ContainsKey(prog) ? " (Studio)" : ""), IsChecked = pr == v }; mi.Click += (a, e) => Zmien(() => { lock (s.Studio) foreach (var g in progi) { if (v == 0 && !s.Studio.Contains(g)) s.Priorytet.Remove(g); else s.Priorytet[g] = v; } }); mp.Items.Add(mi); }   // Normalny w Studio zapisany wprost (inaczej Studio daje Wysoki)
             cm.Items.Add(mp);
             cm.Items.Add(new Separator());
             bool st; lock (s.Studio) st = s.Studio.Contains(prog);
             var ms = new MenuItem { Header = "🎚 Tryb Studio (muzyka, nagrywanie, bez trzasków)", IsChecked = st, ToolTip = "Gdy program działa: Turbo albo Zrównoważony (menu Tryb), wszystkie rdzenie czuwają, zegar od razu w górę, priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." };
-            ms.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (st) s.Studio.Remove(prog); else { s.Studio.Add(prog); if (!(s.Reczne.TryGetValue(prog, out var r0) && r0 == Tryb.Zrownowazony)) s.Reczne[prog] = Tryb.Turbo; } } });   // Studio: domyślnie Turbo, można zmienić na Zrównoważony
+            ms.Click += (a, e) => Zmien(() => { lock (s.Studio) foreach (var g in progi) { if (st) s.Studio.Remove(g); else { s.Studio.Add(g); if (!(s.Reczne.TryGetValue(g, out var r0) && r0 == Tryb.Zrownowazony)) s.Reczne[g] = Tryb.Turbo; } } });   // Studio: domyślnie Turbo, można zmienić na Zrównoważony
             cm.Items.Add(ms);
             bool bp = s.BezPbDla(prog);
-            var mb = new MenuItem { Header = "⚖ Nie uspokajaj w ProBalance", IsChecked = bp }; mb.Click += (a, e) => Zmien(() => { lock (s.Studio) { if (bp) s.BezPb.Remove(prog); else s.BezPb.Add(prog); } });
+            var mb = new MenuItem { Header = "⚖ Nie uspokajaj w ProBalance", IsChecked = bp }; mb.Click += (a, e) => Zmien(() => { lock (s.Studio) foreach (var g in progi) { if (bp) s.BezPb.Remove(g); else s.BezPb.Add(g); } });
             cm.Items.Add(mb);
             cm.Items.Add(new Separator());
-            var mz = new MenuItem { Header = "🗑 Zapomnij program", ToolTip = "Usuwa to, czego program się nauczył, i wszystkie ustawienia tego programu" };
-            mz.Click += (a, e) => { s.Zapomnij(prog); listaSig = ""; Odswiez(); WszystkieOdswiez(); };
+            var mz = new MenuItem { Header = progi.Count > 1 ? "🗑 Zapomnij zaznaczone (" + progi.Count + ")" : "🗑 Zapomnij program", ToolTip = "Usuwa to, czego program się nauczył, i wszystkie ustawienia tego programu" };
+            mz.Click += (a, e) => { foreach (var g in progi) s.Zapomnij(g); listaSig = ""; Odswiez(); WszystkieOdswiez(); };
             cm.Items.Add(mz);
             return cm;
         }
@@ -508,12 +510,18 @@ namespace VelivoProcesor
                 var hd = new GridViewColumnHeader { Content = n, Tag = sort }; hd.Click += (a, e) => Sortuj((string)hd.Tag);
                 gv.Columns.Add(new GridViewColumn { Header = hd, DisplayMemberBinding = new System.Windows.Data.Binding(prop), Width = wid });
             }
-            wszLv = new ListView { View = gv, Background = Card, Foreground = Fg, BorderBrush = Line, ItemContainerStyle = WierszStyl() };
+            wszLv = new ListView { View = gv, Background = Card, Foreground = Fg, BorderBrush = Line, ItemContainerStyle = WierszStyl(), SelectionMode = SelectionMode.Extended };   // Ctrl / Shift - kilka naraz
             ScrollViewer.SetHorizontalScrollBarVisibility(wszLv, ScrollBarVisibility.Disabled);   // kolumny mieszczą się w oknie - bez białego paska w bok
             wszLv.PreviewMouseRightButtonDown += (a, e) =>
             {
                 var it = ItemsControl.ContainerFromElement(wszLv, e.OriginalSource as DependencyObject) as ListViewItem;
-                if (it?.DataContext is Silnik.ProgInfo x) { it.IsSelected = true; wszLv.ContextMenu = MenuProgramu(x.Prog); } else wszLv.ContextMenu = null;
+                if (it?.DataContext is Silnik.ProgInfo x)
+                {   // prawy przycisk na zaznaczonym - menu dla wszystkich zaznaczonych; na innym - tylko on
+                    if (!it.IsSelected) { wszLv.SelectedItems.Clear(); it.IsSelected = true; }
+                    wszLv.ContextMenu = MenuProgramu(x.Prog, wszLv.SelectedItems.OfType<Silnik.ProgInfo>().Select(y => y.Prog).ToList());
+                    e.Handled = true; wszLv.ContextMenu.PlacementTarget = wszLv; wszLv.ContextMenu.IsOpen = true;
+                }
+                else wszLv.ContextMenu = null;
             };
             root.Children.Add(wszLv);
             wszWin.Content = root; WszystkieOdswiez(); wszWin.Show();
@@ -531,8 +539,8 @@ namespace VelivoProcesor
             var dane = s.ProgramyDane().Where(x => q.Length == 0 || x.Prog.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
             var pi = typeof(Silnik.ProgInfo).GetProperty(k) ?? typeof(Silnik.ProgInfo).GetProperty("N");
             dane = malej ? dane.OrderByDescending(x => pi.GetValue(x)) : dane.OrderBy(x => pi.GetValue(x));
-            string zazn = (wszLv.SelectedItem as Silnik.ProgInfo)?.Prog;
-            var l = dane.ToList(); wszLv.ItemsSource = l; wszLv.SelectedItem = l.FirstOrDefault(x => x.Prog == zazn);
+            var zazn = new HashSet<string>(wszLv.SelectedItems.OfType<Silnik.ProgInfo>().Select(x => x.Prog));   // zaznaczenie (także kilku) zostaje po odświeżeniu
+            var l = dane.ToList(); wszLv.ItemsSource = l; foreach (var x in l) if (zazn.Contains(x.Prog)) wszLv.SelectedItems.Add(x);
             wszWin.Title = "Velivo Procesor – programy (" + l.Count + ")";
             foreach (var c in ((GridView)wszLv.View).Columns) { var hd = (GridViewColumnHeader)c.Header; var n = ((string)hd.Content).TrimEnd(' ', '▲', '▼'); hd.Content = n + ((string)hd.Tag == k ? (malej ? " ▼" : " ▲") : ""); }
         }

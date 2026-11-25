@@ -52,7 +52,8 @@ namespace VelivoProcesor
                         if (double.TryParse(a[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) d[a[1].Trim()] = v;
                     }
                     double G(string k) => d.TryGetValue(k, out var v) ? v : -1;
-                    if (!(G("STAPM LIMIT") > 0)) return null;
+                    if (!(G("STAPM LIMIT") > 0)) { if (d.Count == 0 && Powod.Length == 0) Powod = "brak wyniku – sterownik RyzenAdj zablokowany albo nieobsługiwany procesor"; return null; }
+                    Powod = "";
                     return new Stan { Stapm = G("STAPM VALUE"), StapmL = G("STAPM LIMIT"), Fast = G("PPT VALUE FAST"), FastL = G("PPT LIMIT FAST"), Slow = G("PPT VALUE SLOW"), SlowL = G("PPT LIMIT SLOW"),
                         Tdc = G("TDC VALUE VDD"), TdcL = G("TDC LIMIT VDD"), Edc = G("EDC VALUE VDD"), EdcL = G("EDC LIMIT VDD"), Temp = G("THM VALUE CORE"), TempL = G("THM LIMIT CORE") };
                 }
@@ -67,7 +68,7 @@ namespace VelivoProcesor
                 using (var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
                 {   // najwyżej 5 s - zawieszony RyzenAdj (np. sterownik zablokowany) nie może zatrzymać pętli programu
                     var t = p.StandardOutput.ReadToEndAsync();
-                    if (!t.Wait(5000)) { try { p.Kill(); } catch (Exception) { } return w; }
+                    if (!t.Wait(Dziala ? 5000 : 20000)) { try { p.Kill(); } catch (Exception) { } Powod = "RyzenAdj nie odpowiedział w " + (Dziala ? 5 : 20) + " s"; return w; }   // pierwszy odczyt po starcie Windows ładuje sterownik - dłużej
                     p.WaitForExit(1000); w.AddRange(t.Result.Split('\n'));
                 }
             }
@@ -76,9 +77,11 @@ namespace VelivoProcesor
         }
 
         // co 1 s z pętli, odczyt co 10 s (osobny program); zwraca temperaturę albo -1
+        // RyzenAdj nie odpowiedział (np. zaraz po starcie Windows) - ponowna próba co minutę (było: wcale do restartu programu)
+        DateTime probaAt = DateTime.UtcNow; public string Powod = "";
         public double Krok()
         {
-            if (!Dziala) return -1;
+            if (!Dziala) { if (exe == null || (DateTime.UtcNow - probaAt).TotalSeconds < 60) return -1; probaAt = DateTime.UtcNow; Start(); if (!Dziala) return -1; }
             if (Ost != null && (DateTime.UtcNow - odczytAt).TotalSeconds < 10) return Ost.Temp;
             var s = Odczyt(); if (s == null) return -1;
             Ost = s; odczytAt = DateTime.UtcNow;

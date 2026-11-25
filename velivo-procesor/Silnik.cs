@@ -138,7 +138,7 @@ namespace VelivoProcesor
                 p.DyskMBs = Math.Max(0, Licznik(cDyskB)) / 1e6; p.DyskKol = Math.Max(0, Licznik(cDyskQ));
                 p.Gpu = Gpu();
             }
-            double ta = RyzenDziala ? AmdE.Krok() : -1;   // 🔥 AMD: telemetria silnika (co 1 s z biblioteki; z programu co 10 s)
+            double ta = AmdE != null ? AmdE.Krok() : -1;   // także ponowna próba, gdy RyzenAdj nie odpowiadał   // 🔥 AMD: telemetria silnika (co 1 s z biblioteki; z programu co 10 s)
             if (ta > 0) { tempOst = ta; TempZrodlo = "z procesora (RyzenAdj)"; }
             else if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s
             p.Temp = tempOst;

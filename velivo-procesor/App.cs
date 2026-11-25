@@ -95,7 +95,7 @@ namespace VelivoProcesor
 
         readonly bool ukryty; readonly Silnik s = new Silnik();
         Window win; System.Windows.Forms.NotifyIcon tray; Pomiar ost = new Pomiar();
-        TextBlock tCichy, tCpu, tGpu, tTemp, tGhz, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[6]; Border warn; TextBlock tWarn1, tWarn2; StackPanel warnRow1, warnRow2; string warnProg; Canvas wykres; StackPanel lista;
+        TextBlock tCichy, tCpu, tGpu, tTemp, tGhz, tDysk, tStan, tWhy, tInfo, tPb, tSub, tAll; Button bAdmin; Border[] kafle = new Border[6]; Border warn; TextBlock tWarn1, tWarn2; StackPanel warnRow1, warnRow2; string warnProg; Canvas wykres; StackPanel lista;
         readonly double[] hCpu = new double[120], hTemp = new double[120]; readonly int[] hTryb = new int[120], hPb = new int[120]; readonly bool[] hAuto = new bool[120]; int hPos;
 
         public Okno(bool zasobnik) { ukryty = zasobnik; }
@@ -270,8 +270,8 @@ namespace VelivoProcesor
             root.Children.Add(head);
             tSub = T("", 11, Dim); root.Children.Add(tSub);
             // kafelki pomiarów
-            var k = new UniformGrid4(); root.Children.Add(k.Panel);
-            tCpu = k.Add("PROCESOR"); tGpu = k.Add("KARTA GRAFICZNA"); tTemp = k.Add("TEMPERATURA"); tGhz = k.Add("ZEGAR");
+            var k = new Kafelki(5); root.Children.Add(k.Panel);
+            tCpu = k.Add("PROCESOR"); tGpu = k.Add("KARTA GRAFICZNA"); tTemp = k.Add("TEMPERATURA"); tGhz = k.Add("ZEGAR"); tDysk = k.Add("DYSK (I/O)");
             // tryby
             var tr = new Grid { Margin = new Thickness(0, 4, 0, 0) }; for (int i = 0; i < 6; i++) tr.ColumnDefinitions.Add(new ColumnDefinition());
             var opisy = new[] { ("auto", "🧠", "Auto", "sam wybiera"), ("cichy", "🌙", "Cichy", "do " + s.CichyGhz.ToString("0.0") + " GHz"), ("zrownowazony", "⚖", "Zrównoważony", "zwykła praca"), ("turbo", "🚀", "Turbo", "pełna moc"), ("pauza", "⏸", "Wstrzymaj", "steruje inny program"), ("windows", "↺", "Windows", "ustawienia domyślne") };
@@ -385,6 +385,9 @@ namespace VelivoProcesor
             tTemp.Text = p.Temp > 0 ? p.Temp.ToString("0") + " °C" : "–"; tTemp.Foreground = p.Temp >= s.TempLimit ? Hot : p.Temp >= s.TempLimit - 15 ? Warn : Fg;
             tTemp.ToolTip = p.Temp > 0 ? "Źródło: " + s.TempZrodlo : "Temperatura nieznana – w Ustawieniach „🔑 Włącz odczyt temperatury” (czujniki wymagają uprawnień administratora) albo uruchom LibreHardwareMonitor";
             tGhz.Text = p.Ghz > 0 ? p.Ghz.ToString("0.00") + " GHz" : "–";
+            // 💽 dysk: odczyt + zapis wszystkich dysków (MB/s) - ten sam pomiar, którym Auto wykrywa wczytywanie i kopiowanie
+            tDysk.Text = p.DyskMBs.ToString(p.DyskMBs < 10 ? "0.0" : "0") + " MB/s"; tDysk.Foreground = p.DyskMBs > 15 || p.DyskKol >= 2 ? Warn : Fg;
+            tDysk.ToolTip = "Odczyt i zapis wszystkich dysków: " + p.DyskMBs.ToString("0.0") + " MB/s · kolejka operacji: " + p.DyskKol.ToString("0.#") + " · zajętość: " + p.Dysk.ToString("0") + " %\nŻółte – dysk pracuje (ponad 15 MB/s albo 2+ operacje w kolejce): Auto nie zwalnia wtedy do Cichego.";
             bool studio = s.StudioProg != null && tryb != "windows";
             tStan.Text = tryb == "pauza" ? "⏸ wstrzymany" : tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
             tWhy.Text = "💡 " + s.Dlaczego + (s.Auto && s.Get("tryb") == "auto" ? (s.ZAi ? " · decyduje: AI" : " · decyduje: zasady" + (s.Glosow < 2 ? " (AI jeszcze się uczy – " + s.Glosow + " z 4 głosów)" : "")) : "") + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
@@ -618,10 +621,10 @@ namespace VelivoProcesor
         }
 
         // cztery kafelki pomiarów
-        sealed class UniformGrid4
+        sealed class Kafelki
         {
             public readonly Grid Panel = new Grid(); int i;
-            public UniformGrid4() { for (int k = 0; k < 4; k++) Panel.ColumnDefinitions.Add(new ColumnDefinition()); }
+            public Kafelki(int n) { for (int k = 0; k < n; k++) Panel.ColumnDefinitions.Add(new ColumnDefinition()); }
             public TextBlock Add(string n)
             {
                 var sp = new StackPanel(); sp.Children.Add(T(n, 10, Dim)); var v = T("–", 20, Fg, FontWeights.SemiBold); sp.Children.Add(v);

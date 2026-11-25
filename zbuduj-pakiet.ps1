@@ -19,12 +19,18 @@ if ($Wszystko -or -not (Jest 'Velivo-AudioBalance-for-Windows')) {
     & (Join-Path $repo 'zbuduj-audiobalance.ps1') -WspolnyNet:$WspolnyNet
     if (-not (Jest 'Velivo-AudioBalance-for-Windows')) { Write-Host "Brak instalatora Audio Balance - pakiet nie powstal." -ForegroundColor Red; exit 1 }
 }
-foreach ($p in @(@('Velivo-Monitor', 'zbuduj-monitor.ps1'), @('Velivo-Kursory', 'zbuduj-kursory.ps1'), @('Velivo-Centrum', 'zbuduj-centrum.ps1'), @('Velivo-Procesor', 'zbuduj-procesor.ps1'), @('Velivo-Kopia', 'zbuduj-kopia.ps1'))) {   # .NET Framework z Windows - zawsze 1.22 (Monitor, Kursory, Centrum, Procesor, Kopia)
+foreach ($p in @(@('Velivo-Monitor', 'zbuduj-monitor.ps1'), @('Velivo-Kursory', 'zbuduj-kursory.ps1'), @('Velivo-Centrum', 'zbuduj-centrum.ps1'), @('Velivo-Procesor', 'zbuduj-procesor.ps1')))) {   # .NET Framework z Windows - zawsze 1.22 (Monitor, Kursory, Centrum, Procesor)
     if ($Wszystko -or -not (Jest $p[0] '1.22')) {
         Write-Host ("Buduje " + $p[0] + "...") -ForegroundColor Cyan
         & (Join-Path $repo $p[1])
         if (-not (Jest $p[0] '1.22')) { Write-Host ("Brak " + $p[0] + "-Setup-1.22.exe - pakiet nie powstal.") -ForegroundColor Red; exit 1 }
     }
+}
+# 💾 Velivo Kopia - wersja 1.23 (właściciel 2026-11-25: nowe zmiany tylko w 1.23), ten sam instalator w obu pakietach
+if ($Wszystko -or -not (Jest 'Velivo-Kopia' '1.23')) {
+    Write-Host "Buduje Velivo-Kopia..." -ForegroundColor Cyan
+    & (Join-Path $repo 'zbuduj-kopia.ps1')
+    if (-not (Jest 'Velivo-Kopia' '1.23')) { Write-Host "Brak Velivo-Kopia-Setup-1.23.exe - pakiet nie powstal." -ForegroundColor Red; exit 1 }
 }
 # 🎞 FFmpeg do pakietu (raz): ten sam plik co pobierany przez Velivo, sprawdzony sumą SHA-256 z listy wydawcy
 $ffDir = Join-Path $repo 'build\dodatki'; $ff = Join-Path $ffDir 'ffmpeg.exe'

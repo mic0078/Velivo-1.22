@@ -1,7 +1,7 @@
 ﻿; Instalator „Velivo Kopia” - kopia i przywracanie danych i ustawień wszystkich programów Velivo, kopia sama wg harmonogramu.
 ; Kompilacja: ISCC.exe installer-kopia.iss (po dotnet build do ..\build\kopia)
 #define AppName "Velivo Kopia"
-#define AppVer "1.22"
+#define AppVer "1.23"
 #ifndef SrcDir
   #define SrcDir "..\build\kopia"
 #endif

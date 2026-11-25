@@ -111,7 +111,7 @@ Source: "{#Src}Velivo-Monitor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: mo
 Source: "{#Src}Velivo-Kursory-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: kursory; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Procesor-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: procesor; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Centrum-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: centrum; Flags: deleteafterinstall
-Source: "{#Src}Velivo-Kopia-Setup-{#Fw}.exe"; DestDir: "{tmp}"; Components: kopia; Flags: deleteafterinstall
+Source: "{#Src}Velivo-Kopia-Setup-1.23.exe"; DestDir: "{tmp}"; Components: kopia; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\odtwarzacz; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Przegladarka-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\przegladarka; Flags: deleteafterinstall
 Source: "{#Src}Velivo-Klawiatura-Setup-{#AppVer}.exe"; DestDir: "{tmp}"; Components: osobne\klawiatura; Flags: deleteafterinstall
@@ -141,7 +141,7 @@ Filename: "{tmp}\Velivo-Monitor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPP
 Filename: "{tmp}\Velivo-Kursory-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Kursory.log"" /TASKS=""zastosuj,autostart"""; StatusMsg: "{cm:Inst,Kursory}"; Components: kursory
 Filename: "{tmp}\Velivo-Procesor-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Procesor.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Procesor}"; Components: procesor
 Filename: "{tmp}\Velivo-Centrum-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Centrum.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Centrum}"; Components: centrum
-Filename: "{tmp}\Velivo-Kopia-Setup-{#Fw}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Kopia.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Kopia}"; Components: kopia
+Filename: "{tmp}\Velivo-Kopia-Setup-1.23.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Kopia.log"" /TASKS=""autostart"""; StatusMsg: "{cm:Inst,Kopia}"; Components: kopia
 Filename: "{tmp}\Velivo-Odtwarzacz-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Odtwarzacz.log"" /TASKS=""desktopicon,firewall,autostart,videoplayer,videoplayer\iptv"""; StatusMsg: "{cm:Inst,Odtwarzacz}"; Components: osobne\odtwarzacz
 Filename: "{tmp}\Velivo-Przegladarka-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Przegladarka.log"" /TASKS=""desktopicon,firewall,autostart"""; StatusMsg: "{cm:Inst,Przeglądarka}"; Components: osobne\przegladarka
 Filename: "{tmp}\Velivo-Klawiatura-Setup-{#AppVer}.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=""{localappdata}\Velivo\Instalacja\Velivo-Klawiatura.log"" /TASKS=""desktopicon,autostart"""; StatusMsg: "{cm:Inst,Klawiatura}"; Components: osobne\klawiatura

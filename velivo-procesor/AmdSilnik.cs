@@ -12,7 +12,8 @@ namespace VelivoProcesor
     // 🔥 Silnik AMD (projekt: dokumentacja/velivo-procesor-silnik-amd-intel.md). Zasady:
     // - limity liczone od FABRYCZNYCH tego komputera (odczyt po każdym uruchomieniu Windows, zanim Velivo cokolwiek zmieni) - nigdy z góry wpisane waty;
     // - nigdy ponad fabryczne: moc chwilowa (Fast), średnia (Slow), prąd (TDC/EDC); moc długotrwała (STAPM) najwyżej do fabrycznej średniej (Slow);
-    //   granica temperatury najwyżej fabryczna + 5 °C (i nie ponad 90 °C) - tylko w Turbo (pomiar NUCBOX 2026-11-25: 15 → 20 W = +12 % zegaru wielu rdzeni, wentylator stabilny);
+    //   wyjątek: 🚀 Turbo „na maxa” (właściciel) - moc ponad fabryczną (od fabrycznej chwilowej: długotrwała ×1,15, średnia ×1,25, chwilowa ×1,35), granica 90 °C;
+    //   prąd (TDC/EDC) nigdy nie zmieniany - fabryczne limity prądu chronią procesor i zasilanie na płycie, granica temperatury - przed przegrzaniem;
     // - zegar i boost zostają dla procesora (CPPC) - silnik pilnuje tylko budżetu mocy i temperatury;
     // - telemetria co 10 s (tabela pomiarów SMU przez PawnIO);
     // - ponowne ustawienie po wybudzeniu i gdy BIOS / inny program nadpisze (najwyżej 3 razy w 10 min - bez walki);
@@ -250,17 +251,17 @@ namespace VelivoProcesor
             }
             catch (Exception) { }
         }
-        public string Fabryczne => Skalibrowany ? "BIOS teraz: długotrwała " + FStapm.ToString("0") + " W, średnia " + FSlow.ToString("0") + " W, chwilowa " + FFast.ToString("0") + " W, temperatura " + FTctl.ToString("0") + " °C · najwyższe z BIOS tego komputera (Zrównoważony i Turbo): średnia " + MSlow.ToString("0") + " W, chwilowa " + MFast.ToString("0") + " W, temperatura " + MTctl.ToString("0") + " °C" : kalibracjaUwaga;
+        public string Fabryczne => Skalibrowany ? "BIOS teraz: długotrwała " + FStapm.ToString("0") + " W, średnia " + FSlow.ToString("0") + " W, chwilowa " + FFast.ToString("0") + " W, temperatura " + FTctl.ToString("0") + " °C · najwyższe z BIOS tego komputera (Zrównoważony; Turbo ponad nie): średnia " + MSlow.ToString("0") + " W, chwilowa " + MFast.ToString("0") + " W, temperatura " + MTctl.ToString("0") + " °C" : kalibracjaUwaga;
 
         // ---------- poziomy ----------
         // Cichy: moc długotrwała fabryczna, bez szpilek (chwilowa = średnia = długotrwała), granica temperatury −5 °C - procesor sam łagodnie zwalnia;
         // Zrównoważony: długotrwała do fabrycznej średniej (krótkie i długie zadania tak samo szybkie), reszta fabryczna;
-        // Turbo: jak Zrównoważony + granica temperatury +5 °C (nie ponad 90 °C) - wyższy zegar kilku rdzeni.
+        // Turbo: na maxa - moc ponad fabryczną (NUCBOX: chwilowa 22 W → 25/27/30 W), granica temperatury 90 °C; hamują dopiero fabryczny prąd i temperatura.
         public (double Stapm, double Fast, double Slow, double Tctl) Cel(Tryb t)
         {
             double dl = Math.Max(FStapm, MSlow - obnizka);
             if (t == Tryb.Cichy) return (FStapm, FStapm, FStapm, FTctl - 5);
-            if (t == Tryb.Turbo) return (MSlow, MFast, MSlow, Math.Max(MTctl, Math.Min(MTctl + 5, 90)));
+            if (t == Tryb.Turbo) return (Math.Max(MSlow, MFast * 1.15), Math.Max(MFast, MFast * 1.35), Math.Max(MSlow, MFast * 1.25), Math.Max(MTctl, 90));
             return (dl, MFast, MSlow, MTctl);
         }
         // 🌡 regulator kultury pracy (Zrównoważony): średnia temperatura z minuty ≥ granica − 3 °C → moc długotrwała −1 W (do fabrycznej); ≤ granica − 10 °C → z powrotem +1 W; najwyżej raz na minutę

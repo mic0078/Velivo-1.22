@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Velivo Kopia</title>
+<style>
+:root{--bg:#0b0e14;--card:#141821;--line:#2A3240;--fg:#E8EBF0;--dim:#8A93A3;--acc:#7C3AED;--tq:#22B8D8;--ok:#4ADE80;--warn:#F5B544;--hot:#F87171}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px "Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.o{color:#aab;max-width:1100px;margin:0 0 14px}
+.row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.win{width:780px;max-width:100%;background:#11141c;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tb{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--acc),var(--tq));display:flex;align-items:center;justify-content:center;font-weight:700}
+.tb b{font-size:15px}.tabs{margin-left:auto;display:flex;gap:6px}
+.tab{padding:5px 12px;border-radius:8px;border:1px solid var(--line);color:var(--dim)}.tab.on{color:var(--fg);border-color:var(--tq);background:linear-gradient(135deg,#2E1A4D,#0B3C48)}
+.bd{padding:12px 14px}
+.info{background:#0E2140;border:1px solid #1E3A66;border-radius:9px;padding:8px 12px;color:#CFE3FF;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}th{text-align:left;color:var(--dim);font-weight:400;padding:4px;border-bottom:1px solid var(--line)}
+td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}td.r{text-align:right;color:var(--dim);white-space:nowrap}
+td small{color:var(--dim);display:block}
+.cb{display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--tq);margin-right:6px;vertical-align:-2px}
+.cb.off{background:transparent;border:1px solid var(--dim)}
+.ok{color:var(--ok)}.w{color:var(--warn)}.n{color:var(--dim)}
+.sec{margin-top:12px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.sec h3{margin:0 0 6px;font-size:13px}
+.line{display:flex;gap:10px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.field{flex:1;min-width:200px;background:#0b0e14;border:1px solid var(--line);border-radius:6px;padding:5px 8px;color:var(--dim)}
+.btn{padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:#1b2030}
+.btn.main{background:linear-gradient(135deg,var(--acc),var(--tq));border:0;font-weight:600}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid var(--line);gap:10px;flex-wrap:wrap}
+.bar{height:8px;border-radius:4px;background:#222a38;overflow:hidden;flex:1;min-width:160px}.bar i{display:block;height:100%;width:62%;background:linear-gradient(90deg,var(--acc),var(--tq))}
+.cap{color:#ECE8FF;margin:6px 0 4px;font-weight:600}
+ul{margin:4px 0 0 18px;padding:0}li{margin:2px 0}
+</style></head><body>
+<h1>Velivo Kopia (propozycja) – kopia i przywracanie wszystkich modułów</h1>
+<p class="o">Osobny mały program. Jeden plik kopii zawiera dane i ustawienia każdego modułu Velivo. Na nowym komputerze: zainstaluj pakiet → otwórz Velivo Kopia → „Przywróć” → wszystko wraca, a ustawienia systemu (start z Windows, zadanie Procesora, zapora, PawnIO, kursory) program ustawia sam od nowa. Kopia z przeglądarki zostaje bez zmian.</p>
+<div class="row">
+
+<div>
+<div class="cap">1. Zrób kopię</div>
+<div class="win">
+ <div class="tb"><div class="logo">V</div><b>Velivo Kopia</b><div class="tabs"><span class="tab on">💾 Zrób kopię</span><span class="tab">♻ Przywróć</span></div></div>
+ <div class="bd">
+  <div class="info">Zaznacz, co ma być w kopii. Pamięć podręczna, dzienniki i rzeczy, które pobiorą się same (lektor, ikony kanałów, narzędzia), są pomijane – kopia jest mała.</div>
+  <table>
+   <tr><th>Moduł</th><th>Co trafia do kopii</th><th>Stan</th><th class="r">Rozmiar</th></tr>
+   <tr><td><span class="cb"></span>Velivo (przeglądarka, filmy, TV)</td><td>zakładki, historia, ustawienia, profile, biblioteka filmów, listy TV, ulubione<small>hasła i autouzupełnianie – zaszyfrowane hasłem kopii</small></td><td class="ok">zainstalowany</td><td class="r">48 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Odtwarzacz</td><td>ustawienia odtwarzacza, postęp filmów, Jellyfin, napisy</td><td class="ok">zainstalowany</td><td class="r">6 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Komunikator</td><td>kontakty, rozmowy, skrzynka serwera<small>klucze rozmów – zaszyfrowane hasłem kopii</small></td><td class="ok">zainstalowany</td><td class="r">320 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Klawiatura</td><td>Mój słownik, nauczone słowa i pary</td><td class="ok">zainstalowany</td><td class="r">2 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Serwer filmów</td><td>foldery serwera, użytkownicy, urządzenia, certyfikat</td><td class="ok">zainstalowany</td><td class="r">1 MB</td></tr>
+   <tr><td><span class="cb"></span>Audio Balance for Windows</td><td>ustawienia, kompresor, wtyczki VST3, kanały i filmy</td><td class="ok">zainstalowany</td><td class="r">0,4 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Procesor</td><td>tryb, suwaki, nauczone programy (AI), Studio, priorytety<small>bez zapisu planu zasilania tego komputera</small></td><td class="ok">zainstalowany</td><td class="r">0,2 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Monitor</td><td>ustawienia paska</td><td class="ok">zainstalowany</td><td class="r">&lt; 0,1 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Kursory</td><td>wybrany rozmiar i styl</td><td class="ok">zainstalowany</td><td class="r">&lt; 0,1 MB</td></tr>
+   <tr><td><span class="cb"></span>Velivo Centrum</td><td>przypięte programy</td><td class="ok">zainstalowany</td><td class="r">&lt; 0,1 MB</td></tr>
+   <tr><td><span class="cb"></span>Ustawienia systemu</td><td>które moduły startują z Windows, sterowanie mocą Procesora, zapora<small>zapisywane jako lista – na nowym komputerze ustawiane od nowa</small></td><td class="n">—</td><td class="r">&lt; 0,1 MB</td></tr>
+   <tr><td><span class="cb off"></span>Moje pliki (opcja)</td><td>nagrania TV, zrzuty ekranu, pliki z komunikatora<small>mogą być duże</small></td><td class="n">wyłączone</td><td class="r">41 GB</td></tr>
+  </table>
+  <div class="sec"><h3>🔐 Hasło kopii</h3>
+   <div class="line"><span class="field">••••••••••</span><span class="field">powtórz hasło</span></div>
+   <div class="n">Hasła stron, klucze komunikatora i Serwera Windows chroni tylko na tym komputerze – w kopii zamyka je to hasło, żeby dało się je otworzyć na nowym. Bez hasła ich nie przeniesiesz.</div>
+  </div>
+  <div class="sec"><h3>📁 Gdzie zapisać</h3>
+   <div class="line"><span class="field">D:\Kopie\Velivo-kopia-2026-11-26.velivo</span><span class="btn">Zmień…</span></div>
+   <div class="n">Najlepiej dysk zewnętrzny albo folder w sieci (NUCBOX) – nie ten sam dysk, co system.</div>
+  </div>
+ </div>
+ <div class="foot"><div class="bar"><i></i></div><span class="n">Kopiuję Komunikator… 62 %</span><span class="btn main">💾 Zrób kopię</span></div>
+</div>
+</div>
+
+<div>
+<div class="cap">2. Przywróć (nowy komputer, po instalacji pakietu)</div>
+<div class="win">
+ <div class="tb"><div class="logo">V</div><b>Velivo Kopia</b><div class="tabs"><span class="tab">💾 Zrób kopię</span><span class="tab on">♻ Przywróć</span></div></div>
+ <div class="bd">
+  <div class="line"><span class="field">D:\Kopie\Velivo-kopia-2026-11-26.velivo</span><span class="btn">Wybierz plik…</span></div>
+  <div class="info">Kopia z 26.11.2026 21:40 · komputer RYZENMIC · 10 modułów · 378 MB. Przed przywróceniem programy Velivo zostaną zamknięte, a obecne dane – odłożone (cofniesz jednym kliknięciem).</div>
+  <table>
+   <tr><th>Moduł</th><th>Na tym komputerze</th></tr>
+   <tr><td><span class="cb"></span>Velivo</td><td class="ok">zainstalowany – przywrócę</td></tr>
+   <tr><td><span class="cb"></span>Velivo Komunikator</td><td class="ok">zainstalowany – przywrócę</td></tr>
+   <tr><td><span class="cb"></span>Velivo Procesor</td><td class="ok">zainstalowany – przywrócę</td></tr>
+   <tr><td><span class="cb off"></span>Velivo Serwer filmów</td><td class="w">nie zainstalowany – zainstaluj z pakietu albo pomiń</td></tr>
+   <tr><td><span class="cb"></span>Audio Balance, Monitor, Kursory, Centrum, Klawiatura</td><td class="ok">zainstalowane – przywrócę</td></tr>
+  </table>
+  <div class="sec"><h3>⚙ Co program ustawi sam od nowa</h3>
+   <ul>
+    <li>start z Windows – te same moduły co na starym komputerze</li>
+    <li>Velivo Procesor: zadanie z uprawnieniami (jedno „Tak”), PawnIO na procesorach AMD</li>
+    <li>reguły zapory dla Komunikatora i Velivo</li>
+    <li>kursory Velivo (ścieżki nowego komputera)</li>
+    <li>ścieżki w ustawieniach (inna nazwa konta) – zamienione same</li>
+   </ul>
+   <div class="n" style="margin-top:6px">Nie przenoszę: planu zasilania starego komputera, numeru urządzenia w sieci domowej (nowy komputer dostaje własny), pamięci podręcznej.</div>
+  </div>
+  <div class="sec"><h3>🔐 Hasło kopii</h3><div class="line"><span class="field">••••••••••</span></div></div>
+ </div>
+ <div class="foot"><span class="n">Po przywróceniu: lista, co się udało, a co nie – z powodem.</span><span class="btn main">♻ Przywróć</span></div>
+</div>
+</div>
+
+</div>
+</body></html>

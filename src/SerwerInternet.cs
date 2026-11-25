@@ -201,12 +201,13 @@ namespace Velivo
                     if (route == "/lib")
                     {
                         var lib = wszystkie.Where(v => File.Exists(v.Path) && SerwerUdostepnia(v) && UserWidzi(usr, v.Path)).GroupBy(v => FilmId(v.Path)).Select(g => g.OrderByDescending(v => v.Last).First()).ToList();
+                        var ulub = SrvUlub();   // ❤ raz na listę
                         var items = lib.Select(v =>
                         {
                             var mi = LookupMeta(Meta, v.Path); MovieInfo info = null;
                             if (mi != null) { var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…"; info = new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList() }; }
                             bool pl = mi?.Poster != null && File.Exists(Path.Combine(PosterDir, mi.Poster));
-                            return UserItem(usr, new LanFilmItem { i = FilmId(v.Path), fv = SrvUlub().Contains(FilmId(v.Path)), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null });
+                            return UserItem(usr, new LanFilmItem { i = FilmId(v.Path), fv = ulub.Contains(FilmId(v.Path)), t = v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, fn = Path.GetFileName(v.Path), m = info, sv = true, pu = pl ? "p" : null });
                         }).ToList();
                         await HttpOdp(ssl, 200, "application/json", JsonSerializer.SerializeToUtf8Bytes(items)); return;
                     }

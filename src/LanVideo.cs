@@ -394,6 +394,7 @@ namespace Velivo
                 var ov = mi.Overview ?? ""; if (ov.Length > 700) ov = ov.Substring(0, 700) + "…";
                 return new MovieInfo { Name = mi.Name, Original = mi.Original, Year = mi.Year, Overview = ov, Rating = mi.Rating, Age = mi.Age, Director = mi.Director, Genres = (mi.Genres ?? new List<string>()).Take(4).ToList(), People = (mi.People ?? new List<string>()).Take(12).ToList(), Poster = mi.Poster };
             }
+            var ulub = SrvUlub();   // ❤ raz na stronę (było: odczyt ustawień dla każdego filmu)
             return LibraryPage(SharedForPeers(), off, out more, v => { var mi = Info(v); return mi == null ? 0 : 200 + (mi.Overview?.Length ?? 0) * 2 + string.Join(",", mi.People).Length * 2; }).Select(v =>
             {
                 var mi = Info(v); string pu = null;
@@ -401,7 +402,7 @@ namespace Velivo
                 if (mi != null) mi.Poster = null;   // nazwa pliku tutaj nic tamtemu komputerowi nie mówi
                 return new LanFilmItem
                 {
-                    i = FilmId(v.Path), fv = SrvUlub().Contains(FilmId(v.Path)), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
+                    i = FilmId(v.Path), fv = ulub.Contains(FilmId(v.Path)), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
                     n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path), m = mi, pu = pu,
                     u = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path), sv = NaSerwerze(v),   // film z Jellyfin serwera - strumień wprost z Jellyfin
                 };

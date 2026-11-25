@@ -103,7 +103,7 @@ namespace Velivo
             if (urls.Length == 1 && urls[0] == "--porzadki") { ShowTidy(); return; }   // Velivo Centrum: porządki i kopia
             if (urls.Length == 1 && urls[0] == "--kopia-zabezpiecz") { KopiaZabezpiecz(); return; }   // Velivo Centrum: hasło i klucze przeniesienia
             if (urls.Length == 2 && urls[0] == "--przywroc") { PrzywrocKopie(urls[1], null); return; }   // Velivo Centrum: przywróć kopię
-            if (urls.Length == 2 && urls[0] == "--kopia") { KopiaZCentrum(urls[1] == "przyrost", false); return; }   // Velivo Centrum: kopia w tle   // skrot "Komunikator Velivo" - przegladarka zostaje, gdzie byla
+            if (urls.Length == 2 && urls[0] == "--kopia") { KopiaZCentrum(urls[1] == "przyrost" ? true : urls[1] == "pelna" ? false : (bool?)null, false); return; }   // "auto" - wg ustawień (Velivo Kopia, kopia sama)   // Velivo Centrum: kopia w tle   // skrot "Komunikator Velivo" - przegladarka zostaje, gdzie byla
             // Velivo uruchomione ponownie, gdy gra juz tylko okienko z filmem: zamykamy je i startujemy pelne Velivo od nowa
             if (_mainClosed)
             {

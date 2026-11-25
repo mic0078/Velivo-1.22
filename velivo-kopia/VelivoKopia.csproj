@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Velivo Kopia: kopia i przywracanie danych i ustawień wszystkich programów Velivo, kopia sama wg harmonogramu (w tle przy zegarze). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <DebugType>none</DebugType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>VelivoKopia</AssemblyName>
+    <Product>Velivo Kopia</Product>
+    <AssemblyTitle>Velivo Kopia</AssemblyTitle>
+    <RootNamespace>VelivoKopia</RootNamespace>
+    <ApplicationIcon>kopia.ico</ApplicationIcon>
+    <Version>1.22</Version>
+    <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- .NET Framework 4.8 jest w każdym Windows 10/11: program ma kilkadziesiąt KB zamiast 50 MB z dołączonym .NET -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="kopia.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="..\src\StartZWindows.cs" Link="StartZWindows.cs" />
+    <Compile Include="..\src\KopiaSkladniki.cs" Link="KopiaSkladniki.cs" />
+    <Compile Include="..\src\CentrumZasobnik.cs" Link="CentrumZasobnik.cs" />
+  </ItemGroup>
+</Project>

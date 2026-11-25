@@ -160,7 +160,7 @@ namespace Velivo
             if (tidyOnly) main.Dispatcher.BeginInvoke(new Action(() => main.ShowTidy()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (zabezp) main.Dispatcher.BeginInvoke(new Action(() => main.KopiaZabezpiecz()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             if (przywroc != null) main.Dispatcher.BeginInvoke(new Action(() => main.PrzywrocKopie(przywroc, null)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-            if (kopia != null) main.Dispatcher.BeginInvoke(new Action(() => main.KopiaZCentrum(kopia == "przyrost", true)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (kopia != null) main.Dispatcher.BeginInvoke(new Action(() => main.KopiaZCentrum(kopia == "przyrost" ? true : kopia == "pelna" ? false : (bool?)null, true)), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         // nagle zamkniecie (blad w VLC / WebView2 / systemie - bez wpisu w bledy.log): znacznik dziala.txt zostaje,

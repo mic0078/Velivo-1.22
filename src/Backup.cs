@@ -269,7 +269,7 @@ namespace Velivo
 
         // 🧩 kopia zlecona przez Velivo Centrum: w tle, postęp w kopia-stan.txt (Centrum go czyta); zakoncz - program uruchomiony tylko do kopii
         static bool _kopiaTrwa;
-        internal void KopiaZCentrum(bool inc, bool zakoncz)
+        internal void KopiaZCentrum(bool? inc, bool zakoncz)   // inc null - wg ustawień (przyrostowa, gdy włączona i jest świeża pełna)
         {
             var stan = Path.Combine(DataRoot, KopiaSkladniki.StanPlik);
             void Pisz(string t) { try { File.WriteAllText(stan, t); } catch (Exception) { } }

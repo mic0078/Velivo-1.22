@@ -15,9 +15,35 @@ namespace Velivo
     // opis (polska Wikipedia, zapasowo angielska) i plakat (obrazek artykułu); zapis w Velivo jak „📝 Uzupełnij informacje”
     public partial class MainWindow
     {
+        // 🚦 wszystkie zapytania do Wikimedia (Wikipedia, Wikidane, Commons) przez jeden lejek: po jednym, co najmniej 0,3 s przerwy;
+        //    429 (za dużo zapytań) - czekanie tyle, ile każe serwer (najwyżej 2 min), i jedno ponowienie. Było: zdjęcia 12 aktorów naraz → Wikimedia blokowało Velivo
+        //    i przestawało działać wyszukiwanie i plakaty filmów (2026-11-25).
+        sealed class WikiLejek : DelegatingHandler
+        {
+            static readonly System.Threading.SemaphoreSlim jeden = new System.Threading.SemaphoreSlim(1, 1); static DateTime nast = DateTime.MinValue;
+            public WikiLejek() : base(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { }
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, System.Threading.CancellationToken ct)
+            {
+                await jeden.WaitAsync(ct);
+                try
+                {
+                    for (int proba = 0; ; proba++)
+                    {
+                        var w = nast - DateTime.UtcNow; if (w > TimeSpan.Zero) await Task.Delay(w, ct);
+                        var r = await base.SendAsync(proba == 0 ? req : Kopia(req), ct);
+                        nast = DateTime.UtcNow.AddMilliseconds(300);
+                        if ((int)r.StatusCode != 429 || proba > 0) return r;
+                        var ra = r.Headers.RetryAfter?.Delta ?? (r.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow) ?? TimeSpan.FromSeconds(20);
+                        nast = DateTime.UtcNow + (ra < TimeSpan.FromSeconds(2) ? TimeSpan.FromSeconds(2) : ra > TimeSpan.FromMinutes(2) ? TimeSpan.FromMinutes(2) : ra); r.Dispose();
+                    }
+                }
+                finally { jeden.Release(); }
+            }
+            static HttpRequestMessage Kopia(HttpRequestMessage r) { var k = new HttpRequestMessage(r.Method, r.RequestUri); foreach (var h in r.Headers) k.Headers.TryAddWithoutValidation(h.Key, h.Value); return k; }
+        }
         static HttpClient WikiHttp()
         {
-            var h = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(20) };
+            var h = new HttpClient(new WikiLejek()) { Timeout = TimeSpan.FromMinutes(3) };   // czas z czekaniem w lejku
             h.DefaultRequestHeaders.UserAgent.ParseAdd("Velivo/1.22 (film library)");   // Wikimedia wymaga nazwy programu
             return h;
         }

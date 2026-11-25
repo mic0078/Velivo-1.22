@@ -164,6 +164,7 @@ namespace VelivoProcesor
                         var gg = (Guid)System.Runtime.InteropServices.Marshal.PtrToStructure(lp, typeof(Guid));
                         if (gg == g) s.EkranWyl = System.Runtime.InteropServices.Marshal.ReadInt32(lp, 20) == 0;
                     }
+                    else if (msg == 0x218 && ((int)wp == 0x12 || (int)wp == 0x7)) ThreadPool.QueueUserWorkItem(_ => s.PoWybudzeniu());   // 🔥 po wybudzeniu: limity AMD i plan od nowa
                     return IntPtr.Zero;
                 });
             }
@@ -251,7 +252,7 @@ namespace VelivoProcesor
             tCpu = k.Add("PROCESOR"); tGpu = k.Add("KARTA GRAFICZNA"); tTemp = k.Add("TEMPERATURA"); tGhz = k.Add("ZEGAR");
             // tryby
             var tr = new Grid { Margin = new Thickness(0, 4, 0, 0) }; for (int i = 0; i < 6; i++) tr.ColumnDefinitions.Add(new ColumnDefinition());
-            var opisy = new[] { ("auto", "🧠", "Auto", "sam wybiera"), ("cichy", "🌙", "Cichy", "do " + s.CichyGhz.ToString("0.0") + " GHz"), ("zrownowazony", "⚖", "Zrównoważony", "zwykła praca"), ("turbo", "🚀", "Turbo", "pełna moc"), ("pauza", "⏸", "Wstrzymaj", "steruje inny program"), ("windows", "↺", "Windows", "ustawienia domyślne") };
+            var opisy = new[] { ("auto", "🧠", "Auto", "sam wybiera"), ("cichy", "🌙", "Cichy", "oszczędnie"), ("zrownowazony", "⚖", "Zrównoważony", "zwykła praca"), ("turbo", "🚀", "Turbo", "pełna moc"), ("pauza", "⏸", "Wstrzymaj", "steruje inny program"), ("windows", "↺", "Windows", "ustawienia domyślne") };
             for (int i = 0; i < 6; i++)
             {
                 var (key, ic, n, o) = opisy[i]; var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
@@ -322,7 +323,6 @@ namespace VelivoProcesor
             var ciszaB = Btn("Pokaż znowu wszystkie ostrzeżenia", () => { s.Put("konflikty-cisza", ""); cisza.Text = ""; warnSig = null; Odswiez(); }); ciszaB.HorizontalAlignment = HorizontalAlignment.Left; ciszaB.Margin = new Thickness(22, 2, 0, 0); Siatka(ciszaB, "ciszaB");
             void CiszaPokaz() { var c = (s.Get("konflikty-cisza") ?? "").Trim('|'); cisza.Text = c.Length > 0 ? "Wyciszone ostrzeżenia: " + c.Replace("|", ", ") : ""; ciszaB.Visibility = c.Length > 0 ? Visibility.Visible : Visibility.Collapsed; }
             CiszaPokaz(); win.Activated += (a, e) => CiszaPokaz();
-            Siatka(Suwak("🌙 Najniższy zegar", "cichy-ghz", 0.6, Math.Max(1.0, s.BazaMhz / 1000), 1.4, 0.1, v => v.ToString("0.0") + " GHz", "Cichy stoi na nim, inne tryby nie schodzą niżej. Także poniżej zegara bazowego – mniej ciepła i hałasu w spoczynku"));
             // 💡 dioda dysku przy zegarze: który dysk (albo wyłączona)
             var dd = new DockPanel { Margin = new Thickness(0, 6, 0, 0), ToolTip = "Czerwona kropka na ikonie przy zegarze mruga, gdy dysk czyta albo zapisuje (jak dioda w obudowie)" };
             var dl = T("💡 Dioda dysku", 12, Fg); dl.Width = 120; DockPanel.SetDock(dl, Dock.Left); dd.Children.Add(dl);
@@ -350,7 +350,7 @@ namespace VelivoProcesor
             var val = T(fmt(s.GetD(key, def)), 12, Fg); val.Width = 56; DockPanel.SetDock(val, Dock.Right); d.Children.Add(val);
             var lab = T(n, 12, Fg); lab.Width = 150; DockPanel.SetDock(lab, Dock.Left); d.Children.Add(lab);
             var sl = new Slider { Minimum = min, Maximum = max, Value = Math.Max(min, Math.Min(max, s.GetD(key, def))), TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            sl.ValueChanged += (a, e) => { val.Text = fmt(sl.Value); s.Put(key, sl.Value); s.Ponow(); if (key == "cichy-ghz" && tCichy != null) tCichy.Text = "do " + sl.Value.ToString("0.0") + " GHz"; };   // nowa wartość od razu (pętla stosuje w ciągu sekundy)
+            sl.ValueChanged += (a, e) => { val.Text = fmt(sl.Value); s.Put(key, sl.Value); s.Ponow(); };   // nowa wartość od razu (pętla stosuje w ciągu sekundy)
             d.Children.Add(sl); return d;
         }
 
@@ -365,8 +365,9 @@ namespace VelivoProcesor
             bool studio = s.StudioProg != null && tryb != "windows";
             tStan.Text = tryb == "pauza" ? "⏸ wstrzymany" : tryb == "windows" ? "● ustawienia Windows" : "● " + (tryb == "auto" ? "Auto · " : "") + Silnik.Nazwa(s.Obecny) + (studio ? " · 🎚 Studio" : "") + (p.Bateria ? " · bateria" : "");
             tWhy.Text = "💡 " + s.Dlaczego + (s.Auto && s.Get("tryb") == "auto" ? (s.ZAi ? " · decyduje: AI" : " · decyduje: zasady" + (s.Glosow < 2 ? " (AI jeszcze się uczy – " + s.Glosow + " z 4 głosów)" : "")) : "") + (studio ? " 🎚 Studio (" + s.StudioProg + ", " + Silnik.Nazwa(s.Obecny) + "): wszystkie rdzenie czuwają, zegar od razu w górę" + (s.Obecny == Tryb.Turbo ? ", stale pełny zegar" : " (bez stałego pełnego zegara – chłodniej i ciszej)") + ", priorytet Wysoki, komputer nie zaśnie. Po zamknięciu programu wszystko wraca." : "") + (s.Blad.Length > 0 ? "  ⚠ " + s.Blad : "");
-            tSub.Text = "  " + s.ProcesorNazwa + (s.Hybrydowy ? " · rdzenie wydajne + oszczędne (sterowane oba rodzaje)" : "") + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
-                + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak");
+            tSub.Text = "  " + s.ProcesorNazwa + (s.Hybrydowy ? " · rdzenie wydajne + oszczędne (sterowane oba rodzaje)" : "") + (s.BazaMhz > 0 ? " · zegar bazowy " + (s.BazaMhz / 1000).ToString("0.0") + " GHz" : "") + (s.Amd ? (s.RyzenDziala ? " · moc AMD: RyzenAdj ✓" + (s.AmdE.Biblioteka ? "" : " (program, odczyt co 10 s)") : s.Ryzen == null ? " · moc AMD: brak RyzenAdj" : " · moc AMD: wymaga zgody administratora") : "")
+                + " · temperatura: " + (p.Temp > 0 ? s.TempZrodlo + " ✓" : "brak") + (s.RyzenDziala ? "\n  🔥 " + s.AmdE.Opis : "");
+            tSub.ToolTip = s.RyzenDziala ? "Silnik AMD: " + s.AmdE.Fabryczne + ". Cichy – bez skoków mocy i granica temperatury 5 °C niżej; Zrównoważony – moc długotrwała do fabrycznej średniej (sam zmniejsza, gdy gorąco); Turbo – do tego granica temperatury +5 °C (najwyżej 90 °C). Prąd i moc chwilowa nigdy ponad fabryczne." : null;
             bAdmin.Visibility = !Silnik.Admin() && petlaN > 5 && (p.Temp <= 0 || s.Amd && s.Ryzen != null && !s.RyzenDziala) ? Visibility.Visible : Visibility.Collapsed;
             var keys = new[] { "auto", "cichy", "zrownowazony", "turbo", "pauza", "windows" };
             for (int i = 0; i < 6; i++)

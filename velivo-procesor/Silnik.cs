@@ -36,7 +36,6 @@ namespace VelivoProcesor
             }
         }
         public bool Auto => Get("tryb", "auto") == "auto";
-        public double CichyGhz => GetD("cichy-ghz", 1.4);   // najniższy zegar w trybie Cichym (może być poniżej bazowego - jak v40)
         public double TempLimit => GetD("temp-limit", 90);
 
         public readonly string ProcesorNazwa; public readonly bool Amd; public readonly double BazaMhz;
@@ -60,7 +59,8 @@ namespace VelivoProcesor
             return false;
         }
         public string Ryzen;   // ścieżka ryzenadj.exe (AMD) albo null
-        public bool RyzenDziala;   // RyzenAdj odpowiada (uprawnienia administratora i obsługiwany procesor)
+        public AmdSilnik AmdE;   // 🔥 silnik AMD (AmdSilnik.cs) albo null
+        public bool RyzenDziala => AmdE != null && AmdE.Dziala;   // RyzenAdj odpowiada (uprawnienia administratora i obsługiwany procesor)
 
         public Silnik()
         {
@@ -68,7 +68,7 @@ namespace VelivoProcesor
             try { using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0")) { ProcesorNazwa = (k?.GetValue("ProcessorNameString") as string ?? "").Trim(); BazaMhz = Convert.ToDouble(k?.GetValue("~MHz") ?? 0); } } catch (Exception) { ProcesorNazwa = "?"; }
             Amd = ProcesorNazwa.IndexOf("AMD", StringComparison.OrdinalIgnoreCase) >= 0;
             var rp = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RyzenAdj", "ryzenadj.exe");
-            if (Amd && File.Exists(rp)) Ryzen = rp;
+            if (Amd && File.Exists(rp)) { Ryzen = rp; AmdE = new AmdSilnik(rp); }
             WczytajNauke();
         }
 
@@ -137,7 +137,9 @@ namespace VelivoProcesor
                 p.DyskMBs = Math.Max(0, Licznik(cDyskB)) / 1e6; p.DyskKol = Math.Max(0, Licznik(cDyskQ));
                 p.Gpu = Gpu();
             }
-            if (++tempTick % (RyzenDziala ? 10 : 3) == 1) tempOst = Temperatura();   // co 3 s; na AMD co 10 s - RyzenAdj to osobny proces (zasada: bez dodatkowych procesów pomiarowych, gdy nie trzeba)
+            double ta = RyzenDziala ? AmdE.Krok() : -1;   // 🔥 AMD: telemetria silnika (co 1 s z biblioteki; z programu co 10 s)
+            if (ta > 0) { tempOst = ta; TempZrodlo = "z procesora (RyzenAdj)"; }
+            else if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s
             p.Temp = tempOst;
             try
             {
@@ -182,13 +184,9 @@ namespace VelivoProcesor
         }
         double TempRyzen()
         {
-            if (!RyzenDziala) return -1;
-            foreach (var l in RyzenWywolaj("--info"))
-            {
-                var m = System.Text.RegularExpressions.Regex.Match(l, @"THM VALUE( CORE)?\s*\|\s*([\d.]+)");
-                if (m.Success && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Float, Inv, out var t) && t > 0) { TempZrodlo = "z procesora (RyzenAdj)"; return t; }
-            }
-            return -1;
+            var t = RyzenDziala ? AmdE.Ost?.Temp ?? -1 : -1;   // odczyt silnika AMD
+            if (t > 0) TempZrodlo = "z procesora (RyzenAdj)";
+            return t > 0 ? t : -1;
         }
         double TempLhm()
         {   // Intel: „CPU Package” / rdzenie; AMD: „Tctl/Tdie”, „CCD”; bez „Distance to TjMax” (to zapas do granicy, nie temperatura)
@@ -406,7 +404,7 @@ namespace VelivoProcesor
             // 5. ręcznie przypisany / wyuczony program
             else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas
-            else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
+            else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie (procesor dalej przyspiesza, gdy trzeba)."; }
             else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
             // kopiowanie i instalacja: nie zwalniam do Cichego (małe pliki i skanowanie antywirusa potrzebują procesora), ale bez Turbo - mało ciepła
             // dysk w tle (Windows Update, Defender) nie odbiera ciszy programowi, który zwykle potrzebuje Cichego (np. film) - tylko instalacja tak
@@ -571,7 +569,7 @@ namespace VelivoProcesor
                 lock (zapisy) zapisy.Clear(); try { File.Delete(ZapisyFile); } catch (Exception) { }
             }
             catch (Exception) { }
-            if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }   // AMD: limity fabryczne wracają same po restarcie; do tego czasu pełna moc
+            try { if (AmdE != null && !AmdE.Dziala) AmdE.Start(); AmdE?.Przywroc(); } catch (Exception) { }   // 🔥 AMD: fabryczne limity tego komputera (deinstalator: odczyt z pliku tej sesji Windows)
             zastosowany = false;
         }
 
@@ -583,17 +581,10 @@ namespace VelivoProcesor
             Put("tryb", "windows");
             uint e = 1;
             try { var s = Aktywny(); e = PowerRestoreIndividualDefaultPowerScheme(ref s); PowerSetActiveScheme(IntPtr.Zero, ref s); File.Delete(KopiaFile); oryg.Clear(); } catch (Exception) { }
-            if (RyzenDziala) { var m = MocAmd(Tryb.Turbo); RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); }
+            try { AmdE?.Przywroc(); } catch (Exception) { }
             zastosowany = false;
-            return e == 0 ? "Plan zasilania Windows przywrócony do ustawień domyślnych. Velivo Procesor nie steruje (wybierz tryb, aby znów sterował)." + (RyzenDziala ? " Moc AMD: fabryczne limity wrócą po ponownym uruchomieniu komputera." : "")
+            return e == 0 ? "Plan zasilania Windows przywrócony do ustawień domyślnych. Velivo Procesor nie steruje (wybierz tryb, aby znów sterował)." + (RyzenDziala ? " Moc AMD: fabryczne limity przywrócone." : "")
                 : "Nie udało się przywrócić planu zasilania (kod " + e + ").";
-        }
-
-        public (int Stapm, int Fast, int Slow, int Tctl) MocAmd(Tryb t)
-        {   // profile z CPU Manager v40 (W, °C); zmienialne w ustawieniach
-            var d = t == Tryb.Cichy ? "12,28,15,75" : t == Tryb.Turbo ? "25,35,30,88" : "15,28,22,80";
-            var a = (Get("amd-" + (int)t) ?? d).Split(','); int I(int i, int def) => a.Length > i && int.TryParse(a[i], out var v) ? v : def;
-            return (I(0, 15), I(1, 28), I(2, 22), I(3, 80));
         }
 
         void Zastosuj(Tryb t)
@@ -602,15 +593,14 @@ namespace VelivoProcesor
             try
             {
                 var s = Aktywny(); ZapamietajWindows(s);
-                // Cichy: zegar do wybranej wartości (także poniżej bazowego), bez boostu, oszczędzanie; Zrównoważony: boost oszczędny; Turbo: boost agresywny, pełna wydajność
-                uint max = t == Tryb.Cichy ? (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100))) : 100;
+                // 🪽 bez obcinania skrzydeł (2026-11-25, audyt): zegar i boost wybiera procesor (Speed Shift / CPPC) we wszystkich trybach - tryb ustawia tylko skłonność (EPP) i boost;
+                //    Cichy: boost efektywny + EPP oszczędne (na AMD do tego niższy budżet mocy i temperatury - AmdSilnik); bez stałego minimum zegaru (było 1,4 GHz = pobór przy lekkiej pracy)
+                uint max = 100;
                 // EPP (preferencja energia ↔ wydajność) w Windows: 0–100 % (0 = wydajność, 100 = oszczędność); było 200 (poza zakresem - Windows odrzucał)
                 // i 100 w Zrównoważonym (najbardziej oszczędne - Intel ze Speed Shift ociągał się z zegarem). Teraz jak Windows: Zrównoważony 33
-                uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 80u : t == Tryb.Turbo ? 0u : 33u;
-                uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
-                // minimum użytkownika (suwak) we WSZYSTKICH trybach: Cichy stoi dokładnie na nim, Zrównoważony i Turbo nie schodzą poniżej (było 5 % - spadki do 0,8 GHz)
-                uint podloga = (uint)Math.Max(5, Math.Min(99, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100)));
-                uint min = t == Tryb.Cichy ? max : Math.Max(t == Tryb.Turbo ? 30u : 5u, podloga);
+                uint boost = t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 80u : t == Tryb.Turbo ? 0u : 33u;
+                uint freq = 0u;   // limit MHz - zawsze bez limitu (starsze wersje zapisywały 1400 w Cichym - ten zapis go kasuje)
+                uint min = oryg.TryGetValue(Min, out var om) ? om.Ac : 5u;   // minimum jak w Windows przed programem
                 // ⚡ reakcja (próg w %, czas w okresach sprawdzania ~30 ms, podnoszenie: 0 stopniowo, 1 o krok, 2 od razu do pełna): Cichy leniwie (ciszej), Turbo od razu;
                 // 🎚 Studio (muzyka): zegar w górę przy najmniejszym obciążeniu, w dół bardzo powoli, wszystkie rdzenie czuwają - bez opóźnień budzenia (trzaski)
                 bool st = StudioProg != null;
@@ -637,38 +627,13 @@ namespace VelivoProcesor
                      Blad = "Windows 3 razy odrzucił ustawienia zasilania – Velivo przestało sterować, działa zarządzanie Windows. Wybierz tryb, aby spróbować znowu."; return; }
             }
             catch (Exception ex) { Blad = ex.Message; }
-            if (RyzenDziala) { var m = MocAmd(t); var ro = RyzenWywolaj("--stapm-limit=" + m.Stapm * 1000 + " --fast-limit=" + m.Fast * 1000 + " --slow-limit=" + m.Slow * 1000 + " --tctl-temp=" + m.Tctl); RyzenSprawdz(ro); }
+            if (RyzenDziala) { AmdE.Ustaw(t, wymusAmd); wymusAmd = false; if (AmdE.Blad.Length > 0) Blad = AmdE.Blad; }   // 🔥 budżet mocy i temperatury AMD (od fabrycznych)
             zastosowany = true;
         }
 
-        // 🛟 RyzenAdj 3 razy z rzędu bez powodzenia - wyłączony (moc AMD zostaje fabryczna), zamiast wołać go przy każdej zmianie trybu
-        int bladZasilN, bladRyzenN;
-        void RyzenSprawdz(List<string> o)
-        {
-            bool zle = o.Count == 0 || o.Any(l => l.IndexOf("unable", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || l.IndexOf("fail", StringComparison.OrdinalIgnoreCase) >= 0);
-            bladRyzenN = zle ? bladRyzenN + 1 : 0;
-            if (bladRyzenN >= 3) { RyzenDziala = false; bladRyzenN = 0; Blad = "RyzenAdj przestał odpowiadać – wyłączony do ponownego uruchomienia programu; moc AMD jak ustawił producent, reszta sterowania działa."; }
-        }
-        public void SprawdzRyzen()
-        {
-            RyzenDziala = false;
-            if (Ryzen == null) return;
-            RyzenDziala = RyzenWywolaj("--info").Any(l => l.IndexOf("STAPM LIMIT", StringComparison.OrdinalIgnoreCase) >= 0);
-        }
-        List<string> RyzenWywolaj(string args)
-        {
-            var wynik = new List<string>();
-            try
-            {
-                using (var p = Process.Start(new ProcessStartInfo(Ryzen, args) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true }))
-                {
-                    var o = p.StandardOutput.ReadToEnd(); p.WaitForExit(3000);
-                    wynik.AddRange(o.Split('\n'));
-                }
-            }
-            catch (Exception) { }
-            return wynik;
-        }
+        int bladZasilN; bool wymusAmd;
+        public void SprawdzRyzen() { try { AmdE?.Start(); } catch (Exception) { } }
+        public void PoWybudzeniu() { wymusAmd = true; zastosowany = false; try { AmdE?.PoWybudzeniu(); } catch (Exception) { } }   // BIOS wraca po uśpieniu do swoich limitów
 
         public static bool Admin()
         {

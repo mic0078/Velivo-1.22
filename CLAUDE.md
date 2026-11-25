@@ -47,6 +47,7 @@ Bieżąca praca jest na gałęzi `audio-balance`, nie na `rozwoj`. Zanim cokolwi
 Priorytet: najpierw jakość istniejącego kodu, potem optymalizacja; nie zwiększaj złożoności bez rzeczywistej potrzeby.
 
 * WERSJA 1.23 (właściciel 2026-11-25): wszystkie zmiany i każdy moduł w wersji 1.23 (nowe moduły od razu 1.23, np. Velivo Kopia). Wersję 1.22 uzupełniamy tylko na wyraźne polecenie właściciela. Budowa całości: `.\zbuduj-komplet.ps1 -BezAndroida` (tylko 1.23; pakiet 1.22 – `-Takze122`).
+* KOLEJNOŚĆ TESTÓW (właściciel 2026-11-25): po zmianie najpierw budowa i test samego zmienionego programu (np. `.\zbuduj-procesor.ps1`, `.\zbuduj-kopia.ps1`, `.\zbuduj-wszystko.ps1 -Tylko Odtwarzacz`), dopiero po teście pełny pakiet. Zawsze podawaj najpierw polecenie dla pojedynczego programu.
 
 ## Wnioski (pamięć 3–5 dni)
 

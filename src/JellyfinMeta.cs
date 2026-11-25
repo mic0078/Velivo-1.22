@@ -24,6 +24,7 @@ namespace Velivo
             public string Id { get; set; }
             public string Name { get; set; }
             public string Original { get; set; }
+            public string En { get; set; }   // tytuł angielski (Wikidane) - nazwa folderu na serwerze „Polski (English) (rok)”
             public int Year { get; set; }
             public string Overview { get; set; }
             public double Rating { get; set; }

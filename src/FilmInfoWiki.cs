@@ -342,7 +342,7 @@ namespace Velivo
                 int year = 0;
                 if (claims.TryGetProperty("P577", out var pd)) foreach (var c in pd.EnumerateArray()) { var t = WdStr(c, "mainsnak", "datavalue", "value", "time"); if (t != null && t.Length > 5 && int.TryParse(t.Substring(1, 4), out var y) && (year == 0 || y < year)) year = y; }
                 var orig = claims.TryGetProperty("P1476", out var ot) ? WdStr(ot[0], "mainsnak", "datavalue", "value", "text") : null;
-                var m = new MovieInfo { Name = Label(e) ?? cur?.Name, Original = orig, Year = year, Director = string.Join(", ", N(dirs)), People = N(cast), Genres = N(genres), Rating = cur?.Rating ?? 0 };
+                var m = new MovieInfo { Name = Label(e) ?? cur?.Name, Original = orig, En = WdStr(e, "labels", "en", "value"), Year = year, Director = string.Join(", ", N(dirs)), People = N(cast), Genres = N(genres), Rating = cur?.Rating ?? 0 };
                 // opis i plakat z artykułu: polska Wikipedia, zapasowo angielska (obrazek artykułu o filmie to zwykle plakat); podstawowe API Wikipedii
                 string poster = null;
                 foreach (var (site, host) in new[] { ("plwiki", "pl"), ("enwiki", "en") })

@@ -102,6 +102,44 @@ namespace Velivo
             finally { _serwerPorzTrwa = false; }
             if (czeka > 0) SerwerPorzadekZaChwile();   // jeszcze się kopiuje - sprawdzenie za 30 s
         }
+        // folder nazwany przez serwer (nie przez użytkownika) - wolno mu zmieniać nazwę
+        static bool FolderAuto(string dir) => GetPref("serwer-folder-auto|" + dir.TrimEnd('\\').ToLowerInvariant()) == "1";
+        static void FolderAuto(string dir, bool on) => SetPref("serwer-folder-auto|" + dir.TrimEnd('\\').ToLowerInvariant(), on ? "1" : null);
+        // nazwa folderu z informacji: po polsku i angielsku „Idiokracja (Idiocracy) (2006)” (właściciel 2026-11-25); bez angielskiego - tytuł oryginalny;
+        // tytuły takie same albo brak polskiego - jeden tytuł; znaki niedozwolone w Windows zamienione
+        static string NazwaWgInfo(MovieInfo m)
+        {
+            string pl = (m?.Name ?? "").Trim(), org = (m?.En ?? m?.Original ?? "").Trim();
+            if (pl.Length == 0) { pl = org; org = ""; }
+            if (pl.Length == 0) return null;
+            var n = pl + (org.Length > 0 && !string.Equals(org, pl, StringComparison.OrdinalIgnoreCase) ? " (" + org + ")" : "") + (m.Year > 0 ? " (" + m.Year + ")" : "");
+            n = n.Replace(": ", " - ").Replace(":", " - ");
+            foreach (var c in Path.GetInvalidFileNameChars()) n = n.Replace(c, ' ');
+            n = string.Join(" ", n.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
+            return n.Length > 120 ? n.Substring(0, 120).TrimEnd() : n;
+        }
+        // folder filmu bezpośrednio w folderze serwera, z jednym filmem, nazwany automatycznie (jak plik albo wcześniej wg informacji) → nazwa wg informacji
+        bool SerwerFolderWgInfo(string film)
+        {
+            try
+            {
+                var mi = LookupMeta(Meta, film); var nazwa = NazwaWgInfo(mi); if (nazwa == null || string.IsNullOrWhiteSpace(mi.Overview)) return false;
+                var dir = Path.GetDirectoryName(film) ?? ""; var root = SerwerFoldery().FirstOrDefault(f => string.Equals(f.TrimEnd('\\'), (Path.GetDirectoryName(dir) ?? "").TrimEnd('\\'), StringComparison.OrdinalIgnoreCase));
+                if (root == null || string.Equals(Path.GetFileName(dir), nazwa, StringComparison.Ordinal)) return false;
+                bool auto = FolderAuto(dir) || string.Equals(Path.GetFileName(dir), Path.GetFileNameWithoutExtension(film).Trim().TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+                if (!auto || Directory.EnumerateFiles(dir).Count(f => IsVlcVideoFile(f) && !IsAudioFile(f)) != 1) return false;   // folder nazwany przez użytkownika / kilka filmów - bez zmian
+                var cel = Path.Combine(root, nazwa);
+                if (string.Equals(cel, dir, StringComparison.OrdinalIgnoreCase)) { var tmp = dir + ".velivo-zmiana"; Directory.Move(dir, tmp); Directory.Move(tmp, cel); }
+                else if (Directory.Exists(cel) || File.Exists(cel)) return false;   // taki folder już jest (ten sam film dwa razy) - zostaje
+                else Directory.Move(dir, cel);
+                var l = LoadLibrary(); bool zm = false;
+                foreach (var v in l) if (v.Path.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase)) { v.Path = cel + v.Path.Substring(dir.Length); zm = true; }
+                if (zm) { SaveLibrary(l); _sharedCache = null; }
+                FolderAuto(dir, false); FolderAuto(cel, true);
+                return true;
+            }
+            catch (Exception ex) { App.LogInfo("Serwer filmów – nazwa folderu wg informacji: " + ex.Message); return false; }   // film gra / folder otwarty - przy następnym przeglądzie
+        }
         // zmiana nazwy pliku filmu w jego folderze → folder dostaje tę samą nazwę (gdy nazywał się jak dawny plik); informacje szukane od nowa po nowej nazwie
         void SerwerZmianaNazwy(string stary, string nowy)
         {
@@ -113,7 +151,7 @@ namespace Velivo
                 if (fol.Any(f => string.Equals(f.TrimEnd('\\'), dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))) { SerwerPorzadekZaChwile(); return; }   // plik luzem w folderze serwera - zwykły porządek
                 var root = fol.FirstOrDefault(f => string.Equals(f.TrimEnd('\\'), (Path.GetDirectoryName(dir) ?? "").TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)); if (root == null) return;   // tylko foldery filmów bezpośrednio w folderze serwera
                 string sn = Path.GetFileNameWithoutExtension(stary).Trim().TrimEnd('.'), nn = Path.GetFileNameWithoutExtension(nowy).Trim().TrimEnd('.');
-                if (nn.Length == 0 || sn == nn || !string.Equals(Path.GetFileName(dir), sn, StringComparison.OrdinalIgnoreCase)) return;   // folder nazwany przez użytkownika - zostaje
+                if (nn.Length == 0 || sn == nn || !string.Equals(Path.GetFileName(dir), sn, StringComparison.OrdinalIgnoreCase) && !FolderAuto(dir)) return;   // folder nazwany przez użytkownika - zostaje
                 if (Directory.EnumerateFiles(dir).Count(f => IsVlcVideoFile(f) && !IsAudioFile(f)) != 1) return;   // kilka filmów w jednym folderze - nie ruszam
                 var cel = Path.Combine(root, nn);
                 if (string.Equals(cel, dir, StringComparison.OrdinalIgnoreCase)) { var tmp = dir + ".velivo-zmiana"; Directory.Move(dir, tmp); Directory.Move(tmp, cel); }   // sama wielkość liter
@@ -126,6 +164,7 @@ namespace Velivo
                     if (p.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase)) { v.Path = cel + p.Substring(dir.Length); zm = true; }
                 }
                 if (zm) { SaveLibrary(l); _sharedCache = null; _libRefresh?.Invoke(); }
+                FolderAuto(dir, false); FolderAuto(cel, true);   // po nowych informacjach dostanie znów nazwę z tytułu
                 ShowToast(L.T("📁 Serwer filmów: folder dostał nową nazwę filmu – ") + nn, null);
                 SerwerSkanuj(false);
             }
@@ -178,7 +217,11 @@ namespace Velivo
                     { mi.Poster = nm.Poster; manP = LoadManual(); manP[klucz] = mi; Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(manP)); Meta[klucz] = mi; MetaObokFilmu(v.Path, true); opis++; }
                     await Task.Delay(1000);
                 }
-                if (opis > 0) _libRefresh?.Invoke();
+                bool folderWg = false;
+                // 📁 folder filmu nazwany wg informacji: „Polski (Oryginalny) (rok)” - tylko folder nazwany automatycznie; plik zostaje z nazwą użytkownika
+                foreach (var v in LoadLibrary().GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Where(v => File.Exists(v.Path) && WFolderze(v.Path)).ToList())
+                    if (SerwerFolderWgInfo(v.Path)) folderWg = true;
+                if (opis > 0 || folderWg) _libRefresh?.Invoke();
                 if (pokaz || nowe > 0 || opis > 0) ShowToast(L.T("🎞 Serwer filmów: nowe filmy ") + nowe + L.T(", uzupełnione informacje ") + opis + (bez.Count > opis ? L.T(", bez informacji ") + (bez.Count - opis) : ""), null);
             }
             catch (Exception ex) { App.LogError(ex); }

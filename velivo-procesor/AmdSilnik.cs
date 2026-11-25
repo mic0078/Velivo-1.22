@@ -12,7 +12,7 @@ namespace VelivoProcesor
     // 🔥 Silnik AMD (projekt: dokumentacja/velivo-procesor-silnik-amd-intel.md). Zasady:
     // - limity liczone od FABRYCZNYCH tego komputera (odczyt po każdym uruchomieniu Windows, zanim Velivo cokolwiek zmieni) - nigdy z góry wpisane waty;
     // - nigdy ponad fabryczne: moc chwilowa (Fast), średnia (Slow), prąd (TDC/EDC); moc długotrwała (STAPM) najwyżej do fabrycznej średniej (Slow);
-    //   wyjątek: 🚀 Turbo „na maxa” (właściciel) - moc bez praktycznego limitu: wszystkie trzy = 1,8 × fabryczna chwilowa, nie mniej niż 45 W (NUCBOX: właściciel ustawiał ręcznie 35–45 W; procesor sam przycina do swojego maksimum), granica 95 °C (maksimum Ryzenów przenośnych; pomiar NUCBOX: przy 90 °C hamowała tylko temperatura, 31,6 W, 3,72 GHz);
+    //   wyjątek: 🚀 Turbo „na maxa” (właściciel) - moc bez praktycznego limitu: wszystkie trzy = 1,8 × fabryczna chwilowa, nie mniej niż 45 W (NUCBOX: właściciel ustawiał ręcznie 35–45 W; procesor sam przycina do swojego maksimum), granica temperatury = suwak „Temperatura graniczna” (procesor przyjmuje najwyżej swoje maksimum - NUCBOX: 95 → 93 °C, 32,6 W, 3,73 GHz);
     //   prąd (TDC/EDC) nigdy nie zmieniany - fabryczne limity prądu chronią procesor i zasilanie na płycie, granica temperatury - przed przegrzaniem;
     // - zegar i boost zostają dla procesora (CPPC) - silnik pilnuje tylko budżetu mocy i temperatury;
     // - telemetria co 10 s (tabela pomiarów SMU przez PawnIO);
@@ -256,13 +256,14 @@ namespace VelivoProcesor
         // ---------- poziomy ----------
         // Cichy: moc długotrwała fabryczna, bez szpilek (chwilowa = średnia = długotrwała), granica temperatury −5 °C - procesor sam łagodnie zwalnia;
         // Zrównoważony: długotrwała do fabrycznej średniej (krótkie i długie zadania tak samo szybkie), reszta fabryczna;
-        // Turbo: na maxa - moc ponad fabryczną (NUCBOX: 45 W zadane, procesor przyjmuje swoje maksimum), granica temperatury 95 °C; hamują dopiero fabryczny prąd i temperatura.
+        // Turbo: na maxa - moc ponad fabryczną (NUCBOX: 45 W zadane, procesor przyjmuje swoje maksimum), granica temperatury z suwaka; hamują dopiero fabryczny prąd i temperatura.
+        public double Granica = 90;   // 🌡 suwak „Temperatura graniczna” - granica, przy której procesor sam zwalnia (Turbo; Zrównoważony i Cichy najwyżej do niej)
         public (double Stapm, double Fast, double Slow, double Tctl) Cel(Tryb t)
         {
             double dl = Math.Max(FStapm, MSlow - obnizka);
-            if (t == Tryb.Cichy) return (FStapm, FStapm, FStapm, FTctl - 5);
-            if (t == Tryb.Turbo) { double p = Math.Max(45, MFast * 1.8); return (p, p, p, Math.Max(MTctl, 95)); }
-            return (dl, MFast, MSlow, MTctl);
+            if (t == Tryb.Cichy) return (FStapm, FStapm, FStapm, Math.Min(FTctl, Granica) - 5);
+            if (t == Tryb.Turbo) { double p = Math.Max(45, MFast * 1.8); return (p, p, p, Granica); }
+            return (dl, MFast, MSlow, Math.Min(MTctl, Granica));
         }
         // 🌡 regulator kultury pracy (Zrównoważony): średnia temperatura z minuty ≥ granica − 3 °C → moc długotrwała −1 W (do fabrycznej); ≤ granica − 10 °C → z powrotem +1 W; najwyżej raz na minutę
         double tempSr, obnizka; DateTime regAt; Tryb tryb; bool ustawione;
@@ -305,7 +306,8 @@ namespace VelivoProcesor
         void Pilnuj(Stan s)
         {
             Reguluj();
-            if (!ustawione || zadane.Stapm <= 0) return;   // po ponownym uruchomieniu programu: zadane dopiero przy pierwszej decyzji o trybie
+            if (!ustawione || zadane.Stapm <= 0) return;
+            if (Cel(tryb) != zadane) { Ustaw(tryb); return; }   // zmieniony suwak temperatury - od razu (najwyżej 10 s)   // po ponownym uruchomieniu programu: zadane dopiero przy pierwszej decyzji o trybie
             bool R(double a, double b) => Math.Abs(a - b) < 0.6;
             // pierwszy odczyt po ustawieniu: wartość niższa od zadanej (ale nie powrót do BIOS) = maksimum procesora, nie nadpisanie - od teraz pilnuję tej
             if (sprawdz) { sprawdz = false; if (s.StapmL <= zadane.Stapm + 0.6 && s.FastL <= zadane.Fast + 0.6 && s.SlowL <= zadane.Slow + 0.6 && s.TempL <= zadane.Tctl + 0.6 && !(R(s.StapmL, FStapm) && R(s.FastL, FFast) && R(s.SlowL, FSlow))) przyjete = (s.StapmL, s.FastL, s.SlowL, s.TempL); }

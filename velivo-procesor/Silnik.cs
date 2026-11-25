@@ -137,6 +137,7 @@ namespace VelivoProcesor
                 p.DyskMBs = Math.Max(0, Licznik(cDyskB)) / 1e6; p.DyskKol = Math.Max(0, Licznik(cDyskQ));
                 p.Gpu = Gpu();
             }
+            if (AmdE != null) AmdE.Granica = TempLimit;   // suwak - od razu do silnika AMD
             double ta = AmdE != null ? AmdE.Krok() : -1;   // także ponowna próba, gdy PawnIO nie odpowiadał   // 🔥 AMD: telemetria silnika (co 1 s z biblioteki; z programu co 10 s)
             if (ta > 0) { tempOst = ta; TempZrodlo = "z procesora (PawnIO)"; }
             else if (++tempTick % 3 == 1) tempOst = Temperatura();   // co 3 s
@@ -390,7 +391,8 @@ namespace VelivoProcesor
             if (dyskN >= 3) dyskDo = DateTime.UtcNow.AddSeconds(5);
             bool kopiuje = DateTime.UtcNow < dyskDo;
             // 1. temperatura - teraz albo za 10 s (przewidywanie ze wzrostu)
-            if (p.Temp > 0 && (p.Temp >= TempLimit || p.Temp + trend * 10 >= TempLimit + 2))
+            // AMD z silnikiem: granicę trzyma sam procesor (suwak = jego granica temperatury) - bez zwalniania do Cichego, żeby Turbo dawało pełną moc
+            if (!AmdDziala && p.Temp > 0 && (p.Temp >= TempLimit || p.Temp + trend * 10 >= TempLimit + 2))
             { chce = Tryb.Cichy; goraco = true; why = "Procesor gorący (" + p.Temp.ToString("0") + " °C" + (trend > 0.3 ? ", rośnie" : "") + ") – zwalniam, zanim wentylator przyspieszy."; }
             // 2. „zawsze ten tryb”: program działa (na wierzchu albo w tle - np. Studio One gra, a Ty jesteś w innym oknie) - jego tryb, bez względu na obciążenie i baterię
             else if (ZawszeDla(p, out var rr, out var rn)) { gpuBound = false; reczny = true; chce = rr; why = rn + " działa – ustawiony na stałe: " + Nazwa(rr) + "."; }

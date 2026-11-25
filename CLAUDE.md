@@ -46,6 +46,8 @@ Bieżąca praca jest na gałęzi `audio-balance`, nie na `rozwoj`. Zanim cokolwi
 
 Priorytet: najpierw jakość istniejącego kodu, potem optymalizacja; nie zwiększaj złożoności bez rzeczywistej potrzeby.
 
+* WERSJA 1.23 (właściciel 2026-11-25): wszystkie zmiany i każdy moduł w wersji 1.23 (nowe moduły od razu 1.23, np. Velivo Kopia). Wersję 1.22 uzupełniamy tylko na wyraźne polecenie właściciela.
+
 ## Wnioski (pamięć 3–5 dni)
 
 Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był aktywny: po każdym błędzie dopisz tu jedną linijkę z datą, by je naprawiać, jeśli wystąpią ponownie; starsze wpisy usuń.

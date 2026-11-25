@@ -139,8 +139,8 @@ namespace VelivoProcesor
             if (Skalibrowany && (FFast < FSlow || FSlow < FStapm * 0.5 || FTctl < 50 || FTctl > 105)) { Skalibrowany = false; kalibracjaUwaga = "nietypowe limity fabryczne – nie zmieniam mocy"; }
             if (Skalibrowany)
             {
-                double M(string k, double f) { var v = P(k); return v > 0 && v <= f * 2.5 ? Math.Max(v, f) : f; }   // zapis z bzdurną wartością - bez niego
-                MStapm = M("mstapm", FStapm); MFast = M("mfast", FFast); MSlow = M("mslow", FSlow); MTctl = Math.Min(95, M("mtctl", FTctl));
+                double M(string k, double f) { double v = Math.Max(P("m" + k), P(k)); return v > 0 && v <= f * 2.5 ? Math.Max(v, f) : f; }   // najwyższe: zapisane „najwyższe”, poprzednio odczytane z BIOS (np. „Performance” przed przestawieniem na „Balance”) i bieżące; bzdurna wartość - bez niej
+                MStapm = M("stapm", FStapm); MFast = M("fast", FFast); MSlow = M("slow", FSlow); MTctl = Math.Min(95, M("tctl", FTctl));
                 if (MFast < MSlow || MSlow < MStapm) { MStapm = FStapm; MFast = FFast; MSlow = FSlow; MTctl = FTctl; }
                 Zapisz(ustawione);
             }

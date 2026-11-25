@@ -284,7 +284,7 @@ namespace Velivo
                     menu.Opening += (s, e) => auto.Checked = ReadAutostart() >= 0;
                     auto.Click += (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => WriteAutostart(auto.Checked, 10)));
                     menu.Items.Add(auto);
-                    menu.Items.Add(L.T("✕ Zakończ Velivo Klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { CloseKeyboardFully(); (Application.Current?.MainWindow as MainWindow)?.ExitFromTray(); })));
+                    menu.Items.Add(L.T("✕ Zamknij ") + "Velivo Klawiatura", null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => { CloseKeyboardFully(); (Application.Current?.MainWindow as MainWindow)?.ExitFromTray(); })));
                 }
                 else menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(CloseKeyboardFully)));
                 _kbdTray.ContextMenuStrip = menu;

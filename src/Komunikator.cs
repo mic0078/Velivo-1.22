@@ -3419,7 +3419,7 @@ namespace Velivo
                 auto.Click += (s, e) => KomAutoStart = !KomAutoStart;
                 menu.Items.Add(auto);
             }
-            menu.Items.Add(KomSamodzielny ? L.T("Zamknij komunikator") : L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
+            menu.Items.Add(L.T("✕ Zamknij ") + (KomSamodzielny ? "Velivo Komunikator" : "Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
             _komTray.ContextMenuStrip = menu; CentrumZasobnik.Podlacz(_komTray, false);   // 🧩 menu z Velivo Centrum (ikona zostaje - powiadomienia)
             _komTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(() => ShowMessenger()); };
             KomTrayUpdate();

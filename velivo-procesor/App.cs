@@ -213,7 +213,7 @@ namespace VelivoProcesor
             m.Items.Add("🪟 Otwórz okno", null, (a, e) => Pokaz());
             m.Items.Add("🤖 Jak myśli AI", null, (a, e) => OknoAi());
             m.Items.Add("↺ Przywróć ustawienia domyślne Windows", null, (a, e) => Domyslne());
-            m.Items.Add("⏻ Zakończ (ustawienia Windows wracają)", null, (a, e) => Koniec(true));
+            m.Items.Add("✕ Zamknij Velivo Procesor (ustawienia Windows wracają)", null, (a, e) => Koniec(true));
             m.Opening += (a, e) =>
             {
                 stan.Text = "Velivo Procesor · " + (s.Get("tryb") == "pauza" ? "wstrzymany" : s.Get("tryb") == "windows" ? "ustawienia Windows" : (s.Auto ? "Auto · " : "") + Silnik.Nazwa(s.Obecny)) + (ost.Temp > 0 ? " · " + ost.Temp.ToString("0") + " °C" : "");

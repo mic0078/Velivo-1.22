@@ -456,7 +456,7 @@ namespace VelivoMonitor
             It("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);
             It("Uruchamiaj z Windows", ToggleAuto, AutoOn);
             cm.Items.Add(new Separator());
-            It("Zakończ Velivo Monitor", Quit);
+            It("✕ Zamknij Velivo Monitor", Quit);
             return cm;
         }
         // 🎚 okno Velivo Audio Balance - sygnał „pokaż” do działającego programu
@@ -495,7 +495,7 @@ namespace VelivoMonitor
             Add("🌐 Internet wyłączony (sieć domowa działa)", ToggleNet, Internet.Wylaczony);
             Add("Uruchamiaj z Windows", ToggleAuto, AutoOn);
             tm.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            Add("Zakończ Velivo Monitor", Quit);
+            Add("✕ Zamknij Velivo Monitor", Quit);
             tray.ContextMenuStrip = tm;
             // 🧩 Velivo Centrum: ikona chowa się przy działającym Centrum (chyba że wybrano „też przy zegarze”), prawy przycisk w Centrum = to menu
             Velivo.CentrumZasobnik.Podlacz(tray);

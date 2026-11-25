@@ -103,7 +103,7 @@ namespace Velivo
                 menu.Items.Add(TraySendFilesItem());
                 menu.Items.Add(L.T("Synchronizuj teraz"), null, (s, e) => Dispatcher.Invoke(() => { TrayPulse(4); try { LanBroadcastState(true); } catch (Exception ex) { App.LogError(ex); } }));
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-                menu.Items.Add(Wariant.Pelne ? L.T("Zamknij Velivo całkowicie") : L.T("✕ Zakończ ") + Wariant.Nazwa, null, (s, e) => Dispatcher.Invoke(ExitFromTray));
+                menu.Items.Add(L.T("✕ Zamknij ") + (Wariant.Pelne ? "Velivo" : Wariant.Nazwa), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
                 _tray.ContextMenuStrip = menu;
                 // 🧩 Velivo Centrum: ikona chowa się przy działającym Centrum (chyba że wybrano „też przy zegarze”), prawy przycisk w Centrum = to menu
                 CentrumZasobnik.Podlacz(_tray);

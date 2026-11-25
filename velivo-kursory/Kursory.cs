@@ -273,7 +273,7 @@ namespace VelivoKursory
             var wlacz = new ToolStripMenuItem(); wlacz.Click += (s, e) => { if (Kursory.Wlaczone()) Kursory.Przywroc(); else Kursory.Zastosuj(Kursory.Rozmiar()); okno?.Stan(); }; m.Items.Add(wlacz);
             var auto = new ToolStripMenuItem("Uruchamiaj z Windows") { CheckOnClick = true }; auto.Click += (s, e) => SetAuto(auto.Checked); m.Items.Add(auto);
             m.Items.Add(new ToolStripSeparator());
-            m.Items.Add("✕ Zakończ Velivo Kursory (kursory zostają)", null, (s, e) => { tray.Visible = false; ExitThread(); });
+            m.Items.Add("✕ Zamknij Velivo Kursory (kursory zostają)", null, (s, e) => { tray.Visible = false; ExitThread(); });
             m.Opening += (s, e) => { bool on = Kursory.Wlaczone(); wlacz.Text = on ? "↺ Przywróć kursory Windows" : "✔ Włącz kursory Velivo"; auto.Checked = Auto();
                 foreach (ToolStripMenuItem it in wl.DropDownItems) it.Checked = on && it.Text.StartsWith(Kursory.Rozmiar() + " "); };
             tray.ContextMenuStrip = m;

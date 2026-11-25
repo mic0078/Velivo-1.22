@@ -544,7 +544,7 @@ namespace Velivo
             var m = new System.Windows.Forms.ContextMenuStrip();
             m.Items.Add(L.T("Pokaż"), null, (s, e) => Show());
             m.Items.Add(L.T("📌 Widżet na pulpicie (wł./wył.)"), null, (s, e) => win.Dispatcher.Invoke(widget.Toggle));
-            m.Items.Add(L.T("Zakończ"), null, (s, e) => win.Dispatcher.Invoke(Exit));
+            m.Items.Add(L.T("✕ Zamknij ") + "Velivo Audio Balance", null, (s, e) => win.Dispatcher.Invoke(Exit));
             tray.ContextMenuStrip = m; tray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) win.Dispatcher.Invoke(Show); };
             // 🧩 Velivo Centrum: ikona chowa się przy działającym Centrum (chyba że wybrano „też przy zegarze”), prawy przycisk w Centrum = to menu
             CentrumZasobnik.Podlacz(tray);

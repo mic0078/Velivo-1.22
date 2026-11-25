@@ -27,7 +27,7 @@ namespace Velivo
             if (_kanapa != null) { _kanapa.Activate(); if (start != null) _kanapaIdz?.Invoke(start); return; }
             var w = new Window
             {
-                Title = "Velivo – " + L.T("Kanapa"), WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, WindowState = WindowState.Maximized, Topmost = true,
+                Title = "Velivo – " + L.T("Kanapa"), WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, WindowState = WindowState.Maximized, Topmost = false,   /* pełny ekran bez ramki zasłania pasek zadań sam; „na wierzchu” przykrywało Wycinanie Windows (Win+Shift+S) */
                 Background = new RadialGradientBrush(Color.FromRgb(0x1D, 0x2B, 0x4D), Color.FromRgb(0x0B, 0x0F, 0x17)) { Center = new Point(0.8, 0), GradientOrigin = new Point(0.8, 0), RadiusX = 1.1, RadiusY = 1.0 },
                 Foreground = KnFg, FontFamily = new FontFamily("Segoe UI"),
             };

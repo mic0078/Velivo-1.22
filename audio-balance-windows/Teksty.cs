@@ -203,6 +203,7 @@ namespace Velivo
             { "Uruchamiaj razem z Windows (w zasobniku)", "Start with Windows (in the tray)" },
             { "Do zasobnika", "To tray" },
             { "Zakończ", "Exit" },
+            { "✕ Zamknij ", "✕ Close " },
             { "Zamyka program; jeśli CABLE jest domyślny, Windows wraca do Twoich głośników.", "Closes the program; if CABLE is the default, Windows goes back to your speakers." },
             { "● Brak VB-Audio Virtual Cable – zainstaluj go (niżej)", "● VB-Audio Virtual Cable missing – install it (below)" },
             { "● Działa: dźwięk Windows → CABLE → Audio Balance → ", "● Running: Windows sound → CABLE → Audio Balance → " },

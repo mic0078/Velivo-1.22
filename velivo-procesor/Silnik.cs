@@ -36,6 +36,7 @@ namespace VelivoProcesor
             }
         }
         public bool Auto => Get("tryb", "auto") == "auto";
+        public double CichyGhz => GetD("cichy-ghz", 1.4);   // 🌙 najwyższy zegar w trybie Cichym (cisza w nocy - właściciel ustawia suwakiem); inne tryby bez ograniczeń
         public double TempLimit => GetD("temp-limit", 90);
 
         public readonly string ProcesorNazwa; public readonly bool Amd; public readonly double BazaMhz;
@@ -404,7 +405,7 @@ namespace VelivoProcesor
             // 5. ręcznie przypisany / wyuczony program
             else if (ZnanyProgram(p.Program, out var v) && v.N >= 30 && Wyuczony(v) != Tryb.Cichy) { gpuBound = false; chce = Wyuczony(v); why = p.Program + " – zapamiętany: zwykle " + v.Cpu.ToString("0") + " %, szczyt " + v.Szczyt.ToString("0") + " % procesora → " + Nazwa(chce) + "."; }
             // 6. spoczynek (dłużej) - cicho; o porze, gdy zwykle pracujesz ciężko, zostaje zapas
-            else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie (procesor dalej przyspiesza, gdy trzeba)."; }
+            else if (niskoN >= 8) { gpuBound = false; bool zwykle = godzN[DateTime.Now.Hour] > 120 && godziny[DateTime.Now.Hour] > 40; chce = zwykle ? Tryb.Zrownowazony : Tryb.Cichy; why = zwykle ? "Spokój, ale o tej porze zwykle pracujesz ciężko – zostawiam zapas mocy." : "Spoczynek (" + p.Cpu.ToString("0") + " %) – cicho i oszczędnie, zegar do " + CichyGhz.ToString("0.0", Inv) + " GHz."; }
             else { gpuBound = false; chce = Tryb.Zrownowazony; why = "Zwykła praca (" + p.Cpu.ToString("0") + " %)."; }
             // kopiowanie i instalacja: nie zwalniam do Cichego (małe pliki i skanowanie antywirusa potrzebują procesora), ale bez Turbo - mało ciepła
             // dysk w tle (Windows Update, Defender) nie odbiera ciszy programowi, który zwykle potrzebuje Cichego (np. film) - tylko instalacja tak
@@ -595,12 +596,14 @@ namespace VelivoProcesor
                 var s = Aktywny(); ZapamietajWindows(s);
                 // 🪽 bez obcinania skrzydeł (2026-11-25, audyt): zegar i boost wybiera procesor (Speed Shift / CPPC) we wszystkich trybach - tryb ustawia tylko skłonność (EPP) i boost;
                 //    Cichy: boost efektywny + EPP oszczędne (na AMD do tego niższy budżet mocy i temperatury - AmdSilnik); bez stałego minimum zegaru (było 1,4 GHz = pobór przy lekkiej pracy)
-                uint max = 100;
+                // 🌙 Cichy: zegar najwyżej do suwaka „Zegar w Cichym” i bez boostu (cisza w nocy - wróciło 2026-11-25 na prośbę właściciela); minimum zostaje jak w Windows
+                uint maxC = (uint)Math.Max(5, Math.Min(100, Math.Round(CichyGhz * 1000 / Math.Max(1, BazaMhz) * 100)));
+                uint max = t == Tryb.Cichy ? maxC : 100;
                 // EPP (preferencja energia ↔ wydajność) w Windows: 0–100 % (0 = wydajność, 100 = oszczędność); było 200 (poza zakresem - Windows odrzucał)
                 // i 100 w Zrównoważonym (najbardziej oszczędne - Intel ze Speed Shift ociągał się z zegarem). Teraz jak Windows: Zrównoważony 33
-                uint boost = t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 80u : t == Tryb.Turbo ? 0u : 33u;
-                uint freq = 0u;   // limit MHz - zawsze bez limitu (starsze wersje zapisywały 1400 w Cichym - ten zapis go kasuje)
-                uint min = oryg.TryGetValue(Min, out var om) ? om.Ac : 5u;   // minimum jak w Windows przed programem
+                uint boost = t == Tryb.Cichy ? 0u : t == Tryb.Turbo ? 2u : 3u, epp = t == Tryb.Cichy ? 80u : t == Tryb.Turbo ? 0u : 33u;
+                uint freq = t == Tryb.Cichy ? (uint)Math.Round(CichyGhz * 1000) : 0u;   // Intel: limit w MHz (0 = bez limitu)
+                uint min = Math.Min(max, oryg.TryGetValue(Min, out var om) ? om.Ac : 5u);   // minimum jak w Windows przed programem (bez sztucznej podłogi w Zrównoważonym i Turbo)
                 // ⚡ reakcja (próg w %, czas w okresach sprawdzania ~30 ms, podnoszenie: 0 stopniowo, 1 o krok, 2 od razu do pełna): Cichy leniwie (ciszej), Turbo od razu;
                 // 🎚 Studio (muzyka): zegar w górę przy najmniejszym obciążeniu, w dół bardzo powoli, wszystkie rdzenie czuwają - bez opóźnień budzenia (trzaski)
                 bool st = StudioProg != null;

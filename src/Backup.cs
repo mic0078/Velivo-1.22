@@ -116,13 +116,16 @@ namespace Velivo
                     }
                     catch (Exception) { }   // plik zablokowany na wylacznosc - pomijamy
                 }
-                foreach (var sk in KopiaSkladniki.Wszystkie.Where(x => x.Inny != null && KopiaSkladniki.WKopii(x.Id)))
-                {   // Audio Balance, Monitor: własne foldery obok danych - w kopii jako _inne/<program>/
-                    var root = KopiaSkladniki.FolderInny(sk); if (!Directory.Exists(root)) continue;
+                // Audio Balance, Monitor: własne foldery obok danych - w kopii jako _inne/<program>/; pozostałe foldery programów (Procesor, Kursory, każdy nowy moduł) - _folder/<folder>/
+                var inne = KopiaSkladniki.Wszystkie.Where(x => x.Inny != null && KopiaSkladniki.WKopii(x.Id)).Select(sk => (Root: KopiaSkladniki.FolderInny(sk), Pre: "_inne/" + sk.Id + "/"))
+                    .Concat(KopiaSkladniki.FolderyModulow(DataRoot).Select(d => (Root: d, Pre: "_folder/" + Path.GetFileName(d) + "/"))).ToList();
+                foreach (var (root, pre) in inne)
+                {
+                    if (!Directory.Exists(root)) continue;
                     foreach (var f in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
                     {
-                        if (f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".part", StringComparison.OrdinalIgnoreCase)) continue;
-                        var key = "_inne/" + sk.Id + "/" + Path.GetRelativePath(root, f).Replace('\\', '/'); string stamp;
+                        if (f.StartsWith(own, StringComparison.OrdinalIgnoreCase) || !KopiaSkladniki.PlikModulu(Path.GetFileName(root), Path.GetRelativePath(root, f))) continue;   // nigdy kopii w kopii; bez dzienników i zapisów tego komputera
+                        var key = pre + Path.GetRelativePath(root, f).Replace('\\', '/'); string stamp;
                         try { var fi = new FileInfo(f); stamp = fi.Length + ":" + fi.LastWriteTimeUtc.Ticks; } catch (Exception) { continue; }
                         manifest.Add(key + "\t" + stamp); seen.Add(key);
                         if (prev != null && prev.TryGetValue(key, out var old) && old == stamp) continue;
@@ -207,6 +210,12 @@ namespace Velivo
                 if (sk == null) return null;
                 root = KopiaSkladniki.FolderInny(sk); rel = p[2];
             }
+            else if (key.StartsWith("_folder/", StringComparison.OrdinalIgnoreCase))
+            {   // folder programu obok danych (Procesor, Kursory, …) - tylko zwykła nazwa folderu, nigdy ścieżka
+                var p = key.Split(new[] { '/' }, 3);
+                if (p.Length != 3 || p[1].Length == 0 || p[1] == "." || p[1] == ".." || p[1].IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
+                root = Path.Combine(KopiaSkladniki.Lokal, p[1]); rel = p[2];
+            }
             var dest = Path.GetFullPath(Path.Combine(root, rel));
             return dest.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? dest : null;
         }
@@ -241,6 +250,7 @@ namespace Velivo
                     }
                     przen += PrzenosnaPrzywroc(zip, kluczP, map, bez);
                     RejestrPrzywroc(zip, map);
+                    AutostartPrzywroc(zip, map);
                     var del = zip.GetEntry("_usuniete.txt");   // przyrost: pliki usuniete od poprzedniej kopii
                     if (del != null)
                         using (var r = new StreamReader(del.Open()))

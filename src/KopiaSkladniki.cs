@@ -53,6 +53,31 @@ namespace Velivo
         internal static IEnumerable<string> Procesy(Skladnik s) => (s.Proc == null ? s.Uzywaja : new[] { s.Proc }.Concat(s.Uzywaja)).Distinct();
         internal static string Lokal => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Velivo");
         internal static string FolderInny(Skladnik s) => Path.Combine(Lokal, s.Inny);
+        // 🧩 pozostałe foldery programów Velivo (Procesor, Kursory i każdy nowy moduł) - w kopii same, bez zmian w programie kopii;
+        //    bez danych (osobno), dzienników i instalacji; „f:<folder>” w „bez” - wyłączony z kopii
+        internal static IEnumerable<string> FolderyModulow(string dane)
+        {
+            string[] dirs; try { dirs = Directory.GetDirectories(Lokal); } catch (Exception) { yield break; }
+            var znane = new HashSet<string>(Wszystkie.Where(x => x.Inny != null).Select(x => x.Inny), StringComparer.OrdinalIgnoreCase) { "Dane", "Poważne błędy", "Instalacja" };
+            foreach (var d in dirs)
+            {
+                var n = Path.GetFileName(d);
+                if (znane.Contains(n) || string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(dane).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) || !WKopii("f:" + n)) continue;
+                yield return d;
+            }
+        }
+        // plik folderu programu do kopii: bez plików tymczasowych, dzienników i zapisów tego komputera (przeniesione zepsułyby nowy komputer)
+        static readonly HashSet<string> TegoKomputera = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Procesor/windows-przed.txt", "Procesor/velivo-zapisy.txt", "Procesor/amd-fabryczne.txt",   // plan zasilania i limity BIOS tego komputera
+            "Monitor/internet-wylaczony.txt", "Kursory/poprzednie.txt"   // stan sieci do restartu, kursory Windows sprzed Velivo
+        };
+        internal static bool PlikModulu(string folder, string rel)
+        {
+            var r = rel.Replace('\\', '/'); var n = Path.GetFileName(r).ToLowerInvariant();
+            if (n.EndsWith(".tmp") || n.EndsWith(".part") || n.EndsWith(".log") || n == "bledy.txt") return false;
+            return !TegoKomputera.Contains(folder + "/" + r);
+        }
 
         // ustawienia kopii w rejestrze - te same w Velivo (🧹) i w Velivo Centrum
         const string Klucz = @"Software\Velivo\Kopia";

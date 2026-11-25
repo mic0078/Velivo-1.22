@@ -84,6 +84,27 @@ namespace Velivo
                             if (r != null) foreach (var n in r.GetValueNames()) if (n != "haslo") { var v = r.GetValue(n); w.WriteLine(sub + "\t" + n + "\t" + (v is int ? "d" : "s") + "\t" + v); }
                     }
                     catch (Exception) { }
+            // ▶ które programy Velivo startowały z Windows (wpis Run z folderu programu Velivo i przełącznik Menedżera zadań)
+            using (var w = new StreamWriter(zip.CreateEntry("_autostart.txt").Open()))
+                try
+                {
+                    using (var r = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                        if (r != null) foreach (var n in r.GetValueNames())
+                                if (r.GetValue(n) is string c && c.IndexOf(@"\Velivo", StringComparison.OrdinalIgnoreCase) >= 0 && StartZWindows.Wlaczony(n)) w.WriteLine(n + "\t" + c);
+                }
+                catch (Exception) { }
+        }
+        // ▶ start z Windows jak na starym komputerze - tylko programy, które są tu zainstalowane (ścieżki konta zamienione)
+        static void AutostartPrzywroc(ZipArchive zip, List<(string Old, string New)> map)
+        {
+            var e = zip.GetEntry("_autostart.txt"); if (e == null) return;
+            using (var r = new StreamReader(e.Open()))
+                for (string l; (l = r.ReadLine()) != null;)
+                {
+                    var t = l.Split(new[] { '\t' }, 2); if (t.Length != 2) continue;
+                    var c = Zamien(t[1], map); var q = c.TrimStart().StartsWith("\"") ? c.TrimStart().Substring(1).Split('"')[0] : c.Split(' ')[0];
+                    if (File.Exists(q)) StartZWindows.Ustaw(t[0], c);
+                }
         }
         static IEnumerable<(string, string)> Sciezki()
         {
@@ -119,7 +140,7 @@ namespace Velivo
             if (map.Count == 0 || !TekstoweExt.Contains(Path.GetExtension(file).ToLowerInvariant())) return;
             try { var fi = new FileInfo(file); if (fi.Length > 20L << 20) return; var t = File.ReadAllText(file); var z = Zamien(t, map); if (z != t) File.WriteAllText(file, z, new UTF8Encoding(false)); } catch (Exception) { }
         }
-        static bool PrzenosnyWpis(string name) => name.StartsWith("_przenosne/", StringComparison.OrdinalIgnoreCase) || name == "_sciezki.txt" || name == "_rejestr.txt";
+        static bool PrzenosnyWpis(string name) => name.StartsWith("_przenosne/", StringComparison.OrdinalIgnoreCase) || name == "_sciezki.txt" || name == "_rejestr.txt" || name == "_autostart.txt";
 
         // pliki konta: na tym samym koncie zostają jak są; na innym - z kopii zaszyfrowanej hasłem, szyfrowane od nowa kluczem tego konta
         static int PrzenosnaPrzywroc(ZipArchive zip, byte[] klucz, List<(string Old, string New)> map, List<string> bez)

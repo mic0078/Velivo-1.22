@@ -227,3 +227,15 @@ Telemetria Intel bez sterownika: `% Performance Limit` + `Performance Limit Flag
 - **Pewne (błędy do naprawy):** przywracanie fabrycznych limitów zamiast Turbo; ponowne ustawienie po wybudzeniu; koniec szpilek 28 W w Oszczędnym; brak stałego minimum zegaru.
 - **Prawdopodobne:** mniejszy pobór w lekkiej pracy (bez minimum 1,4 GHz), cichszy wentylator przy podobnej wydajności (Fast = Slow w Oszczędnym, Tctl jako regulator).
 - **Zależne od NUCBOX:** ile wydajności wielordzeniowej da wyższy budżet długotrwały – tylko jeśli dziś hamuje STAPM, a chłodzenie ma zapas. Jednordzeniowej wyższy limit mocy praktycznie nie zwiększy (jeden rdzeń mieści się w 15 W) [WIEDZA].
+
+## 10. Pomiary NUCBOX (2026-11-25, BIOS „Performance”, plan Windows „Maksymalna wydajność”, bez Velivo)
+
+Fabryczne (po restarcie): STAPM 15 W / okno 100 s, PPT Slow 20 W / okno 5 s, PPT Fast 22 W, TDC VDD 51 A, EDC VDD 105 A, Tctl 80 °C, STT brak czujnika (0). Defender – brak wykryć.
+
+| Test (16 wątków) | Ogranicznik | Pobór | Temperatura | Zegar (Menedżer zadań) | Wentylator |
+|---|---|---|---|---|---|
+| fabrycznie, 30 s | PPT Slow 20 W | 20 W | 67 °C | – | – |
+| fabrycznie, 60–120 s | **STAPM 15 W** | 15 W | 63 °C | ok. 2,68 GHz | – |
+| STAPM 20 W, 60–180 s | PPT Slow 20 W | 20 W | 70,4 → 71,6 °C (wolno rośnie) | ok. 3,0 GHz | stabilny |
+
+Wniosek: przy długiej pracy wielu rdzeni hamuje STAPM, temperatura ma zapas; STAPM 20 W (= fabryczny Slow) daje ok. +12 % zegaru wielu rdzeni przy ok. 8 °C zapasu do Tctl i stabilnym wentylatorze. Do potwierdzenia: test 10 min (czy temperatura się stabilizuje). Wyżej niż 20 W wymagałoby podniesienia PPT Slow i zostawia mniej zapasu temperatury – nieuzasadnione bez dalszego pomiaru.

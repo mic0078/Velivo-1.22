@@ -44,7 +44,13 @@ en.RunApp=Launch Velivo Procesor
 Name: "autostart"; Description: "{cm:Auto}"
 
 [Files]
-Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "RyzenAdj\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+; ⚡ RyzenAdj (moc AMD) - tylko na procesorach AMD; na Intelu zbędny (ma sterownik WinRing0, który Defender może oznaczać jako niebezpieczny)
+Source: "{#SrcDir}\RyzenAdj\*"; DestDir: "{app}\RyzenAdj"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Check: ProcesorAmd
+
+[InstallDelete]
+; Intel: RyzenAdj z poprzedniej wersji (instalowany wszędzie) - usuwany
+Type: filesandordirs; Name: "{app}\RyzenAdj"; Check: not ProcesorAmd
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\VelivoProcesor.exe"
@@ -70,6 +76,13 @@ Filename: "{app}\VelivoProcesor.exe"; Parameters: "--przywroc"; Flags: runhidden
 Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""Velivo Procesor"" /f"; Flags: runhidden; RunOnceId: "UsunZadanie"
 
 [Code]
+// procesor AMD - nazwa z rejestru (ta sama, którą czyta program)
+function ProcesorAmd: Boolean;
+var N: String;
+begin
+  Result := RegQueryStringValue(HKLM, 'HARDWARE\DESCRIPTION\System\CentralProcessor\0', 'ProcessorNameString', N) and (Pos('AMD', Uppercase(N)) > 0);
+end;
+
 // program działa przy zegarze bez okna - Windows nie umie go zamknąć sam (Odmowa dostępu przy podmianie pliku); zamykamy go przed kopiowaniem
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Code, I: Integer;

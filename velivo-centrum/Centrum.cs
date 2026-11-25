@@ -245,9 +245,8 @@ namespace VelivoCentrum
             t.Tick += (s, e) => { CpuTick(); if (win.IsVisible && !list.IsMouseOver && !list.Children.OfType<Border>().Any(b => b.Tag is ContextMenu bm && bm.IsOpen)) Fill(); };   // stan na żywo, gdy lista otwarta
             t.Start();
         }
-        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        static bool AutoOn() { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey)) return k?.GetValue("VelivoCentrum") != null; } catch (Exception) { return false; } }
-        static void SetAuto(bool on) { try { using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey)) { if (on) k.SetValue("VelivoCentrum", "\"" + ExePath + "\""); else k.DeleteValue("VelivoCentrum", false); } } catch (Exception) { } }
+        static bool AutoOn() => global::Velivo.StartZWindows.Wlaczony("VelivoCentrum");
+        static void SetAuto(bool on) => global::Velivo.StartZWindows.Ustaw("VelivoCentrum", on ? "\"" + ExePath + "\"" : null);
     }
 
     // dwa przyciski po równo (bez UniformGrid z zależnościami)

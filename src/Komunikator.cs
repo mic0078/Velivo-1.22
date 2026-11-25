@@ -3394,16 +3394,8 @@ namespace Velivo
         // ▶ osobny Komunikator: wpis „Velivo Komunikator” w autostarcie Windows (HKCU\Run, bez uprawnień administratora)
         internal static bool KomAutoStart
         {
-            get { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) return k?.GetValue("Velivo Komunikator") != null; } catch (Exception) { return false; } }
-            set
-            {
-                try
-                {
-                    using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
-                        if (value) k.SetValue("Velivo Komunikator", "\"" + Environment.ProcessPath + "\" --autostart"); else k.DeleteValue("Velivo Komunikator", false);
-                }
-                catch (Exception) { }
-            }
+            get => StartZWindows.Wlaczony("Velivo Komunikator");   // także przełącznik w Menedżerze zadań
+            set => StartZWindows.Ustaw("Velivo Komunikator", value ? "\"" + Environment.ProcessPath + "\" --autostart" : null);
         }
         void KomEnsureTray()
         {

@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Host.cs" />
+    <Compile Include="..\src\StartZWindows.cs" />
     <Compile Include="..\src\Komunikator*.cs" />
     <Compile Include="..\src\Lang.cs" />
     <Compile Include="..\src\WindowTheme.cs" />

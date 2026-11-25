@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="centrum.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="..\src\StartZWindows.cs" Link="StartZWindows.cs" />
     <Compile Include="..\src\KopiaSkladniki.cs" Link="KopiaSkladniki.cs" />
     <Reference Include="System.Management" />
     <Reference Include="System.IO.Compression" />

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using Microsoft.Win32;
 
 namespace Velivo
 {
@@ -9,7 +8,6 @@ namespace Velivo
     // z opoznieniem: system startuje szybciej, a Velivo wlacza sie po podanej liczbie sekund. Domyslnie wylaczone.
     public partial class MainWindow
     {
-        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string RunName = Wariant.Pid;   // 🧩 każdy program własny autostart (instalator: ValueName {#Pid})
         internal static readonly int[] AutostartDelays = { 0, 10, 30, 60, 120, 300 };
 
@@ -36,10 +34,9 @@ namespace Velivo
         {
             try
             {
-                using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
                 {
-                    var v = k?.GetValue(RunName) as string;
-                    if (string.IsNullOrEmpty(v)) return -1;
+                    var v = StartZWindows.Polecenie(RunName);
+                    if (string.IsNullOrEmpty(v) || !StartZWindows.Wlaczony(RunName)) return -1;   // wyłączony w Menedżerze zadań = nie startuje
                     var parts = new List<string>(v.Split(' '));
                     int d = TakeAutostartArg(parts);
                     return d < 0 ? 0 : d;
@@ -52,11 +49,7 @@ namespace Velivo
         {
             try
             {
-                using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
-                {
-                    if (on) k.SetValue(RunName, AutostartCommand(Environment.ProcessPath, delaySec));
-                    else if (k.GetValue(RunName) != null) k.DeleteValue(RunName, false);
-                }
+                StartZWindows.Ustaw(RunName, on ? AutostartCommand(Environment.ProcessPath, delaySec) : null);
             }
             catch (Exception ex) { App.LogError(ex); }
         }

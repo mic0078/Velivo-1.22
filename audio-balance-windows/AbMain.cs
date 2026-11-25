@@ -533,8 +533,8 @@ namespace Velivo
 
         static bool Autostart
         {
-            get { try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"); return k?.GetValue("VelivoAudioBalance") != null; } catch (Exception) { return false; } }
-            set { try { using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"); if (value) k.SetValue("VelivoAudioBalance", "\"" + Environment.ProcessPath + "\" --zasobnik"); else k.DeleteValue("VelivoAudioBalance", false); } catch (Exception ex) { App.LogError(ex); } }
+            get => StartZWindows.Wlaczony("VelivoAudioBalance");
+            set => StartZWindows.Ustaw("VelivoAudioBalance", value ? "\"" + Environment.ProcessPath + "\" --zasobnik" : null);
         }
 
         void BuildTray()

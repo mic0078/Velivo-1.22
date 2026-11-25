@@ -29,6 +29,7 @@
     <Compile Include="*.cs" />
     <Compile Include="Silnik\*.cs" />
     <!-- 🎚 jeden wspólny silnik dźwięku z Velivo (2026-11-19, właściciel: „zrób”) - poprawka DSP w jednym miejscu dla obu programów -->
+    <Compile Include="..\src\StartZWindows.cs" Link="StartZWindows.cs" />
     <Compile Include="..\src\AudioBalanceDsp.cs" Link="Silnik\AudioBalanceDsp.cs" />
     <Compile Include="..\src\AudioBalanceDynamics.cs" Link="Silnik\AudioBalanceDynamics.cs" />
     <Compile Include="..\src\AudioBalanceDynamicsUi.cs" Link="Silnik\AudioBalanceDynamicsUi.cs" />

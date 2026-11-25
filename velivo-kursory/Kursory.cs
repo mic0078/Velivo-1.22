@@ -259,9 +259,8 @@ namespace VelivoKursory
     sealed class Zasobnik : ApplicationContext
     {
         readonly NotifyIcon tray; Okno okno; readonly SynchronizationContextHolder sc = new SynchronizationContextHolder();
-        const string Run = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        static bool Auto() { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(Run)) return k?.GetValue("VelivoKursory") != null; } catch (Exception) { return false; } }
-        static void SetAuto(bool on) { try { using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(Run)) { if (on) k.SetValue("VelivoKursory", "\"" + Application.ExecutablePath + "\" --zasobnik"); else k.DeleteValue("VelivoKursory", false); } } catch (Exception) { } }
+        static bool Auto() => Velivo.StartZWindows.Wlaczony("VelivoKursory");
+        static void SetAuto(bool on) => Velivo.StartZWindows.Ustaw("VelivoKursory", on ? "\"" + Application.ExecutablePath + "\" --zasobnik" : null);
         public Zasobnik(System.Threading.EventWaitHandle pokaz, bool otworz)
         {
             tray = new NotifyIcon { Text = "Velivo Kursory", Visible = true };

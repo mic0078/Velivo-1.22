@@ -477,9 +477,8 @@ namespace VelivoMonitor
             if (res == null || res.StartsWith("BŁĄD") || now != off)
                 MessageBox.Show((off ? "Nie udało się wyłączyć internetu." : "Nie udało się włączyć internetu.") + "\nWynik zmiany zapory: " + (res ?? "brak (program z prawami administratora się nie uruchomił albo zablokował go antywirus)"), "Velivo Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        bool AutoOn() { try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("VelivoMonitor") != null; } catch (Exception) { return false; } }
-        void ToggleAuto() { try { using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey); if (AutoOn()) k.DeleteValue("VelivoMonitor", false); else k.SetValue("VelivoMonitor", "\"" + ExePath + "\""); } catch (Exception) { } }
+        bool AutoOn() => Velivo.StartZWindows.Wlaczony("VelivoMonitor");
+        void ToggleAuto() => Velivo.StartZWindows.Ustaw("VelivoMonitor", AutoOn() ? null : "\"" + ExePath + "\"");
         void Quit() { tray.Visible = false; tray.Dispose(); Application.Current.Shutdown(); }
 
         public void Start()

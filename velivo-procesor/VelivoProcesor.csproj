@@ -23,6 +23,7 @@
     <Reference Include="System.Management" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\src\StartZWindows.cs" Link="StartZWindows.cs" />
     <Compile Include="..\src\CentrumZasobnik.cs" Link="CentrumZasobnik.cs" />
   </ItemGroup>
   <ItemGroup>

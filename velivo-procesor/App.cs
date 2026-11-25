@@ -82,8 +82,8 @@ namespace VelivoProcesor
         internal static Action Zakoncz;
         internal static bool Autostart
         {
-            get { try { using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) return k?.GetValue("VelivoProcesor") != null || ZadanieJest(); } catch (Exception) { return false; } }
-            set { try { using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) { if (value) k.SetValue("VelivoProcesor", "\"" + ExePath + "\" --zasobnik"); else k.DeleteValue("VelivoProcesor", false); } } catch (Exception) { } }
+            get => Velivo.StartZWindows.Wlaczony("VelivoProcesor") || ZadanieJest();
+            set => Velivo.StartZWindows.Ustaw("VelivoProcesor", value ? "\"" + ExePath + "\" --zasobnik" : null);
         }
     }
 

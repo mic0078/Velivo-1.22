@@ -14,7 +14,7 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = zmiany
-        versionName = "1.22.$zmiany"
+        versionName = "1.23.$zmiany"
     }
     buildTypes {
         release {
